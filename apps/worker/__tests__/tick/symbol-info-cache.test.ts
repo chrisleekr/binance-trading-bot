@@ -49,7 +49,9 @@ describe('createSymbolInfoCache', () => {
   };
 
   it('returns symbol-info from the Redis cache without calling refresh', async () => {
-    const redis = stubRedis({ [buildSymbolInfoKey('BTCUSDT')]: JSON.stringify(symbolInfo) });
+    const redis = stubRedis({
+      [buildSymbolInfoKey('BTCUSDT', 'live')]: JSON.stringify(symbolInfo),
+    });
     const refresh = vi.fn(async () => undefined);
     const cache = createSymbolInfoCache({
       redis,
@@ -67,7 +69,9 @@ describe('createSymbolInfoCache', () => {
     // Entries are cast, not schema-parsed, and no migration rewrites them: a blob
     // written before the band existed must survive the read and present the field
     // as UNKNOWN, which every consumer treats as "impose no constraint".
-    const redis = stubRedis({ [buildSymbolInfoKey('BTCUSDT')]: JSON.stringify(symbolInfo) });
+    const redis = stubRedis({
+      [buildSymbolInfoKey('BTCUSDT', 'live')]: JSON.stringify(symbolInfo),
+    });
     const cache = createSymbolInfoCache({
       redis,
       logger: silentLogger,
@@ -94,7 +98,7 @@ describe('createSymbolInfoCache', () => {
         },
       },
     };
-    const redis = stubRedis({ [buildSymbolInfoKey('BTCUSDT')]: JSON.stringify(banded) });
+    const redis = stubRedis({ [buildSymbolInfoKey('BTCUSDT', 'live')]: JSON.stringify(banded) });
     const cache = createSymbolInfoCache({
       redis,
       logger: silentLogger,
@@ -111,7 +115,7 @@ describe('createSymbolInfoCache', () => {
     const redis = stubRedis();
     const refresh = vi.fn(async () => {
       // simulate the refresher writing the key
-      redis.data.set(buildSymbolInfoKey('BTCUSDT'), JSON.stringify(symbolInfo));
+      redis.data.set(buildSymbolInfoKey('BTCUSDT', 'live'), JSON.stringify(symbolInfo));
     });
     const cache = createSymbolInfoCache({
       redis,
@@ -170,7 +174,7 @@ describe('createSymbolInfoCache', () => {
 
     it('keeps live and test entries independent — a live hit never serves a test get', async () => {
       const redis = stubRedis({
-        [buildSymbolInfoKey('BTCUSDT')]: JSON.stringify(symbolInfo),
+        [buildSymbolInfoKey('BTCUSDT', 'live')]: JSON.stringify(symbolInfo),
         [buildSymbolInfoKey('BTCUSDT', 'test')]: JSON.stringify(testnetInfo),
       });
       const refresh = vi.fn(async () => undefined);
@@ -187,7 +191,9 @@ describe('createSymbolInfoCache', () => {
     });
 
     it('defaults to the live keyspace when mode is omitted', async () => {
-      const redis = stubRedis({ [buildSymbolInfoKey('BTCUSDT')]: JSON.stringify(symbolInfo) });
+      const redis = stubRedis({
+        [buildSymbolInfoKey('BTCUSDT', 'live')]: JSON.stringify(symbolInfo),
+      });
       const cache = createSymbolInfoCache({
         redis,
         logger: silentLogger,
@@ -251,7 +257,9 @@ describe('createSymbolInfoCache', () => {
     });
 
     it('serves the second call from the in-process cache without hitting Redis', async () => {
-      const redis = stubRedis({ [buildSymbolInfoKey('BTCUSDT')]: JSON.stringify(symbolInfo) });
+      const redis = stubRedis({
+        [buildSymbolInfoKey('BTCUSDT', 'live')]: JSON.stringify(symbolInfo),
+      });
       const refresh = vi.fn(async () => undefined);
       const cache = createSymbolInfoCache({
         redis,
@@ -270,7 +278,9 @@ describe('createSymbolInfoCache', () => {
     it('refetches from Redis after the TTL elapses', async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date('2026-05-28T00:00:00Z'));
-      const redis = stubRedis({ [buildSymbolInfoKey('BTCUSDT')]: JSON.stringify(symbolInfo) });
+      const redis = stubRedis({
+        [buildSymbolInfoKey('BTCUSDT', 'live')]: JSON.stringify(symbolInfo),
+      });
       const cache = createSymbolInfoCache({
         redis,
         logger: silentLogger,
@@ -292,7 +302,7 @@ describe('createSymbolInfoCache', () => {
     it('caches the refresh-path payload so the next tick is also cache-hot', async () => {
       const redis = stubRedis();
       const refresh = vi.fn(async () => {
-        redis.data.set(buildSymbolInfoKey('BTCUSDT'), JSON.stringify(symbolInfo));
+        redis.data.set(buildSymbolInfoKey('BTCUSDT', 'live'), JSON.stringify(symbolInfo));
       });
       const cache = createSymbolInfoCache({
         redis,
@@ -332,7 +342,9 @@ describe('createSymbolInfoCache', () => {
     });
 
     it('isolates the cache to one instance (worker restart re-warms)', async () => {
-      const redis = stubRedis({ [buildSymbolInfoKey('BTCUSDT')]: JSON.stringify(symbolInfo) });
+      const redis = stubRedis({
+        [buildSymbolInfoKey('BTCUSDT', 'live')]: JSON.stringify(symbolInfo),
+      });
       const refresh = vi.fn(async () => undefined);
 
       const cacheA = createSymbolInfoCache({
@@ -444,7 +456,7 @@ describe('createSymbolInfoCache', () => {
       const refresh = vi.fn(async () => {
         // Operator re-lists on Binance after the first (absent) refresh.
         if (relisted) {
-          redis.data.set(buildSymbolInfoKey('RELISTUSDT'), JSON.stringify(symbolInfo));
+          redis.data.set(buildSymbolInfoKey('RELISTUSDT', 'live'), JSON.stringify(symbolInfo));
         }
       });
       const cache = createSymbolInfoCache({

@@ -129,7 +129,7 @@ describe('buildTickHandler — override row claim deps', () => {
     // Stamping `processing_at` is what makes the row undeletable by the cancel route,
     // and it stamps the CALLER's value: a database-side `now()` would leave the tick
     // unable to name the stamp its release has to be fenced on.
-    expect(updates[0]?.values.processingAt).toBe(CLAIM_AT);
+    expect(updates[0]?.values['processingAt']).toBe(CLAIM_AT);
   });
 
   it('reports a lost claim rather than swallowing it', async () => {

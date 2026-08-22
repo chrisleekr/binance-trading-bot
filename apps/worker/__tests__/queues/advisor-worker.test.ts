@@ -89,7 +89,13 @@ function harness() {
   return { queueSet, invoke };
 }
 
-const JOB: AdvisorJobData = { runId: 'r1', userId: 'u1', profileId: 'p1', variant: 'safe' };
+const JOB: AdvisorJobData = {
+  runId: 'r1',
+  userId: 'u1',
+  accountId: 'a1',
+  profileId: 'p1',
+  variant: 'safe',
+};
 
 beforeEach(() => {
   for (const m of Object.values(repoMocks)) m.mockClear();

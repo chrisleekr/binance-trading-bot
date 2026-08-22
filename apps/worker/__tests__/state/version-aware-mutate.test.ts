@@ -17,6 +17,8 @@ import {
   mergeLatchFieldsOnCasMiss,
   mutateSymbolState,
   type LatchMergeStrategy,
+  type PersistSymbolState,
+  type SymbolStateStrategyShape,
 } from '../../src/state/version-aware-mutate.js';
 import type { SymbolStateRowView } from '../../src/tick/snapshot-loader.js';
 import { buildSymbolStateKey } from '../../src/executor/redis-namespace.js';
@@ -81,11 +83,11 @@ const stratWith = (
     migrateState: (input: { fromVersion: string; state: unknown }) => unknown;
     initialState: (cfg: unknown) => unknown;
   }> = {},
-) => ({
+): SymbolStateStrategyShape => ({
   name: 'trailing-trade',
   version,
   initialState: extras.initialState ?? (() => ({ schemaVersion: version })),
-  migrateState: extras.migrateState,
+  ...(extras.migrateState === undefined ? {} : { migrateState: extras.migrateState }),
 });
 
 describe('mutateSymbolState', () => {
@@ -104,7 +106,7 @@ describe('mutateSymbolState', () => {
       },
     );
 
-    const persistSymbolState = vi.fn(async () => true);
+    const persistSymbolState = vi.fn<PersistSymbolState>(async () => true);
     const registry = { get: vi.fn(() => stratWith('1.1.0', { migrateState: vi.fn() })) };
 
     await mutateSymbolState(
@@ -131,7 +133,7 @@ describe('mutateSymbolState', () => {
       { state: { schemaVersion: '1.0.0', lastBuyPrice: null }, strategyVersion: '1.0.0' },
     );
 
-    const persistSymbolState = vi.fn(async () => true);
+    const persistSymbolState = vi.fn<PersistSymbolState>(async () => true);
     const migrateState = vi.fn(({ state }) => ({
       ...(state as Record<string, unknown>),
       schemaVersion: '1.1.0',
@@ -164,7 +166,7 @@ describe('mutateSymbolState', () => {
     const { redis } = makeRedis();
     const scope = makeScope({ strategyName: 'trailing-trade', config: { foo: 'bar' } }, null);
 
-    const persistSymbolState = vi.fn(async () => true);
+    const persistSymbolState = vi.fn<PersistSymbolState>(async () => true);
     const initialState = vi.fn((cfg: unknown) => ({
       schemaVersion: '1.1.0',
       config: cfg,
@@ -214,7 +216,7 @@ describe('mutateSymbolState', () => {
       { state: { schemaVersion: '1.0.0' }, strategyVersion: '1.0.0' },
     );
 
-    const persistSymbolState = vi.fn(async () => true);
+    const persistSymbolState = vi.fn<PersistSymbolState>(async () => true);
     const migrateState = vi.fn(({ state }) => ({
       ...(state as Record<string, unknown>),
       schemaVersion: '1.1.0',
@@ -244,7 +246,7 @@ describe('mutateSymbolState', () => {
       { state: { schemaVersion: '1.1.0', lastBuyPrice: '10' }, strategyVersion: '1.1.0' },
     );
 
-    const persistSymbolState = vi.fn(async () => true);
+    const persistSymbolState = vi.fn<PersistSymbolState>(async () => true);
     const registry = { get: vi.fn(() => stratWith('1.1.0')) };
 
     await mutateSymbolState(
@@ -335,7 +337,7 @@ describe('mutateSymbolState', () => {
       },
     };
 
-    const persistSymbolState = vi.fn(async () => true);
+    const persistSymbolState = vi.fn<PersistSymbolState>(async () => true);
     const registry = { get: vi.fn(() => stratWith('1.1.0')) };
 
     await Promise.all([
@@ -509,8 +511,8 @@ describe('commitSymbolStateForTick', () => {
   it('records state_commit_persist_timeout when the persist exceeds the deadline', async () => {
     const { redis, rs } = makeRedis();
     // Resolves well after the deadline; the race resolves on the timer.
-    const persistSymbolState = vi.fn(
-      () => new Promise<void>((resolve) => setTimeout(resolve, 200)),
+    const persistSymbolState = vi.fn<PersistSymbolState>(
+      () => new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 200)),
     );
     const record = vi.fn();
 
@@ -688,7 +690,7 @@ describe('mergeLatchFieldsOnCasMiss', () => {
   it('grafts the tick latch onto the winner and CAS-writes on the winner version', async () => {
     const { redis } = makeRedis();
     const coldLoad = { loadSymbolState: vi.fn(async () => winnerRow()) };
-    const persistSymbolState = vi.fn(async () => true);
+    const persistSymbolState = vi.fn<PersistSymbolState>(async () => true);
     const metrics = { record: vi.fn(), forget: vi.fn() };
 
     const ok = await mergeLatchFieldsOnCasMiss(

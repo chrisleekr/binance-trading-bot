@@ -17,7 +17,7 @@ import { pino } from 'pino';
 import type { Redis } from 'ioredis';
 import type { BinanceRestClient } from '@app/binance';
 import type { NotifyProviderRegistry } from '@app/notify';
-import type { Decision, ExecutorContext, StrategyRegistry } from '@app/strategy-core';
+import type { Decision, StrategyRegistry, TickExecutorContext } from '@app/strategy-core';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 
 import {
@@ -30,7 +30,12 @@ import type { ProfilePersistence } from '../../src/profile-bindings/persistence.
 const USER = asUserId('00000000-0000-0000-0000-0000000000aa');
 const PROFILE = asProfileId('00000000-0000-0000-0000-0000000000bb');
 const ACCOUNT = asAccountId('00000000-0000-0000-0000-0000000000cc');
-const CTX: ExecutorContext = { userId: USER, profileId: PROFILE, clock: { nowMs: () => 0 } };
+const CTX: TickExecutorContext = {
+  userId: USER,
+  profileId: PROFILE,
+  clock: { nowMs: () => 0 },
+  strategyName: 'trailing-trade',
+};
 
 // The position, entirely locked by our own resting stop: free 0, locked 189.87.
 const ACCOUNT_INFO = JSON.stringify({
@@ -126,7 +131,7 @@ const buildExecutor = (bindings: ProfileExecutorBindings, redis: Redis) =>
     strategies: {} as unknown as StrategyRegistry,
     logger: pino({ level: 'silent' }),
     resolveProfile: async () => bindings,
-    notifierGapThrottle: { allow: async () => true },
+    notifierGapThrottle: { allow: async () => true, release: async () => undefined },
   });
 
 const fakeBinance = (over: Partial<BinanceRestClient> = {}): BinanceRestClient =>

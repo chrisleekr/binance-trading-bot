@@ -232,7 +232,9 @@ describe('StatePort load handle commit', () => {
 
 // A strategy that stamps a latch field via mergeConcurrent — the CAS-miss
 // reconcile the state-port dispatches on a tick commit that lost the version.
-const latchStrategy = (mergeConcurrent: ReturnType<typeof vi.fn>): SymbolStateStrategyShape => ({
+const latchStrategy = (
+  mergeConcurrent: NonNullable<SymbolStateStrategyShape['mergeConcurrent']>,
+): SymbolStateStrategyShape => ({
   name: 'trailing-trade',
   version: '1.1.0',
   initialState: () => ({ schemaVersion: '1.1.0', seeded: true }),
@@ -251,7 +253,7 @@ describe('StatePort commit CAS-miss latch merge dispatch', () => {
     // Tick commit CAS-misses (persist #1 false), so the port re-reads the winner
     // and merges; the merged write (persist #2) lands.
     const persistSymbolState = vi
-      .fn<() => Promise<boolean>>()
+      .fn<StatePortDeps['persistSymbolState']>()
       .mockResolvedValueOnce(false)
       .mockResolvedValue(true);
     const mergeConcurrent = vi.fn(({ base, latchSource }) => ({
@@ -283,7 +285,7 @@ describe('StatePort commit CAS-miss latch merge dispatch', () => {
     // genuine persist error (dropped connection). commit must still resolve — a
     // reject would DLQ + re-run the tick. The latch is dropped, tick continues.
     const persistSymbolState = vi
-      .fn<() => Promise<boolean>>()
+      .fn<StatePortDeps['persistSymbolState']>()
       .mockResolvedValueOnce(false)
       .mockRejectedValue(new Error('pg connection dropped'));
     const mergeConcurrent = vi.fn(({ base }) => ({ ...(base as object), latch: 1 }));

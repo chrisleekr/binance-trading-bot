@@ -28,7 +28,18 @@ const fakeLogger = () => ({ warn: vi.fn() }) as unknown as Logger;
 describe('createNotifierGapThrottle', () => {
   it('allows when Redis SET NX succeeds and suppresses when it is already set', async () => {
     // 'OK' → key was absent (window opened); null → key present (suppressed).
-    const set = vi.fn<Redis['set']>().mockResolvedValueOnce('OK').mockResolvedValue(null);
+    const set = vi
+      .fn<
+        (
+          key: string,
+          value: string,
+          mode: 'PX',
+          ttl: number,
+          condition: 'NX',
+        ) => Promise<'OK' | null>
+      >()
+      .mockResolvedValueOnce('OK')
+      .mockResolvedValue(null);
     const redis = { set } as unknown as Redis;
     const t = createNotifierGapThrottle({ redis, logger: fakeLogger(), windowMs: 1000 });
 

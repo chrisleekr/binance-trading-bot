@@ -165,7 +165,10 @@ describe('auditPersistBatch', () => {
     );
     vi.spyOn(repo.actionLogs, 'insertMany').mockRejectedValue(drizzleErr);
 
-    const thrown = await auditPersistBatch(fakeDb())([entry(['place-order'])]).catch(
+    const thrown = await auditPersistBatch(fakeDb())([entry(['place-order'])]).then(
+      () => {
+        throw new Error('expected the batch to reject');
+      },
       (e: unknown) => e as Error,
     );
 
@@ -194,7 +197,10 @@ describe('auditPersistBatch', () => {
     vi.spyOn(repo.actionLogs, 'insertMany').mockRejectedValue(
       Object.assign(new Error('null value in column "symbol"'), { code: '23502' }),
     );
-    const thrown = await auditPersistBatch(fakeDb())([entry(['place-order'])]).catch(
+    const thrown = await auditPersistBatch(fakeDb())([entry(['place-order'])]).then(
+      () => {
+        throw new Error('expected the batch to reject');
+      },
       (e: unknown) => e as Error,
     );
     expect(thrown.message).toContain('sqlstate 23502');
@@ -203,7 +209,10 @@ describe('auditPersistBatch', () => {
 
   it('reports an unclassifiable rejection as unknown, leaving the gate to fail closed', async () => {
     vi.spyOn(repo.actionLogs, 'insertMany').mockRejectedValue(new Error('socket hang up'));
-    const thrown = await auditPersistBatch(fakeDb())([entry(['place-order'])]).catch(
+    const thrown = await auditPersistBatch(fakeDb())([entry(['place-order'])]).then(
+      () => {
+        throw new Error('expected the batch to reject');
+      },
       (e: unknown) => e as Error,
     );
     expect(thrown.message).toContain('sqlstate unknown');

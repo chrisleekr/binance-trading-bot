@@ -55,7 +55,10 @@ const makeDeps = (opts: { client?: null; trades?: MyTradeDto[]; adoptThrowsOn?: 
   const resolveBinanceClient = vi.fn(async () =>
     opts.client === null ? null : ({ getMyTrades } as unknown as never),
   );
-  const fillAdopter: FillAdopter = { adopt };
+  const fillAdopter: FillAdopter = {
+    adopt,
+    reconcileDetachedFill: vi.fn(async () => undefined),
+  };
   const deps = {
     db: {} as never,
     resolveBinanceClient,

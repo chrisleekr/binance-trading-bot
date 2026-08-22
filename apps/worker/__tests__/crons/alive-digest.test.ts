@@ -4,7 +4,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import type { Logger } from 'pino';
-import type { NotifyProviderRegistry } from '@app/notify';
+import type { AnyNotifyProvider, NotifyProviderRegistry } from '@app/notify';
 
 import { createAliveDigest } from '../../src/crons/alive-digest.js';
 import type { NotifierRowInput } from '../../src/notifiers/lookup.js';
@@ -43,6 +43,7 @@ describe('createAliveDigest', () => {
       resolveBinance,
       listNotifiers: async () => [],
       isEventEnabled: async () => true,
+      resolveProfileName: async () => null,
       notifyRegistry: { get: () => undefined } as unknown as NotifyProviderRegistry,
     })(profile);
     // No notifiers → no point spending a Binance call.
@@ -56,6 +57,7 @@ describe('createAliveDigest', () => {
       resolveBinance,
       listNotifiers: async () => [notifierRow()],
       isEventEnabled: async () => false,
+      resolveProfileName: async () => null,
       notifyRegistry: { get: () => undefined } as unknown as NotifyProviderRegistry,
     })(profile);
     // Muted → no notifier resolution and no Binance call.
@@ -69,6 +71,7 @@ describe('createAliveDigest', () => {
       resolveBinance,
       listNotifiers: async () => [notifierRow({ enabled: false })],
       isEventEnabled: async () => true,
+      resolveProfileName: async () => null,
       notifyRegistry: { get: () => undefined } as unknown as NotifyProviderRegistry,
     })(profile);
     expect(resolveBinance).not.toHaveBeenCalled();
@@ -81,6 +84,7 @@ describe('createAliveDigest', () => {
       resolveBinance: async () => null,
       listNotifiers: async () => [notifierRow()],
       isEventEnabled: async () => true,
+      resolveProfileName: async () => null,
       notifyRegistry: {
         get: () => ({ name: 'slack', send }),
       } as unknown as NotifyProviderRegistry,
@@ -89,7 +93,7 @@ describe('createAliveDigest', () => {
   });
 
   it('sends a digest of non-zero balances to each configured notifier', async () => {
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     await createAliveDigest({
       logger: stubLogger,
       resolveBinance: async () =>
@@ -107,20 +111,13 @@ describe('createAliveDigest', () => {
     })(profile);
 
     expect(send).toHaveBeenCalledTimes(1);
-    const arg = send.mock.calls[0]?.[0] as {
-      config: unknown;
-      message: {
-        topic: string;
-        title: string;
-        profile: string;
-        fields: { label: string; value: string }[];
-      };
-    };
+    const arg = send.mock.calls[0]?.[0];
+    if (!arg) throw new Error('expected one notification');
     expect(arg.message.topic).toBe('alive');
     expect(arg.message.title).toBe('Periodic summary');
     expect(arg.message.profile).toBe('RealNet-Momentum');
     // The zero-balance USDT row is dropped; BTC (free) and ETH (locked, total 2) stay.
-    const holdings = arg.message.fields.find((f) => f.label === 'Holdings')?.value;
+    const holdings = arg.message.fields?.find((f) => f.label === 'Holdings')?.value;
     expect(holdings).toBe('0.5 BTC, 2 ETH');
     // config + secrets merged for the provider.
     expect(arg.config).toMatchObject({
@@ -130,7 +127,7 @@ describe('createAliveDigest', () => {
   });
 
   it('caps the holdings list with "+N more" and omits the profile when the name is unresolved', async () => {
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     // Eight held assets: HOLDINGS_CAP is 6, so two collapse into "+2 more".
     const balances = Array.from({ length: 8 }, (_, i) => ({
       asset: `A${i}`,
@@ -148,10 +145,9 @@ describe('createAliveDigest', () => {
       } as unknown as NotifyProviderRegistry,
     })(profile);
 
-    const message = send.mock.calls[0]?.[0] as {
-      message: { profile?: string; fields: { label: string; value: string }[] };
-    };
+    const message = send.mock.calls[0]?.[0];
+    if (!message) throw new Error('expected one notification');
     expect(message.message.profile).toBeUndefined();
-    expect(message.message.fields.find((f) => f.label === 'Holdings')?.value).toContain('+2 more');
+    expect(message.message.fields?.find((f) => f.label === 'Holdings')?.value).toContain('+2 more');
   });
 });

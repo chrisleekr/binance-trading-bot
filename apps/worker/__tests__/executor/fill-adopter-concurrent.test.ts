@@ -16,7 +16,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
-import { asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import { trailingTradePositionAdapter } from '@app/strategy-trailing-trade';
 
 import { createFillAdopter } from '../../src/executor/fill-adopter.js';
@@ -75,6 +75,7 @@ vi.mock('@app/db', async (importOriginal) => {
 const silentLogger = new Proxy({} as Logger, { get: () => () => undefined }) as Logger;
 
 const USER_ID = asUserId('00000000-0000-0000-0000-000000000001');
+const ACCOUNT_ID = asAccountId('00000000-0000-0000-0000-000000000003');
 const PROFILE_ID = asProfileId('00000000-0000-0000-0000-000000000002');
 
 const makeRedisStub = (): { redis: Redis; store: Map<string, unknown> } => {
@@ -127,7 +128,7 @@ const makeAdopter = () => {
       _v: string,
       _expectedVersion: number | null,
     ): Promise<boolean> => {
-      store.set(buildSymbolStateKey(USER_ID, PROFILE_ID, sym), JSON.stringify(next));
+      store.set(buildSymbolStateKey(ACCOUNT_ID, PROFILE_ID, sym), JSON.stringify(next));
       repoMocks.persistSymbolState(sym, next);
       return true;
     },
@@ -165,6 +166,12 @@ const makeAdopter = () => {
     logger: silentLogger,
     statePort,
     registry,
+    pipelineQueue: { add: vi.fn() } as unknown as Parameters<
+      typeof createFillAdopter
+    >[0]['pipelineQueue'],
+    symbolInfo: {
+      get: vi.fn(async () => ({ baseAsset: 'BTC', filters: { stepSize: '0.00000001' } })),
+    } as unknown as Parameters<typeof createFillAdopter>[0]['symbolInfo'],
   });
   return { adopter, store, persistSymbolState };
 };
@@ -248,7 +255,8 @@ const FIXTURES: readonly SymbolFixture[] = [
 ];
 
 const mkFill = (f: SymbolFixture) => ({
-  userId: USER_ID,
+  operatorId: USER_ID,
+  accountId: ACCOUNT_ID,
   profileId: PROFILE_ID,
   symbol: f.symbol,
   orderId: f.orderId,
@@ -315,7 +323,7 @@ describe('createFillAdopter — 3-symbol concurrent BUYs (per-(profile, symbol) 
     // adopt: a global-write bug would land the last-written marker on
     // every key.
     for (const f of FIXTURES) {
-      const key = buildSymbolStateKey(USER_ID, PROFILE_ID, f.symbol);
+      const key = buildSymbolStateKey(ACCOUNT_ID, PROFILE_ID, f.symbol);
       const body = JSON.parse(String(store.get(key))) as Record<string, unknown>;
       expect(body['marker']).toBe(f.symbol);
       expect(body['avgEntryPrice']).toBe(f.expectedLbp);

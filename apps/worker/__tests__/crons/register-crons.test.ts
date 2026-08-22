@@ -187,7 +187,9 @@ const buildCrons = (overrides?: Partial<Record<string, Partial<CronDef>>>): read
         listActive: () => [],
         resolveBinance: vi.fn(async () => null),
         persistAccount: vi.fn(async () => undefined),
+        persistAccountPermissions: vi.fn(async () => undefined),
         lastWsEventMs: vi.fn(async () => null),
+        accountInfoExists: vi.fn(async () => false),
       }),
     }),
     defineCron({
@@ -204,6 +206,7 @@ const buildCrons = (overrides?: Partial<Record<string, Partial<CronDef>>>): read
         finalize: vi.fn(async () => true),
         releaseClaim: vi.fn(async () => undefined),
         reapStaleProcessing: vi.fn(async () => 0),
+        reapExpiredOverrides: vi.fn(async () => ({ expired: 0, unresolved: [] })),
       }),
     }),
     defineCron({
@@ -215,12 +218,13 @@ const buildCrons = (overrides?: Partial<Record<string, Partial<CronDef>>>): read
         listActive: () => [],
         resolveBinance: vi.fn(async () => null),
         listTrackedLiveOrderIds: vi.fn(async () => []),
+        confirmPersistedOrphans: vi.fn(async () => []),
         computeNewOrphans: vi.fn(async () => []),
         commitAlerted: vi.fn(async () => undefined),
-        resolveNotifiers: vi.fn(async () => []),
-        notifyProviders: { get: () => undefined } as unknown as Parameters<
-          typeof orphanOrdersDetectHandler
-        >[0]['notifyProviders'],
+        writeSnapshot: vi.fn(async () => undefined),
+        nowMs: () => 1_700_000_000_000,
+        accountNotify: vi.fn(async (input) => input.events.map(() => 'delivered' as const)),
+        recordNotifyGap: vi.fn(async () => undefined),
       }),
     }),
   ];
@@ -293,16 +297,17 @@ describe('registerCrons', () => {
 
     await registerCrons({ queueSet: stub.queueSet, logger: silentLogger, redis: opsRedis, crons });
     const listeners = stub.workerListeners['technicals-compute'];
-    if (!listeners?.completed || !listeners.failed) throw new Error('listeners not attached');
+    if (!listeners?.['completed'] || !listeners['failed'])
+      throw new Error('listeners not attached');
 
     // A 5s run leaves 25s of the 30s period → next is delayed 25s.
-    listeners.completed({ processedOn: 1_000, finishedOn: 6_000 });
+    listeners['completed']({ processedOn: 1_000, finishedOn: 6_000 });
     // A run that overruns the period collapses to back-to-back (delay 0).
-    listeners.completed({ processedOn: 1_000, finishedOn: 41_000 });
+    listeners['completed']({ processedOn: 1_000, finishedOn: 41_000 });
     // A terminal failure (retry budget spent) still re-arms so the loop cannot
     // silently stop. technicals-compute uses attempts 1, so the first failure is
     // terminal.
-    listeners.failed({
+    listeners['failed']({
       processedOn: 1_000,
       finishedOn: 2_000,
       attemptsMade: 1,
@@ -328,10 +333,10 @@ describe('registerCrons', () => {
       metrics,
     });
     const listeners = stub.workerListeners['technicals-compute'];
-    if (!listeners?.completed) throw new Error('completed listener not attached');
+    if (!listeners?.['completed']) throw new Error('completed listener not attached');
 
     // 40s of work against the 30s period technicals-compute is defined with.
-    listeners.completed({ processedOn: 1_000, finishedOn: 41_000 });
+    listeners['completed']({ processedOn: 1_000, finishedOn: 41_000 });
 
     expect(metrics.record).toHaveBeenCalledWith(CRON_OVERRUN, 1, { cron: 'technicals-compute' });
     expect(metrics.record).toHaveBeenCalledTimes(1);
@@ -364,10 +369,10 @@ describe('registerCrons', () => {
       metrics,
     });
     const listeners = stub.workerListeners['technicals-compute'];
-    if (!listeners?.completed) throw new Error('completed listener not attached');
+    if (!listeners?.['completed']) throw new Error('completed listener not attached');
 
     // 5s of work against the same 30s period.
-    listeners.completed({ processedOn: 1_000, finishedOn: 6_000 });
+    listeners['completed']({ processedOn: 1_000, finishedOn: 6_000 });
 
     expect(metrics.record).not.toHaveBeenCalled();
   });
@@ -381,10 +386,10 @@ describe('registerCrons', () => {
 
     await registerCrons({ queueSet: stub.queueSet, logger: silentLogger, redis: opsRedis, crons });
     const listeners = stub.workerListeners['technicals-compute'];
-    if (!listeners?.failed) throw new Error('failed listener not attached');
+    if (!listeners?.['failed']) throw new Error('failed listener not attached');
 
     // attemptsMade 1 of 3 → BullMQ will retry → must NOT re-arm.
-    listeners.failed({
+    listeners['failed']({
       processedOn: 1_000,
       finishedOn: 2_000,
       attemptsMade: 1,
@@ -393,7 +398,7 @@ describe('registerCrons', () => {
     expect(stub.added.filter((a) => a.queue === 'technicals-compute')).toHaveLength(0);
 
     // The terminal attempt re-arms exactly once.
-    listeners.failed({
+    listeners['failed']({
       processedOn: 1_000,
       finishedOn: 2_000,
       attemptsMade: 3,

@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';
-import { BinanceApiError } from '@app/binance';
+import { BinanceApiError, type BinanceRestClient } from '@app/binance';
 
 import {
   detachedOrdersReconcileHandler,
@@ -149,11 +149,12 @@ describe('detachedOrdersReconcileHandler', () => {
     // The client cache is keyed by account precisely because a detached row can
     // only be settled with ITS OWN account's key pair — querying account B's order
     // with account A's credentials returns -2013 and would close a live order.
-    const getOrderA = vi.fn(async () => orderDto({ orderId: 10 }));
-    const getOrderB = vi.fn(async () => orderDto({ orderId: 20 }));
-    const resolveBinance = vi.fn(async (_operatorId: unknown, accountId: unknown) =>
-      accountId === ACC_A ? { getOrder: getOrderA } : { getOrder: getOrderB },
-    ) as unknown as DetachedOrdersReconcileDeps['resolveBinance'];
+    const getOrderA = vi.fn<BinanceRestClient['getOrder']>(async () => orderDto({ orderId: 10 }));
+    const getOrderB = vi.fn<BinanceRestClient['getOrder']>(async () => orderDto({ orderId: 20 }));
+    const resolveBinance = vi.fn<DetachedOrdersReconcileDeps['resolveBinance']>(
+      async (_operatorId, accountId) =>
+        accountId === ACC_A ? { getOrder: getOrderA } : { getOrder: getOrderB },
+    );
     await detachedOrdersReconcileHandler(
       mkDeps({
         listLiveDetached: async () => [
@@ -165,10 +166,7 @@ describe('detachedOrdersReconcileHandler', () => {
       }),
     )(job);
     // One resolve per DISTINCT account (the cache works)...
-    expect((resolveBinance as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[1])).toEqual([
-      ACC_A,
-      ACC_B,
-    ]);
+    expect(resolveBinance.mock.calls.map((c) => c[1])).toEqual([ACC_A, ACC_B]);
     // ...and each account's rows go to that account's client, never the other's.
     expect(getOrderA).toHaveBeenCalledTimes(2);
     expect(getOrderB).toHaveBeenCalledTimes(1);

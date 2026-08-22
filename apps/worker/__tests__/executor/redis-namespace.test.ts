@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asAccountId, asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId } from '@app/contracts';
 import {
   buildAccountInfoKey,
   buildDisableActionKey,
@@ -18,21 +18,25 @@ describe('catalogued profile key builders', () => {
   // These builders are thin wrappers over `@app/db`'s `profileKey`; the
   // assertions pin the worker-side bytes so a catalogue suffix change cannot
   // silently desync the worker writer from the projection / API reader.
-  const userId = asUserId('user-1');
+  const accountId = asAccountId('user-1');
   const profileId = asProfileId('profile-1');
   const prefix = 'tenant:user-1:profile:profile-1:';
 
   it('produce the tenant-prefixed key for each catalogue entry', () => {
-    expect(buildKillSwitchKey(userId, profileId)).toBe(`${prefix}kill-switch`);
-    expect(buildSymbolStateKey(userId, profileId, 'BTCUSDT')).toBe(`${prefix}symbol-state:BTCUSDT`);
-    expect(buildOrderRefusalKey(userId, profileId, 'BTCUSDT')).toBe(
+    expect(buildKillSwitchKey(accountId, profileId)).toBe(`${prefix}kill-switch`);
+    expect(buildSymbolStateKey(accountId, profileId, 'BTCUSDT')).toBe(
+      `${prefix}symbol-state:BTCUSDT`,
+    );
+    expect(buildOrderRefusalKey(accountId, profileId, 'BTCUSDT')).toBe(
       `${prefix}order-refusal:BTCUSDT`,
     );
-    expect(buildProfileTickMetaKey(userId, profileId)).toBe(`${prefix}profile-tick-meta`);
-    expect(buildAccountInfoKey(userId, profileId)).toBe(`${prefix}account-info`);
-    expect(buildDustEligibleKey(userId, profileId)).toBe(`${prefix}dust-eligible`);
-    expect(buildUserStreamEventKey(userId, profileId)).toBe(`${prefix}user-stream:last-event`);
-    expect(buildWeightKey(userId, profileId, 29_142_001)).toBe(`${prefix}binance:weight:29142001`);
+    expect(buildProfileTickMetaKey(accountId, profileId)).toBe(`${prefix}profile-tick-meta`);
+    expect(buildAccountInfoKey(accountId, profileId)).toBe(`${prefix}account-info`);
+    expect(buildDustEligibleKey(accountId, profileId)).toBe(`${prefix}dust-eligible`);
+    expect(buildUserStreamEventKey(accountId, profileId)).toBe(`${prefix}user-stream:last-event`);
+    expect(buildWeightKey(accountId, profileId, 29_142_001)).toBe(
+      `${prefix}binance:weight:29142001`,
+    );
   });
 });
 

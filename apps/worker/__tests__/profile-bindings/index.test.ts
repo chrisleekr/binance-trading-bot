@@ -144,14 +144,14 @@ describe('buildProfileBindings — null branches', () => {
     findApiKey.mockResolvedValueOnce({ key: 'k', secret: 's', last4: '0000' });
     // Environment is per-account: mode resolves via repo.accounts.binanceModeById.
     findMode.mockResolvedValueOnce('paper');
-    await expect(buildProfileBindings({ db }, userId, profileId)).rejects.toThrow(
+    await expect(buildProfileBindings({ db }, userId, accountId, profileId)).rejects.toThrow(
       /binanceMode out of range/,
     );
   });
 
   it('rethrows unknown errors from the ownership check so the worker can retry/DLQ', async () => {
     profileRepoSpy.mockRejectedValueOnce(new Error('pg pool exhausted'));
-    await expect(buildProfileBindings({ db }, userId, profileId)).rejects.toThrow(
+    await expect(buildProfileBindings({ db }, userId, accountId, profileId)).rejects.toThrow(
       'pg pool exhausted',
     );
   });

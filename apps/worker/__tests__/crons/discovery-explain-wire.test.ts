@@ -48,7 +48,9 @@ const config: DiscoveryConfig = {
 
 const ticker = (symbol: string, gain: string) => ({
   symbol,
+  baseAsset: symbol.slice(0, -4),
   quoteAsset: 'USDT',
+  isStablecoinOrFiat: false,
   priceChangePercent: gain,
   quoteVolume: '5000000',
   pairVolumeUsd: '5000000',

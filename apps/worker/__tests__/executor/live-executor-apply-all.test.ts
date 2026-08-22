@@ -19,6 +19,7 @@ import type { Redis } from 'ioredis';
 import type { Decision, DecisionResult, TickExecutorContext } from '@app/strategy-core';
 import type { NotifyProviderRegistry } from '@app/notify';
 import type { StrategyRegistry } from '@app/strategy-registry';
+import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 
 const { placeOrderSpy, cancelOrderSpy, setKvSpy, emitEventSpy } = vi.hoisted(() => ({
   placeOrderSpy: vi.fn(),
@@ -42,9 +43,9 @@ vi.mock('../../src/executor/decisions/emit-event.js', () => ({
 
 import { createLiveExecutor } from '../../src/executor/live-executor.js';
 
-const USER = 'u-1';
-const ACCOUNT = 'a-1';
-const PROFILE = 'p-1';
+const USER = asUserId('u-1');
+const ACCOUNT = asAccountId('a-1');
+const PROFILE = asProfileId('p-1');
 
 // applyAll is the tick path, so its ctx is the strategyName-required narrowing.
 const CTX: TickExecutorContext = {
@@ -79,7 +80,7 @@ const buildExecutor = () =>
     strategies: {} as unknown as StrategyRegistry,
     logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() } as unknown as Logger,
     resolveProfile: vi.fn(async () => ({}) as never),
-    notifierGapThrottle: { allow: async () => true },
+    notifierGapThrottle: { allow: async () => true, release: async () => undefined },
   });
 
 const OK: DecisionResult = { ok: true };

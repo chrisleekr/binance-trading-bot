@@ -41,7 +41,15 @@ const SYMBOL_INFO: SymbolInfo = {
   baseAsset: 'BTC',
   quoteAsset: 'USDT',
   status: 'TRADING',
-  filters: { minQty: '0.0001', stepSize: '0.0001', minNotional: '10', tickSize: '0.01' },
+  filters: {
+    minQty: '0.0001',
+    stepSize: '0.0001',
+    minNotional: '10',
+    tickSize: '0.01',
+    maxQty: '1000000',
+    minPrice: '0.00000001',
+    maxPrice: '100000000',
+  },
 };
 
 const strategy = {
@@ -91,7 +99,7 @@ const job = {
     accountId: String(ACCOUNT),
     profileId: String(PROFILE),
     symbol: SYMBOL,
-    event: 'tick',
+    event: 'resync',
     enqueuedAtMs: START_MS,
     payload: {},
   } satisfies TickJobData,
@@ -194,7 +202,9 @@ const buildHarness = (options: HarnessOptions = {}) => {
     },
   };
   const commit = vi.fn(async () => undefined);
-  const recordOrderRefusalCondition = vi.fn(async () => undefined);
+  const recordOrderRefusalCondition = vi.fn<
+    NonNullable<TickHandlerDeps['recordOrderRefusalCondition']>
+  >(async () => undefined);
   const notifyOrderFailed = vi.fn(async () => undefined);
   const notifyOrderRefusalLoop = vi.fn(async () => undefined);
   const audits: AuditEntry[] = [];

@@ -8,7 +8,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
-import type { Decision, ExecutorContext } from '@app/strategy-core';
+import type { Decision, TickExecutorContext } from '@app/strategy-core';
+import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import type { ProfileScope } from '@app/db';
 import type { NotifyProviderRegistry } from '@app/notify';
 import type { StrategyRegistry } from '@app/strategy-registry';
@@ -18,11 +19,11 @@ import {
   type ProfileExecutorBindings,
 } from '../../src/executor/live-executor.js';
 
-const USER = 'u-1';
-const ACCOUNT = 'a-1';
-const PROFILE = 'p-1';
+const USER = asUserId('u-1');
+const ACCOUNT = asAccountId('a-1');
+const PROFILE = asProfileId('p-1');
 
-const CTX: ExecutorContext = {
+const CTX: TickExecutorContext = {
   userId: USER,
   profileId: PROFILE,
   clock: { nowMs: () => 0 },
@@ -44,7 +45,7 @@ const buildExecutor = (resolveProfile: ReturnType<typeof vi.fn>) =>
     strategies: {} as unknown as StrategyRegistry,
     logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } as unknown as Logger,
     resolveProfile: resolveProfile as never,
-    notifierGapThrottle: { allow: async () => true },
+    notifierGapThrottle: { allow: async () => true, release: async () => undefined },
   });
 
 const SET_KV: Decision = { type: 'set-kv', key: 'tt:regime', value: 1 };

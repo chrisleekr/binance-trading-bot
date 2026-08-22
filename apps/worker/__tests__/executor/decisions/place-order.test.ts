@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { pino } from 'pino';
 import type { Redis } from 'ioredis';
-import { BinanceApiError, OrderBudgetUnavailableError, type BinanceRestClient } from '@app/binance';
+import {
+  BinanceApiError,
+  OrderBudgetUnavailableError,
+  type BinanceErrorPayload,
+  type BinanceRestClient,
+} from '@app/binance';
 import type { NotifyProviderRegistry, AnyNotifyProvider } from '@app/notify';
-import type { Decision, ExecutorContext } from '@app/strategy-core';
+import { createRegistry, type Decision, type ExecutorContext } from '@app/strategy-core';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 
 import { placeOrderHandler } from '../../../src/executor/decisions/place-order.js';
@@ -18,7 +23,20 @@ import type { ProfilePersistence } from '../../../src/profile-bindings/persisten
 const USER = asUserId('00000000-0000-0000-0000-0000000000aa');
 const PROFILE = asProfileId('00000000-0000-0000-0000-0000000000bb');
 const ACCOUNT = asAccountId('00000000-0000-0000-0000-0000000000cc');
-const CTX: ExecutorContext = { userId: USER, profileId: PROFILE };
+const CLOCK = { nowMs: () => 1_700_000_000_000 };
+const CTX: ExecutorContext = { userId: USER, profileId: PROFILE, clock: CLOCK };
+
+const placeOrderMock = (implementation: BinanceRestClient['placeOrder']) =>
+  vi.fn<BinanceRestClient['placeOrder']>(implementation);
+const persistOrderMock = (implementation: ProfilePersistence['persistOrder']) =>
+  vi.fn<ProfilePersistence['persistOrder']>(implementation);
+const recordBookkeepingFailureMock = (
+  implementation: ProfilePersistence['recordBookkeepingFailure'],
+) => vi.fn<ProfilePersistence['recordBookkeepingFailure']>(implementation);
+const recordNotifierGapMock = (implementation: ProfilePersistence['recordNotifierGap']) =>
+  vi.fn<ProfilePersistence['recordNotifierGap']>(implementation);
+const rejectedBinanceError = (payload: BinanceErrorPayload): BinanceApiError =>
+  new BinanceApiError(payload, false, 'rejected');
 
 const PLACE: Extract<Decision, { type: 'place-order' }> = {
   type: 'place-order',
@@ -71,13 +89,13 @@ const buildBindings = (
     quoteAsset: 'USDT',
     ...rest,
     persistence: {
-      persistOrder: vi.fn(async () => undefined) as unknown as ProfilePersistence['persistOrder'],
+      persistOrder: persistOrderMock(async () => undefined),
       resolveOrderSlot: async () => null,
       persistTrackingOrder: vi.fn(async () => undefined),
       closeOrder: async () => undefined,
-      recordBookkeepingFailure: vi.fn(async () => undefined),
+      recordBookkeepingFailure: recordBookkeepingFailureMock(async () => undefined),
       listEnabledNotifiers: vi.fn(async () => [ENABLED_SLACK_ROW]),
-      recordNotifierGap: vi.fn(async () => undefined),
+      recordNotifierGap: recordNotifierGapMock(async () => undefined),
       ...persistenceOverrides,
     },
   } as ProfileExecutorBindings;
@@ -93,10 +111,12 @@ const buildDeps = (bindings: ProfileExecutorBindings, redis: Redis = fakeRedis()
   };
   return {
     redis,
+    accountId: ACCOUNT,
     logger: pino({ level: 'silent' }),
-    clock: { nowMs: () => 1_700_000_000_000 },
+    clock: CLOCK,
     weightTtlSeconds: 120,
     notifyRegistry: registry as NotifyProviderRegistry,
+    strategies: createRegistry(),
     resolveProfile: async () => bindings,
     cancelLedger: createCancelLedger(),
   };
@@ -137,7 +157,7 @@ describe('placeOrderHandler', () => {
   });
 
   it('records an accepted MARKET placement so the very next identical one is suppressed', async () => {
-    const placeOrder = vi.fn(async () => ({
+    const placeOrder = placeOrderMock(async () => ({
       orderId: 42,
       clientOrderId: 'client-1',
       status: 'FILLED',
@@ -156,7 +176,7 @@ describe('placeOrderHandler', () => {
   });
 
   it('does NOT dedup a LIMIT order (resting order repricing legitimately reuses the clientOrderId)', async () => {
-    const placeOrder = vi.fn(async () => ({
+    const placeOrder = placeOrderMock(async () => ({
       orderId: 43,
       clientOrderId: 'client-1',
       status: 'NEW',
@@ -177,7 +197,7 @@ describe('placeOrderHandler', () => {
   });
 
   it('a SELL forgets the symbol dedup so a legit re-entry (same stable clientOrderId) is NOT suppressed', async () => {
-    const placeOrder = vi.fn(async () => ({
+    const placeOrder = placeOrderMock(async () => ({
       orderId: 42,
       clientOrderId: 'client-1',
       status: 'FILLED',
@@ -200,7 +220,7 @@ describe('placeOrderHandler', () => {
   });
 
   it('records the dedup on accept even when post-submit bookkeeping fails, so the next identical MARKET order is suppressed', async () => {
-    const placeOrder = vi.fn(async () => ({
+    const placeOrder = placeOrderMock(async () => ({
       orderId: 42,
       clientOrderId: 'client-1',
       status: 'FILLED',
@@ -231,10 +251,10 @@ describe('placeOrderHandler', () => {
         status: 'FILLED',
       })),
     } as unknown as Partial<BinanceRestClient>);
-    const persistOrder = vi.fn(async () => {
+    const persistOrder = persistOrderMock(async () => {
       throw new Error('disk full');
     });
-    const recordBookkeepingFailure = vi.fn(async () => undefined);
+    const recordBookkeepingFailure = recordBookkeepingFailureMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -351,13 +371,13 @@ describe('placeOrderHandler', () => {
         status: 'FILLED',
       })),
     } as unknown as Partial<BinanceRestClient>);
-    const persistOrder = vi.fn(async () => {
+    const persistOrder = persistOrderMock(async () => {
       const e = new Error('Failed query: insert into orders ...');
       (e as { cause?: unknown }).cause =
         'null value in column "status" violates not-null constraint';
       throw e;
     });
-    const recordBookkeepingFailure = vi.fn(async () => undefined);
+    const recordBookkeepingFailure = recordBookkeepingFailureMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -386,11 +406,11 @@ describe('placeOrderHandler', () => {
         status: 'FILLED',
       })),
     } as unknown as Partial<BinanceRestClient>);
-    const persistOrder = vi.fn(async () => {
+    const persistOrder = persistOrderMock(async () => {
       throw new Error('disk full');
     });
-    const recordBookkeepingFailure = vi.fn(async () => undefined);
-    const recordNotifierGap = vi.fn(async () => undefined);
+    const recordBookkeepingFailure = recordBookkeepingFailureMock(async () => undefined);
+    const recordNotifierGap = recordNotifierGapMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -426,10 +446,10 @@ describe('placeOrderHandler', () => {
         status: 'FILLED',
       })),
     } as unknown as Partial<BinanceRestClient>);
-    const persistOrder = vi.fn(async () => {
+    const persistOrder = persistOrderMock(async () => {
       throw new Error('disk full');
     });
-    const recordBookkeepingFailure = vi.fn(async () => undefined);
+    const recordBookkeepingFailure = recordBookkeepingFailureMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -462,7 +482,7 @@ describe('placeOrderHandler', () => {
 
   it('weight-throttle on a profile with no enabled notifiers writes a binance-weight-throttle gap and returns retryable', async () => {
     const binance = fakeBinance();
-    const recordNotifierGap = vi.fn(async () => undefined);
+    const recordNotifierGap = recordNotifierGapMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       weightLimit1m: 100,
@@ -494,7 +514,7 @@ describe('placeOrderHandler', () => {
     const binance = fakeBinance({
       placeOrder: vi.fn(async () => ({ orderId: 99, clientOrderId: 'client-1' })),
     } as unknown as Partial<BinanceRestClient>);
-    const persistOrder = vi.fn(async () => undefined);
+    const persistOrder = persistOrderMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -616,18 +636,18 @@ describe('placeOrderHandler', () => {
       (c) => c[3] === 'upsert',
     );
     const cached = JSON.parse(String(upsert?.[4])) as Record<string, unknown>;
-    expect(cached.trailingDelta).toBe(1551);
+    expect(cached['trailingDelta']).toBe(1551);
     // NOT '0'. A zero here is what renders a stop priced at nothing in the UI;
     // the empty string is the same "absent" sentinel a missing stopPrice uses,
     // and every reader parses it to unknown rather than to a real price.
-    expect(cached.price).toBe('');
+    expect(cached['price']).toBe('');
   });
 
   it('forwards intent.meta to persistOrder so strategy order metadata lands in orders.meta', async () => {
     const binance = fakeBinance({
       placeOrder: vi.fn(async () => ({ orderId: 7, clientOrderId: 'client-1', status: 'NEW' })),
     } as unknown as Partial<BinanceRestClient>);
-    const persistOrder = vi.fn(async () => undefined);
+    const persistOrder = persistOrderMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -653,7 +673,7 @@ describe('placeOrderHandler', () => {
     const binance = fakeBinance({
       placeOrder: vi.fn(async () => ({ orderId: 8, clientOrderId: 'client-1', status: 'NEW' })),
     } as unknown as Partial<BinanceRestClient>);
-    const persistOrder = vi.fn(async () => undefined);
+    const persistOrder = persistOrderMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -673,8 +693,12 @@ describe('placeOrderHandler', () => {
     // -1021 recovery (server-time resync + one retry) now lives in the binance
     // client's call(). A -1021 that surfaces here is a persistent host-clock
     // skew, so place-order classifies it non-retryable and calls placeOrder once.
-    const placeOrder = vi.fn(async () => {
-      throw new BinanceApiError({ status: 400, code: -1021, message: 'recvWindow drift' });
+    const placeOrder = placeOrderMock(async () => {
+      throw new BinanceApiError(
+        { status: 400, code: -1021, msg: 'recvWindow drift' },
+        false,
+        'rejected',
+      );
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
     const bindings = buildBindings({ binance });
@@ -688,11 +712,11 @@ describe('placeOrderHandler', () => {
   });
 
   it('illegal-value (-1100..-1199) emergency code fires an emergency-notify to Slack', async () => {
-    const placeOrder = vi.fn(async () => {
-      throw new BinanceApiError({
+    const placeOrder = placeOrderMock(async () => {
+      throw rejectedBinanceError({
         status: 400,
         code: -1102,
-        message: 'mandatory parameter missing',
+        msg: 'mandatory parameter missing',
       });
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
@@ -745,7 +769,7 @@ describe('placeOrderHandler', () => {
       false,
       'rejected',
     );
-    const placeOrder = vi.fn(async () => {
+    const placeOrder = placeOrderMock(async () => {
       throw cause;
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
@@ -778,11 +802,11 @@ describe('placeOrderHandler', () => {
     // that the position was already sold and the fill never reached the stream.
     // Repair the state — but do NOT make the order retryable: a SELL retrying
     // against a balance that is not coming back loops forever.
-    const placeOrder = vi.fn(async () => {
-      throw new BinanceApiError({
+    const placeOrder = placeOrderMock(async () => {
+      throw rejectedBinanceError({
         status: 400,
         code: -2010,
-        message: 'Account has insufficient balance for requested action.',
+        msg: 'Account has insufficient balance for requested action.',
       });
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
@@ -818,7 +842,7 @@ describe('placeOrderHandler', () => {
     // getMyTrades only when the refusal implies a balance the stream missed. A
     // permission refusal implies nothing about the position and never clears,
     // so reconciling on it just spends weight on every tick, forever.
-    const placeOrder = vi.fn(async () => {
+    const placeOrder = placeOrderMock(async () => {
       throw new BinanceApiError(
         {
           status: 400,
@@ -845,11 +869,11 @@ describe('placeOrderHandler', () => {
   });
 
   it('-2010 on a BUY enqueues nothing: a short quote balance says nothing about the position', async () => {
-    const placeOrder = vi.fn(async () => {
-      throw new BinanceApiError({
+    const placeOrder = placeOrderMock(async () => {
+      throw rejectedBinanceError({
         status: 400,
         code: -2010,
-        message: 'Account has insufficient balance for requested action.',
+        msg: 'Account has insufficient balance for requested action.',
       });
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
@@ -866,15 +890,15 @@ describe('placeOrderHandler', () => {
   });
 
   it('binance-emergency on a profile with no enabled notifiers writes a gap action_log', async () => {
-    const placeOrder = vi.fn(async () => {
-      throw new BinanceApiError({
+    const placeOrder = placeOrderMock(async () => {
+      throw rejectedBinanceError({
         status: 400,
         code: -1102,
-        message: 'mandatory parameter missing',
+        msg: 'mandatory parameter missing',
       });
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
-    const recordNotifierGap = vi.fn(async () => undefined);
+    const recordNotifierGap = recordNotifierGapMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -895,15 +919,15 @@ describe('placeOrderHandler', () => {
   });
 
   it('throttle suppresses a second gap action_log within the window for the same topic', async () => {
-    const placeOrder = vi.fn(async () => {
-      throw new BinanceApiError({
+    const placeOrder = placeOrderMock(async () => {
+      throw rejectedBinanceError({
         status: 400,
         code: -1102,
-        message: 'mandatory parameter missing',
+        msg: 'mandatory parameter missing',
       });
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
-    const recordNotifierGap = vi.fn(async () => undefined);
+    const recordNotifierGap = recordNotifierGapMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -916,7 +940,10 @@ describe('placeOrderHandler', () => {
       .fn<(key: string) => Promise<boolean>>()
       .mockResolvedValueOnce(true)
       .mockResolvedValue(false);
-    const deps: DecisionDeps = { ...buildDeps(bindings), notifierGapThrottle: { allow } };
+    const deps: DecisionDeps = {
+      ...buildDeps(bindings),
+      notifierGapThrottle: { allow, release: vi.fn(async () => undefined) },
+    };
 
     await placeOrderHandler(deps, CTX, PLACE);
     await placeOrderHandler(deps, CTX, PLACE);
@@ -927,15 +954,15 @@ describe('placeOrderHandler', () => {
   });
 
   it('binance-emergency with enabled notifiers does NOT write a gap action_log', async () => {
-    const placeOrder = vi.fn(async () => {
-      throw new BinanceApiError({
+    const placeOrder = placeOrderMock(async () => {
+      throw rejectedBinanceError({
         status: 400,
         code: -1102,
-        message: 'mandatory parameter missing',
+        msg: 'mandatory parameter missing',
       });
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
-    const recordNotifierGap = vi.fn(async () => undefined);
+    const recordNotifierGap = recordNotifierGapMock(async () => undefined);
     const provider: AnyNotifyProvider = {
       name: 'slack',
       send: vi.fn(async () => undefined),
@@ -963,15 +990,15 @@ describe('placeOrderHandler', () => {
   });
 
   it('records a gap when an enabled notifier resolves to an unregistered provider (no silent failure)', async () => {
-    const placeOrder = vi.fn(async () => {
-      throw new BinanceApiError({
+    const placeOrder = placeOrderMock(async () => {
+      throw rejectedBinanceError({
         status: 400,
         code: -1102,
-        message: 'mandatory parameter missing',
+        msg: 'mandatory parameter missing',
       });
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
-    const recordNotifierGap = vi.fn(async () => undefined);
+    const recordNotifierGap = recordNotifierGapMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -994,11 +1021,11 @@ describe('placeOrderHandler', () => {
   });
 
   it('fans out to every registered notifier even when one provider send throws', async () => {
-    const placeOrder = vi.fn(async () => {
-      throw new BinanceApiError({
+    const placeOrder = placeOrderMock(async () => {
+      throw rejectedBinanceError({
         status: 400,
         code: -1102,
-        message: 'mandatory parameter missing',
+        msg: 'mandatory parameter missing',
       });
     });
     const binance = fakeBinance({ placeOrder } as unknown as Partial<BinanceRestClient>);
@@ -1016,7 +1043,7 @@ describe('placeOrderHandler', () => {
       get: (n) => (n === 'slack' ? slack : n === 'telegram' ? telegram : undefined),
       list: () => [slack, telegram],
     };
-    const recordNotifierGap = vi.fn(async () => undefined);
+    const recordNotifierGap = recordNotifierGapMock(async () => undefined);
     const bindings = buildBindings({
       binance,
       persistence: {
@@ -1106,10 +1133,10 @@ describe('placeOrderHandler', () => {
     // the wire it is rejected with -2010.
     const binance = fakeBinance({
       placeOrder: vi.fn(async () => {
-        throw new BinanceApiError({
+        throw rejectedBinanceError({
           status: 400,
           code: -2010,
-          message: 'Account has insufficient balance for requested action.',
+          msg: 'Account has insufficient balance for requested action.',
         });
       }),
     } as unknown as Partial<BinanceRestClient>);

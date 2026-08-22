@@ -32,11 +32,8 @@ class FakeWs {
     this.url = url;
   }
 
-  on(event: 'message', cb: (data: MsgData) => void): void;
-  on(event: 'open' | 'close', cb: () => void): void;
-  on(event: 'error', cb: (err: Error) => void): void;
-  on(event: 'open' | 'close' | 'error' | 'message', cb: (arg?: unknown) => void): void {
-    (this.handlers as Record<string, unknown>)[event] = cb;
+  on<K extends keyof Handlers>(event: K, cb: NonNullable<Handlers[K]>): void {
+    this.handlers[event] = cb;
   }
 
   send(payload: string): void {

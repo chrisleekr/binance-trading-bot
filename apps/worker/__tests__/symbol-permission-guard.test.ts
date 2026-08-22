@@ -26,7 +26,7 @@ import { pino } from 'pino';
 import type { Redis } from 'ioredis';
 import type { BinanceRestClient, Ticker24hrDto } from '@app/binance';
 import type { NotifyProviderRegistry } from '@app/notify';
-import type { Decision, ExecutorContext } from '@app/strategy-core';
+import { createRegistry, type Decision, type ExecutorContext } from '@app/strategy-core';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import { Decimal } from '@app/money';
 
@@ -47,7 +47,11 @@ import type { ProfilePersistence } from '../src/profile-bindings/persistence.js'
 const USER = asUserId('00000000-0000-0000-0000-0000000000aa');
 const PROFILE = asProfileId('00000000-0000-0000-0000-0000000000bb');
 const ACCOUNT = asAccountId('00000000-0000-0000-0000-0000000000cc');
-const CTX: ExecutorContext = { userId: USER, profileId: PROFILE };
+const CTX: ExecutorContext = {
+  userId: USER,
+  profileId: PROFILE,
+  clock: { nowMs: () => 1_700_000_000_000 },
+};
 
 const BLOCKED = 'CRCLBUSDT';
 
@@ -185,6 +189,8 @@ const buildBindings = (binance: BinanceRestClient): ProfileExecutorBindings =>
         { provider: 'slack', config: {}, secrets: {}, enabled: true },
       ]),
       recordNotifierGap: vi.fn(async () => undefined),
+      setKv: vi.fn(async () => undefined),
+      deleteKv: vi.fn(async () => undefined),
     },
   }) as ProfileExecutorBindings;
 
@@ -199,6 +205,7 @@ const buildDeps = (bindings: ProfileExecutorBindings, redis: Redis): DecisionDep
     notifyRegistry: registry as NotifyProviderRegistry,
     resolveProfile: async () => bindings,
     cancelLedger: createCancelLedger(),
+    strategies: createRegistry(),
   } as DecisionDeps;
 };
 

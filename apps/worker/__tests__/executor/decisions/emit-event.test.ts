@@ -20,6 +20,7 @@ const stubRegistry: StrategyRegistry = {
   register: () => undefined,
   list: () => [STUB_STRATEGY],
   get: (name) => (name === 'stub' ? STUB_STRATEGY : undefined),
+  describeForProfile: () => ({ status: 'current', strategy: STUB_STRATEGY }),
 };
 
 const CTX = {

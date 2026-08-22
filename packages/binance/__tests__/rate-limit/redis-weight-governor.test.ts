@@ -5,11 +5,12 @@
 // token-bucket math itself is covered by the real-Redis integration test in
 // apps/worker/__tests__/integration/redis-weight-governor.test.ts.
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 
 import {
   createRedisWeightGovernor,
   RedisUnavailableError,
+  type GovernorLogger,
   type RedisEvalClient,
 } from '../../src/rate-limit/redis-weight-governor.js';
 
@@ -41,7 +42,9 @@ const fakeRedis = (replies: Entry[]): RedisEvalClient & { calls: (string | numbe
   };
 };
 
-const noopLogger = (): { warn: ReturnType<typeof vi.fn> } => ({ warn: vi.fn() });
+type MockGovernorLogger = { warn: Mock<GovernorLogger['warn']> };
+
+const noopLogger = (): MockGovernorLogger => ({ warn: vi.fn<GovernorLogger['warn']>() });
 
 describe('createRedisWeightGovernor', () => {
   it('reports the configured ceiling', () => {

@@ -46,8 +46,14 @@ describe('openOrdersFromDtos', () => {
     ...overrides,
   });
 
+  const firstOrder = (input: OpenOrderDto): ReturnType<typeof openOrdersFromDtos>[number] => {
+    const order = openOrdersFromDtos([input])[0];
+    if (!order) throw new Error('expected one open order');
+    return order;
+  };
+
   it('maps DTO timestamps to *Ms fields and preserves enums', () => {
-    const [o] = openOrdersFromDtos([dto()]);
+    const o = firstOrder(dto());
     expect(o).toEqual({
       orderId: 42,
       clientOrderId: 'co-1',
@@ -69,18 +75,19 @@ describe('openOrdersFromDtos', () => {
     // Binance reports zero stop-price in several forms depending on
     // endpoint/symbol — all mean "no stop price set".
     for (const zero of ['0', '0.0', '0.00000000', '']) {
-      const [o] = openOrdersFromDtos([dto({ stopPrice: zero })]);
+      const o = firstOrder(dto({ stopPrice: zero }));
       expect(o).not.toHaveProperty('stopPrice');
     }
   });
 
   it('includes stopPrice when DTO reports a real value', () => {
-    const [o] = openOrdersFromDtos([dto({ stopPrice: '49000' })]);
+    const o = firstOrder(dto({ stopPrice: '49000' }));
     expect(o.stopPrice).toBe('49000');
   });
 
   it('omits timeInForce when DTO omits it', () => {
-    const [o] = openOrdersFromDtos([dto({ timeInForce: undefined })]);
+    const { timeInForce: _timeInForce, ...withoutTimeInForce } = dto();
+    const o = firstOrder(withoutTimeInForce);
     expect(o).not.toHaveProperty('timeInForce');
   });
 
@@ -95,9 +102,9 @@ describe('openOrdersFromDtos', () => {
     // dead-letter every tick on that symbol for as long as the order rests —
     // the position would go wholly unmanaged, which is the opposite of what
     // arming a stop was for.
-    const [o] = openOrdersFromDtos([
+    const o = firstOrder(
       dto({ type: 'STOP_LOSS', side: 'SELL', stopPrice: '0', trailingDelta: 1551 }),
-    ]);
+    );
     expect(o.type).toBe('STOP_LOSS');
     // The distance is the only field that can tell a later tick whether the
     // resting order still matches the configured stop: a trailing order has no
@@ -112,7 +119,7 @@ describe('openOrdersFromDtos', () => {
     // value is a payload we cannot read, and reading it as a distance would
     // compare a resting order against a number it does not hold.
     expect(
-      openOrdersFromDtos([dto({ trailingDelta: '1551' } as Partial<OpenOrderDto>)])[0],
+      firstOrder({ ...dto(), trailingDelta: '1551' } as unknown as OpenOrderDto),
     ).not.toHaveProperty('trailingDelta');
   });
 });

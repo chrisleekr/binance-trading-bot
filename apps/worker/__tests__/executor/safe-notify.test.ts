@@ -14,7 +14,7 @@ describe('safeNotify', () => {
     const provider = fakeProvider('slack', send);
     const ok = await safeNotify(
       provider,
-      { severity: 'info', topic: 't', payload: {} },
+      { severity: 'info', topic: 't', title: 'Test notification' },
       { webhook: 'https://x' },
       logger,
     );
@@ -29,7 +29,7 @@ describe('safeNotify', () => {
     });
     const ok = await safeNotify(
       provider,
-      { severity: 'error', topic: 't', payload: {} },
+      { severity: 'error', topic: 't', title: 'Test notification' },
       {},
       logger,
     );
@@ -42,7 +42,7 @@ describe('safeNotify', () => {
     });
     const ok = await safeNotify(
       provider,
-      { severity: 'error', topic: 't', payload: {} },
+      { severity: 'error', topic: 't', title: 'Test notification' },
       {},
       logger,
     );
@@ -55,7 +55,7 @@ describe('safeNotify', () => {
     });
     const ok = await safeNotify(
       provider,
-      { severity: 'error', topic: 't', payload: {} },
+      { severity: 'error', topic: 't', title: 'Test notification' },
       {},
       logger,
     );

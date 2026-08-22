@@ -73,6 +73,9 @@ describe('runTeardown', () => {
     const adminOrder = deps.adminServer.stop.mock.invocationCallOrder[0];
     const poolOrder = deps.pool.end.mock.invocationCallOrder[0];
     const redisOrder = deps.redis.quit.mock.invocationCallOrder[0];
+    if (adminOrder === undefined || poolOrder === undefined || redisOrder === undefined) {
+      throw new Error('expected each teardown step to run');
+    }
     expect(adminOrder).toBeLessThan(poolOrder);
     expect(poolOrder).toBeLessThan(redisOrder);
   });

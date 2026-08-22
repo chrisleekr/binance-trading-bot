@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Ticker24hrDto } from '@app/binance';
 import { Decimal } from '@app/money';
+import type { Logger } from 'pino';
 import type { AssetPolicy } from '../../../src/crons/discovery/asset-policy.js';
 import type { SymbolAdmission } from '../../../src/crons/discovery/symbol-admission.js';
 import {
@@ -25,7 +26,7 @@ const ticker = (over: Partial<Ticker24hrDto>): Ticker24hrDto => ({
 
 // `logger` is a required option because the cuts below are silent by
 // construction; tests that do not assert on the warn still have to supply one.
-const noopLogger = (): { warn: ReturnType<typeof vi.fn> } => ({ warn: vi.fn() });
+const noopLogger = (): Pick<Logger, 'warn'> => ({ warn: vi.fn<Logger['warn']>() });
 
 /** exchangeInfo facts for one symbol. Base and quote are required, so every fixture states its own split rather than leaving it to be inferred. */
 const adm = (
@@ -218,7 +219,7 @@ describe('toDiscoveryTickers', () => {
     // from every published set. A tokenized equity publishes SPOT/MARGIN groups
     // an account tagged only LEVERAGED/TRD_GRP_025 can never satisfy, so every
     // order it derives is refused with -2010 forever.
-    const warn = vi.fn();
+    const warn = vi.fn<Logger['warn']>();
     const admissionBySymbol = new Map<string, SymbolAdmission>([
       ['ETHUSDT', adm('ETH', 'USDT', { permissionSets: [['SPOT', 'TRD_GRP_025']] })],
       ['CRCLBUSDT', adm('CRCLB', 'USDT', { permissionSets: [['SPOT', 'TRD_GRP_005']] })],

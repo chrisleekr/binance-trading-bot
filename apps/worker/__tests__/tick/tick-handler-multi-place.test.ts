@@ -34,7 +34,16 @@ const SYMBOL_INFO: SymbolInfo = {
   symbol: SYMBOL,
   baseAsset: 'BTC',
   quoteAsset: 'USDT',
-  filters: { minQty: '0.00001', stepSize: '0.00001', minNotional: '10', tickSize: '0.01' },
+  status: 'TRADING',
+  filters: {
+    minQty: '0.00001',
+    stepSize: '0.00001',
+    minNotional: '10',
+    tickSize: '0.01',
+    maxQty: '1000000',
+    minPrice: '0.00000001',
+    maxPrice: '100000000',
+  },
 };
 
 const place = (clientOrderId: string): Decision => ({
@@ -137,7 +146,7 @@ const drive = async (
     logger,
     // Never reached: the placement-count check throws before any handler resolves.
     resolveProfile: vi.fn(async () => ({}) as never),
-    notifierGapThrottle: { allow: async () => true },
+    notifierGapThrottle: { allow: async () => true, release: async () => undefined },
   });
 
   const deps = {
@@ -168,7 +177,7 @@ const drive = async (
       accountId: String(ACCOUNT),
       profileId: String(PROFILE),
       symbol: SYMBOL,
-      event: 'tick',
+      event: 'resync',
       enqueuedAtMs: 0,
       payload: {},
     } satisfies TickJobData,

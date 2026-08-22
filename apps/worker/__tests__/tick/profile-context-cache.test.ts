@@ -4,7 +4,7 @@
 // null build result is never cached so a re-created profile resolves fresh.
 
 import { describe, expect, it, vi } from 'vitest';
-import type { ProfileId, UserId } from '@app/contracts';
+import type { AccountId, ProfileId } from '@app/contracts';
 
 import {
   createProfileContextCache,
@@ -12,7 +12,7 @@ import {
 } from '../../src/tick/profile-context-cache.js';
 import type { ProfileTickContext } from '../../src/tick/build-tick-input.js';
 
-const USER = 'u-1' as UserId;
+const ACCOUNT = 'a-1' as AccountId;
 const PROFILE = 'p-1' as ProfileId;
 
 // The cache stores the context opaquely; a tagged stub is enough to assert
@@ -31,9 +31,9 @@ describe('createProfileContextCache', () => {
     const ctx = ctxStub('a');
     const build = vi.fn().mockResolvedValue(ctx);
 
-    const first = await cache.resolve(USER, PROFILE, 'BTCUSDT', build);
+    const first = await cache.resolve(ACCOUNT, PROFILE, 'BTCUSDT', build);
     clock.advance(PROFILE_CONTEXT_CACHE_TTL_MS - 1);
-    const second = await cache.resolve(USER, PROFILE, 'BTCUSDT', build);
+    const second = await cache.resolve(ACCOUNT, PROFILE, 'BTCUSDT', build);
 
     expect(first).toBe(ctx);
     expect(second).toBe(ctx);
@@ -45,9 +45,9 @@ describe('createProfileContextCache', () => {
     const cache = createProfileContextCache({ nowMs: clock.nowMs });
     const build = vi.fn().mockResolvedValueOnce(ctxStub('a')).mockResolvedValueOnce(ctxStub('b'));
 
-    await cache.resolve(USER, PROFILE, 'BTCUSDT', build);
+    await cache.resolve(ACCOUNT, PROFILE, 'BTCUSDT', build);
     clock.advance(PROFILE_CONTEXT_CACHE_TTL_MS);
-    await cache.resolve(USER, PROFILE, 'BTCUSDT', build);
+    await cache.resolve(ACCOUNT, PROFILE, 'BTCUSDT', build);
 
     expect(build).toHaveBeenCalledTimes(2);
   });
@@ -57,14 +57,14 @@ describe('createProfileContextCache', () => {
     const cache = createProfileContextCache({ nowMs: clock.nowMs });
     const build = vi.fn().mockResolvedValue(ctxStub('a'));
 
-    await cache.resolve(USER, PROFILE, 'BTCUSDT', build);
-    await cache.resolve(USER, PROFILE, 'ETHUSDT', build);
+    await cache.resolve(ACCOUNT, PROFILE, 'BTCUSDT', build);
+    await cache.resolve(ACCOUNT, PROFILE, 'ETHUSDT', build);
     expect(build).toHaveBeenCalledTimes(2); // distinct symbols → distinct keys
 
     cache.evictProfile(PROFILE);
 
-    await cache.resolve(USER, PROFILE, 'BTCUSDT', build);
-    await cache.resolve(USER, PROFILE, 'ETHUSDT', build);
+    await cache.resolve(ACCOUNT, PROFILE, 'BTCUSDT', build);
+    await cache.resolve(ACCOUNT, PROFILE, 'ETHUSDT', build);
     expect(build).toHaveBeenCalledTimes(4); // both rebuilt after eviction
   });
 
@@ -73,8 +73,8 @@ describe('createProfileContextCache', () => {
     const cache = createProfileContextCache({ nowMs: clock.nowMs });
     const build = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(ctxStub('a'));
 
-    const first = await cache.resolve(USER, PROFILE, 'BTCUSDT', build);
-    const second = await cache.resolve(USER, PROFILE, 'BTCUSDT', build);
+    const first = await cache.resolve(ACCOUNT, PROFILE, 'BTCUSDT', build);
+    const second = await cache.resolve(ACCOUNT, PROFILE, 'BTCUSDT', build);
 
     expect(first).toBeNull();
     expect(second).not.toBeNull();
@@ -86,9 +86,9 @@ describe('createProfileContextCache', () => {
     const cache = createProfileContextCache({ nowMs: clock.nowMs, ttlMs: 5_000 });
     const build = vi.fn().mockResolvedValue(ctxStub('a'));
 
-    await cache.resolve(USER, PROFILE, 'BTCUSDT', build);
+    await cache.resolve(ACCOUNT, PROFILE, 'BTCUSDT', build);
     clock.advance(5_000);
-    await cache.resolve(USER, PROFILE, 'BTCUSDT', build);
+    await cache.resolve(ACCOUNT, PROFILE, 'BTCUSDT', build);
 
     expect(build).toHaveBeenCalledTimes(2);
   });

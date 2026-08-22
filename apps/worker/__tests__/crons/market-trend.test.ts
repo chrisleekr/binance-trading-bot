@@ -3,7 +3,7 @@
 // handler test stubs the fetches and asserts the no-silent-failure skip and
 // the snapshot shape the api route parses back.
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';
 import { MarketTrendSchema } from '@app/contracts';
@@ -90,7 +90,8 @@ describe('marketTrendHandler', () => {
     await marketTrendHandler(deps)({} as Job);
 
     expect(deps.writeSnapshot).toHaveBeenCalledTimes(1);
-    const json = (deps.writeSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const json = (deps.writeSnapshot as Mock<MarketTrendDeps['writeSnapshot']>).mock.calls[0]?.[0];
+    if (json === undefined) throw new Error('expected one market-trend snapshot');
     const snap = MarketTrendSchema.parse(JSON.parse(json));
     expect(snap.computedAtMs).toBe(1_700_000_000_000);
     expect(snap.symbols.map((s) => s.regime)).toEqual(['bull', 'bear']);
@@ -103,7 +104,8 @@ describe('marketTrendHandler', () => {
     });
     await marketTrendHandler(deps)({} as Job);
     expect(deps.writeSnapshot).toHaveBeenCalledTimes(1);
-    const json = (deps.writeSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const json = (deps.writeSnapshot as Mock<MarketTrendDeps['writeSnapshot']>).mock.calls[0]?.[0];
+    if (json === undefined) throw new Error('expected one market-trend snapshot');
     const snap = MarketTrendSchema.parse(JSON.parse(json));
     expect(snap.symbols.map((s) => s.symbol)).toEqual(['BTCUSDT']);
   });
@@ -136,7 +138,7 @@ describe('marketTrendHandler', () => {
     // Phase B adds a `writeUsdPriceMap` seam wired to the global Redis key
     // `market-trend:usd-price-map`; the handler builds a symbol→lastPrice map
     // from the 24h tickers so the dashboard can value every held asset.
-    const writeUsdPriceMap = vi.fn(async () => undefined);
+    const writeUsdPriceMap = vi.fn<MarketTrendDeps['writeUsdPriceMap']>(async () => undefined);
     const deps = baseDeps({
       writeUsdPriceMap,
       fetchTickers: vi.fn(async () => [
@@ -148,11 +150,11 @@ describe('marketTrendHandler', () => {
     await marketTrendHandler(deps)({} as Job);
 
     expect(writeUsdPriceMap).toHaveBeenCalledTimes(1);
-    const body = JSON.parse(
-      (writeUsdPriceMap as ReturnType<typeof vi.fn>).mock.calls[0][0] as string,
-    ) as { prices: Record<string, string> };
-    expect(body.prices.ETHUSDT).toBe('2000');
-    expect(body.prices.BTCUSDT).toBe('70000');
+    const body = JSON.parse(writeUsdPriceMap.mock.calls[0]?.[0] ?? '{}') as {
+      prices: Record<string, string>;
+    };
+    expect(body.prices['ETHUSDT']).toBe('2000');
+    expect(body.prices['BTCUSDT']).toBe('70000');
   });
 
   it('skips the usd-price-map write when no ticker carries a price', async () => {

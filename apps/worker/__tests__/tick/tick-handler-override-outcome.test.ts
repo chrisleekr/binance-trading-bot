@@ -56,7 +56,16 @@ const SYMBOL_INFO: SymbolInfo = {
   symbol: SYMBOL,
   baseAsset: 'BTC',
   quoteAsset: 'USDT',
-  filters: { minQty: '0.00001', stepSize: '0.00001', minNotional: '10', tickSize: '0.01' },
+  status: 'TRADING',
+  filters: {
+    minQty: '0.00001',
+    stepSize: '0.00001',
+    minNotional: '10',
+    tickSize: '0.01',
+    maxQty: '1000000',
+    minPrice: '0.00000001',
+    maxPrice: '100000000',
+  },
 };
 
 /** The failure shapes the executor reports; `phase` is what makes re-arm decidable. */
@@ -261,7 +270,7 @@ const run = async (opts: RunOpts): Promise<RunResult> => {
       accountId: String(ACCOUNT),
       profileId: String(PROFILE),
       symbol: SYMBOL,
-      event: 'tick',
+      event: 'resync',
       enqueuedAtMs: 0,
       payload: {},
     } satisfies TickJobData,

@@ -10,13 +10,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
 import { createFakeMarketDataPort } from '@app/binance';
-import { asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 
 import { createProfileManager } from '../../src/profile-manager/profile-manager.js';
 import { createMarketSubscriptionsManager } from '../../src/market-data/subscriptions-manager.js';
 
 const silentLogger = pino({ level: 'silent' });
 const u = asUserId;
+const a = asAccountId;
 const p = asProfileId;
 
 describe('ProfileManager interval change over the real subscriptions-manager', () => {
@@ -35,6 +36,8 @@ describe('ProfileManager interval change over the real subscriptions-manager', (
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          operatorId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT'],
           candleInterval: '5m',

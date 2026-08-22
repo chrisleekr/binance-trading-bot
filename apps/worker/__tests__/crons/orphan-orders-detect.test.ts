@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';
 import type { OpenOrderDto } from '@app/binance';
+import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 
 import {
   createOrphanAlertStore,
@@ -28,18 +29,18 @@ const job = { id: 'job-1', data: {} } as unknown as Job;
 
 // An orphan belongs to the ACCOUNT whose key pair found it, so every fixture
 // profile names one. The two accounts below sit on different environments.
-const ACC_LIVE = 'acc-live-1';
-const ACC_TEST = 'acc-test-1';
+const ACC_LIVE = asAccountId('acc-live-1');
+const ACC_TEST = asAccountId('acc-test-1');
 
-const profile = (profileId: string, accountId: string = ACC_LIVE): ActiveProfile =>
-  ({
-    profileId,
-    accountId,
-    userId: 'u1',
-    operatorId: 'u1',
-    candleInterval: '1h',
-    symbols: ['BTCUSDT'],
-  }) as unknown as ActiveProfile;
+const profile = (profileId: string, accountId = ACC_LIVE): ActiveProfile => ({
+  profileId: asProfileId(profileId),
+  accountId,
+  userId: asUserId('u1'),
+  operatorId: asUserId('u1'),
+  candleInterval: '1h',
+  symbols: ['BTCUSDT'],
+  technicalsIntervals: [],
+});
 
 const mkOrder = (orderId: number, over: Partial<OpenOrderDto> = {}): OpenOrderDto =>
   ({
@@ -88,13 +89,15 @@ const resolveOne =
 
 // The chokepoint is a BATCH seam: one call per account carries every orphan of
 // that account, and answers with one outcome per event (in order).
-type NotifyInput = {
-  category: string;
-  accountId?: string;
-  events: { link?: string; symbol?: string; fields?: { label: string; value: string }[] }[];
-};
+type NotifyInput = Parameters<OrphanOrdersDetectDeps['accountNotify']>[0];
 const notifyAll = (outcome: AccountNotifyOutcome) =>
-  vi.fn(async (input: NotifyInput) => input.events.map(() => outcome));
+  vi.fn<OrphanOrdersDetectDeps['accountNotify']>(async (input) => input.events.map(() => outcome));
+const commitAlertedMock = () =>
+  vi.fn<OrphanOrdersDetectDeps['commitAlerted']>(async () => undefined);
+const writeSnapshotMock = () =>
+  vi.fn<OrphanOrdersDetectDeps['writeSnapshot']>(async () => undefined);
+const recordNotifyGapMock = () =>
+  vi.fn<OrphanOrdersDetectDeps['recordNotifyGap']>(async () => undefined);
 
 const mkDeps = (over: Partial<OrphanOrdersDetectDeps> = {}): OrphanOrdersDetectDeps => ({
   logger: mkLogger(),
@@ -103,11 +106,11 @@ const mkDeps = (over: Partial<OrphanOrdersDetectDeps> = {}): OrphanOrdersDetectD
   listTrackedLiveOrderIds: async () => [],
   confirmPersistedOrphans: async (_accountId, ids) => [...ids], // default: treat all as confirmed
   computeNewOrphans: async (_accountId, ids) => [...ids],
-  commitAlerted: vi.fn(async () => undefined),
-  writeSnapshot: vi.fn(async () => undefined),
+  commitAlerted: commitAlertedMock(),
+  writeSnapshot: writeSnapshotMock(),
   nowMs: () => 1_700_000_000_000,
-  accountNotify: notifyAll('delivered') as unknown as OrphanOrdersDetectDeps['accountNotify'],
-  recordNotifyGap: vi.fn(async () => undefined),
+  accountNotify: notifyAll('delivered'),
+  recordNotifyGap: recordNotifyGapMock(),
   ...over,
 });
 
@@ -141,7 +144,7 @@ describe('orphanOrdersDetectHandler', () => {
     // injected accountNotify dep (which owns the subscription gate + the
     // mode-filtered notifier resolve) rather than fanning out itself.
     const accountNotify = notifyAll('delivered');
-    const commitAlerted = vi.fn(async () => undefined);
+    const commitAlerted = commitAlertedMock();
     const deps = mkDeps({
       resolveBinance: resolveOne(async () => [mkOrder(10), mkOrder(20)]),
       listTrackedLiveOrderIds: async () => [{ binanceOrderId: 20n, accountId: ACC_LIVE }], // 20 tracked; only 10 orphan
@@ -168,8 +171,8 @@ describe('orphanOrdersDetectHandler', () => {
     // the orphan uncommitted would re-warn on every tick and then storm the
     // operator with the whole backlog the moment they re-enable the category.
     const accountNotify = notifyAll('muted');
-    const commitAlerted = vi.fn(async () => undefined);
-    const recordNotifyGap = vi.fn(async () => undefined);
+    const commitAlerted = commitAlertedMock();
+    const recordNotifyGap = recordNotifyGapMock();
     const deps = mkDeps({
       resolveBinance: resolveOne(async () => [mkOrder(10)]),
       listTrackedLiveOrderIds: async () => [],
@@ -188,8 +191,8 @@ describe('orphanOrdersDetectHandler', () => {
     // nobody. That is a gap the operator must be able to find after the fact —
     // unlike a mute, which they chose.
     const accountNotify = notifyAll('no-notifier');
-    const recordNotifyGap = vi.fn(async () => undefined);
-    const commitAlerted = vi.fn(async () => undefined);
+    const recordNotifyGap = recordNotifyGapMock();
+    const commitAlerted = commitAlertedMock();
     const deps = mkDeps({
       resolveBinance: resolveOne(async () => [mkOrder(10)]),
       listTrackedLiveOrderIds: async () => [],
@@ -250,7 +253,7 @@ describe('orphanOrdersDetectHandler', () => {
 
   it('does NOT alert an orphan on its first sighting — two-tick confirmation suppresses the reprice race', async () => {
     const accountNotify = notifyAll('delivered');
-    const commitAlerted = vi.fn(async () => undefined);
+    const commitAlerted = commitAlertedMock();
     const deps = mkDeps({
       resolveBinance: resolveOne(async () => [mkOrder(10)]),
       listTrackedLiveOrderIds: async () => [], // 10 untracked → candidate this tick
@@ -265,7 +268,7 @@ describe('orphanOrdersDetectHandler', () => {
 
   it('alerts ONLY the confirmed orphan when a second candidate is still on its first sighting', async () => {
     const accountNotify = notifyAll('delivered');
-    const commitAlerted = vi.fn(async () => undefined);
+    const commitAlerted = commitAlertedMock();
     const deps = mkDeps({
       resolveBinance: resolveOne(async () => [mkOrder(10), mkOrder(11)]),
       listTrackedLiveOrderIds: async () => [], // both untracked → both candidates
@@ -282,7 +285,7 @@ describe('orphanOrdersDetectHandler', () => {
   });
 
   it('does NOT commit an orphan whose only notifier send failed (re-alerts next tick)', async () => {
-    const commitAlerted = vi.fn(async () => undefined);
+    const commitAlerted = commitAlertedMock();
     const deps = mkDeps({
       resolveBinance: resolveOne(async () => [mkOrder(10)]),
       listTrackedLiveOrderIds: async () => [],
@@ -294,7 +297,7 @@ describe('orphanOrdersDetectHandler', () => {
   });
 
   it('writes the full current orphan set to the snapshot (string ids, computed-at stamp)', async () => {
-    const writeSnapshot = vi.fn(async () => undefined);
+    const writeSnapshot = writeSnapshotMock();
     const deps = mkDeps({
       resolveBinance: resolveOne(async () => [mkOrder(10), mkOrder(20)]),
       listTrackedLiveOrderIds: async () => [{ binanceOrderId: 20n, accountId: ACC_LIVE }], // 20 tracked; only 10 orphan
@@ -330,7 +333,7 @@ describe('orphanOrdersDetectHandler', () => {
   });
 
   it('still writes an empty snapshot when nothing is orphaned (clears the adopt UI)', async () => {
-    const writeSnapshot = vi.fn(async () => undefined);
+    const writeSnapshot = writeSnapshotMock();
     const deps = mkDeps({
       resolveBinance: resolveOne(async () => [mkOrder(10)]),
       listTrackedLiveOrderIds: async () => [{ binanceOrderId: 10n, accountId: ACC_LIVE }], // everything tracked
@@ -389,7 +392,7 @@ describe('orphanOrdersDetectHandler', () => {
             rest: { getOpenOrders: async () => [mkOrder(10)] },
             mode: 'live',
           }) as unknown as OrphanOrdersDetectDeps['resolveBinance'];
-    const writeSnapshot = vi.fn(async () => undefined);
+    const writeSnapshot = writeSnapshotMock();
     const deps = mkDeps({
       listActive: () => [profile('pTest', ACC_TEST), profile('pLive', ACC_LIVE)],
       resolveBinance,
@@ -426,7 +429,7 @@ describe('orphanOrdersDetectHandler', () => {
             },
             mode: 'live',
           }) as unknown as OrphanOrdersDetectDeps['resolveBinance'];
-    const writeSnapshot = vi.fn(async () => undefined);
+    const writeSnapshot = writeSnapshotMock();
     const logger = mkLogger();
     const deps = mkDeps({
       logger,
@@ -465,7 +468,7 @@ describe('orphanOrdersDetectHandler', () => {
           }) as unknown as OrphanOrdersDetectDeps['resolveBinance'];
     const confirmPersistedOrphans = vi.fn(async (_a: unknown, ids: readonly string[]) => [...ids]);
     const computeNewOrphans = vi.fn(async (_a: unknown, ids: readonly string[]) => [...ids]);
-    const commitAlerted = vi.fn(async () => undefined);
+    const commitAlerted = commitAlertedMock();
     const deps = mkDeps({
       listActive: () => [profile('pTest', ACC_TEST), profile('pLive', ACC_LIVE)],
       resolveBinance,

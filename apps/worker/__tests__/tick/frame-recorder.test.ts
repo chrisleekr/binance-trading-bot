@@ -19,6 +19,7 @@ const tuple = (over: Partial<FrameTuple> = {}): FrameTuple => ({
     killSwitch: null,
     symbolDisable: null,
     weightUsed1m: 0,
+    orderRearm: null,
     orderRefusal: null,
     indicatorsByInterval: {},
   },

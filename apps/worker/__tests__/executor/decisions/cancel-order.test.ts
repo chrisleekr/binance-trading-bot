@@ -3,8 +3,8 @@ import { pino } from 'pino';
 import type { Redis } from 'ioredis';
 import { BinanceApiError, type BinanceRestClient } from '@app/binance';
 import type { NotifyProviderRegistry } from '@app/notify';
-import type { Decision, ExecutorContext } from '@app/strategy-core';
-import { asProfileId, asUserId } from '@app/contracts';
+import { createRegistry, type Decision, type ExecutorContext } from '@app/strategy-core';
+import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 
 import { cancelOrderHandler } from '../../../src/executor/decisions/cancel-order.js';
 import type { DecisionDeps } from '../../../src/executor/decisions/_types.js';
@@ -14,7 +14,9 @@ import type { ProfilePersistence } from '../../../src/profile-bindings/persisten
 
 const USER = asUserId('00000000-0000-0000-0000-0000000000aa');
 const PROFILE = asProfileId('00000000-0000-0000-0000-0000000000bb');
-const CTX: ExecutorContext = { userId: USER, profileId: PROFILE };
+const ACCOUNT = asAccountId('00000000-0000-0000-0000-0000000000cc');
+const CLOCK = { nowMs: () => 1_700_000_000_000 };
+const CTX: ExecutorContext = { userId: USER, profileId: PROFILE, clock: CLOCK };
 
 const CANCEL: Extract<Decision, { type: 'cancel-order' }> = {
   type: 'cancel-order',
@@ -115,7 +117,13 @@ const buildBindings = (
     ...rest,
     persistence: {
       persistOrder: vi.fn() as unknown as ProfilePersistence['persistOrder'],
-      resolveOrderSlot: async () => ({ symbol: 'BTCUSDT', intent: 'grid-buy' }),
+      resolveOrderSlot: async () => ({
+        symbol: 'BTCUSDT',
+        intent: 'grid-buy',
+        side: 'BUY',
+        remainingQty: '1',
+        price: '1',
+      }),
       persistTrackingOrder: vi.fn(async () => undefined),
       closeOrder: vi.fn(async () => undefined),
       recordBookkeepingFailure: vi.fn(async () => undefined),
@@ -128,10 +136,12 @@ const buildDeps = (bindings: ProfileExecutorBindings, redis: Redis = fakeRedis()
   const registry: Partial<NotifyProviderRegistry> = { get: () => undefined, list: () => [] };
   return {
     redis,
+    accountId: ACCOUNT,
     logger: pino({ level: 'silent' }),
-    clock: { nowMs: () => 1_700_000_000_000 },
+    clock: CLOCK,
     weightTtlSeconds: 120,
     notifyRegistry: registry as NotifyProviderRegistry,
+    strategies: createRegistry(),
     resolveProfile: async () => bindings,
     cancelLedger: createCancelLedger(),
   };
@@ -238,7 +248,11 @@ describe('cancelOrderHandler', () => {
     vi
       .fn()
       .mockRejectedValue(
-        new BinanceApiError({ status: 400, code: -2011, msg: 'Unknown order sent.' }, false),
+        new BinanceApiError(
+          { status: 400, code: -2011, msg: 'Unknown order sent.' },
+          false,
+          'rejected',
+        ),
       );
 
   it('on -2011 racing a FILL, records the row FILLED with the true executed quantity and raw', async () => {
@@ -331,10 +345,8 @@ describe('cancelOrderHandler', () => {
       enqueueSymbolReconcile: vi.fn(async () => {
         throw new Error('redis down');
       }),
+      logger: { error } as unknown as DecisionDeps['logger'],
     } as DecisionDeps;
-    (deps as { logger: { error: typeof error } }).logger = {
-      error,
-    } as unknown as DecisionDeps['logger'];
 
     const result = await cancelOrderHandler(deps, CTX, CANCEL);
 
@@ -357,10 +369,11 @@ describe('cancelOrderHandler', () => {
       persistence: { closeOrder },
     });
     const enqueueSymbolReconcile = vi.fn();
-    const deps = { ...buildDeps(bindings), enqueueSymbolReconcile } as DecisionDeps;
-    (deps as { logger: { warn: typeof warn } }).logger = {
-      warn,
-    } as unknown as DecisionDeps['logger'];
+    const deps = {
+      ...buildDeps(bindings),
+      enqueueSymbolReconcile,
+      logger: { warn } as unknown as DecisionDeps['logger'],
+    } as DecisionDeps;
 
     const result = await cancelOrderHandler(deps, CTX, CANCEL);
 
@@ -402,10 +415,11 @@ describe('cancelOrderHandler', () => {
       persistence: { closeOrder },
     });
     const enqueueSymbolReconcile = vi.fn();
-    const deps = { ...buildDeps(bindings), enqueueSymbolReconcile } as DecisionDeps;
-    (deps as { logger: { warn: typeof warn } }).logger = {
-      warn,
-    } as unknown as DecisionDeps['logger'];
+    const deps = {
+      ...buildDeps(bindings),
+      enqueueSymbolReconcile,
+      logger: { warn } as unknown as DecisionDeps['logger'],
+    } as DecisionDeps;
 
     const result = await cancelOrderHandler(deps, CTX, CANCEL);
 
@@ -441,7 +455,13 @@ describe('cancelOrderHandler', () => {
   });
 
   it('prefers decision.symbol over the local lookup when both are present', async () => {
-    const resolveOrderSlot = vi.fn(async () => ({ symbol: 'BTCUSDT', intent: 'grid-buy' }));
+    const resolveOrderSlot = vi.fn(async () => ({
+      symbol: 'BTCUSDT',
+      intent: 'grid-buy',
+      side: 'BUY',
+      remainingQty: '1',
+      price: '1',
+    }));
     const cancelOrder = vi
       .fn()
       .mockResolvedValue({ orderId: 42, status: 'CANCELED', transactTime: 1_700_000_000_333 });

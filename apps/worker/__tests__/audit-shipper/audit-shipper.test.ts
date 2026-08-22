@@ -5,7 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ProfileId, UserId } from '@app/contracts';
+import type { AccountId, ProfileId } from '@app/contracts';
 import {
   AUDIT_CONSUMER_LAG_ALERT,
   AUDIT_DRAINER_CONSUMER,
@@ -48,7 +48,7 @@ const stubLogger = {
 } as unknown as Parameters<typeof createAuditShipper>[0]['logger'];
 
 const baseEntry: AuditEntry = {
-  userId: 'u_1' as unknown as UserId,
+  accountId: 'u_1' as unknown as AccountId,
   profileId: 'p_1' as unknown as ProfileId,
   tickId: '00000000-0000-4000-8000-000000000793',
   ts: 1_700_000_000_000,
@@ -62,7 +62,17 @@ const baseEntry: AuditEntry = {
 
 describe('audit shipper publish', () => {
   it('forwards an XADD with MAXLEN ~ AUDIT_STREAM_MAXLEN', async () => {
-    const xadd = vi.fn(async () => '0-0');
+    const xadd = vi.fn<
+      (
+        key: string,
+        trim: 'MAXLEN',
+        approximate: '~',
+        maxlen: string,
+        id: '*',
+        field: 'body',
+        body: string,
+      ) => Promise<string>
+    >(async () => '0-0');
     const redis = { xadd, xlen: vi.fn() } as unknown as Parameters<
       typeof createAuditShipper
     >[0]['redis'];
@@ -106,7 +116,7 @@ describe('audit shipper publish', () => {
     const shipper = createAuditShipper({ redis, logger: stubLogger });
 
     const len = await shipper.streamLength(
-      'u_1' as unknown as UserId,
+      'u_1' as unknown as AccountId,
       'p_1' as unknown as ProfileId,
     );
     expect(len).toBe(42);
@@ -1501,7 +1511,7 @@ describe('drainOnce PEL reclaim (#781)', () => {
   // for a batch of N are the same counter movement, and nothing here has an
   // opinion on the round-trip shape.
   const stuckTotal = (record: ReturnType<typeof vi.fn>): number =>
-    incidentRecords(record, 'audit_entries_stuck').reduce(
+    incidentRecords(record, 'audit_entries_stuck').reduce<number>(
       (sum, c) => sum + ((c as unknown[])[1] as number),
       0,
     );

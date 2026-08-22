@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
 
+type GetRange = typeof import('@app/db').repo.candles.getRange;
+
 // Mock the engine so onProgress is driven without a real replay; the runner's
 // wrapper probes shouldCancel first and throws on cancellation. Candle backfill
 // and the Postgres reads are mocked away so the test exercises only the
@@ -18,7 +20,7 @@ vi.mock('../../src/backtest/candle-backfill.js', () => ({
 const repoMocks = vi.hoisted(() => ({
   findGaps: vi.fn(async () => []),
   insertNew: vi.fn(async () => undefined),
-  getRange: vi.fn(async () => []),
+  getRange: vi.fn<GetRange>(async () => []),
 }));
 vi.mock('@app/db', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@app/db')>();
@@ -42,6 +44,8 @@ const { runProfileBacktest, BacktestCancelledError } =
 const silentLogger = pino({ level: 'silent' });
 
 const candleRow = (i: number) => ({
+  symbol: 'BTCUSDT',
+  interval: '1h',
   openTime: new Date(i * 3_600_000),
   closeTime: new Date(i * 3_600_000 + 3_599_999),
   open: '100',

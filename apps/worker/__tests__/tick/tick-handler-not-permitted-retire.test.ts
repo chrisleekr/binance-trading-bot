@@ -153,7 +153,7 @@ const buildHarness = (opts: HarnessOpts) => {
     if (opts.reapThrows) throw new Error('reapAutoIfFlat: transient postgres failure');
     return opts.reapResult ?? 'removed';
   });
-  const appendActionLog = vi.fn(async () => {
+  const appendActionLog = vi.fn<NonNullable<TickHandlerDeps['appendActionLog']>>(async () => {
     if (opts.appendActionLogThrows) throw new Error('appendActionLog: transient postgres failure');
   });
   const enqueueReconfigure = vi.fn(async () => {
@@ -239,7 +239,7 @@ const buildHarness = (opts: HarnessOpts) => {
       accountId: String(ACCOUNT),
       profileId: String(PROFILE),
       symbol: SYMBOL,
-      event: 'tick',
+      event: 'resync',
       enqueuedAtMs: 0,
       payload: {},
     } satisfies TickJobData,

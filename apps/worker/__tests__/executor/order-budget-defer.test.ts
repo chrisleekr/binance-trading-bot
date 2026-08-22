@@ -12,10 +12,11 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
-import type { Decision, DecisionResult, ExecutorContext } from '@app/strategy-core';
+import type { Decision, DecisionResult, TickExecutorContext } from '@app/strategy-core';
 import type { NotifyProviderRegistry } from '@app/notify';
 import type { StrategyRegistry } from '@app/strategy-registry';
 import type { OrderRateGovernor } from '@app/binance';
+import { asAccountId } from '@app/contracts';
 
 const { placeOrderSpy, cancelOrderSpy } = vi.hoisted(() => ({
   placeOrderSpy: vi.fn(),
@@ -33,12 +34,13 @@ import { createLiveExecutor } from '../../src/executor/live-executor.js';
 import type { ProfileExecutorBindings } from '../../src/executor/live-executor.js';
 import type { MetricsSink } from '../../src/metrics/catalog.js';
 
-const CTX: ExecutorContext = {
+const CTX: TickExecutorContext = {
   userId: '11111111-1111-4111-8111-111111111111',
   profileId: '22222222-2222-4222-8222-222222222222',
   clock: { nowMs: () => 0 },
   strategyName: 'momentum',
 };
+const ACCOUNT = asAccountId('a-1');
 
 const rearmPlace: Decision = {
   type: 'place-order',
@@ -84,7 +86,7 @@ const buildExecutor = (bindings: Partial<ProfileExecutorBindings> | null) => {
     logger,
     metrics,
     resolveProfile: vi.fn(async () => bindings as ProfileExecutorBindings | null),
-    notifierGapThrottle: { allow: async () => true },
+    notifierGapThrottle: { allow: async () => true, release: async () => undefined },
   });
   return { executor, logger, metrics };
 };
@@ -100,7 +102,7 @@ describe('LiveExecutor.applyAll — ORDERS budget deferral', () => {
     const orderGovernor = governor(false);
     const { executor, logger, metrics } = buildExecutor({ orderGovernor });
 
-    const applied = await executor.applyAll(CTX, 'a-1', [supersedeCancel, rearmPlace]);
+    const applied = await executor.applyAll(CTX, ACCOUNT, [supersedeCancel, rearmPlace]);
 
     // Nothing reached Binance: the stop already resting is still the protection.
     expect(cancelOrderSpy).not.toHaveBeenCalled();
@@ -135,7 +137,7 @@ describe('LiveExecutor.applyAll — ORDERS budget deferral', () => {
   it('applies the re-arm pair when headroom exists', async () => {
     const { executor, metrics } = buildExecutor({ orderGovernor: governor(true) });
 
-    const applied = await executor.applyAll(CTX, 'a-1', [supersedeCancel, rearmPlace]);
+    const applied = await executor.applyAll(CTX, ACCOUNT, [supersedeCancel, rearmPlace]);
 
     expect(cancelOrderSpy).toHaveBeenCalledTimes(1);
     expect(placeOrderSpy).toHaveBeenCalledTimes(1);
@@ -151,7 +153,7 @@ describe('LiveExecutor.applyAll — ORDERS budget deferral', () => {
     const orderGovernor = governor(false);
     const { executor } = buildExecutor({ orderGovernor });
 
-    const applied = await executor.applyAll(CTX, 'a-1', [supersedeCancel, exitPlace]);
+    const applied = await executor.applyAll(CTX, ACCOUNT, [supersedeCancel, exitPlace]);
 
     expect(orderGovernor.hasHeadroom).not.toHaveBeenCalled();
     expect(placeOrderSpy).toHaveBeenCalledTimes(1);
@@ -161,7 +163,7 @@ describe('LiveExecutor.applyAll — ORDERS budget deferral', () => {
   it('runs the non-order decisions of a deferred batch — only orders are budget-bound', async () => {
     const { executor } = buildExecutor({ orderGovernor: governor(false) });
 
-    const applied = await executor.applyAll(CTX, 'a-1', [rearmPlace, setKv]);
+    const applied = await executor.applyAll(CTX, ACCOUNT, [rearmPlace, setKv]);
 
     expect(placeOrderSpy).not.toHaveBeenCalled();
     expect(applied[1]?.decision).toBe(setKv);
@@ -175,7 +177,7 @@ describe('LiveExecutor.applyAll — ORDERS budget deferral', () => {
     // The posture when exchangeInfo published no ORDERS rows: unaccounted, not blocked.
     const { executor } = buildExecutor({});
 
-    await executor.applyAll(CTX, 'a-1', [supersedeCancel, rearmPlace]);
+    await executor.applyAll(CTX, ACCOUNT, [supersedeCancel, rearmPlace]);
 
     expect(placeOrderSpy).toHaveBeenCalledTimes(1);
   });
@@ -183,7 +185,7 @@ describe('LiveExecutor.applyAll — ORDERS budget deferral', () => {
   it('applies the re-arm when the profile no longer resolves, leaving the refusal to the handlers', async () => {
     const { executor } = buildExecutor(null);
 
-    const applied = await executor.applyAll(CTX, 'a-1', [rearmPlace]);
+    const applied = await executor.applyAll(CTX, ACCOUNT, [rearmPlace]);
 
     expect(placeOrderSpy).toHaveBeenCalledTimes(1);
     expect(applied[0]?.result.ok).toBe(true);

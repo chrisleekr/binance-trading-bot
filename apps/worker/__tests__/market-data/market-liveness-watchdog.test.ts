@@ -15,6 +15,8 @@ import {
 import type { ParsedMarketEvent } from '../../src/market-data/types.js';
 
 const silentLogger = pino({ level: 'silent' });
+type WatchdogDeps = Parameters<typeof createMarketLivenessWatchdog>[0];
+const feedSpy = () => vi.fn<WatchdogDeps['feed']>(async () => undefined);
 
 // Fresh-feed defaults: a connected socket whose last frame was just now. The
 // stall tests override msSinceLastFrame; the gap tests set isConnected false.
@@ -26,7 +28,7 @@ const freshDeps = () => ({
 describe('createMarketLivenessWatchdog', () => {
   it('is inert while the WS is connected and frames are fresh — no poll, no feed, no reconnect', async () => {
     const fetchPrice = vi.fn(async () => '100');
-    const feed = vi.fn(async () => undefined);
+    const feed = feedSpy();
     const forceReconnect = vi.fn();
     const wd = createMarketLivenessWatchdog({
       isConnected: () => true,
@@ -50,7 +52,7 @@ describe('createMarketLivenessWatchdog', () => {
     // real fetcher's synchronous flip is verified in the @app/binance suite
     // (kline-fetcher.test.ts, "forceReconnect ... flips isConnected false ...").
     let connected = true;
-    const feed = vi.fn(async () => undefined);
+    const feed = feedSpy();
     const forceReconnect = vi.fn(() => {
       connected = false;
     });
@@ -78,7 +80,7 @@ describe('createMarketLivenessWatchdog', () => {
 
   it('does NOT force a reconnect when connected with no subscribed symbols (no frames expected)', async () => {
     const forceReconnect = vi.fn();
-    const feed = vi.fn(async () => undefined);
+    const feed = feedSpy();
     const wd = createMarketLivenessWatchdog({
       isConnected: () => true,
       msSinceLastFrame: () => 999_999, // very stale, but nothing is subscribed
@@ -119,7 +121,7 @@ describe('createMarketLivenessWatchdog', () => {
 
   it('during a gap, feeds a synthetic mini-ticker per symbol carrying the polled price', async () => {
     const prices: Record<string, string> = { BTCUSDT: '64000', ETHUSDT: '3000' };
-    const feed = vi.fn(async () => undefined);
+    const feed = feedSpy();
     const wd = createMarketLivenessWatchdog({
       isConnected: () => false,
       ...freshDeps(),
@@ -147,7 +149,7 @@ describe('createMarketLivenessWatchdog', () => {
   });
 
   it('skips a symbol whose price is unavailable (null) without feeding', async () => {
-    const feed = vi.fn(async () => undefined);
+    const feed = feedSpy();
     const wd = createMarketLivenessWatchdog({
       isConnected: () => false,
       ...freshDeps(),
@@ -162,7 +164,7 @@ describe('createMarketLivenessWatchdog', () => {
   });
 
   it('swallows a per-symbol poll failure and still feeds the others', async () => {
-    const feed = vi.fn(async () => undefined);
+    const feed = feedSpy();
     const wd = createMarketLivenessWatchdog({
       isConnected: () => false,
       ...freshDeps(),

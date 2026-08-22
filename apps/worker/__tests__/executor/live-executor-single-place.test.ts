@@ -12,7 +12,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
-import type { Decision, DecisionResult, ExecutorContext } from '@app/strategy-core';
+import type { Decision, DecisionResult, TickExecutorContext } from '@app/strategy-core';
+import { asAccountId } from '@app/contracts';
 import type { NotifyProviderRegistry } from '@app/notify';
 import type { StrategyRegistry } from '@app/strategy-registry';
 
@@ -24,12 +25,13 @@ vi.mock('../../src/executor/decisions/place-order.js', () => ({
 
 import { createLiveExecutor, MultiPlacementError } from '../../src/executor/live-executor.js';
 
-const CTX: ExecutorContext = {
+const CTX: TickExecutorContext = {
   userId: 'u-1',
   profileId: 'p-1',
   clock: { nowMs: () => 0 },
   strategyName: 'trailing-trade',
 };
+const ACCOUNT = asAccountId('a-1');
 
 const place = (clientOrderId: string): Decision => ({
   type: 'place-order',
@@ -47,7 +49,7 @@ const buildExecutor = () =>
     strategies: {} as unknown as StrategyRegistry,
     logger: mkLogger(),
     resolveProfile: vi.fn(async () => ({}) as never),
-    notifierGapThrottle: { allow: async () => true },
+    notifierGapThrottle: { allow: async () => true, release: async () => undefined },
   });
 
 beforeEach(() => {
@@ -58,7 +60,7 @@ beforeEach(() => {
 describe('LiveExecutor.applyAll — one placement per tick', () => {
   it('throws MultiPlacementError carrying the profile and placement count', async () => {
     const err = await buildExecutor()
-      .applyAll(CTX, 'a-1', [place('coid-1'), place('coid-2')])
+      .applyAll(CTX, ACCOUNT, [place('coid-1'), place('coid-2')])
       .then(
         () => undefined,
         (e: unknown) => e,
@@ -71,7 +73,7 @@ describe('LiveExecutor.applyAll — one placement per tick', () => {
   });
 
   it('applies the single-placement tick every strategy actually emits', async () => {
-    const applied = await buildExecutor().applyAll(CTX, 'a-1', [place('coid-1')]);
+    const applied = await buildExecutor().applyAll(CTX, ACCOUNT, [place('coid-1')]);
     expect(applied).toHaveLength(1);
     expect(placeOrderSpy).toHaveBeenCalledTimes(1);
   });

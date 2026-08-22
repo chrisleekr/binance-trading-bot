@@ -79,6 +79,8 @@ const ttTuple: FrameTuple = {
     killSwitch: null,
     symbolDisable: null,
     weightUsed1m: 10,
+    orderRearm: null,
+    orderRefusal: null,
     indicatorsByInterval: { '1h': null },
   },
   livePrice: '47000.00',

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Redis } from 'ioredis';
-import { asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId } from '@app/contracts';
 import { readCurrentWeight, recordWeight } from '../../src/executor/weight-limiter.js';
 
-const USER = asUserId('00000000-0000-0000-0000-0000000000aa');
+const ACCOUNT = asAccountId('00000000-0000-0000-0000-0000000000aa');
 const PROFILE = asProfileId('00000000-0000-0000-0000-0000000000bb');
 
 const fixedClock = (ms: number): { nowMs(): number } => ({ nowMs: () => ms });
@@ -23,14 +23,14 @@ describe('weight-limiter', () => {
   it('recordWeight is a no-op when Binance returned no weight header', async () => {
     const set = vi.fn();
     const redis = { set } as unknown as Redis;
-    await recordWeight({ redis, clock: fixedClock(0) }, USER, PROFILE, undefined);
+    await recordWeight({ redis, clock: fixedClock(0) }, ACCOUNT, PROFILE, undefined);
     expect(set).not.toHaveBeenCalled();
   });
 
   it('recordWeight writes the bucketed key with EX 120 by default', async () => {
     const set = vi.fn(async () => 'OK');
     const redis = { set } as unknown as Redis;
-    await recordWeight({ redis, clock: fixedClock(1_700_000_000_000) }, USER, PROFILE, 450);
+    await recordWeight({ redis, clock: fixedClock(1_700_000_000_000) }, ACCOUNT, PROFILE, 450);
     expect(set).toHaveBeenCalledOnce();
     const args = set.mock.calls[0] as unknown[];
     expect(args[1]).toBe('450');
@@ -40,14 +40,14 @@ describe('weight-limiter', () => {
 
   it('readCurrentWeight returns 0 when the bucket key is absent', async () => {
     const redis = fakeRedis(new Map());
-    const w = await readCurrentWeight({ redis, clock: fixedClock(0) }, USER, PROFILE);
+    const w = await readCurrentWeight({ redis, clock: fixedClock(0) }, ACCOUNT, PROFILE);
     expect(w).toBe(0);
   });
 
   it('readCurrentWeight parses an integer from the stored value', async () => {
     const clock = fixedClock(1_700_000_000_000);
     const redis = fakeRedis();
-    await recordWeight({ redis, clock }, USER, PROFILE, 789);
-    expect(await readCurrentWeight({ redis, clock }, USER, PROFILE)).toBe(789);
+    await recordWeight({ redis, clock }, ACCOUNT, PROFILE, 789);
+    expect(await readCurrentWeight({ redis, clock }, ACCOUNT, PROFILE)).toBe(789);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId } from '@app/contracts';
 import type { AuditEntry } from '../../src/audit-shipper/audit-shipper.js';
 import {
   auditEntriesToActionLogs,
@@ -7,7 +7,7 @@ import {
 } from '../../src/audit-shipper/audit-to-action-log.js';
 
 const entry = (over: Partial<AuditEntry> = {}): AuditEntry => ({
-  userId: asUserId('11111111-1111-1111-1111-111111111111'),
+  accountId: asAccountId('11111111-1111-1111-1111-111111111111'),
   profileId: asProfileId('22222222-2222-2222-2222-222222222222'),
   tickId: '00000000-0000-4000-8000-000000000793',
   ts: 1_700_000_000_000,
