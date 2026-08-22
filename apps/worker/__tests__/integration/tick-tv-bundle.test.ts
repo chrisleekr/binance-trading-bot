@@ -12,9 +12,8 @@ import { Redis } from 'ioredis';
 import { pino } from 'pino';
 
 import {
+  asAccountId,
   asProfileId,
-  asUserId,
-  type AccountId,
   TechnicalsSignalSchema,
   type ManualOverridePayload,
   type TechnicalsBundle,
@@ -29,7 +28,7 @@ import { createTickBundleProvider } from '../../src/tick/bundle-builder.js';
 const HAS_INFRA = process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['REDIS_TEST_URL']);
 const describeIfInfra = HAS_INFRA ? describe : describe.skip;
 
-const USER = asUserId('00000000-0000-0000-0000-000000000abc');
+const ACCOUNT = asAccountId('00000000-0000-0000-0000-000000000abc');
 const PROFILE = asProfileId('00000000-0000-0000-0000-000000000def');
 const SYMBOL = 'BTCUSDT';
 const INTERVAL = '1h';
@@ -41,6 +40,7 @@ const PROVIDERS = ['technicals', 'override'];
 const TV_CONFIG: TechnicalsBundleConfig = {
   useOnlyWithinMin: 2,
   ifExpires: 'do-not-buy',
+  entryConfirmReads: 1,
   intervals: [
     {
       interval: INTERVAL,
@@ -49,6 +49,7 @@ const TV_CONFIG: TechnicalsBundleConfig = {
       whenSell: false,
       whenStrongSell: false,
       whenNeutral: false,
+      mode: 'advisory',
     },
   ],
 };
@@ -85,7 +86,7 @@ describeIfInfra('tick bundle provider — Redis-backed', () => {
     await r.set(key, JSON.stringify(seeded));
     try {
       const provider = createTickBundleProvider({ redis: r, logger: pino({ level: 'silent' }) });
-      const bundle = (await provider(USER, PROFILE, SYMBOL, TV_CONFIG, PROVIDERS))
+      const bundle = (await provider(ACCOUNT, PROFILE, SYMBOL, TV_CONFIG, PROVIDERS))
         .bundle as unknown as ProviderBundle;
       expect(bundle.technicals.signals).toHaveLength(1);
       expect(bundle.technicals.signals[0]).toEqual({ interval: INTERVAL, signal: seeded });
@@ -105,7 +106,7 @@ describeIfInfra('tick bundle provider — Redis-backed', () => {
       redis,
       logger: pino({ level: 'silent' }),
     });
-    const bundle = (await provider(USER, PROFILE, SYMBOL, TV_CONFIG, PROVIDERS))
+    const bundle = (await provider(ACCOUNT, PROFILE, SYMBOL, TV_CONFIG, PROVIDERS))
       .bundle as unknown as ProviderBundle;
     expect(bundle.technicals.signals).toHaveLength(1);
     expect(bundle.technicals.signals[0]).toEqual({ interval: INTERVAL, signal: null });
@@ -117,11 +118,7 @@ describeIfInfra('tick bundle provider — Redis-backed', () => {
     // consuming DEL. The tick handler re-arms a deferred override off this value.
     if (!redis) throw new Error('fixture not ready');
     const r = redis;
-    const overrideKey = profileKey(
-      { accountId: USER as unknown as AccountId, profileId: PROFILE },
-      'override',
-      SYMBOL,
-    );
+    const overrideKey = profileKey({ accountId: ACCOUNT, profileId: PROFILE }, 'override', SYMBOL);
     await r.set(
       overrideKey,
       JSON.stringify({ kind: 'trigger-sell', overrideActionId: OVERRIDE_ACTION_ID }),
@@ -130,7 +127,7 @@ describeIfInfra('tick bundle provider — Redis-backed', () => {
     );
     try {
       const provider = createTickBundleProvider({ redis: r, logger: pino({ level: 'silent' }) });
-      const result = await provider(USER, PROFILE, SYMBOL, TV_CONFIG, PROVIDERS);
+      const result = await provider(ACCOUNT, PROFILE, SYMBOL, TV_CONFIG, PROVIDERS);
       expect((result.bundle as unknown as ProviderBundle).override).toMatchObject({
         kind: 'trigger-sell',
         overrideActionId: OVERRIDE_ACTION_ID,

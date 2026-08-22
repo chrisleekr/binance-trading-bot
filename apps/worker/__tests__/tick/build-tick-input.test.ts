@@ -4,14 +4,18 @@ import type { Logger } from 'pino';
 import type { MarketDataPort } from '@app/binance';
 import type { AnyStrategy, Candle, SymbolInfo, TriggerEvent } from '@app/strategy-core';
 import { asAccountId, asProfileId, asUserId, type TechnicalsBundleConfig } from '@app/contracts';
-import type { ProfileScope } from '@app/db';
+import type { ProfileRepo, ProfileScope } from '@app/db';
 
 // The entry-blocker on-change writer resolves a bound repo from the scope and
 // records a condition. Mock the binding so the wrapper's write is observable
 // without a real DB; `recordSpy` captures the input. The state row and the log
 // edge are the writer's business and are covered against real Postgres in
 // packages/db; what matters here is WHETHER the tick path calls it.
-const recordSpy = vi.fn(async () => ({ changed: true as const, previousCode: null, sinceMs: 0 }));
+const recordSpy = vi.fn<ProfileRepo['conditionStates']['recordCondition']>(async () => ({
+  changed: true,
+  previousCode: null,
+  sinceMs: 0,
+}));
 vi.mock('@app/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@app/db')>();
   return {
@@ -101,6 +105,7 @@ const baseRaw = (overrides: Partial<RawSnapshot> = {}): RawSnapshot => ({
   killSwitch: null,
   symbolDisable: null,
   weightUsed1m: 10,
+  orderRearm: null,
   orderRefusal: null,
   indicatorsByInterval: { '1h': null },
   ...overrides,
@@ -539,10 +544,10 @@ describe('buildTickInput', () => {
     // the case above it left behind. Each case takes its own symbol.
     // Every commit audits each blocker field, so a per-condition view is what
     // the de-spam claims are actually about.
-    const callsFor = (condition: string): unknown[] =>
-      recordSpy.mock.calls
-        .map((c) => c[0] as { condition: string })
-        .filter((c) => c.condition === condition);
+    const callsFor = (
+      condition: string,
+    ): Array<Parameters<ProfileRepo['conditionStates']['recordCondition']>[0]> =>
+      recordSpy.mock.calls.map((c) => c[0]).filter((c) => c.condition === condition);
 
     // Three audited fields now share one writer, so a `mockResolvedValue` set for
     // one case would answer for the other two and outlive the test that set it.

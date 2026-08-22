@@ -10,7 +10,7 @@ class CaptureStream extends Writable implements DestinationStream {
     this.buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     cb();
   }
-  write(chunk: Buffer | string): boolean {
+  override write(chunk: Buffer | string): boolean {
     this.buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     return true;
   }
@@ -51,7 +51,7 @@ describe('worker logger err serializer', () => {
     const out = new CaptureStream();
     const logger = buildLogger('debug', out);
     logger.error({ err: new Error('boom') }, 'x');
-    const err = lastLine(out).err as { stack?: unknown; message?: unknown };
+    const err = lastLine(out)['err'] as { stack?: unknown; message?: unknown };
     expect(typeof err.stack).toBe('string');
     expect(err.stack as string).toContain('boom');
     expect(err.message).toBe('boom');
@@ -61,7 +61,7 @@ describe('worker logger err serializer', () => {
     const out = new CaptureStream();
     const logger = buildLogger('debug', out);
     expect(() => logger.error({ err: { code: -1013 } }, 'x')).not.toThrow();
-    expect(lastLine(out).err).toEqual({ code: -1013 });
+    expect(lastLine(out)['err']).toEqual({ code: -1013 });
   });
 
   it('logs a failed api-keys write without its bound secret', () => {
@@ -110,7 +110,7 @@ describe('worker logger err serializer', () => {
     const logger = buildLogger('debug', out);
     logger.error({ err: drizzleQueryError(API_KEY_INSERT, ['acct-1', SECRET, 'sec']) }, 'x');
 
-    expect(lastLine(out).err).not.toHaveProperty('raw');
+    expect(lastLine(out)['err']).not.toHaveProperty('raw');
     expect(lastRawLine(out)).not.toContain('"raw"');
   });
 });

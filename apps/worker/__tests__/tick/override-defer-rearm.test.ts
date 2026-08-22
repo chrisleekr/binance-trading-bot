@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { profileKey, type ProfileScope } from '@app/db';
 import { asAccountId, asProfileId, asUserId, type ManualOverridePayload } from '@app/contracts';
 
-import { settleOverride } from '../../src/tick/override-settlement.js';
+import { settleOverride, type SettleOverrideArgs } from '../../src/tick/override-settlement.js';
 
 const OPERATOR = asUserId('00000000-0000-0000-0000-0000000000a1');
 const ACCOUNT = asAccountId('00000000-0000-0000-0000-000000000abc');
@@ -27,6 +27,9 @@ const OVERRIDE_KEY = profileKey({ accountId: ACCOUNT, profileId: PROFILE }, 'ove
 
 /** The `processing_at` stamp a claiming tick would have written, and the release's fence. */
 const CLAIM_AT = new Date('2026-07-30T00:00:00.000Z');
+type SettleOverrideAction = NonNullable<SettleOverrideArgs['settleOverrideAction']>;
+const settleAction = (implementation: SettleOverrideAction) =>
+  vi.fn<SettleOverrideAction>(implementation);
 
 /**
  * ioredis stub recording every `set` argv. `rejectSet` forces the SET to
@@ -64,7 +67,7 @@ const buildFakeLogger = (warnings: { ctx: unknown; msg: string }[]): import('pin
 describe('settleOverride', () => {
   it('re-arms with NX+PX and does not mark consumed when deferred', async () => {
     const setCalls: unknown[][] = [];
-    const settleOverrideAction = vi.fn(async () => {});
+    const settleOverrideAction = settleAction(async () => undefined);
 
     await settleOverride({
       redis: buildFakeRedis(setCalls),
@@ -87,7 +90,7 @@ describe('settleOverride', () => {
 
   it('marks consumed and does not re-arm when the strategy applied the override', async () => {
     const setCalls: unknown[][] = [];
-    const settleOverrideAction = vi.fn(async () => {});
+    const settleOverrideAction = settleAction(async () => undefined);
 
     await settleOverride({
       redis: buildFakeRedis(setCalls),
@@ -118,7 +121,7 @@ describe('settleOverride', () => {
     await settleOverride({
       redis: buildFakeRedis(setCalls),
       logger: buildFakeLogger([]),
-      settleOverrideAction: vi.fn(async () => {}),
+      settleOverrideAction: settleAction(async () => undefined),
       scope: SCOPE,
       symbol: SYMBOL,
       override: OVERRIDE,
@@ -138,7 +141,7 @@ describe('settleOverride', () => {
   it('consumes without re-arming when remaining TTL is exhausted or unavailable', async () => {
     for (const ttlMs of [0, -1, undefined]) {
       const setCalls: unknown[][] = [];
-      const settleOverrideAction = vi.fn(async () => {});
+      const settleOverrideAction = settleAction(async () => undefined);
 
       await settleOverride({
         redis: buildFakeRedis(setCalls),
@@ -147,7 +150,7 @@ describe('settleOverride', () => {
         scope: SCOPE,
         symbol: SYMBOL,
         override: OVERRIDE,
-        ttlMs,
+        ...(ttlMs === undefined ? {} : { ttlMs }),
         deferred: true,
         supported: true,
         orderFate: { kind: 'none' },
@@ -160,7 +163,7 @@ describe('settleOverride', () => {
 
   it('consumes an unsupported kind without re-arming', async () => {
     const setCalls: unknown[][] = [];
-    const settleOverrideAction = vi.fn(async () => {});
+    const settleOverrideAction = settleAction(async () => undefined);
 
     // An override the strategy does not declare can never be applied; re-arming
     // it would loop it forever. Consume it, same as today.
@@ -191,7 +194,7 @@ describe('settleOverride', () => {
     // no view of `strategy.capabilities` must not have the NEGATIVE assertion put in
     // its mouth: the neutral wording is true whatever the capability turns out to be.
     const setCalls: unknown[][] = [];
-    const settleOverrideAction = vi.fn(async () => {});
+    const settleOverrideAction = settleAction(async () => undefined);
 
     await settleOverride({
       redis: buildFakeRedis(setCalls),
@@ -217,7 +220,7 @@ describe('settleOverride', () => {
   it('warns and completes when the re-arm SET rejects', async () => {
     const setCalls: unknown[][] = [];
     const warnings: { ctx: unknown; msg: string }[] = [];
-    const settleOverrideAction = vi.fn(async () => {});
+    const settleOverrideAction = settleAction(async () => undefined);
 
     await expect(
       settleOverride({
@@ -310,7 +313,7 @@ describe('settleOverride', () => {
   it('resolves and warns when the ambiguous-outcome notify throws synchronously', async () => {
     const warnings: { ctx: unknown; msg: string }[] = [];
     const boom = new Error('notifier exploded');
-    const settleOverrideAction = vi.fn(async () => {});
+    const settleOverrideAction = settleAction(async () => undefined);
     const notifyOverrideOutcome = vi.fn(() => {
       throw boom;
     });
@@ -360,7 +363,7 @@ describe('settleOverride', () => {
     // Postgres and outbound webhooks.
     const warnings: { ctx: unknown; msg: string }[] = [];
     const boom = new Error('notifier rejected');
-    const settleOverrideAction = vi.fn(async () => {});
+    const settleOverrideAction = settleAction(async () => undefined);
     const notifyOverrideOutcome = vi.fn(() => Promise.reject(boom));
 
     await expect(
@@ -397,7 +400,7 @@ describe('settleOverride', () => {
     // can never execute — consume it instead of leaving it pending forever.
     const setCalls: unknown[][] = [];
     const warnings: { ctx: unknown; msg: string }[] = [];
-    const settleOverrideAction = vi.fn(async () => {});
+    const settleOverrideAction = settleAction(async () => undefined);
 
     await settleOverride({
       redis: buildFakeRedis(setCalls, false, null),
@@ -422,7 +425,7 @@ describe('settleOverride', () => {
     // Mirror image of the NX-loss case: an 'OK' reply means the key is armed, so
     // the row must stay pending (nothing has executed yet).
     const setCalls: unknown[][] = [];
-    const settleOverrideAction = vi.fn(async () => {});
+    const settleOverrideAction = settleAction(async () => undefined);
 
     await settleOverride({
       redis: buildFakeRedis(setCalls, false, 'OK'),
@@ -450,7 +453,7 @@ describe('settleOverride', () => {
     await settleOverride({
       redis: buildFakeRedis(setCalls),
       logger: buildFakeLogger([]),
-      settleOverrideAction: vi.fn(async () => {}),
+      settleOverrideAction: settleAction(async () => undefined),
       scope: SCOPE,
       symbol: SYMBOL,
       override: OVERRIDE,
@@ -488,7 +491,7 @@ describe('settleOverride', () => {
           },
         } as unknown as import('ioredis').Redis,
         logger: buildFakeLogger([]),
-        settleOverrideAction: vi.fn(async () => {}),
+        settleOverrideAction: settleAction(async () => undefined),
         releaseOverrideClaim,
         claimAt: CLAIM_AT,
         scope: SCOPE,
@@ -518,7 +521,7 @@ describe('settleOverride', () => {
       await settleOverride({
         redis: buildFakeRedis(setCalls),
         logger: buildFakeLogger(warnings),
-        settleOverrideAction: vi.fn(async () => {}),
+        settleOverrideAction: settleAction(async () => undefined),
         releaseOverrideClaim: vi.fn(() => Promise.reject(new Error('postgres unreachable'))),
         claimAt: CLAIM_AT,
         scope: SCOPE,
@@ -543,7 +546,7 @@ describe('settleOverride', () => {
       await settleOverride({
         redis: buildFakeRedis(setCalls),
         logger: buildFakeLogger(warnings),
-        settleOverrideAction: vi.fn(async () => {}),
+        settleOverrideAction: settleAction(async () => undefined),
         releaseOverrideClaim: vi.fn(() => new Promise<void>(() => undefined)),
         claimAt: CLAIM_AT,
         scope: SCOPE,
@@ -568,7 +571,7 @@ describe('settleOverride', () => {
       // being claimed cannot block that: the settle carries no `processing_at`
       // predicate. Left pending, the operator watches a dead override forever.
       const setCalls: unknown[][] = [];
-      const settleOverrideAction = vi.fn(async () => {});
+      const settleOverrideAction = settleAction(async () => undefined);
       const releaseOverrideClaim = vi.fn(async () => {});
 
       await settleOverride({
@@ -602,7 +605,7 @@ describe('settleOverride', () => {
       await settleOverride({
         redis: buildFakeRedis(setCalls),
         logger: buildFakeLogger([]),
-        settleOverrideAction: vi.fn(async () => {}),
+        settleOverrideAction: settleAction(async () => undefined),
         releaseOverrideClaim,
         scope: SCOPE,
         symbol: SYMBOL,
@@ -623,7 +626,7 @@ describe('settleOverride', () => {
       // a deterministic abort, different cause. Nothing was dispatched, so the override
       // provably did not execute and the row can carry a verdict.
       const setCalls: unknown[][] = [];
-      const settleOverrideAction = vi.fn(async () => {});
+      const settleOverrideAction = settleAction(async () => undefined);
 
       await settleOverride({
         redis: buildFakeRedis(setCalls),
@@ -655,7 +658,7 @@ describe('settleOverride', () => {
       // claim does not re-arm would also pass if the abort path had stopped re-arming
       // altogether.
       const setCalls: unknown[][] = [];
-      const settleOverrideAction = vi.fn(async () => {});
+      const settleOverrideAction = settleAction(async () => undefined);
 
       await settleOverride({
         redis: buildFakeRedis(setCalls),
@@ -688,7 +691,7 @@ describe('settleOverride', () => {
       await settleOverride({
         redis: buildFakeRedis(setCalls),
         logger: buildFakeLogger([]),
-        settleOverrideAction: vi.fn(async () => {}),
+        settleOverrideAction: settleAction(async () => undefined),
         releaseOverrideClaim,
         claimAt: CLAIM_AT,
         scope: SCOPE,
@@ -707,7 +710,7 @@ describe('settleOverride', () => {
 
   it('consumes without re-arming when the tick outlived the remaining window', async () => {
     const setCalls: unknown[][] = [];
-    const settleOverrideAction = vi.fn(async () => {});
+    const settleOverrideAction = settleAction(async () => undefined);
 
     await settleOverride({
       redis: buildFakeRedis(setCalls),

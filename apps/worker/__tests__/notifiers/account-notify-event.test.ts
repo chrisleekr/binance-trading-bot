@@ -4,7 +4,7 @@
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import pino from 'pino';
-import type { NotifyProviderRegistry } from '@app/notify';
+import type { AnyNotifyProvider, NotifyProviderRegistry } from '@app/notify';
 
 const h = vi.hoisted(() => ({
   get: vi.fn(),
@@ -60,12 +60,14 @@ describe('isAccountEventEnabled', () => {
 });
 
 describe('createAccountNotifyEvent', () => {
-  const registryWith = (send: ReturnType<typeof vi.fn>): NotifyProviderRegistry =>
+  const registryWith = (
+    send: ReturnType<typeof vi.fn<AnyNotifyProvider['send']>>,
+  ): NotifyProviderRegistry =>
     ({ get: (name: string) => (name === 'slack' ? { name: 'slack', send } : undefined) }) as never;
 
   it('does not send when the category is muted', async () => {
     h.get.mockResolvedValue({ events: { 'job-failed': false } });
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     await createAccountNotifyEvent({ db, notifyProviders: registryWith(send), logger: silent })({
       category: 'job-failed',
       body: 'a job died',
@@ -80,22 +82,15 @@ describe('createAccountNotifyEvent', () => {
       // Exact duplicate transport — must be deduped to a single send.
       { provider: 'slack', config: { channel: '#a' }, secrets: { url: 'u' }, enabled: true },
     ]);
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     await createAccountNotifyEvent({ db, notifyProviders: registryWith(send), logger: silent })({
       category: 'job-failed',
       body: 'db-backup failed',
       fields: [{ label: 'Job', value: 'db-backup' }],
     });
     expect(send).toHaveBeenCalledTimes(1);
-    const arg = send.mock.calls[0]?.[0] as {
-      message: {
-        severity: string;
-        topic: string;
-        title: string;
-        body: string;
-        fields: { label: string; value: string }[];
-      };
-    };
+    const arg = send.mock.calls[0]?.[0];
+    if (!arg) throw new Error('expected one account notification');
     expect(arg.message).toMatchObject({
       severity: 'error',
       topic: 'job-failed',
@@ -108,7 +103,7 @@ describe('createAccountNotifyEvent', () => {
   it('no-ops when no notifiers are configured anywhere', async () => {
     h.get.mockResolvedValue({ events: {} });
     h.listAllEnabled.mockResolvedValue([]);
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     await createAccountNotifyEvent({ db, notifyProviders: registryWith(send), logger: silent })({
       category: 'job-failed',
       body: 'nothing to send to',
@@ -125,7 +120,7 @@ describe('createAccountNotifyEvent', () => {
     h.listEnabledForAccount.mockResolvedValue([
       { provider: 'slack', config: { channel: '#test' }, secrets: { url: 'u' }, enabled: true },
     ]);
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     const outcome = await createAccountNotifyEvent({
       db,
       notifyProviders: registryWith(send),
@@ -153,7 +148,7 @@ describe('createAccountNotifyEvent', () => {
         ? [{ provider: 'slack', config: { channel: '#a' }, secrets: { url: 'ua' }, enabled: true }]
         : [{ provider: 'slack', config: { channel: '#b' }, secrets: { url: 'ub' }, enabled: true }],
     );
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     const notify = createAccountNotifyEvent({
       db,
       notifyProviders: registryWith(send),
@@ -175,7 +170,7 @@ describe('createAccountNotifyEvent', () => {
     // retry. Collapsing them would either spam the log or drop the alert.
     h.get.mockResolvedValue({ events: {} });
     h.listEnabledForAccount.mockResolvedValue([]);
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     const outcome = await createAccountNotifyEvent({
       db,
       notifyProviders: registryWith(send),
@@ -187,7 +182,7 @@ describe('createAccountNotifyEvent', () => {
 
   it('reports muted when the operator has turned the category off', async () => {
     h.get.mockResolvedValue({ events: { 'orphan-order': false } });
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     const outcome = await createAccountNotifyEvent({
       db,
       notifyProviders: registryWith(send),
@@ -199,7 +194,9 @@ describe('createAccountNotifyEvent', () => {
 });
 
 describe('createAccountNotifyEventBatch', () => {
-  const registryWith = (send: ReturnType<typeof vi.fn>): NotifyProviderRegistry =>
+  const registryWith = (
+    send: ReturnType<typeof vi.fn<AnyNotifyProvider['send']>>,
+  ): NotifyProviderRegistry =>
     ({ get: (name: string) => (name === 'slack' ? { name: 'slack', send } : undefined) }) as never;
 
   it('reads the gate and the notifier set ONCE for the whole batch', async () => {
@@ -209,7 +206,7 @@ describe('createAccountNotifyEventBatch', () => {
     h.listEnabledForAccount.mockResolvedValue([
       { provider: 'slack', config: { channel: '#a' }, secrets: { url: 'u' }, enabled: true },
     ]);
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     const outcomes = await createAccountNotifyEventBatch({
       db,
       notifyProviders: registryWith(send),
@@ -230,7 +227,7 @@ describe('createAccountNotifyEventBatch', () => {
 
   it('reports the shared outcome for every event when the gate or the resolve settles it', async () => {
     h.get.mockResolvedValue({ events: { 'orphan-order': false } });
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     const outcomes = await createAccountNotifyEventBatch({
       db,
       notifyProviders: registryWith(send),

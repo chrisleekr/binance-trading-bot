@@ -131,7 +131,9 @@ const buildHarness = (opts: HarnessOpts) => {
         };
 
   const reapAutoIfFlat = vi.fn(async (): Promise<ReapOutcome> => opts.reapResult ?? 'removed');
-  const appendActionLog = vi.fn(async () => undefined);
+  const appendActionLog = vi.fn<NonNullable<TickHandlerDeps['appendActionLog']>>(
+    async () => undefined,
+  );
   // After a `removed` reap, the handler tells the WS to drop the unbound symbol by
   // enqueuing a reconfigure job. Best-effort: a throw must be swallowed, not fatal.
   const enqueueReconfigure = vi.fn(async () => {
@@ -203,7 +205,7 @@ const buildHarness = (opts: HarnessOpts) => {
       accountId: String(ACCOUNT),
       profileId: String(PROFILE),
       symbol: SYMBOL,
-      event: 'tick',
+      event: 'resync',
       enqueuedAtMs: 0,
       payload: {},
     } satisfies TickJobData,

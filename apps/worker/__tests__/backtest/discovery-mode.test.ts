@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
 
+type GetRange = typeof import('@app/db').repo.candles.getRange;
+
 // Scope: this test proves the RUNNER WIRING only — that `runProfileBacktest`
 // threads `params.discoveryMode` into `buildBundle`, which arms the
 // `entryHint.enterOnAdd` seam (the same key the live worker's bundle-builder
@@ -25,7 +27,7 @@ vi.mock('../../src/backtest/candle-backfill.js', () => ({
 const repoMocks = vi.hoisted(() => ({
   findGaps: vi.fn(async () => []),
   insertNew: vi.fn(async () => undefined),
-  getRange: vi.fn(async () => []),
+  getRange: vi.fn<GetRange>(async () => []),
 }));
 vi.mock('@app/db', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@app/db')>();
@@ -52,6 +54,8 @@ const HOUR = 3_600_000;
 // A flat candle row; 230 of them satisfy the runner's warm-up floor so it
 // reaches runBacktest (where our mock captures the bundle callback).
 const candleRow = (i: number) => ({
+  symbol: 'BTCUSDT',
+  interval: '1h',
   openTime: new Date(i * HOUR),
   closeTime: new Date(i * HOUR + (HOUR - 1)),
   open: '100',

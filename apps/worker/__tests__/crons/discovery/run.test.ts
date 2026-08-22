@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DiscoveryConfigSchema } from '@app/contracts';
+import { DiscoveryConfigSchema, type StoredDiscoveryConfig } from '@app/contracts';
 import type { Ticker24hrDto } from '@app/binance';
 import type { Candle } from '@app/strategy-core';
 import {
@@ -135,9 +135,20 @@ const fakePort = (over: Partial<DiscoveryProfilePort> = {}): DiscoveryProfilePor
   notify: vi.fn(async () => undefined),
   enqueueResync: vi.fn(async () => undefined),
   persistExplain: vi.fn(async () => undefined),
-  persistSnapshot: vi.fn(async () => undefined),
+  persistSnapshot: vi.fn<DiscoveryProfilePort['persistSnapshot']>(async () => undefined),
   ...over,
 });
+
+const snapshotFor = (
+  port: DiscoveryProfilePort,
+): Parameters<DiscoveryProfilePort['persistSnapshot']>[0] => {
+  const persistSnapshot = port.persistSnapshot as ReturnType<
+    typeof vi.fn<DiscoveryProfilePort['persistSnapshot']>
+  >;
+  const snapshot = persistSnapshot.mock.calls[0]?.[0];
+  if (!snapshot) throw new Error('expected a persisted discovery snapshot');
+  return snapshot;
+};
 
 // Sibling account-level conflict (#661). Sibling profiles under one account share
 // a wallet, so a candidate whose base asset is the QUOTE of a sibling (C1) or is
@@ -440,7 +451,7 @@ describe('runDiscoveryForProfile', () => {
     const port = fakePort();
     await runCycle(port, cfg, 'USDT');
     expect(port.persistSnapshot).toHaveBeenCalledTimes(1);
-    const snap = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const snap = snapshotFor(port);
     // Universe is the full quote-matched ranked ticker set, decimal-strings kept.
     expect(snap.universe).toEqual([
       { symbol: 'AAAUSDT', priceChangePercent: '10', quoteVolume: '1' },
@@ -465,7 +476,7 @@ describe('runDiscoveryForProfile', () => {
     const port = fakePort();
     await runCycle(port, permissiveConfig(), 'USDT');
     expect(port.persistSnapshot).toHaveBeenCalledTimes(1);
-    const snap = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const snap = snapshotFor(port);
     expect(snap.funnel).toBeDefined();
     expect(snap.funnel).toMatchObject({
       universe: expect.any(Number),
@@ -494,15 +505,15 @@ describe('runDiscoveryForProfile', () => {
     // that never ran instead of at the missing price history.
     const port = fakePort({ listAutoSymbols: async () => ['ZZZUSDT'] });
     await runCycle(port, permissiveConfig(), 'USDT');
-    const snap = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(snap.funnel.probed).toBe(1);
+    const snap = snapshotFor(port);
+    expect(snap.funnel?.probed).toBe(1);
   });
 
   it('persists a snapshot even on a no-op (empty universe) cycle (#436)', async () => {
     const port = fakePort({ getAllTickers: async () => [] });
     await runCycle(port, permissiveConfig(), 'USDT');
     expect(port.persistSnapshot).toHaveBeenCalledTimes(1);
-    const snap = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const snap = snapshotFor(port);
     expect(snap.universe).toEqual([]);
     expect(snap.add).toEqual([]);
     expect(snap.desired).toEqual([]);
@@ -648,10 +659,8 @@ describe('runDiscoveryForProfile', () => {
     expect(fetched).not.toContain('S20USDT'); // beyond the cap → skipped this cycle
     // 41 candidates but 16 windows: the segment's denominator is the windows the
     // cap allowed, not the candidate count, or a cap would read as a filter.
-    const snapshot = (port.persistSnapshot as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
-      funnel: { probed: number };
-    };
-    expect(snapshot.funnel.probed).toBe(16);
+    const snapshot = snapshotFor(port);
+    expect(snapshot.funnel?.probed).toBe(16);
   });
 });
 

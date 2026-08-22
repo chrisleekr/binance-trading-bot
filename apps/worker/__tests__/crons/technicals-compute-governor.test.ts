@@ -40,7 +40,7 @@ const klineRow = (openTimeMs: number, closeTimeMs: number): unknown[] => [
 ];
 
 const stubFetch = (status = 200, requests: string[] = []): typeof globalThis.fetch =>
-  (async (input) => {
+  (async (input: Parameters<typeof globalThis.fetch>[0]) => {
     requests.push(String(input));
     return new Response(
       JSON.stringify(

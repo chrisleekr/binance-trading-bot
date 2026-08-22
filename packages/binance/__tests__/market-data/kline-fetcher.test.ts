@@ -14,15 +14,6 @@
 //   - `shutdown` drains every subscriber, closes the WS, drops the rings.
 
 import { describe, expect, it, vi } from 'vitest';
-import type { Logger } from 'pino';
-
-// `pino` is not a binance-package dep. A no-op logger is sufficient for the
-// adapter's warn/info calls (the messages are advisory; tests assert on
-// observable state, not on log content).
-const silent = {} as Logger;
-const _silentLogger: Logger = new Proxy(silent, {
-  get: () => () => undefined,
-}) as Logger;
 
 import {
   createKlineFetcher,
@@ -33,7 +24,12 @@ import {
   type KlineFetcher,
 } from '../../src/index.js';
 
-const silentLogger = _silentLogger;
+type KlineFetcherLogger = Parameters<typeof createKlineFetcher>[0]['logger'];
+
+const silentLogger: KlineFetcherLogger = {
+  info: vi.fn<KlineFetcherLogger['info']>(),
+  warn: vi.fn<KlineFetcherLogger['warn']>(),
+};
 
 interface FakeWs extends BinanceWs {
   /** Sends recorded on this socket. */
@@ -1388,7 +1384,7 @@ describe('createKlineFetcher', () => {
     });
 
     it('forceReconnect closes the open socket, flips isConnected false, and the reconnect rebuilds it', () => {
-      let scheduled: (() => void) | null = null;
+      const scheduled: Array<() => void> = [];
       const { factory, sockets } = makeFactory();
       const fetcher = createKlineFetcher({
         wsUrl: 'wss://fake/ws',
@@ -1396,7 +1392,7 @@ describe('createKlineFetcher', () => {
         fetchRestKlines: async () => [],
         logger: silentLogger,
         schedule: (fn) => {
-          scheduled = fn;
+          scheduled.push(fn);
         },
       });
       const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
@@ -1410,8 +1406,9 @@ describe('createKlineFetcher', () => {
 
       // The closed socket fires onClose → reconnect is scheduled; run it.
       sockets[0]?.triggerClose();
-      expect(scheduled).not.toBeNull();
-      scheduled?.();
+      const reconnect = scheduled[0];
+      expect(reconnect).toBeDefined();
+      reconnect?.();
       expect(sockets).toHaveLength(2);
       sockets[1]?.triggerOpen();
       expect(fetcher.isConnected()).toBe(true);

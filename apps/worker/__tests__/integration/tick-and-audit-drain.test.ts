@@ -103,11 +103,20 @@ const buildStubStrategy = (): Strategy<unknown, StubState> => {
     version: '1.0.0',
     displayName: 'Stub place-buy',
     description: 'integration-test strategy that emits one place-order per tick',
-    capabilities: { candleIntervals: ['1h'] },
-    configSchema: empty as unknown as z.ZodType<unknown>,
+    capabilities: {
+      candleIntervals: ['1h'],
+      needsUserDataStream: false,
+      needsMiniTicker: false,
+      bundleProviders: [],
+      operatorActions: [],
+    },
+    configSchema: empty,
+    overrideConfigSchema: empty,
     stateSchema,
     bundleSchema: empty as unknown as z.ZodType<Readonly<Record<string, never>>>,
     events: {},
+    defaultConfig: {},
+    previewLevels: () => ({ sections: [] }),
     initialState: () => ({ tickCount: 0 }),
     tick: (input) => {
       const next: StubState = { tickCount: input.state.tickCount + 1 };
@@ -204,6 +213,7 @@ const buildColdLoad = (): SnapshotColdLoad => {
     loadAccountDeployedQuote: async () => '0',
     loadOpenOrders: async (): Promise<readonly OpenOrder[]> => [],
     loadSymbolState: async () => null,
+    loadProfileKv: async () => ({}),
   };
 };
 
@@ -277,7 +287,7 @@ const buildHarness = async (): Promise<Harness> => {
     logger,
     registry,
     coldLoad,
-    persistSymbolState: async () => undefined,
+    persistSymbolState: async () => true,
   });
 
   const handler = createTickHandler({
@@ -311,7 +321,12 @@ const buildHarness = async (): Promise<Harness> => {
       quoteAsset: 'USDT',
       weightLimit1m: 1200,
       candleInterval: '1h',
-      technicalsConfig: { useOnlyWithinMin: 2, ifExpires: 'do-not-buy' },
+      technicalsConfig: {
+        useOnlyWithinMin: 2,
+        ifExpires: 'do-not-buy',
+        entryConfirmReads: 1,
+        intervals: [],
+      },
       needsAccountDeployedQuote: false,
       reserveBaseQuantity: null,
     }),

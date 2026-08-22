@@ -29,11 +29,13 @@ const ALL_PROVIDERS = ['technicals', 'override'];
 const tvConfig = (interval: string = INTERVAL): TechnicalsBundleConfig => ({
   useOnlyWithinMin: 2,
   ifExpires: 'do-not-buy',
+  entryConfirmReads: 1,
   intervals: [defaultIntervalRow(interval)],
 });
 
 const defaultIntervalRow = (interval: string): TechnicalsIntervalConfig => ({
   interval,
+  mode: 'block',
   whenStrongBuy: true,
   whenBuy: true,
   whenSell: false,
@@ -179,6 +181,7 @@ describe('createTickBundleProvider', () => {
     const cfg: TechnicalsBundleConfig = {
       useOnlyWithinMin: 10,
       ifExpires: 'allow-anyway',
+      entryConfirmReads: 1,
       intervals: [defaultIntervalRow(INTERVAL)],
     };
     const bundle = (await provider(ACCOUNT, PROFILE, SYMBOL, cfg, ALL_PROVIDERS))
@@ -246,6 +249,7 @@ describe('createTickBundleProvider', () => {
     const cfg: TechnicalsBundleConfig = {
       useOnlyWithinMin: 2,
       ifExpires: 'do-not-buy',
+      entryConfirmReads: 1,
       intervals: [defaultIntervalRow('1h'), defaultIntervalRow('1d')],
     };
     const bundle = (await provider(ACCOUNT, PROFILE, SYMBOL, cfg, ALL_PROVIDERS))
@@ -264,6 +268,7 @@ describe('createTickBundleProvider', () => {
     const cfg: TechnicalsBundleConfig = {
       useOnlyWithinMin: 2,
       ifExpires: 'do-not-buy',
+      entryConfirmReads: 1,
       intervals: [],
     };
     const bundle = (await provider(ACCOUNT, PROFILE, SYMBOL, cfg, ALL_PROVIDERS))
@@ -538,6 +543,7 @@ describe('createTickBundleProvider', () => {
     const cfg: TechnicalsBundleConfig = {
       useOnlyWithinMin: 2,
       ifExpires: 'do-not-buy',
+      entryConfirmReads: 1,
       intervals: [defaultIntervalRow('1h'), defaultIntervalRow('1d')],
     };
     const bundle = (await provider(ACCOUNT, PROFILE, SYMBOL, cfg, ALL_PROVIDERS))

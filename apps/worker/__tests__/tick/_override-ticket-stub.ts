@@ -21,6 +21,9 @@ export const createRecordingOverrideTicket = (): RecordingOverrideTicket => {
       arm: (armed) => {
         arms.push(armed);
       },
+      whenClaimed: async () => true,
+      claimAt: () => null,
+      whenPickedUpStamped: async () => undefined,
       markOrderAttempted: () => undefined,
       markDeterministicAbort: () => undefined,
       markSettled: () => undefined,

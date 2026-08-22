@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
 import type { PositionStateAdapter, StrategyRegistry } from '@app/strategy-core';
+import type { StatePort } from '../../src/state/state-port.js';
 
 const { profileRepoSpy } = vi.hoisted(() => ({ profileRepoSpy: vi.fn() }));
 vi.mock('@app/db', async (importOriginal) => {
@@ -36,7 +37,7 @@ const repo = {
 };
 
 const applySpy = vi.fn(async () => ({ ok: true as const }));
-const mutate = vi.fn(async () => undefined);
+const mutate = vi.fn<StatePort['mutate']>(async () => undefined);
 
 // Fake position capability: `clearPosition` clears the grid index only when
 // asked (resetGridIndex), returns null for a body it does not recognise — same
@@ -103,7 +104,7 @@ describe('handleResetGridTrade', () => {
     expect(mutate).toHaveBeenCalledWith(repo, 'BTCUSDT', expect.any(Function));
     // The mutator applies the strategy's grid-reset to the body the port hands
     // it (already reconciled to the current schema).
-    const mutator = mutate.mock.calls[0]?.[2] as ((s: unknown) => unknown) | undefined;
+    const mutator = mutate.mock.calls[0]?.[2];
     expect(mutator).toBeDefined();
     expect(mutator?.({ schemaVersion: 'ok', currentGridTradeIndex: 4 })).toEqual({
       schemaVersion: 'ok',

@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { createMetricsRegistry } from '@app/observability';
 
 import { createWorkerMetricsSink } from '../../src/boot/metrics-sink.js';
+import type { MetricName } from '../../src/metrics/catalog.js';
 
 const setUp = (): {
   registry: ReturnType<typeof createMetricsRegistry>;
@@ -71,7 +72,10 @@ describe('createWorkerMetricsSink', () => {
 
   it('drops an unlisted metric name without throwing or registering a series', async () => {
     const { registry, sink } = setUp();
-    expect(() => sink.record('totally_unknown_metric', 1, { profileId: 'p1' })).not.toThrow();
+    // The catalogue closes `MetricName`, so this call is unreachable through the type. The cast is the point of the case: it reproduces what a JS caller or a stale build would do, and asserts the adapter drops it rather than throwing.
+    expect(() =>
+      sink.record('totally_unknown_metric' as MetricName, 1, { profileId: 'p1' }),
+    ).not.toThrow();
     const body = await registry.metrics();
     expect(body).not.toContain('totally_unknown_metric');
   });

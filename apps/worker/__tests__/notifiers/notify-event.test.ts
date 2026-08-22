@@ -4,7 +4,7 @@
 
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import pino from 'pino';
-import type { NotifyProviderRegistry } from '@app/notify';
+import type { AnyNotifyProvider, NotifyProviderRegistry } from '@app/notify';
 
 const h = vi.hoisted(() => ({ findById: vi.fn(), listForProfile: vi.fn() }));
 vi.mock('@app/db', () => ({
@@ -52,12 +52,14 @@ describe('isProfileEventEnabled', () => {
 });
 
 describe('createNotifyEvent', () => {
-  const registryWith = (send: ReturnType<typeof vi.fn>): NotifyProviderRegistry =>
+  const registryWith = (
+    send: ReturnType<typeof vi.fn<AnyNotifyProvider['send']>>,
+  ): NotifyProviderRegistry =>
     ({ get: (name: string) => (name === 'slack' ? { name: 'slack', send } : undefined) }) as never;
 
   it('does not send when the category is muted', async () => {
     h.findById.mockResolvedValue({ notifyEvents: { 'daily-loss-halt': false } });
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     await createNotifyEvent({ db, notifyProviders: registryWith(send), logger: silent })({
       category: 'daily-loss-halt',
       operatorId: U,
@@ -73,7 +75,7 @@ describe('createNotifyEvent', () => {
     h.listForProfile.mockResolvedValue([
       { provider: 'slack', config: { channel: '#a' }, secrets: { url: 'u' }, enabled: true },
     ]);
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     await createNotifyEvent({ db, notifyProviders: registryWith(send), logger: silent })({
       category: 'edge-decay-warning',
       operatorId: U,
@@ -83,17 +85,8 @@ describe('createNotifyEvent', () => {
       fields: [{ label: 'Live profit factor', value: '0.8' }],
     });
     expect(send).toHaveBeenCalledTimes(1);
-    const arg = send.mock.calls[0]?.[0] as {
-      config: Record<string, unknown>;
-      message: {
-        severity: string;
-        topic: string;
-        title: string;
-        profile: string;
-        body: string;
-        fields: { label: string; value: string }[];
-      };
-    };
+    const arg = send.mock.calls[0]?.[0];
+    if (!arg) throw new Error('expected one profile notification');
     expect(arg.config).toMatchObject({ channel: '#a', url: 'u' });
     expect(arg.message).toMatchObject({
       severity: 'warn',

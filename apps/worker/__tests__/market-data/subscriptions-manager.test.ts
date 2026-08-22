@@ -292,7 +292,9 @@ describe('createMarketSubscriptionsManager', () => {
       logger: silentLogger,
     });
     await mgr.addSymbols(['BTCUSDT', 'ETHUSDT'], '1h');
-    const onResync = vi.fn(async () => undefined);
+    const onResync = vi.fn<Parameters<typeof triggerResyncForAllSubscribed>[1]>(
+      async () => undefined,
+    );
     await triggerResyncForAllSubscribed(mgr, onResync);
     expect(onResync).toHaveBeenCalledTimes(2);
     const calls = onResync.mock.calls.map((c) => c[0]).sort();

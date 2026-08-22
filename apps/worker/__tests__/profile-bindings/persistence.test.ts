@@ -272,7 +272,7 @@ describe('buildPersistence.recordNotifierGap', () => {
   });
 
   it('passes symbol=null when the gap carries no symbol', async () => {
-    const p = buildPersistence(makeRepo(), { clock: { nowMs: () => 0 } });
+    const p = buildPersistence(makeRepo(), makeAccountRepo(), { clock: { nowMs: () => 0 } });
     await p.recordNotifierGap({ topic: 'binance-weight-throttle' });
     expect(actionLogAppend.mock.calls[0]?.[0]).toMatchObject({ symbol: null });
   });

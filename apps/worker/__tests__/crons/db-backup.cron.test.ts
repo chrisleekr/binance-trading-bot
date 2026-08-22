@@ -29,8 +29,8 @@ const baseDeps = (over: Partial<DbBackupDeps> = {}): DbBackupDeps => ({
   logger: noopLogger(),
   now: () => FIXED,
   getConfig: vi.fn(async () => config()),
-  runBackup: vi.fn(async () => undefined),
-  touchLastBackup: vi.fn(async () => undefined),
+  runBackup: vi.fn<DbBackupDeps['runBackup']>(async () => undefined),
+  touchLastBackup: vi.fn<DbBackupDeps['touchLastBackup']>(async () => undefined),
   listDir: vi.fn(async () => []),
   removeFile: vi.fn(async () => undefined),
   ensureDir: vi.fn(async () => undefined),
@@ -63,10 +63,14 @@ describe('dbBackupHandler', () => {
     await dbBackupHandler(deps)({} as Job);
     expect(deps.ensureDir).toHaveBeenCalledTimes(1);
     expect(deps.runBackup).toHaveBeenCalledTimes(1);
-    const outPath = (deps.runBackup as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const outPath = (deps.runBackup as ReturnType<typeof vi.fn<DbBackupDeps['runBackup']>>).mock
+      .calls[0]?.[0];
     expect(outPath).toBe(`/backups/backup-${FIXED_MS}.dump`);
     expect(deps.touchLastBackup).toHaveBeenCalledTimes(1);
-    expect((deps.touchLastBackup as ReturnType<typeof vi.fn>).mock.calls[0][0]).toEqual(FIXED);
+    expect(
+      (deps.touchLastBackup as ReturnType<typeof vi.fn<DbBackupDeps['touchLastBackup']>>).mock
+        .calls[0]?.[0],
+    ).toEqual(FIXED);
   });
 
   it('does not touch or prune when the dump itself fails', async () => {

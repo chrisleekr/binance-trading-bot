@@ -1,13 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import {
   createProfileManager,
   type MarketSubscriberHooks,
+  type ProfileLoadRow,
   type ProfileManager,
 } from '../../src/profile-manager/profile-manager.js';
 
 const u = asUserId;
 const p = asProfileId;
+const a = asAccountId;
+
+type TestProfileRow = Omit<ProfileLoadRow, 'operatorId'>;
+
+const scoped = (row: TestProfileRow): ProfileLoadRow => ({
+  ...row,
+  operatorId: row.userId,
+});
 
 const stubMarket = (): MarketSubscriberHooks & {
   addCalls: { symbols: readonly string[]; candleInterval: string }[];
@@ -37,8 +46,12 @@ describe('ProfileManager', () => {
   // Mirror the boot back-edge wire: construct the manager, then inject the
   // market back-edge before start(). The account user-data stream is driven by
   // subscription-ownership, not the manager, so there is no stream back-edge.
-  const makePm = (deps: Parameters<typeof createProfileManager>[0]): ProfileManager => {
-    const pm = createProfileManager(deps);
+  const makePm = (deps: {
+    loadEnabledProfiles: () => Promise<readonly TestProfileRow[]>;
+  }): ProfileManager => {
+    const pm = createProfileManager({
+      loadEnabledProfiles: async () => (await deps.loadEnabledProfiles()).map(scoped),
+    });
     pm.setMarket(market);
     return pm;
   };
@@ -48,6 +61,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT', 'ETHUSDT'],
           candleInterval: '1h',
@@ -55,6 +69,7 @@ describe('ProfileManager', () => {
         },
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p2'),
           symbols: ['BTCUSDT'],
           candleInterval: '1h',
@@ -77,6 +92,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT', 'ETHUSDT'],
           candleInterval: '1h',
@@ -84,6 +100,7 @@ describe('ProfileManager', () => {
         },
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p2'),
           symbols: ['BTCUSDT'],
           candleInterval: '1h',
@@ -108,6 +125,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT'],
           candleInterval: '5m',
@@ -115,6 +133,7 @@ describe('ProfileManager', () => {
         },
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p2'),
           symbols: ['BTCUSDT'],
           candleInterval: '1h',
@@ -135,6 +154,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT'],
           candleInterval: '1h',
@@ -154,6 +174,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT'],
           candleInterval: '5m',
@@ -177,6 +198,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT'],
           candleInterval: '5m',
@@ -201,6 +223,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT', 'ETHUSDT'],
           candleInterval: '5m',
@@ -228,6 +251,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT', 'ETHUSDT'],
           candleInterval: '1h',
@@ -235,6 +259,7 @@ describe('ProfileManager', () => {
         },
         {
           userId: u('u2'),
+          accountId: a('a2'),
           profileId: p('p2'),
           symbols: ['SOLUSDT'],
           candleInterval: '5m',
@@ -248,6 +273,8 @@ describe('ProfileManager', () => {
       {
         profileId: 'p1',
         userId: 'u1',
+        operatorId: 'u1',
+        accountId: 'a1',
         candleInterval: '1h',
         symbols: ['BTCUSDT', 'ETHUSDT'],
         technicalsIntervals: [],
@@ -255,6 +282,8 @@ describe('ProfileManager', () => {
       {
         profileId: 'p2',
         userId: 'u2',
+        operatorId: 'u2',
+        accountId: 'a2',
         candleInterval: '5m',
         symbols: ['SOLUSDT'],
         technicalsIntervals: [],
@@ -267,6 +296,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT'],
           candleInterval: '1h',
@@ -274,6 +304,7 @@ describe('ProfileManager', () => {
         },
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p2'),
           symbols: ['ETHUSDT'],
           candleInterval: '1h',
@@ -291,6 +322,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT'],
           candleInterval: '1h',
@@ -319,6 +351,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT'],
           candleInterval: '1h',
@@ -326,6 +359,7 @@ describe('ProfileManager', () => {
         },
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p2'),
           symbols: ['ETHUSDT'],
           candleInterval: '1h',
@@ -347,6 +381,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT', 'ETHUSDT'],
           candleInterval: '5m',
@@ -356,13 +391,16 @@ describe('ProfileManager', () => {
     });
     await pm.start();
 
-    await pm.enable({
-      userId: u('u1'),
-      profileId: p('p1'),
-      symbols: ['BTCUSDT', 'SOLUSDT'],
-      candleInterval: '1h',
-      technicalsIntervals: ['1h', '4h'],
-    });
+    await pm.enable(
+      scoped({
+        userId: u('u1'),
+        accountId: a('a1'),
+        profileId: p('p1'),
+        symbols: ['BTCUSDT', 'SOLUSDT'],
+        candleInterval: '1h',
+        technicalsIntervals: ['1h', '4h'],
+      }),
+    );
 
     // Symbol set converged: ETH dropped, SOL added, BTC retained on the new interval.
     expect([...pm.profilesUsing('BTCUSDT')]).toEqual(['p1']);
@@ -385,6 +423,7 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [
         {
           userId: u('u1'),
+          accountId: a('a1'),
           profileId: p('p1'),
           symbols: ['BTCUSDT'],
           candleInterval: '1h',
@@ -396,13 +435,16 @@ describe('ProfileManager', () => {
     const addsAfterStart = market.addCalls.length;
     const removesAfterStart = market.removeCalls.length;
 
-    await pm.enable({
-      userId: u('u1'),
-      profileId: p('p1'),
-      symbols: ['BTCUSDT'],
-      candleInterval: '1h',
-      technicalsIntervals: ['1h', '4h', '1d'],
-    });
+    await pm.enable(
+      scoped({
+        userId: u('u1'),
+        accountId: a('a1'),
+        profileId: p('p1'),
+        symbols: ['BTCUSDT'],
+        candleInterval: '1h',
+        technicalsIntervals: ['1h', '4h', '1d'],
+      }),
+    );
 
     // No market churn: same symbol set + same interval => setSymbols is a no-op.
     expect(market.addCalls).toHaveLength(addsAfterStart);
@@ -418,24 +460,29 @@ describe('ProfileManager', () => {
       loadEnabledProfiles: async () => [],
     });
     await expect(
-      pm.enable({
-        userId: u('u1'),
-        profileId: p('p1'),
-        symbols: ['BTCUSDT'],
-        candleInterval: '1h',
-        technicalsIntervals: [],
-      }),
+      pm.enable(
+        scoped({
+          userId: u('u1'),
+          accountId: a('a1'),
+          profileId: p('p1'),
+          symbols: ['BTCUSDT'],
+          candleInterval: '1h',
+          technicalsIntervals: [],
+        }),
+      ),
     ).rejects.toThrow(/Market hook not wired/);
   });
 
   it('reconcile() converges membership to the given enabled set (add, drop, keep)', async () => {
-    const row = (profileId: string, symbols: string[], candleInterval = '1h') => ({
-      userId: u('u1'),
-      profileId: p(profileId),
-      symbols,
-      candleInterval,
-      technicalsIntervals: [],
-    });
+    const row = (profileId: string, symbols: string[], candleInterval = '1h') =>
+      scoped({
+        userId: u('u1'),
+        accountId: a('a1'),
+        profileId: p(profileId),
+        symbols,
+        candleInterval,
+        technicalsIntervals: [],
+      });
     const pm = makePm({
       loadEnabledProfiles: async () => [row('p1', ['BTCUSDT']), row('p2', ['ETHUSDT'])],
     });
@@ -462,13 +509,14 @@ describe('ProfileManager', () => {
   });
 
   it('reconcile() with no changes makes zero market churn (single-replica no-op)', async () => {
-    const row = {
+    const row = scoped({
       userId: u('u1'),
+      accountId: a('a1'),
       profileId: p('p1'),
       symbols: ['BTCUSDT'],
       candleInterval: '1h',
       technicalsIntervals: [],
-    };
+    });
     const pm = makePm({ loadEnabledProfiles: async () => [row] });
     await pm.start();
     const addsAfterStart = market.addCalls.length;

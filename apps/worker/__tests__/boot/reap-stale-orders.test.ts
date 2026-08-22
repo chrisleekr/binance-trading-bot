@@ -202,7 +202,11 @@ describe('reconcileMissingOrder', () => {
 
   it('reaps as CANCELED when getOrder reports the order never existed (-2013)', async () => {
     const { run, reapWithReason } = setup(async () => {
-      throw new BinanceApiError({ status: 400, code: -2013, msg: 'Order does not exist.' }, false);
+      throw new BinanceApiError(
+        { status: 400, code: -2013, msg: 'Order does not exist.' },
+        false,
+        'rejected',
+      );
     });
     await expect(run()).resolves.toBe('reaped');
     expect(reapWithReason).toHaveBeenCalledWith(3478655619n, 'CANCELED', 'reaped-not-on-exchange');
@@ -210,7 +214,11 @@ describe('reconcileMissingOrder', () => {
 
   it('leaves the row live on a transient getOrder failure — never stamps CANCELED on a flaky read', async () => {
     const { run, markFilledByBinanceOrderId, reapWithReason } = setup(async () => {
-      throw new BinanceApiError({ status: 500, code: -1001, msg: 'Internal error.' }, true);
+      throw new BinanceApiError(
+        { status: 500, code: -1001, msg: 'Internal error.' },
+        true,
+        'ambiguous',
+      );
     });
     await expect(run()).resolves.toBe('skipped');
     expect(markFilledByBinanceOrderId).not.toHaveBeenCalled();
@@ -248,6 +256,7 @@ describe('reconcileMissingOrder', () => {
         throw new BinanceApiError(
           { status: 400, code: -2013, msg: 'Order does not exist.' },
           false,
+          'rejected',
         );
       },
       { reapReturns: 0 },

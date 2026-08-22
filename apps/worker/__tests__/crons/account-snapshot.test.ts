@@ -5,13 +5,13 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import type { Redis } from 'ioredis';
-import { asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId } from '@app/contracts';
 
 import { createAccountSnapshotStore } from '../../src/crons/account-snapshot.js';
 import { parseAccountSnapshot } from '../../src/tick/snapshot-loader.js';
 import { Decimal } from '@app/money';
 
-const u = asUserId('u1');
+const a = asAccountId('u1');
 const p = asProfileId('p1');
 
 describe('createAccountSnapshotStore — persistAccount', () => {
@@ -25,7 +25,7 @@ describe('createAccountSnapshotStore — persistAccount', () => {
       get: vi.fn(async () => null),
     } as unknown as Redis;
 
-    await createAccountSnapshotStore(redis).persistAccount(u, p, [
+    await createAccountSnapshotStore(redis).persistAccount(a, p, [
       { asset: 'BTC', free: '0.5', locked: '0.1' },
       { asset: 'USDT', free: '100', locked: '0' },
     ]);
@@ -52,10 +52,12 @@ describe('createAccountSnapshotStore — persistAccount', () => {
   });
 
   it('writes the account-info key with a bounded TTL', async () => {
-    const set = vi.fn(async () => 'OK');
+    const set = vi.fn(
+      async (_key: string, _value: string, _mode: 'EX', _ttl: number) => 'OK' as const,
+    );
     const redis = { set, get: vi.fn(async () => null) } as unknown as Redis;
 
-    await createAccountSnapshotStore(redis).persistAccount(u, p, []);
+    await createAccountSnapshotStore(redis).persistAccount(a, p, []);
 
     const call = set.mock.calls[0] ?? [];
     expect(call[0]).toBe('tenant:u1:profile:p1:account-info');
@@ -82,7 +84,7 @@ describe('createAccountSnapshotStore — mergeAccount', () => {
       }),
     } as unknown as Redis;
 
-    await createAccountSnapshotStore(redis).mergeAccount(u, p, [
+    await createAccountSnapshotStore(redis).mergeAccount(a, p, [
       { asset: 'USDT', free: '42', locked: '5' },
     ]);
 
@@ -110,7 +112,7 @@ describe('createAccountSnapshotStore — mergeAccount', () => {
       }),
     } as unknown as Redis;
 
-    await createAccountSnapshotStore(redis).mergeAccount(u, p, [
+    await createAccountSnapshotStore(redis).mergeAccount(a, p, [
       { asset: 'TAO', free: '0', locked: '0' },
     ]);
 
@@ -121,13 +123,15 @@ describe('createAccountSnapshotStore — mergeAccount', () => {
   });
 
   it('writes the merged key with the same bounded TTL', async () => {
-    const set = vi.fn(async () => 'OK');
+    const set = vi.fn(
+      async (_key: string, _value: string, _mode: 'EX', _ttl: number) => 'OK' as const,
+    );
     const redis = {
       get: vi.fn(async () => JSON.stringify({ balances: { BTC: { free: '1', locked: '0' } } })),
       set,
     } as unknown as Redis;
 
-    await createAccountSnapshotStore(redis).mergeAccount(u, p, []);
+    await createAccountSnapshotStore(redis).mergeAccount(a, p, []);
 
     const call = set.mock.calls[0] ?? [];
     expect(call[0]).toBe('tenant:u1:profile:p1:account-info');
@@ -145,7 +149,9 @@ describe('createAccountSnapshotStore — mergeAccount', () => {
 // know"), which the sizing paths fail open on and the cron repairs.
 describe('createAccountSnapshotStore — mergeAccount refuses to write a truncated snapshot', () => {
   const storeOver = (existing: string | null) => {
-    const set = vi.fn(async () => 'OK');
+    const set = vi.fn(
+      async (_key: string, _value: string, _mode: 'EX', _ttl: number) => 'OK' as const,
+    );
     const store = createAccountSnapshotStore({
       get: vi.fn(async () => existing),
       set,
@@ -155,25 +161,25 @@ describe('createAccountSnapshotStore — mergeAccount refuses to write a truncat
 
   it('does not write when no snapshot exists yet (cold cache)', async () => {
     const { set, store } = storeOver(null);
-    await store.mergeAccount(u, p, [{ asset: 'BTC', free: '1', locked: '0' }]);
+    await store.mergeAccount(a, p, [{ asset: 'BTC', free: '1', locked: '0' }]);
     expect(set).not.toHaveBeenCalled();
   });
 
   it('does not write when the existing snapshot is malformed JSON', async () => {
     const { set, store } = storeOver('not-json');
-    await store.mergeAccount(u, p, [{ asset: 'ETH', free: '2', locked: '0' }]);
+    await store.mergeAccount(a, p, [{ asset: 'ETH', free: '2', locked: '0' }]);
     expect(set).not.toHaveBeenCalled();
   });
 
   it('does not write when the existing snapshot has a non-object balances shape', async () => {
     const { set, store } = storeOver(JSON.stringify({ balances: [] }));
-    await store.mergeAccount(u, p, [{ asset: 'ADA', free: '3', locked: '0' }]);
+    await store.mergeAccount(a, p, [{ asset: 'ADA', free: '3', locked: '0' }]);
     expect(set).not.toHaveBeenCalled();
   });
 
   it('does not write when the existing snapshot has no balances key at all', async () => {
     const { set, store } = storeOver(JSON.stringify({ somethingElse: 1 }));
-    await store.mergeAccount(u, p, [{ asset: 'ADA', free: '3', locked: '0' }]);
+    await store.mergeAccount(a, p, [{ asset: 'ADA', free: '3', locked: '0' }]);
     expect(set).not.toHaveBeenCalled();
   });
 
@@ -181,7 +187,7 @@ describe('createAccountSnapshotStore — mergeAccount refuses to write a truncat
     const { set, store } = storeOver(
       JSON.stringify({ balances: { BTC: { free: '1', locked: '0' } } }),
     );
-    await store.mergeAccount(u, p, [{ asset: 'USDT', free: '9', locked: '0' }]);
+    await store.mergeAccount(a, p, [{ asset: 'USDT', free: '9', locked: '0' }]);
     expect(set).toHaveBeenCalledTimes(1);
     expect(parseAccountSnapshot(set.mock.calls[0]?.[1] as unknown as string)).toEqual({
       balances: {
@@ -201,15 +207,15 @@ describe('createAccountSnapshotStore — lastWsEventMs', () => {
     } as unknown as Redis);
 
   it('returns the stamped epoch-ms when the marker is present', async () => {
-    expect(await storeWith('1700000000000').lastWsEventMs(u, p)).toBe(1_700_000_000_000);
+    expect(await storeWith('1700000000000').lastWsEventMs(a, p)).toBe(1_700_000_000_000);
   });
 
   it('returns null when the marker is absent', async () => {
-    expect(await storeWith(null).lastWsEventMs(u, p)).toBeNull();
+    expect(await storeWith(null).lastWsEventMs(a, p)).toBeNull();
   });
 
   it('returns null when the marker is non-numeric (corrupt key)', async () => {
-    expect(await storeWith('not-a-number').lastWsEventMs(u, p)).toBeNull();
+    expect(await storeWith('not-a-number').lastWsEventMs(a, p)).toBeNull();
   });
 });
 
@@ -222,16 +228,16 @@ describe('createAccountSnapshotStore — accountInfoExists', () => {
     } as unknown as Redis);
 
   it('checks presence of the account-info key', async () => {
-    const exists = vi.fn(async () => 1);
-    await createAccountSnapshotStore({ exists } as unknown as Redis).accountInfoExists(u, p);
+    const exists = vi.fn(async (_key: string) => 1);
+    await createAccountSnapshotStore({ exists } as unknown as Redis).accountInfoExists(a, p);
     expect(exists).toHaveBeenCalledWith('tenant:u1:profile:p1:account-info');
   });
 
   it('returns true when the key exists', async () => {
-    expect(await storeWithExists(1).accountInfoExists(u, p)).toBe(true);
+    expect(await storeWithExists(1).accountInfoExists(a, p)).toBe(true);
   });
 
   it('returns false when the key is absent (expired)', async () => {
-    expect(await storeWithExists(0).accountInfoExists(u, p)).toBe(false);
+    expect(await storeWithExists(0).accountInfoExists(a, p)).toBe(false);
   });
 });

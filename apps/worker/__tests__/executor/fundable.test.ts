@@ -5,6 +5,7 @@ import type { AccountSnapshot } from '@app/strategy-core';
 import { fundable } from '../../src/executor/fundable.js';
 
 const snapshot = (rows: Record<string, [string, string]>): AccountSnapshot => ({
+  readable: true,
   balances: Object.fromEntries(
     Object.entries(rows).map(([asset, [free, locked]]) => [
       asset,
@@ -104,7 +105,7 @@ describe('fundable', () => {
       symbol: 'ENAUSDT',
       quoteAsset: 'USDT',
       params: { type: 'MARKET', quantity: '1' },
-      account: { balances: {} },
+      account: { balances: {}, readable: true },
     });
     expect(out.kind).toBe('unknown');
   });

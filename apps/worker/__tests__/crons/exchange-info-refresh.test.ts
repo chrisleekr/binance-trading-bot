@@ -1,15 +1,23 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import pino from 'pino';
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 import {
   combineExchangeInfoRefresh,
   createExchangeInfoRefresh,
+  type ExchangeInfoRefreshDeps,
 } from '../../src/crons/exchange-info-refresh.js';
 import { CATALOG, type MetricName, type MetricsSink } from '../../src/metrics/catalog.js';
 import { buildSymbolInfoKey } from '../../src/executor/redis-namespace.js';
 
 const silentLogger = pino({ level: 'silent' });
+
+type FetchImpl = NonNullable<ExchangeInfoRefreshDeps['fetchImpl']>;
+type FetchCall = (...args: Parameters<FetchImpl>) => ReturnType<FetchImpl>;
+type FetchSpy = Mock<FetchCall> & Pick<FetchImpl, 'preconnect'>;
+
+const fetchSpy = (implementation: FetchCall): FetchSpy =>
+  Object.assign(vi.fn<FetchCall>(implementation), { preconnect: fetch.preconnect });
 
 interface StubRedis {
   writes: Map<string, string>;
@@ -61,7 +69,7 @@ const jsonResponse = (body: unknown, status = 200): Response =>
 describe('createExchangeInfoRefresh', () => {
   it('writes one symbol-info entry per ASCII-tickered symbol', async () => {
     const redis = stubRedis();
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = fetchSpy(async () =>
       jsonResponse({
         symbols: [
           {
@@ -105,8 +113,8 @@ describe('createExchangeInfoRefresh', () => {
       deleted: 0,
       orderRateLimits: { windows: [], headers: new Map() },
     });
-    expect(redis.writes.has(buildSymbolInfoKey('BTCUSDT'))).toBe(true);
-    const btcRaw = redis.writes.get(buildSymbolInfoKey('BTCUSDT'));
+    expect(redis.writes.has(buildSymbolInfoKey('BTCUSDT', 'live'))).toBe(true);
+    const btcRaw = redis.writes.get(buildSymbolInfoKey('BTCUSDT', 'live'));
     if (!btcRaw) throw new Error('test setup: BTCUSDT not written');
     const btc = JSON.parse(btcRaw) as {
       symbol: string;
@@ -131,7 +139,7 @@ describe('createExchangeInfoRefresh', () => {
 
   it('persists the PERCENT_PRICE_BY_SIDE band, which the protective stop prices against', async () => {
     const redis = stubRedis();
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = fetchSpy(async () =>
       jsonResponse({
         symbols: [
           {
@@ -165,7 +173,7 @@ describe('createExchangeInfoRefresh', () => {
     const refresh = createExchangeInfoRefresh({ redis, logger: silentLogger, fetchImpl });
     await refresh();
 
-    const raw = redis.writes.get(buildSymbolInfoKey('LINKUSDT'));
+    const raw = redis.writes.get(buildSymbolInfoKey('LINKUSDT', 'live'));
     if (!raw) throw new Error('test setup: LINKUSDT not written');
     const persisted = JSON.parse(raw) as {
       filters: { percentPriceBySide?: Record<string, unknown>; tickSize: string };
@@ -185,7 +193,7 @@ describe('createExchangeInfoRefresh', () => {
 
   it('retains the ORDERS rate-limit rows, which the order governor is built from', async () => {
     const redis = stubRedis();
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = fetchSpy(async () =>
       jsonResponse({
         // Testnet's rows, which are HALF live's 100/10s — the reason these are
         // read from the payload rather than hardcoded.
@@ -225,7 +233,7 @@ describe('createExchangeInfoRefresh', () => {
 
   it('skips symbols with non-ASCII tickers (e.g. CJK meme tokens)', async () => {
     const redis = stubRedis();
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = fetchSpy(async () =>
       jsonResponse({
         symbols: [
           {
@@ -256,14 +264,14 @@ describe('createExchangeInfoRefresh', () => {
       deleted: 0,
       orderRateLimits: { windows: [], headers: new Map() },
     });
-    expect(redis.writes.has(buildSymbolInfoKey('BTCUSDT'))).toBe(true);
-    expect(redis.writes.has(buildSymbolInfoKey('币安人生USDT'))).toBe(false);
+    expect(redis.writes.has(buildSymbolInfoKey('BTCUSDT', 'live'))).toBe(true);
+    expect(redis.writes.has(buildSymbolInfoKey('币安人生USDT', 'live'))).toBe(false);
   });
 
   it('deletes Redis keys for symbols Binance no longer lists', async () => {
-    const stale = [buildSymbolInfoKey('BUSDUSDT'), buildSymbolInfoKey('LUNAUSDT')];
+    const stale = [buildSymbolInfoKey('BUSDUSDT', 'live'), buildSymbolInfoKey('LUNAUSDT', 'live')];
     const redis = stubRedis(stale);
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = fetchSpy(async () =>
       jsonResponse({
         symbols: [
           {
@@ -286,7 +294,7 @@ describe('createExchangeInfoRefresh', () => {
 
   it('throws on per-command pipeline failure so a partial write is not masked', async () => {
     const redis = stubRedis([], { failAt: 1, failError: new Error('OOM command not allowed') });
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = fetchSpy(async () =>
       jsonResponse({
         symbols: [
           {
@@ -314,9 +322,9 @@ describe('createExchangeInfoRefresh', () => {
 
   it('refuses to wipe the cache when upstream returns 200 with empty symbols', async () => {
     // Pre-existing cache state from a healthy prior refresh.
-    const existing = [buildSymbolInfoKey('BTCUSDT'), buildSymbolInfoKey('ETHUSDT')];
+    const existing = [buildSymbolInfoKey('BTCUSDT', 'live'), buildSymbolInfoKey('ETHUSDT', 'live')];
     const redis = stubRedis(existing);
-    const fetchImpl = vi.fn(async () => jsonResponse({ symbols: [] }));
+    const fetchImpl = fetchSpy(async () => jsonResponse({ symbols: [] }));
 
     const refresh = createExchangeInfoRefresh({ redis, logger: silentLogger, fetchImpl });
 
@@ -328,7 +336,7 @@ describe('createExchangeInfoRefresh', () => {
 
   it('throws on non-ok upstream response so the cron retries + DLQs', async () => {
     const redis = stubRedis();
-    const fetchImpl = vi.fn(async () => new Response('rate limited', { status: 429 }));
+    const fetchImpl = fetchSpy(async () => new Response('rate limited', { status: 429 }));
 
     const refresh = createExchangeInfoRefresh({ redis, logger: silentLogger, fetchImpl });
 
@@ -337,7 +345,7 @@ describe('createExchangeInfoRefresh', () => {
 
   it('mode=test fetches the testnet host and writes the test keyspace', async () => {
     const redis = stubRedis();
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = fetchSpy(async () =>
       jsonResponse({
         symbols: [
           {
@@ -380,12 +388,14 @@ describe('createExchangeInfoRefresh', () => {
     expect(redis.writes.has(buildSymbolInfoKey('BTCUSDT', 'live'))).toBe(false);
     const raw = redis.writes.get(buildSymbolInfoKey('BTCUSDT', 'test'));
     if (!raw) throw new Error('test setup: test-mode BTCUSDT not written');
-    expect((JSON.parse(raw) as { filters: Record<string, string> }).filters.tickSize).toBe('0.1');
+    expect((JSON.parse(raw) as { filters: Record<string, string> }).filters['tickSize']).toBe(
+      '0.1',
+    );
   });
 
   it('handles missing filters gracefully (asset-dust symbols)', async () => {
     const redis = stubRedis();
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = fetchSpy(async () =>
       jsonResponse({
         symbols: [
           {
@@ -402,11 +412,11 @@ describe('createExchangeInfoRefresh', () => {
     const refresh = createExchangeInfoRefresh({ redis, logger: silentLogger, fetchImpl });
     await refresh();
 
-    const obsRaw = redis.writes.get(buildSymbolInfoKey('OBSCURE'));
+    const obsRaw = redis.writes.get(buildSymbolInfoKey('OBSCURE', 'live'));
     if (!obsRaw) throw new Error('test setup: OBSCURE not written');
     const obs = JSON.parse(obsRaw) as { filters: Record<string, string> };
-    expect(obs.filters.tickSize).toBe('0'); // safe fallback
-    expect(obs.filters.minNotional).toBe('0');
+    expect(obs.filters['tickSize']).toBe('0'); // safe fallback
+    expect(obs.filters['minNotional']).toBe('0');
   });
 
   // Both collapse to the same all-zero fallback, and until now both did it in
@@ -458,7 +468,7 @@ describe('createExchangeInfoRefresh', () => {
       const metrics = metricsStub();
       // A real filter list, but the LOT_SIZE and NOTIONAL rows the projection
       // requires are missing, so the whole set voids.
-      const fetchImpl = vi.fn(async () =>
+      const fetchImpl = fetchSpy(async () =>
         jsonResponse({
           symbols: [symbolWith([{ filterType: 'PRICE_FILTER', tickSize: '0.001' }])],
         }),
@@ -473,16 +483,18 @@ describe('createExchangeInfoRefresh', () => {
       expect(warn?.ctx).toMatchObject({ mode: 'live', symbols: 1, sample: ['BROKENUSDT'] });
       // Still written, still all-zero: naming the problem must not also drop the
       // symbol out of the cache and DLQ its first tick.
-      const raw = redis.writes.get(buildSymbolInfoKey('BROKENUSDT'));
+      const raw = redis.writes.get(buildSymbolInfoKey('BROKENUSDT', 'live'));
       if (!raw) throw new Error('test setup: BROKENUSDT not written');
-      expect((JSON.parse(raw) as { filters: Record<string, string> }).filters.tickSize).toBe('0');
+      expect((JSON.parse(raw) as { filters: Record<string, string> }).filters['tickSize']).toBe(
+        '0',
+      );
     });
 
     it('C9: an absent filters array stays silent and uncounted', async () => {
       const redis = stubRedis();
       const { logger, warns } = capturingLogger();
       const metrics = metricsStub();
-      const fetchImpl = vi.fn(async () => jsonResponse({ symbols: [symbolWith(undefined)] }));
+      const fetchImpl = fetchSpy(async () => jsonResponse({ symbols: [symbolWith(undefined)] }));
 
       const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
       await refresh();
@@ -497,7 +509,7 @@ describe('createExchangeInfoRefresh', () => {
       const redis = stubRedis();
       const { logger, warns } = capturingLogger();
       const metrics = metricsStub();
-      const fetchImpl = vi.fn(async () => jsonResponse({ symbols: [symbolWith([])] }));
+      const fetchImpl = fetchSpy(async () => jsonResponse({ symbols: [symbolWith([])] }));
 
       const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
       await refresh();
@@ -510,7 +522,7 @@ describe('createExchangeInfoRefresh', () => {
       const redis = stubRedis();
       const { logger } = capturingLogger();
       const metrics = metricsStub();
-      const fetchImpl = vi.fn(async () =>
+      const fetchImpl = fetchSpy(async () =>
         jsonResponse({
           symbols: [symbolWith([{ filterType: 'PRICE_FILTER', tickSize: '0.001' }])],
         }),
@@ -544,7 +556,7 @@ describe('createExchangeInfoRefresh', () => {
         status: 'TRADING',
         filters: [{ filterType: 'PRICE_FILTER', tickSize: '0.001' }],
       }));
-      const fetchImpl = vi.fn(async () => jsonResponse({ symbols: broken }));
+      const fetchImpl = fetchSpy(async () => jsonResponse({ symbols: broken }));
 
       const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
       await refresh();
@@ -588,7 +600,7 @@ describe('createExchangeInfoRefresh', () => {
       const metrics = metricsStub();
       // Published, and complete enough that the seven sizing filters survive —
       // but the multipliers are numbers where Binance sends decimal strings.
-      const fetchImpl = vi.fn(async () =>
+      const fetchImpl = fetchSpy(async () =>
         jsonResponse({
           symbols: [
             complete({
@@ -611,7 +623,7 @@ describe('createExchangeInfoRefresh', () => {
       expect(warns[0]?.ctx).toMatchObject({ mode: 'live', symbols: 1, sample: ['LINKUSDT'] });
       // The rest of the filter set survives, which is exactly why this needs its
       // own signal: nothing else reports the symbol as damaged.
-      const raw = redis.writes.get(buildSymbolInfoKey('LINKUSDT'));
+      const raw = redis.writes.get(buildSymbolInfoKey('LINKUSDT', 'live'));
       if (!raw) throw new Error('test setup: LINKUSDT not written');
       const persisted = JSON.parse(raw) as { filters: Record<string, unknown> };
       expect(persisted.filters['stepSize']).toBe('0.01');
@@ -624,7 +636,7 @@ describe('createExchangeInfoRefresh', () => {
       const redis = stubRedis();
       const { logger, warns } = capturingLogger();
       const metrics = metricsStub();
-      const fetchImpl = vi.fn(async () => jsonResponse({ symbols: [complete(null)] }));
+      const fetchImpl = fetchSpy(async () => jsonResponse({ symbols: [complete(null)] }));
 
       const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
       await refresh();
@@ -666,7 +678,7 @@ describe('createExchangeInfoRefresh', () => {
       // Published, and the sizing filters survive — but the bounds arrive as
       // decimal-strings where the schema types them as the integers Binance
       // documents, which is the shape drift a quoted numeric field would take.
-      const fetchImpl = vi.fn(async () =>
+      const fetchImpl = fetchSpy(async () =>
         jsonResponse({
           symbols: [
             withTrailing({
@@ -688,7 +700,7 @@ describe('createExchangeInfoRefresh', () => {
       expect(warns[0]?.ctx).toMatchObject({ mode: 'live', symbols: 1, sample: ['LINKUSDT'] });
       // The symbol keeps trading and keeps its band, which is why the counter
       // above is the only thing that can report the loss.
-      const raw = redis.writes.get(buildSymbolInfoKey('LINKUSDT'));
+      const raw = redis.writes.get(buildSymbolInfoKey('LINKUSDT', 'live'));
       if (!raw) throw new Error('test setup: LINKUSDT not written');
       const persisted = JSON.parse(raw) as { filters: Record<string, unknown> };
       expect(persisted.filters['stepSize']).toBe('0.01');
@@ -699,7 +711,7 @@ describe('createExchangeInfoRefresh', () => {
       const redis = stubRedis();
       const { logger, warns } = capturingLogger();
       const metrics = metricsStub();
-      const fetchImpl = vi.fn(async () => jsonResponse({ symbols: [withTrailing(null)] }));
+      const fetchImpl = fetchSpy(async () => jsonResponse({ symbols: [withTrailing(null)] }));
 
       const refresh = createExchangeInfoRefresh({ redis, logger, fetchImpl, metrics });
       await refresh();

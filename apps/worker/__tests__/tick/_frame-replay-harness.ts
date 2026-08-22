@@ -34,9 +34,11 @@ import {
 } from '../../src/tick/snapshot-loader.js';
 import {
   buildAccountInfoKey,
+  buildDisableActionKey,
   buildOpenOrdersKey,
   buildKillSwitchKey,
   buildOrderRefusalKey,
+  buildOrderRearmKey,
   buildSymbolStateKey,
   buildWeightKey,
 } from '../../src/executor/redis-namespace.js';
@@ -74,8 +76,10 @@ export const makeFakeRedis = (tuple: FrameTuple): Redis => {
   const store = new Map<string, string | null>();
   store.set(buildSymbolStateKey(accountId, profileId, symbol), tuple.raw.state);
   store.set(buildAccountInfoKey(accountId, profileId), tuple.raw.accountInfo);
-  store.set(buildOpenOrdersKey(accountId, profileId, symbol), tuple.raw.openOrders);
+  store.set(buildOpenOrdersKey(accountId, symbol), tuple.raw.openOrders);
   store.set(buildKillSwitchKey(accountId, profileId), tuple.raw.killSwitch);
+  store.set(buildDisableActionKey(accountId, profileId, symbol), tuple.raw.symbolDisable);
+  store.set(buildOrderRearmKey(profileId, symbol), tuple.raw.orderRearm);
   store.set(buildOrderRefusalKey(accountId, profileId, symbol), tuple.raw.orderRefusal ?? null);
   store.set(
     buildWeightKey(accountId, profileId, minuteBucketOf(NOW_MS)),

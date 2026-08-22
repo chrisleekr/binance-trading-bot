@@ -90,11 +90,20 @@ const buildStubStrategy = (): Strategy<unknown, SymbolMarkerState> => {
     version: '2.0.0',
     displayName: 'Symbol-marker stub',
     description: 'integration-test strategy that stamps the per-symbol slice with its symbol',
-    capabilities: { candleIntervals: ['1h'] },
-    configSchema: empty as unknown as z.ZodType<unknown>,
+    capabilities: {
+      candleIntervals: ['1h'],
+      needsUserDataStream: false,
+      needsMiniTicker: false,
+      bundleProviders: [],
+      operatorActions: [],
+    },
+    configSchema: empty,
+    overrideConfigSchema: empty,
     stateSchema,
     bundleSchema: empty as unknown as z.ZodType<Readonly<Record<string, never>>>,
     events: {},
+    defaultConfig: {},
+    previewLevels: () => ({ sections: [] }),
     initialState: () => ({
       schemaVersion: '2.0.0',
       markerSymbol: null,
@@ -148,6 +157,7 @@ const buildColdLoad = (): SnapshotColdLoad => {
     loadAccountDeployedQuote: async () => '0',
     loadOpenOrders: async (): Promise<readonly OpenOrder[]> => [],
     loadSymbolState: async () => null,
+    loadProfileKv: async () => ({}),
   };
 };
 
@@ -190,6 +200,7 @@ const buildMarketDataPort = (): MarketDataPort => ({
         low: close,
         close,
         volume: '1',
+        isClosed: true as const,
       },
     ];
   },
@@ -337,7 +348,12 @@ const buildHarness = async (): Promise<Harness> => {
       quoteAsset: 'USDT',
       weightLimit1m: 1200,
       candleInterval: '1h',
-      technicalsConfig: { useOnlyWithinMin: 2, ifExpires: 'do-not-buy' },
+      technicalsConfig: {
+        useOnlyWithinMin: 2,
+        ifExpires: 'do-not-buy',
+        entryConfirmReads: 1,
+        intervals: [],
+      },
       needsAccountDeployedQuote: false,
       reserveBaseQuantity: null,
     }),

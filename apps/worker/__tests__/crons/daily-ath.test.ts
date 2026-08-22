@@ -7,7 +7,7 @@ import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 
 import { KlineParseError } from '@app/binance';
-import { createDailyAthRefresh } from '../../src/crons/daily-ath.js';
+import { createDailyAthRefresh, type DailyAthRefreshDeps } from '../../src/crons/daily-ath.js';
 import { athKey } from '../../src/indicator-computer/indicator-computer.js';
 
 const stubLogger = {
@@ -16,6 +16,9 @@ const stubLogger = {
   error: vi.fn(),
   debug: vi.fn(),
 } as unknown as Logger;
+type FetchImpl = NonNullable<DailyAthRefreshDeps['fetchImpl']>;
+type FetchCall = (...args: Parameters<FetchImpl>) => ReturnType<FetchImpl>;
+type RedisSet = (key: string, value: string) => Promise<'OK'>;
 
 // One Binance kline row: [openTime, open, high, low, close, volume, closeTime].
 const kline = (openTime: number, high: string): unknown => [
@@ -38,8 +41,8 @@ const jsonResponse = (body: unknown, ok = true, status = 200): Response =>
 
 describe('createDailyAthRefresh', () => {
   it('writes ath:<symbol> as the highest high across the kline window', async () => {
-    const set = vi.fn(async () => 'OK');
-    const fetchImpl = vi.fn(async () =>
+    const set = vi.fn<RedisSet>(async () => 'OK');
+    const fetchImpl = vi.fn<FetchCall>(async () =>
       jsonResponse([kline(1, '100'), kline(2, '250'), kline(3, '180')]),
     );
     const refresh = createDailyAthRefresh({
@@ -57,7 +60,7 @@ describe('createDailyAthRefresh', () => {
   });
 
   it('requests the 1d interval for the given symbol', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse([kline(1, '100')]));
+    const fetchImpl = vi.fn<FetchCall>(async () => jsonResponse([kline(1, '100')]));
     const refresh = createDailyAthRefresh({
       redis: { set: vi.fn(async () => 'OK') } as unknown as Redis,
       logger: stubLogger,
@@ -72,7 +75,7 @@ describe('createDailyAthRefresh', () => {
   });
 
   it('drops the in-progress day so ATH is computed over closed candles only', async () => {
-    const set = vi.fn(async () => 'OK');
+    const set = vi.fn<RedisSet>(async () => 'OK');
     // Three rows: the last has a closeTime in the future (the open day);
     // its high of 999 must NOT reach the ATH.
     const fetchImpl = vi.fn(async () =>

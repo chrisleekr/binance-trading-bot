@@ -84,7 +84,7 @@ describe('portfolioRiskHandler', () => {
   });
 
   it('notifies the operator on the transition into halt', async () => {
-    const notify = vi.fn(async () => undefined);
+    const notify = vi.fn<PortfolioRiskDeps['notify']>(async () => undefined);
     await portfolioRiskHandler(
       deps({
         assess: async () => ({ limitQuote: '5', realisedPnl: '-6' }),
@@ -102,7 +102,7 @@ describe('portfolioRiskHandler', () => {
   });
 
   it('does not re-notify while already halted (but still re-sets the flag)', async () => {
-    const notify = vi.fn(async () => undefined);
+    const notify = vi.fn<PortfolioRiskDeps['notify']>(async () => undefined);
     const setEntryHalt = vi.fn(async () => undefined);
     await portfolioRiskHandler(
       deps({

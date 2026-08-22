@@ -43,6 +43,7 @@ const VALID_PARAMS = {
 
 const RUN_ID = 'run-1';
 const USER_ID = '11111111-1111-4111-8111-111111111111';
+const ACCOUNT_ID = '33333333-3333-4333-8333-333333333333';
 const PROFILE_ID = '22222222-2222-4222-8222-222222222222';
 
 const aProfile = (overrides: Record<string, unknown> = {}) => ({
@@ -71,7 +72,7 @@ const buildDeps = (overrides: Record<string, unknown> = {}) =>
   }) as never;
 
 const invoke = (deps = buildDeps()) =>
-  createRunBacktestJob(deps)(RUN_ID, USER_ID, PROFILE_ID, vi.fn(), () => false);
+  createRunBacktestJob(deps)(RUN_ID, USER_ID, ACCOUNT_ID, PROFILE_ID, vi.fn(), () => false);
 
 beforeEach(() => {
   getRun.mockReset();

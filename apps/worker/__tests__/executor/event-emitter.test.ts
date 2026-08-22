@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Redis } from 'ioredis';
-import { asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId } from '@app/contracts';
 import { emitEvent, type EventEmitterDeps } from '../../src/executor/event-emitter.js';
 
-const USER = asUserId('11111111-1111-1111-1111-111111111111');
+const ACCOUNT = asAccountId('11111111-1111-1111-1111-111111111111');
 const PROFILE = asProfileId('22222222-2222-2222-2222-222222222222');
-const CHANNEL = `events:${USER}:${PROFILE}`;
+const CHANNEL = `events:${ACCOUNT}:${PROFILE}`;
 const TS_MS = 1_700_000_000_000;
 const TS_ISO = '2023-11-14T22:13:20.000Z';
 
@@ -32,7 +32,7 @@ describe('emitEvent', () => {
   it('publishes the WsEvent envelope and appends matching stream fields', async () => {
     const { redis, incr, publish, xadd } = fakeRedis();
 
-    await emitEvent(deps(redis), USER, PROFILE, 'orders', { orderId: 42 });
+    await emitEvent(deps(redis), ACCOUNT, PROFILE, 'orders', { orderId: 42 });
 
     expect(incr).toHaveBeenCalledWith(`${CHANNEL}:seq`);
     // Live pub/sub body is the WsEvent envelope verbatim.
@@ -62,8 +62,16 @@ describe('emitEvent', () => {
   it('assigns a monotonic seq per call', async () => {
     const { redis, publish } = fakeRedis();
 
-    await emitEvent(deps(redis), USER, PROFILE, 'logs', { msg: 'a' });
-    await emitEvent(deps(redis), USER, PROFILE, 'logs', { msg: 'b' });
+    await emitEvent(deps(redis), ACCOUNT, PROFILE, 'logs', {
+      symbol: null,
+      level: 'info',
+      msg: 'a',
+    });
+    await emitEvent(deps(redis), ACCOUNT, PROFILE, 'logs', {
+      symbol: null,
+      level: 'info',
+      msg: 'b',
+    });
 
     expect(JSON.parse(publish.mock.calls[0]?.[1] as string).seq).toBe(1);
     expect(JSON.parse(publish.mock.calls[1]?.[1] as string).seq).toBe(2);

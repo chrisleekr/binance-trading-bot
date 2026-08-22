@@ -11,15 +11,19 @@ import type { TickJobData } from 'queues/job-payloads.js';
 const noopLogger = pino({ level: 'silent' });
 
 const makeProfileManager = (overrides?: Partial<ProfileManager>): ProfileManager => ({
+  setMarket: vi.fn(),
   start: vi.fn(),
+  reconcile: vi.fn(),
   enable: vi.fn(),
   disable: vi.fn(),
   setSymbols: vi.fn(),
+  setTechnicalsIntervals: vi.fn(() => false),
   profilesUsing: () => [],
   symbolsFor: () => [],
   userOf: () => undefined,
   operatorOf: () => undefined,
   accountOf: () => undefined,
+  listActive: () => [],
   shutdown: vi.fn(),
   ...overrides,
 });
@@ -274,6 +278,9 @@ describe('EventRouter', () => {
       qtyLastFilled: '0',
       cumQty: '1',
       cumQuoteQty: '50',
+      commission: '0',
+      commissionAsset: '',
+      tradeId: 1,
       eventTimeMs: 0,
     });
     expect(tickQueue.add).toHaveBeenCalledTimes(1);
@@ -323,6 +330,9 @@ describe('EventRouter', () => {
       qtyLastFilled: '0',
       cumQty: '1',
       cumQuoteQty: '50',
+      commission: '0',
+      commissionAsset: '',
+      tradeId: 1,
       eventTimeMs: 0,
     });
     expect(classifyOrder).toHaveBeenCalledWith(
@@ -374,6 +384,9 @@ describe('EventRouter', () => {
       qtyLastFilled: '0',
       cumQty: '3',
       cumQuoteQty: '150',
+      commission: '0',
+      commissionAsset: '',
+      tradeId: 1,
       eventTimeMs: 0,
     });
     expect(reconcileDetachedFill).toHaveBeenCalledWith({
@@ -427,6 +440,9 @@ describe('EventRouter', () => {
       qtyLastFilled: '0',
       cumQty: '3',
       cumQuoteQty: '150',
+      commission: '0',
+      commissionAsset: '',
+      tradeId: 1,
       eventTimeMs: 1_699_999_999_111,
     });
     expect(reconcileDetachedFill).toHaveBeenCalledWith(
@@ -467,6 +483,9 @@ describe('EventRouter', () => {
         qtyLastFilled: '0',
         cumQty: '0',
         cumQuoteQty: '0',
+        commission: '0',
+        commissionAsset: '',
+        tradeId: 1,
         eventTimeMs: 0,
       }),
     ).resolves.toBeUndefined();
@@ -507,6 +526,9 @@ describe('EventRouter', () => {
       qtyLastFilled: '0',
       cumQty: '1',
       cumQuoteQty: '50',
+      commission: '0',
+      commissionAsset: '',
+      tradeId: 1,
       eventTimeMs: 0,
     });
     expect(classifyOrder).toHaveBeenCalledWith(
@@ -557,6 +579,9 @@ describe('EventRouter', () => {
       qtyLastFilled: '0',
       cumQty: '1',
       cumQuoteQty: '50',
+      commission: '0',
+      commissionAsset: '',
+      tradeId: 1,
       eventTimeMs: 0,
     });
     // The key carries the account but NO profile segment: siblings share it.
@@ -813,6 +838,9 @@ describe('EventRouter', () => {
       qtyLastFilled: '0',
       cumQty: '1',
       cumQuoteQty: '50',
+      commission: '0',
+      commissionAsset: '',
+      tradeId: 1,
       eventTimeMs: 0,
     });
     // Remove-by-orderId via the atomic Lua, TTL refreshed (last ARGV).
@@ -856,6 +884,9 @@ describe('EventRouter', () => {
       qtyLastFilled: '0',
       cumQty: '0.4',
       cumQuoteQty: '20',
+      commission: '0',
+      commissionAsset: '',
+      tradeId: 1,
       eventTimeMs: 0,
     });
     // patch: orderId, executedQty←cumQty, cumQuote←cumQuoteQty, status, ttl.
@@ -905,6 +936,9 @@ describe('EventRouter', () => {
       qtyLastFilled: '0',
       cumQty: '0.4',
       cumQuoteQty: '20',
+      commission: '0',
+      commissionAsset: '',
+      tradeId: 1,
       eventTimeMs: 0,
     });
     expect(redis.eval).toHaveBeenCalledWith(

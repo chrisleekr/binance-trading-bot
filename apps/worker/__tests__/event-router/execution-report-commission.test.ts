@@ -40,7 +40,7 @@ const makeProfileManager = (): ProfileManager =>
   }) as unknown as ProfileManager;
 
 const makeRouter = () => {
-  const adopt = vi.fn(async () => undefined);
+  const adopt = vi.fn<FillAdopter['adopt']>(async () => undefined);
   const tickQueue = { add: vi.fn(async () => ({ id: 'j' })) } as unknown as Queue<TickJobData>;
   const redis = {
     set: vi.fn(async () => 'OK'),

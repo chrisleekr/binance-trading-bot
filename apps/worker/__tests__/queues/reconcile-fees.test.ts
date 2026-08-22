@@ -19,7 +19,7 @@ const { handleReconcileFees } =
 const logWarn = vi.fn();
 const logger = { warn: logWarn, info: vi.fn() } as unknown as Logger;
 const warnEvents = (): string[] => logWarn.mock.calls.map((c) => c[1] as string);
-const IDS = { userId: 'u1' as never, profileId: 'p1' as never };
+const IDS = { userId: 'u1' as never, accountId: 'a1' as never, profileId: 'p1' as never };
 
 const fakeClient = (trades: unknown[], ticker = { lastPrice: '0' }): BinanceRestClient =>
   ({

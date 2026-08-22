@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
 
+type GetRange = typeof import('@app/db').repo.candles.getRange;
+
 // Scope: proves the runner streams the strategy's OWN decision interval
 // (`config.candleInterval`) — the same field the live worker keys its feed off
 // (`feedIntervals(candleInterval)` / tick-context) — and NOT a separate
@@ -22,7 +24,7 @@ vi.mock('../../src/backtest/candle-backfill.js', () => ({
 const repoMocks = vi.hoisted(() => ({
   findGaps: vi.fn(async () => []),
   insertNew: vi.fn(async () => undefined),
-  getRange: vi.fn(async () => []),
+  getRange: vi.fn<GetRange>(async () => []),
 }));
 vi.mock('@app/db', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@app/db')>();
@@ -48,6 +50,8 @@ const silentLogger = pino({ level: 'silent' });
 const FIVE_MIN = 300_000;
 
 const candleRow = (i: number) => ({
+  symbol: 'BTCUSDT',
+  interval: '5m',
   openTime: new Date(i * FIVE_MIN),
   closeTime: new Date(i * FIVE_MIN + (FIVE_MIN - 1)),
   open: '100',

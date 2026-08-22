@@ -6,8 +6,9 @@ import { buildStaleOrderReapCron } from '../../src/crons/stale-order-reap.cron.j
 import { buildCrons } from '../../src/crons/index.js';
 import type { BootContext } from '../../src/boot/boot-context.js';
 
+type RunReaper = typeof import('../../src/boot/reap-stale-orders.js').runStaleOrderReaper;
 const runReaper = vi.hoisted(() =>
-  vi.fn(async () => ({ checked: 0, reaped: 0, reclaimed: 0, failed: 0 })),
+  vi.fn<RunReaper>(async () => ({ checked: 0, reaped: 0, reclaimed: 0, failed: 0 })),
 );
 vi.mock('../../src/boot/reap-stale-orders.js', () => ({ runStaleOrderReaper: runReaper }));
 

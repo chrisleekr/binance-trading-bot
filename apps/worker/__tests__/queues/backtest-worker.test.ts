@@ -2,15 +2,24 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Job, Processor } from 'bullmq';
 import type { Redis } from 'ioredis';
 import pino from 'pino';
+import type { ProfileRepo } from '@app/db';
 import type { QueueSet } from '../../src/queues/queue-set.js';
 import type { BacktestJobData } from '../../src/queues/job-payloads.js';
+import type { BacktestWorkerDeps } from '../../src/queues/backtest-worker.js';
+import type { NotifyEvent } from '../../src/notifiers/notify-event.js';
+
+type BoundMethod<K extends keyof ProfileRepo['backtestRuns'], R> = (
+  ...args: Parameters<ProfileRepo['backtestRuns'][K]>
+) => Promise<R>;
 
 const repoMocks = vi.hoisted(() => ({
-  markRunning: vi.fn(async () => true),
-  updateProgress: vi.fn(async () => undefined),
-  complete: vi.fn(async () => undefined),
-  fail: vi.fn(async () => undefined),
-  get: vi.fn(async () => null as { status: string; symbols?: readonly string[] } | null),
+  markRunning: vi.fn<BoundMethod<'markRunning', boolean>>(async () => true),
+  updateProgress: vi.fn<BoundMethod<'updateProgress', void>>(async () => undefined),
+  complete: vi.fn<BoundMethod<'complete', void>>(async () => undefined),
+  fail: vi.fn<BoundMethod<'fail', void>>(async () => undefined),
+  get: vi.fn<BoundMethod<'get', { status: string; symbols?: readonly string[] } | null>>(
+    async () => null,
+  ),
   failById: vi.fn(async () => true),
   ledgerUpsert: vi.fn(async () => undefined),
   profileRepo: vi.fn(async () => ({
@@ -37,7 +46,17 @@ vi.mock('@app/db', async (importOriginal) => {
   };
 });
 
-const emitEvent = vi.hoisted(() => vi.fn(async () => undefined));
+const emitEvent = vi.hoisted(() =>
+  vi.fn<
+    (
+      deps: unknown,
+      accountId: unknown,
+      profileId: unknown,
+      topic: string,
+      payload: unknown,
+    ) => Promise<void>
+  >(async () => undefined),
+);
 vi.mock('../../src/executor/event-emitter.js', () => ({ emitEvent }));
 
 // Import after mocks are registered.
@@ -48,7 +67,7 @@ const silentLogger = pino({ level: 'silent' });
 
 // Profile-event notifier stub (Slack/Telegram/webhook fan-out); the real one
 // gates on the profile's subscription and never throws.
-const notifyEvent = vi.fn(async () => undefined);
+const notifyEvent = vi.fn<NotifyEvent>(async () => undefined);
 
 function harness() {
   let processor: Processor<BacktestJobData> | undefined;
@@ -79,7 +98,11 @@ const LEDGER_ENTRY = {
   params: {},
   outcome: { totalReturnPct: 7 },
 };
-const RUN_OUT = { result: RESULT, configFingerprint: FP, ledgerEntry: LEDGER_ENTRY } as never;
+const RUN_OUT = {
+  result: RESULT,
+  configFingerprint: FP,
+  ledgerEntry: LEDGER_ENTRY,
+} as Awaited<ReturnType<BacktestWorkerDeps['run']>>;
 
 beforeEach(() => {
   for (const m of Object.values(repoMocks)) m.mockClear();
@@ -173,12 +196,9 @@ describe('registerBacktestWorker', () => {
       publicWebUrl: 'http://localhost:5173',
     });
     await invoke(JOB);
-    const arg = notifyEvent.mock.calls[0]?.[0] as {
-      link: string;
-      fields: { label: string; value: string }[];
-    };
-    expect(arg.link).toBe('http://localhost:5173/accounts/a1/profiles/p1/backtest?run=r1');
-    expect(arg.fields).toEqual([
+    const arg = notifyEvent.mock.calls[0]?.[0];
+    expect(arg?.link).toBe('http://localhost:5173/accounts/a1/profiles/p1/backtest?run=r1');
+    expect(arg?.fields).toEqual([
       { label: 'Trades', value: '8' },
       { label: 'Profit factor', value: '1.40' },
       { label: 'vs buy-and-hold', value: '+5.00%' },

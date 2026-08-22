@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import pino, { type Logger } from 'pino';
 import type { Redis } from 'ioredis';
 import type { BinanceRestClient } from '@app/binance';
@@ -30,9 +30,7 @@ const stubRestClient = (overrides: Partial<BinanceRestClient> = {}): BinanceRest
     ...overrides,
   }) as unknown as BinanceRestClient;
 
-interface StubRedis extends Redis {
-  set: ReturnType<typeof vi.fn>;
-}
+type StubRedis = Redis & { set: Mock<(key: string, value: string) => Promise<'OK'>> };
 
 const stubRedis = (initial: Record<string, string> = {}): StubRedis => {
   const data = new Map<string, string>(Object.entries(initial));
@@ -131,7 +129,7 @@ describe('createProductionColdLoad.loadAccount', () => {
 describe('createProductionColdLoad.loadOpenOrders', () => {
   it('maps OpenOrderDto array to strategy-core OpenOrder via REST fallback', async () => {
     const rest = stubRestClient({
-      getOpenOrders: vi.fn(async () => [
+      getOpenOrders: vi.fn<BinanceRestClient['getOpenOrders']>(async () => [
         {
           symbol: 'BTCUSDT',
           orderId: 1,
@@ -157,7 +155,7 @@ describe('createProductionColdLoad.loadOpenOrders', () => {
       resolveBinance: async () => rest,
     });
 
-    const orders = await coldLoad.loadOpenOrders(USER_ID, PROFILE_ID, 'BTCUSDT');
+    const orders = await coldLoad.loadOpenOrders(USER_ID, ACCOUNT_ID, PROFILE_ID, 'BTCUSDT');
 
     expect(orders).toHaveLength(1);
     expect(orders[0]).toMatchObject({

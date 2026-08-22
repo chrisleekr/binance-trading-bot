@@ -1,4 +1,5 @@
 import { repo } from '@app/db';
+import type { AnyNotifyProvider } from '@app/notify';
 import pino from 'pino';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -55,7 +56,7 @@ afterEach(() => {
 describe('exhausted-job DLQ redaction', () => {
   it('censors Drizzle bind values in the queued record and outbound notifier message', async () => {
     vi.useFakeTimers();
-    const send = vi.fn(async () => undefined);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
     vi.spyOn(repo.opsNotifyConfig, 'get').mockResolvedValue({ events: {} } as never);
     vi.spyOn(repo.profileNotifiers, 'listAllEnabled').mockResolvedValue([
       { provider: 'test', config: {}, secrets: {}, enabled: true },
@@ -102,9 +103,8 @@ describe('exhausted-job DLQ redaction', () => {
     await vi.advanceTimersByTimeAsync(15_000);
 
     expect(send).toHaveBeenCalledTimes(1);
-    const outbound = send.mock.calls[0]?.[0] as {
-      message: { fields?: readonly { label: string; value: string }[] };
-    };
+    const outbound = send.mock.calls[0]?.[0];
+    if (!outbound) throw new Error('expected one DLQ notification');
     const errorField = outbound.message.fields?.find((field) => field.label === 'Error');
     expect(errorField?.value).toContain(SQL);
     expect.soft(errorField?.value).toContain('\nparams: [redacted]');

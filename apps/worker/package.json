@@ -9,7 +9,7 @@
     "dev": "ROLE=worker bun --watch src/index.ts",
     "dev:study": "ROLE=study WORKER_ADMIN_PORT=9102 bun --watch src/index.ts",
     "build": "tsc -b",
-    "typecheck": "tsc -b --noEmit && tsc -p tsconfig.test-d.json --noEmit",
+    "typecheck": "tsc -b --noEmit && tsc -p tsconfig.test-d.json --noEmit && tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run --exclude '**/integration/**'",
     "test:integration": "vitest run __tests__/integration --no-file-parallelism --hookTimeout=180000",
     "test:frame-replay": "vitest run __tests__/tick/frame-replay.test.ts",

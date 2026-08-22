@@ -9,6 +9,8 @@ const silentLogger = new Proxy({} as Logger, { get: () => () => undefined }) as 
 const rows: ProfileLoadRow[] = [
   {
     userId: 'u1' as ProfileLoadRow['userId'],
+    operatorId: 'u1' as ProfileLoadRow['operatorId'],
+    accountId: 'a1' as ProfileLoadRow['accountId'],
     profileId: 'p1' as ProfileLoadRow['profileId'],
     symbols: ['BTCUSDT'],
     candleInterval: '1h',

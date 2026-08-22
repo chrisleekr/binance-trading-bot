@@ -50,6 +50,7 @@ const position = (over: Record<string, unknown> = {}) => ({
   avgEntryPrice: '0.30',
   quantity: '189.87',
   overrideConfig: null,
+  reserveBaseQuantity: null,
   ...over,
 });
 
@@ -714,7 +715,7 @@ describe('handleDisposeProfile', () => {
           ]
         : [],
     );
-    const apply = vi.fn(async () => ({ ok: true }) as const);
+    const apply = vi.fn<DisposeDeps['executor']['apply']>(async () => ({ ok: true }) as const);
     const deps = mkDeps({
       executor: { apply } as unknown as DisposeDeps['executor'],
       strategies: { get: () => trailingTrade } as unknown as DisposeDeps['strategies'],
@@ -784,7 +785,9 @@ describe('handleDisposeProfile', () => {
 
   const ttDeps = (
     open: readonly Record<string, unknown>[],
-    apply = vi.fn(async () => ({ ok: true }) as const),
+    apply: DisposeDeps['executor']['apply'] = vi.fn<DisposeDeps['executor']['apply']>(
+      async () => ({ ok: true }) as const,
+    ),
     over: Partial<DisposeDeps> = {},
   ): DisposeDeps =>
     mkDeps({
@@ -809,7 +812,7 @@ describe('handleDisposeProfile', () => {
     // strip a live position of its protection.
     const repo = mkTtRepo();
     profileRepo.mockResolvedValue(repo);
-    const apply = vi.fn(async () => ({ ok: true }) as const);
+    const apply = vi.fn<DisposeDeps['executor']['apply']>(async () => ({ ok: true }) as const);
     const deps = ttDeps(
       [
         {
@@ -836,7 +839,7 @@ describe('handleDisposeProfile', () => {
     // nothing left in the system pointing at it.
     const repo = mkTtRepo();
     profileRepo.mockResolvedValue(repo);
-    const apply = vi.fn(async () => ({ ok: true }) as const);
+    const apply = vi.fn<DisposeDeps['executor']['apply']>(async () => ({ ok: true }) as const);
     const deps = ttDeps(
       [
         {
@@ -946,7 +949,7 @@ describe('handleDisposeProfile', () => {
     // id would cancel a stranger's order on the strength of OUR row.
     const repo = withSlack(mkTtRepo(trailingTrade.defaultConfig, ['ENAUSDT:8888']));
     profileRepo.mockResolvedValue(repo);
-    const apply = vi.fn(async () => ({ ok: true }) as const);
+    const apply = vi.fn<DisposeDeps['executor']['apply']>(async () => ({ ok: true }) as const);
     const deps = ttDeps(
       [
         {

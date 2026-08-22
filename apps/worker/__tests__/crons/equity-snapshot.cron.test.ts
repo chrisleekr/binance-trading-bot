@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
 import type { Job } from 'bullmq';
-import type { EquitySnapshotPayload } from '@app/db';
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
 
 import { computeEquitySnapshot } from '../../src/crons/equity-snapshot.js';
@@ -119,15 +118,11 @@ const deps = (over: Partial<EquitySnapshotDeps> = {}): EquitySnapshotDeps => ({
 
 describe('equitySnapshotHandler', () => {
   it('records one snapshot per active profile', async () => {
-    const record = vi.fn(async () => undefined);
+    const record = vi.fn<EquitySnapshotDeps['record']>(async () => undefined);
     await equitySnapshotHandler(deps({ record }))(job);
     expect(record).toHaveBeenCalledTimes(1);
-    const [, , , payload] = record.mock.calls[0] as [
-      UserId,
-      AccountId,
-      ProfileId,
-      EquitySnapshotPayload,
-    ];
+    const payload = record.mock.calls[0]?.[3];
+    if (!payload) throw new Error('expected one equity snapshot');
     // unrealised = (110-100)*1 = 10; net = realised 5 + 10 = 15.
     expect(payload.netPnlQuote).toBe('15');
     expect(payload.benchmarkAsset).toBe('BTC');
@@ -142,7 +137,7 @@ describe('equitySnapshotHandler', () => {
   it('builds the benchmark symbol from the canonical quote, not the stored casing', async () => {
     // `profiles.quote_asset` is allowed to be stored lower or mixed case. Ticker keys carry Binance's upper casing, so a raw concat asks for `BTCusdt`, misses the cache, and records a zero benchmark price — the "vs holding" comparator flatlines while every other leg of the same row is correct.
     const pricesOf = vi.fn(async () => new Map([['BTCUSDT', '110']]));
-    const record = vi.fn(async () => undefined);
+    const record = vi.fn<EquitySnapshotDeps['record']>(async () => undefined);
     await equitySnapshotHandler(
       deps({
         pricesOf,
@@ -155,12 +150,8 @@ describe('equitySnapshotHandler', () => {
       }),
     )(job);
     expect(pricesOf).toHaveBeenCalledWith(['BTCUSDT', 'BTCUSDT']);
-    const [, , , payload] = record.mock.calls[0] as [
-      UserId,
-      AccountId,
-      ProfileId,
-      EquitySnapshotPayload,
-    ];
+    const payload = record.mock.calls[0]?.[3];
+    if (!payload) throw new Error('expected one equity snapshot');
     expect(payload.benchmarkPriceQuote).toBe('110');
     expect(payload.quoteAsset).toBe('USDT');
   });

@@ -4,6 +4,7 @@ import type { TickJobData } from '../../src/queues/job-payloads.js';
 
 const data = (event: TickJobData['event'], payload: Record<string, unknown> = {}): TickJobData => ({
   userId: 'u',
+  accountId: 'a',
   profileId: 'p',
   symbol: 'BTCUSDT',
   event,
