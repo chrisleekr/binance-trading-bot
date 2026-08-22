@@ -11,7 +11,7 @@
 
 import { EnablementPolicy } from '@app/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { fetchProfile, patchProfile, profileQueryKey } from '@/features/profile/api/profile';
@@ -96,16 +96,18 @@ export function EnablementPolicyPanel({
     queryKey: profileQueryKey(profileId),
     queryFn: () => fetchProfile(profileId),
   });
-  const [form, setForm] = useState<EnablementPolicy | null>(null);
-  // Seed the form from the profile's effective policy once it loads.
-  useEffect(() => {
-    if (data) setForm(data.enablementPolicy);
-  }, [data]);
+  const [formDraft, setFormDraft] = useState<{
+    profileId: string;
+    value: EnablementPolicy;
+  } | null>(null);
+  const form =
+    formDraft?.profileId === profileId ? formDraft.value : (data?.enablementPolicy ?? null);
 
   const save = useMutation({
     mutationFn: (policy: EnablementPolicy) => patchProfile(profileId, { enablementPolicy: policy }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: profileQueryKey(profileId) });
+      setFormDraft(null);
       toast.success('Live gate saved.');
     },
     onError: (err: unknown) => {
@@ -116,12 +118,20 @@ export function EnablementPolicyPanel({
   });
 
   const parsed = form ? EnablementPolicy.safeParse(form) : null;
-  const patch = <K extends keyof EnablementPolicy>(key: K, value: EnablementPolicy[K]): void =>
-    setForm((f) => (f ? { ...f, [key]: value } : f));
+  const patch = <K extends keyof EnablementPolicy>(key: K, value: EnablementPolicy[K]): void => {
+    if (form) setFormDraft({ profileId, value: { ...form, [key]: value } });
+  };
   const patchMonitor = <K extends keyof EnablementPolicy['monitor']>(
     key: K,
     value: EnablementPolicy['monitor'][K],
-  ): void => setForm((f) => (f ? { ...f, monitor: { ...f.monitor, [key]: value } } : f));
+  ): void => {
+    if (form) {
+      setFormDraft({
+        profileId,
+        value: { ...form, monitor: { ...form.monitor, [key]: value } },
+      });
+    }
+  };
 
   // Two panels land here — the quality-check essentials and the advanced
   // thresholds — so stand in for both rather than a lone row of bars.

@@ -4,7 +4,7 @@
 // dedup dialog state also lives here (the launch mutation in the run slice sets
 // it when an identical re-run is deduped).
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type SetStateAction } from 'react';
 import { useMutation, useQuery, type QueryClient } from '@tanstack/react-query';
 
 import { BACKTEST_LIST_DEFAULT_PAGE_SIZE, type BacktestParams } from '@app/contracts';
@@ -80,10 +80,16 @@ export function useBacktestHistory({
   // Cursor pagination for past runs; new runs land at the head, so an offset
   // would re-show or skip rows. `history` is the stack of prior-page cursors so
   // Prev retraces the operator's path; the current page's cursor is `cursor`.
-  const [page, setPage] = useState<{
+  type PageState = {
     cursor: string | null;
     history: readonly (string | null)[];
-  }>({ cursor: null, history: [] });
+  };
+  const [page, setPageState] = useState<PageState>({ cursor: null, history: [] });
+  const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set());
+  const setPage = useCallback((next: SetStateAction<PageState>): void => {
+    setPageState(next);
+    setSelectedRunIds(new Set());
+  }, []);
   // Runs-table page size and status filter. Both are server-side: changing
   // either resets to the first page (cursors from the old query don't apply).
   const [rowsPerPage, setRowsPerPage] = useState<number>(BACKTEST_LIST_DEFAULT_PAGE_SIZE);
@@ -118,12 +124,6 @@ export function useBacktestHistory({
     runId: string;
     params: BacktestParams;
   } | null>(null);
-
-  // Multi-select for bulk delete, scoped to the current page.
-  const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    setSelectedRunIds(new Set());
-  }, [page]);
 
   // Every delete mutation closes the confirm dialog and surfaces the failure the
   // same way; only their success paths differ.

@@ -177,6 +177,62 @@ describe('BacktestLlmAdvisor', () => {
     expect(postCalls(fetchMock)).toHaveLength(0);
   });
 
+  it('keeps the initially restored result selected when another variant finishes polling', async () => {
+    let aggressiveDone = false;
+    let listGets = 0;
+    install((url, init) => {
+      if (isGetList(url, init)) {
+        listGets += 1;
+        return json({
+          results: [
+            doneRow('safe', { summary: 'the SAFE answer' }),
+            aggressiveDone
+              ? doneRow('aggressive', {
+                  summary: 'the AGGRESSIVE answer',
+                  updatedAt: '2026-07-04T01:00:00.000Z',
+                })
+              : runningRow('aggressive'),
+          ],
+        });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    renderAdvisor();
+
+    expect(await screen.findByTestId('backtest-llm-summary')).toHaveTextContent('SAFE');
+    aggressiveDone = true;
+    await waitFor(() => expect(listGets).toBeGreaterThan(1), { timeout: 4000 });
+    expect(screen.getByTestId('backtest-llm-summary')).toHaveTextContent('SAFE');
+  }, 8000);
+
+  it('clears selected suggestions when the operator changes variants', async () => {
+    install((url, init) => {
+      if (isGetList(url, init))
+        return json({
+          results: [
+            doneRow('safe', { summary: 'the SAFE answer' }),
+            doneRow('aggressive', {
+              summary: 'the AGGRESSIVE answer',
+              updatedAt: '2026-07-04T01:00:00.000Z',
+            }),
+          ],
+        });
+      return new Response('not found', { status: 404 });
+    });
+    renderAdvisor();
+    const user = userEvent.setup();
+
+    await screen.findByText('the AGGRESSIVE answer');
+    await user.click(screen.getByTestId('backtest-llm-toggle-rsi'));
+    expect(screen.getByTestId('backtest-llm-load-selected')).toBeEnabled();
+
+    await user.click(screen.getByTestId('backtest-llm-ask-safe'));
+    expect(screen.getByTestId('backtest-llm-load-selected')).toBeDisabled();
+
+    await user.click(screen.getByTestId('backtest-llm-ask-aggressive'));
+    expect(screen.getByTestId('backtest-llm-load-selected')).toBeDisabled();
+  });
+
   it('Regenerate re-POSTs and is disabled while the row is running', async () => {
     const fetchMock = install((url, init) => {
       if (variantPost(url, init) === 'safe') return json(runningRow('safe'), 202);

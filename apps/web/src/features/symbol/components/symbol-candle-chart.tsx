@@ -277,14 +277,11 @@ export function SymbolCandleChart({
   // overlay set the moment the series exists — the overlay effect may already
   // have run and skipped while the module was still loading.
   const overlaysRef = useRef(overlays);
-  overlaysRef.current = overlays;
   // Candle window and axis precision read by the create effect from refs so it
   // depends on neither — a new window (every interval boundary) and a precision
   // change (exchangeInfo resolving) update the series in place, never rebuild.
   const candlesRef = useRef(candles);
-  candlesRef.current = candles;
   const priceFormatRef = useRef({ precision, minMove });
-  priceFormatRef.current = { precision, minMove };
   // Crosshair fallback (latest bar) kept fresh in a ref: the chart no longer
   // rebuilds on a candle change, so the crosshair handler can't close over a
   // stale `latestOhlc`. `offChart` tracks whether the cursor is off the bars,
@@ -292,6 +289,12 @@ export function SymbolCandleChart({
   // operator isn't hovering one.
   const fallbackRef = useRef<OhlcPoint | null>(null);
   const offChartRef = useRef(true);
+
+  useEffect(() => {
+    overlaysRef.current = overlays;
+    candlesRef.current = candles;
+    priceFormatRef.current = { precision, minMove };
+  }, [overlays, candles, precision, minMove]);
 
   // Repaint price lines + markers from an overlay set onto an existing series.
   // Clears the previously-created lines first so a changed overlay set never

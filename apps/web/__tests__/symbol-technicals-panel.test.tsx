@@ -9,7 +9,7 @@ import {
   RouterProvider,
 } from '@tanstack/react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -51,10 +51,7 @@ const tvBlock = (
   intervals: [intervalRow('1m')],
 });
 
-const setUp = (
-  responder: (url: string) => Response,
-  clock: () => number = () => 1_000_000,
-): void => {
+const setUp = (responder: (url: string) => Response, clock: () => number = () => 1_000_000) => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url =
       typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -90,6 +87,7 @@ const setUp = (
       />
     </QueryClientProvider>,
   );
+  return { queryClient };
 };
 
 afterEach(() => {
@@ -400,6 +398,54 @@ describe('SymbolTechnicalsPanel', () => {
       'aria-label',
       '1h: Strong sell',
     );
+  });
+
+  it('keeps the first interval selected after the selected interval disappears', async () => {
+    let intervals = ['5m', '1h'];
+    const { queryClient } = setUp(() =>
+      json({
+        items: [
+          {
+            symbol: 'BTCUSDT',
+            signals: intervals.map((interval) => ({
+              interval,
+              signal: {
+                ...richSignal,
+                recommendation: interval === '5m' ? 'BUY' : 'STRONG_SELL',
+              },
+            })),
+          },
+        ],
+        fetchedAt: '2026-05-10T12:00:00.000Z',
+        technicals: {
+          useOnlyWithinMin: 2,
+          ifExpires: 'do-not-buy',
+          intervals: intervals.map((interval) => intervalRow(interval)),
+        },
+      }),
+    );
+
+    await screen.findByTestId('symbol-tv-interval-tabs');
+    fireEvent.click(screen.getByTestId('symbol-tv-interval-tab-1h'));
+    expect(screen.getByTestId('symbol-tv-recommendation')).toHaveTextContent('Strong sell');
+
+    intervals = ['5m'];
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+    await waitFor(() => expect(screen.queryByTestId('symbol-tv-interval-tabs')).toBeNull());
+    expect(screen.getByTestId('symbol-tv-recommendation')).toHaveTextContent('Buy');
+
+    intervals = ['5m', '1h'];
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+    await screen.findByTestId('symbol-tv-interval-tabs');
+    expect(screen.getByTestId('symbol-tv-interval-tab-5m')).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByTestId('symbol-tv-recommendation')).toHaveTextContent('Buy');
   });
 
   it('hides the interval chip strip for a single-interval profile', async () => {

@@ -170,11 +170,12 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
     if (!recovering) return;
     // An empty ARRAY ends the recovery; an absent one does not.
     if (recoverableSymbols?.length === 0) {
-      setRecovering(false);
-      // Don't paint over a partial-failure banner from onRecoverAll: if some
-      // coins failed to enqueue, that error stays the visible message.
-      setBanner((b) => (b?.kind === 'err' ? b : { kind: 'ok', message: 'Recovery finished.' }));
-      return;
+      const finish = setTimeout(() => {
+        setRecovering(false);
+        // Keep a partial-failure banner when some coins did not enqueue.
+        setBanner((b) => (b?.kind === 'err' ? b : { kind: 'ok', message: 'Recovery finished.' }));
+      }, 0);
+      return () => clearTimeout(finish);
     }
     const stop = setTimeout(() => setRecovering(false), 45_000);
     return () => clearTimeout(stop);
@@ -183,7 +184,9 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
   // Collapse the "Show hidden" reveal once the hidden set empties, so a future
   // hide doesn't re-open it already expanded from stale local state.
   useEffect(() => {
-    if (unreconstructableHidden.length === 0) setShowHidden(false);
+    if (unreconstructableHidden.length !== 0) return;
+    const collapse = setTimeout(() => setShowHidden(false), 0);
+    return () => clearTimeout(collapse);
   }, [unreconstructableHidden.length]);
 
   const onRecoverAll = async (): Promise<void> => {

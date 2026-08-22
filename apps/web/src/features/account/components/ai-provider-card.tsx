@@ -4,7 +4,7 @@
 // so a blank key field on save means "keep the stored one".
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
 import { Panel } from '@/shared/components/panel';
@@ -34,24 +34,19 @@ export function AiProviderCard(): React.JSX.Element {
   const q = useQuery(aiProviderQueryOptions);
   const [banner, setBanner] = useState<ActionBannerState | null>(null);
 
-  const [provider, setProvider] = useState<AiProvider>('anthropic');
-  const [anthropicModel, setAnthropicModel] = useState('');
+  const [providerOverride, setProvider] = useState<AiProvider | null>(null);
+  const [anthropicModelOverride, setAnthropicModel] = useState<string | null>(null);
   const [anthropicApiKey, setAnthropicApiKey] = useState('');
   const [anthropicOauth, setAnthropicOauth] = useState('');
-  const [openaiBaseUrl, setOpenaiBaseUrl] = useState('');
-  const [openaiModel, setOpenaiModel] = useState('');
+  const [openaiBaseUrlOverride, setOpenaiBaseUrl] = useState<string | null>(null);
+  const [openaiModelOverride, setOpenaiModel] = useState<string | null>(null);
   const [openaiApiKey, setOpenaiApiKey] = useState('');
 
   const view = q.data;
-  // Seed the non-secret fields from the server on load and after a save. Secret
-  // inputs stay as typed; they are cleared explicitly on a successful save.
-  useEffect(() => {
-    if (!view) return;
-    setProvider(view.provider);
-    setAnthropicModel(view.anthropic.model);
-    setOpenaiBaseUrl(view.openai.baseUrl);
-    setOpenaiModel(view.openai.model);
-  }, [view]);
+  const provider = providerOverride ?? view?.provider ?? 'anthropic';
+  const anthropicModel = anthropicModelOverride ?? view?.anthropic.model ?? '';
+  const openaiBaseUrl = openaiBaseUrlOverride ?? view?.openai.baseUrl ?? '';
+  const openaiModel = openaiModelOverride ?? view?.openai.model ?? '';
 
   const save = useMutation({
     mutationFn: () =>
@@ -73,6 +68,10 @@ export function AiProviderCard(): React.JSX.Element {
       setAnthropicOauth('');
       setOpenaiApiKey('');
       await queryClient.invalidateQueries({ queryKey: aiProviderQueryKey });
+      setProvider(null);
+      setAnthropicModel(null);
+      setOpenaiBaseUrl(null);
+      setOpenaiModel(null);
       setBanner({ kind: 'ok', message: 'AI provider saved.' });
     },
     onError: (err) =>

@@ -1,13 +1,9 @@
 // SymbolDisableBanner — surfaces the per-symbol kill-switch when present.
 //
-// `disable` arrives on `SymbolStateResponse` as `{ ttlSeconds, since, reason }`
-// derived from the `disable-action:<symbol>` Redis key plus its TTL. We freeze
-// the server-side TTL on mount and decrement locally so the UI doesn't hammer
-// the API every second; a 5s react-query refetch already covers the case
-// where the operator extends the disable from elsewhere.
+// `disable` arrives on `SymbolStateResponse` as `{ ttlSeconds, since, reason }` derived from the `disable-action:<symbol>` Redis key plus its TTL. We freeze the server-side TTL on mount and decrement locally so the UI does not request an update every second. A new disable write carries a new `since`, which re-seeds the countdown without remounting on ordinary TTL refreshes.
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
@@ -40,22 +36,46 @@ export const formatTtl = (seconds: number): string => {
  * stays gated by the mutation's pending state to keep accidental
  * double-clicks from racing the API.
  */
-export function SymbolDisableBanner({
-  profileId,
-  symbol,
+export function SymbolDisableBanner({ disable, ...props }: DisableBannerProps): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const release = useMutation({
+    mutationFn: () => releaseDisable(props.profileId, props.symbol),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: symbolStateQueryKey(props.profileId, props.symbol),
+      });
+    },
+  });
+
+  return (
+    <SymbolDisableBannerBody
+      key={disable.since}
+      disable={disable}
+      {...(props.clock ? { clock: props.clock } : {})}
+      releaseError={release.error}
+      isResuming={release.isPending}
+      onResume={() => release.mutate()}
+    />
+  );
+}
+
+interface DisableBannerBodyProps {
+  readonly disable: DisableBannerProps['disable'];
+  readonly clock?: () => number;
+  readonly releaseError: unknown;
+  readonly isResuming: boolean;
+  readonly onResume: () => void;
+}
+
+function SymbolDisableBannerBody({
   disable,
   clock = Date.now,
-}: DisableBannerProps): React.JSX.Element {
-  const queryClient = useQueryClient();
-  // Freeze the server's TTL plus the wall-clock at which we received it.
-  // The anchor reseeds whenever the parent passes a new `disable` (e.g. the
-  // 5s state refetch picks up an extension applied from another tab) so
-  // the countdown tracks the latest server-side TTL instead of decaying
-  // toward the original expiry.
-  const anchorRef = useRef({ baseMs: clock(), baseTtl: disable.ttlSeconds });
-  useEffect(() => {
-    anchorRef.current = { baseMs: clock(), baseTtl: disable.ttlSeconds };
-  }, [disable.ttlSeconds, disable.since, clock]);
+  releaseError,
+  isResuming,
+  onResume,
+}: DisableBannerBodyProps): React.JSX.Element {
+  // Freeze the server's TTL plus the wall-clock at which we received it. The parent keys this body by `since`, so a new disable window re-seeds the anchor while an ordinary TTL refresh preserves the DOM and countdown phase.
+  const [anchor] = useState(() => ({ baseMs: clock(), baseTtl: disable.ttlSeconds }));
 
   const [now, setNow] = useState(() => clock());
   useEffect(() => {
@@ -63,21 +83,14 @@ export function SymbolDisableBanner({
     return (): void => window.clearInterval(handle);
   }, [clock]);
 
-  const elapsedS = Math.floor((now - anchorRef.current.baseMs) / 1_000);
-  const remaining = Math.max(0, anchorRef.current.baseTtl - elapsedS);
+  const elapsedS = Math.floor((now - anchor.baseMs) / 1_000);
+  const remaining = Math.max(0, anchor.baseTtl - elapsedS);
   // `ttlSeconds: 0` is the API's "key exists without TTL" recovery surface
   // (see /state handler). Resume is the *only* way out of that state, so
   // the button must stay enabled even though `remaining === 0`.
   const canResume = disable.ttlSeconds === 0 || remaining > 0;
 
-  const release = useMutation({
-    mutationFn: () => releaseDisable(profileId, symbol),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: symbolStateQueryKey(profileId, symbol) });
-    },
-  });
-
-  const errMsg = release.error ? errorMessage(release.error) : null;
+  const errMsg = releaseError ? errorMessage(releaseError) : null;
 
   return (
     <Alert variant="warning" data-testid="symbol-disable-banner">
@@ -98,11 +111,11 @@ export function SymbolDisableBanner({
             type="button"
             variant="outline"
             size="default"
-            disabled={!canResume || release.isPending}
-            onClick={() => release.mutate()}
+            disabled={!canResume || isResuming}
+            onClick={onResume}
             data-testid="symbol-disable-resume"
           >
-            {release.isPending ? 'Resuming…' : 'Resume now'}
+            {isResuming ? 'Resuming…' : 'Resume now'}
           </Button>
         </div>
         {errMsg ? <div className="text-xs text-danger">⚠ {errMsg}</div> : null}

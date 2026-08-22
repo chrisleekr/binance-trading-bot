@@ -71,14 +71,11 @@ export function BackupSettingsCard(): React.JSX.Element {
 
   const [banner, setBanner] = useState<ActionBannerState | null>(null);
   const [saving, setSaving] = useState(false);
-
-  // Pin a single "now" per render so the two relative-time lines agree. The
-  // panel re-renders on every state change, which is frequent enough that a
-  // dedicated tick timer would be noise.
-  const nowMs = Date.now();
+  const [nowMs, setNowMs] = useState(0);
 
   const applyConfig = (config: BackupConfigResponse): void => {
     setStatus(config);
+    setNowMs(Date.now());
     setEnabled(config.enabled);
     setIntervalHours(String(config.intervalHours));
     setRetentionCount(String(config.retentionCount));
@@ -98,6 +95,12 @@ export function BackupSettingsCard(): React.JSX.Element {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (status === null) return;
+    const tick = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(tick);
+  }, [status]);
 
   const intervalNum = Number(intervalHours);
   const retentionNum = Number(retentionCount);

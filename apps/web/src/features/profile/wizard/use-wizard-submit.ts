@@ -28,7 +28,7 @@ import type { Dispatch } from 'react';
 export function useWizardSubmit(
   state: WizardState,
   dispatch: Dispatch<WizardAction>,
-): (config?: unknown) => Promise<void> {
+): (config?: unknown, strategyOverride?: NonNullable<WizardState['strategy']>) => Promise<void> {
   const router = useRouter();
   const queryClient = useQueryClient();
   const accountId = useActiveAccountId() ?? '';
@@ -38,8 +38,12 @@ export function useWizardSubmit(
   // immediately; it resets in `finally` so a failed create can still retry.
   const inFlight = useRef(false);
 
-  return async (config?: unknown): Promise<void> => {
-    if (!state.strategy) return;
+  return async (
+    config?: unknown,
+    strategyOverride?: NonNullable<WizardState['strategy']>,
+  ): Promise<void> => {
+    const strategy = strategyOverride ?? state.strategy;
+    if (!strategy) return;
     if (inFlight.current) return;
     inFlight.current = true;
     dispatch({ type: 'set-creating', creating: true });
@@ -50,8 +54,8 @@ export function useWizardSubmit(
       if (!profileId) {
         const body = ProfileCreate.parse({
           name: state.name,
-          strategyName: state.strategy.name,
-          strategyVersion: state.strategy.version,
+          strategyName: strategy.name,
+          strategyVersion: strategy.version,
           config: config ?? {},
         });
         const created = await createProfile(body);

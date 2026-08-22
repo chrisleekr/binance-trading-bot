@@ -1,4 +1,5 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { audit } from '../src/middleware/audit.js';
@@ -30,6 +31,10 @@ const EMAIL = 'integration@local.test';
 const PW_OLD = 'old-password-1234';
 const PW_NEW = 'new-password-5678';
 const NAME = 'Integration User';
+const ACCOUNT_IDENTITY_UPGRADE = readFileSync(
+  new URL('../../../packages/db/migrations/0087_better_auth_account_issuer.sql', import.meta.url),
+  'utf8',
+);
 
 /**
  * Extract the Better Auth session cookie from a `Set-Cookie` header. Better
@@ -98,10 +103,22 @@ describeIfInfra('auth integration — sign-up → change-password → re-sign-in
       body: JSON.stringify({ oldPassword, newPassword }),
     });
 
-  it('signs up the first account and returns a session cookie', async () => {
+  it('keeps an existing credential usable after the Better Auth 1.7 identity migration', async () => {
     const res = await signUp();
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toBeTruthy();
+
+    // Recreate the 1.6 account identity shape around the real password hash, then apply the production migration verbatim.
+    await fx.di.pool.query(`
+      alter table "account" alter column issuer drop not null;
+      drop index "account_issuer_accountId_uidx";
+      create unique index "account_provider_uniq" on "account" ("providerId", "accountId");
+      update "account" set issuer = null;
+    `);
+    await fx.di.pool.query(ACCOUNT_IDENTITY_UPGRADE);
+
+    const migratedSignIn = await signIn(PW_OLD);
+    expect(migratedSignIn.status).toBe(200);
   });
 
   it('rejects change-password with a wrong oldPassword and skips the audit row', async () => {

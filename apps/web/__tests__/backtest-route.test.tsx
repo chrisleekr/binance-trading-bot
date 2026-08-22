@@ -241,7 +241,7 @@ const setUp = (
       />
     </QueryClientProvider>,
   );
-  return { fetchMock, router };
+  return { fetchMock, queryClient, router };
 };
 
 // Shared responder for the form's standing dependencies (profile, strategies,
@@ -444,6 +444,33 @@ describe('/profiles/$profileId/backtest', () => {
     expect(screen.queryByText('ETHUSDT')).not.toBeInTheDocument();
   });
 
+  it('keeps the seeded symbol when a dashboard refresh changes the held position', async () => {
+    let currentDashboard = sampleDashboard;
+    const { queryClient } = setUp((url) => {
+      if (url.endsWith('/profiles/p1/dashboard')) return json(currentDashboard);
+      const b = base(url);
+      if (b) return b;
+      if (url.endsWith('/backtests')) return runsList([]);
+      return new Response('not found', { status: 404 });
+    });
+
+    expect(await screen.findByText('BTCUSDT')).toBeInTheDocument();
+    currentDashboard = {
+      ...sampleDashboard,
+      symbols: sampleDashboard.symbols.map((row) =>
+        row.symbol === 'ETHUSDT'
+          ? { ...row, quantity: '1' }
+          : { ...row, quantity: null, avgEntryPrice: null },
+      ),
+    };
+    await act(async () => {
+      await queryClient.invalidateQueries();
+    });
+
+    expect(screen.getByText('BTCUSDT')).toBeInTheDocument();
+    expect(screen.queryByText('ETHUSDT')).not.toBeInTheDocument();
+  });
+
   it('submits the prefilled symbol + edited config as an override', async () => {
     let postBody: unknown;
     const RUN_ID = '11111111-1111-4111-8111-111111111111';
@@ -575,6 +602,47 @@ describe('/profiles/$profileId/backtest', () => {
     await waitFor(() => expect(detailFetches).toBeGreaterThan(before));
   });
 
+  it('does not restore an old live-progress frame after switching away and back', async () => {
+    const RUN_A = '11111111-1111-4111-8111-111111111111';
+    const RUN_B = '22222222-2222-4222-8222-222222222222';
+    setUp((url) => {
+      const b = base(url);
+      if (b) return b;
+      if (url.endsWith('/backtests')) {
+        return runsList([listRow(RUN_A, 'running'), listRow(RUN_B, 'running')]);
+      }
+      if (url.endsWith(`/backtests/${RUN_A}`)) {
+        return json({ ...runDetailBody(RUN_A, 'running'), progress: 10 });
+      }
+      if (url.endsWith(`/backtests/${RUN_B}`)) {
+        return json({ ...runDetailBody(RUN_B, 'running'), progress: 20 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId(`backtest-load-${RUN_A}`));
+    await waitFor(() =>
+      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '10'),
+    );
+    act(() =>
+      socketMock.onMessage?.({
+        topic: 'backtest-progress',
+        payload: { runId: RUN_A, pct: 80, phase: 'replay', processed: 8, total: 10 },
+      }),
+    );
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '80');
+
+    await user.click(screen.getByTestId(`backtest-load-${RUN_B}`));
+    await waitFor(() =>
+      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '20'),
+    );
+    await user.click(screen.getByTestId(`backtest-load-${RUN_A}`));
+    await waitFor(() =>
+      expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '10'),
+    );
+  });
+
   it('shows the warm-up phase label without a candle counter (#334)', async () => {
     const RUN_ID = '11111111-1111-4111-8111-111111111111';
     setUp((url, init) => {
@@ -649,7 +717,7 @@ describe('/profiles/$profileId/backtest', () => {
 
   it('shows the headline and a full bar when a run is done', async () => {
     const RUN_ID = '22222222-2222-4222-8222-222222222222';
-    setUp((url, init) => {
+    const { queryClient } = setUp((url, init) => {
       const b = base(url);
       if (b) return b;
       const method = init?.method ?? 'GET';
@@ -672,6 +740,7 @@ describe('/profiles/$profileId/backtest', () => {
       if (url.includes('/candles')) return json([]);
       return new Response('not found', { status: 404 });
     });
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
 
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
@@ -683,6 +752,13 @@ describe('/profiles/$profileId/backtest', () => {
 
     await waitFor(() => expect(screen.getByText('12.34%')).toBeInTheDocument());
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+    await waitFor(() => {
+      const listInvalidations = invalidate.mock.calls.filter(([filters]) => {
+        const key = (filters as { queryKey?: readonly unknown[] } | undefined)?.queryKey;
+        return key?.[0] === 'backtest' && key[1] === 'list';
+      });
+      expect(listInvalidations.length).toBeGreaterThanOrEqual(2);
+    });
   });
 
   it('blocks submit with a friendly message when dates are missing', async () => {
@@ -1841,10 +1917,17 @@ describe('/profiles/$profileId/backtest', () => {
     const next = within(pastRuns).getByRole('button', { name: 'Next ›' });
     expect(next).toBeEnabled();
 
+    await user.click(within(pastRuns).getByTestId(`backtest-select-${page1Row.runId}`));
+    expect(within(pastRuns).getByTestId('backtest-delete-selected')).toHaveTextContent(
+      'Delete selected (1)',
+    );
+
     await user.click(next);
 
     // Page 2 row loads; the last page disables Next and enables Prev.
     await within(pastRuns).findByText('ETHUSDT');
+    expect(within(pastRuns).queryByTestId('backtest-delete-selected')).toBeNull();
+    expect(within(pastRuns).getByTestId(`backtest-select-${page2Row.runId}`)).not.toBeChecked();
     expect(within(pastRuns).getByRole('button', { name: 'Next ›' })).toBeDisabled();
     expect(within(pastRuns).getByRole('button', { name: '‹ Prev' })).toBeEnabled();
 
@@ -2195,15 +2278,19 @@ describe('/profiles/$profileId/backtest', () => {
 
   it('Retry posts to the retry endpoint for a failed run', async () => {
     const NEW_ID = 'b5555555-5555-4555-8555-555555555555';
-    const { fetchMock } = setUp((url) => {
+    const { fetchMock, queryClient } = setUp((url) => {
       const b = base(url);
       if (b) return b;
       if (url.includes('/retry')) return json({ runId: NEW_ID }, 202);
       if (url.endsWith('/backtests')) return runsList([listRow(ERROR_ID, 'error')]);
+      if (url.endsWith(`/backtests/${NEW_ID}`)) {
+        return json({ ...runDetailBody(NEW_ID, 'done'), result: doneResult() });
+      }
       const m = url.match(/\/backtests\/([0-9a-f-]{36})$/);
       if (m) return json(runDetailBody(m[1] as string, 'queued'));
       return new Response('not found', { status: 404 });
     });
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
 
     const user = userEvent.setup();
     await user.click(await screen.findByTestId(`backtest-row-actions-${ERROR_ID}`));
@@ -2218,6 +2305,14 @@ describe('/profiles/$profileId/backtest', () => {
         ),
       ).toBe(true),
     );
+    expect(await screen.findByText(`Run ${NEW_ID.slice(0, 8)} — done`)).toBeInTheDocument();
+    await waitFor(() => {
+      const listInvalidations = invalidate.mock.calls.filter(([filters]) => {
+        const key = (filters as { queryKey?: readonly unknown[] } | undefined)?.queryKey;
+        return key?.[0] === 'backtest' && key[1] === 'list';
+      });
+      expect(listInvalidations.length).toBeGreaterThanOrEqual(2);
+    });
   });
 
   it('hydrates the active run from a ?run= deep link and shows its result inline', async () => {
