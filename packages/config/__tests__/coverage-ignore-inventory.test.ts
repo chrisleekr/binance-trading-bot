@@ -182,7 +182,7 @@ const REVIEWED_IDENTITY_DIGESTS: Record<string, string> = {
   'packages/strategy/rebalance/src/momentum.ts': '6061dccad62477d7',
   'packages/strategy/trailing-trade/src/schema.ts': '46e2fd3326ca1e54',
   'packages/strategy/trailing-trade/src/tick.ts': 'a2a7cfe9f8b8fee7',
-  'packages/strategy/trailing-trade/src/decisions.ts': 'fc4538821d696187',
+  'packages/strategy/trailing-trade/src/decisions.ts': 'a7edd3eb4db66c74',
   'packages/strategy/trailing-trade/src/branches/grid-buy.ts': '2d1b05abe70d76b9',
   'packages/strategy/trailing-trade/src/branches/first-entry.ts': '7f054f05a0b4b551',
 };

@@ -28,7 +28,7 @@ describe('deriveExitIntent', () => {
     ).toBe('grid-stop-loss');
   });
 
-  it('uses the LAST SELL when several sells exist', () => {
+  it('falls back to the LAST SELL when no sell carries a closedAt stamp', () => {
     expect(
       deriveExitIntent([
         { side: 'BUY', intent: 'grid-buy' },
@@ -36,6 +36,62 @@ describe('deriveExitIntent', () => {
         { side: 'SELL', intent: 'technicals-force-sell' },
       ]),
     ).toBe('technicals-force-sell');
+  });
+
+  it('picks the LATEST sell by closedAt, not the last array element', () => {
+    // The forward archive writes `desc(closedAt)`, so its LAST SELL is the cycle's FIRST exit. Reading by position reported that first exit as the reason the cycle closed.
+    expect(
+      deriveExitIntent([
+        { side: 'SELL', intent: 'protective-stop', closedAt: '2026-08-20T03:00:00.000Z' },
+        { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T02:00:00.000Z' },
+        { side: 'BUY', intent: 'grid-buy', closedAt: '2026-08-20T01:00:00.000Z' },
+      ]),
+    ).toBe('protective-stop');
+  });
+
+  it('picks the LATEST sell when the closing order sits mid-array', () => {
+    // The backfill emits Map-insertion order keyed on each order's FIRST fill, so a SELL that partially fills, yields to a second SELL, then flattens the position lands BEFORE that second SELL.
+    expect(
+      deriveExitIntent([
+        { side: 'BUY', intent: 'backfill', closedAt: '2026-08-20T01:00:00.000Z' },
+        { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T04:00:00.000Z' },
+        { side: 'SELL', intent: 'backfill', closedAt: '2026-08-20T03:00:00.000Z' },
+      ]),
+    ).toBe('grid-sell');
+  });
+
+  it('lets one stamped sell beat every unstamped sell regardless of position', () => {
+    // Asserted in both orderings: a stamped sell that happens to sit last would pass on position alone, so only the mirrored pair proves the stamp is what wins.
+    expect(
+      deriveExitIntent([
+        { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T04:00:00.000Z' },
+        { side: 'SELL', intent: 'backfill' },
+      ]),
+    ).toBe('grid-sell');
+    expect(
+      deriveExitIntent([
+        { side: 'SELL', intent: 'backfill' },
+        { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T04:00:00.000Z' },
+      ]),
+    ).toBe('grid-sell');
+  });
+
+  it('ignores an unparseable closedAt rather than ordering by it', () => {
+    expect(
+      deriveExitIntent([
+        { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T04:00:00.000Z' },
+        { side: 'SELL', intent: 'backfill', closedAt: 'not-a-date' },
+      ]),
+    ).toBe('grid-sell');
+  });
+
+  it('keeps the later array element when two sells share a closedAt', () => {
+    expect(
+      deriveExitIntent([
+        { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T04:00:00.000Z' },
+        { side: 'SELL', intent: 'protective-stop', closedAt: '2026-08-20T04:00:00.000Z' },
+      ]),
+    ).toBe('protective-stop');
   });
 
   it('reports a recovered SELL under the intent the strategy MEANT, not its reserved row intent', () => {
@@ -85,27 +141,51 @@ describe('coerceArchivedOrders', () => {
 
   it('drops a null element', () => {
     expect(coerceArchivedOrders([null, { side: 'SELL', intent: 'grid-sell' }])).toEqual([
-      { side: 'SELL', intent: 'grid-sell' },
+      { side: 'SELL', intent: 'grid-sell', closedAt: null },
     ]);
   });
 
   it('drops a non-object primitive element', () => {
     expect(coerceArchivedOrders([42, 'SELL', true, { side: 'SELL' }])).toEqual([
-      { side: 'SELL', intent: null },
+      { side: 'SELL', intent: null, closedAt: null },
     ]);
   });
 
-  it('keeps a well-formed element with a string intent as-is', () => {
+  it('keeps a well-formed element with a string intent, normalising the absent closedAt', () => {
     expect(coerceArchivedOrders([{ side: 'SELL', intent: 'stop' }])).toEqual([
-      { side: 'SELL', intent: 'stop' },
+      { side: 'SELL', intent: 'stop', closedAt: null },
     ]);
   });
 
   it('coerces a non-string or absent intent to null', () => {
     expect(coerceArchivedOrders([{ side: 'SELL', intent: 42 }])).toEqual([
-      { side: 'SELL', intent: null },
+      { side: 'SELL', intent: null, closedAt: null },
     ]);
-    expect(coerceArchivedOrders([{ side: 'SELL' }])).toEqual([{ side: 'SELL', intent: null }]);
+    expect(coerceArchivedOrders([{ side: 'SELL' }])).toEqual([
+      { side: 'SELL', intent: null, closedAt: null },
+    ]);
+  });
+
+  it('carries a string closedAt and nulls a non-string one', () => {
+    // deriveExitIntent orders by this field, so dropping it here would silently restore position-based selection.
+    expect(
+      coerceArchivedOrders([
+        { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T04:00:00.000Z' },
+        { side: 'SELL', intent: 'grid-sell', closedAt: 1_755_000_000_000 },
+      ]),
+    ).toEqual([
+      { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T04:00:00.000Z' },
+      { side: 'SELL', intent: 'grid-sell', closedAt: null },
+    ]);
+  });
+
+  it('orders by closedAt after the JSONB round-trip', () => {
+    // The joint contract: coerce must carry `closedAt` AND derive must order by it. Either half regressing alone puts this array's FIRST sell back on the label, which is exactly the shipped bug.
+    const raw: unknown = [
+      { side: 'SELL', intent: 'protective-stop', closedAt: '2026-08-20T03:00:00.000Z' },
+      { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T02:00:00.000Z' },
+    ];
+    expect(deriveExitIntent(coerceArchivedOrders(raw))).toBe('protective-stop');
   });
 
   it('round-trips raw JSONB through deriveExitIntent', () => {
@@ -118,6 +198,21 @@ describe('coerceArchivedOrders', () => {
 });
 
 describe('rollupByExitIntent', () => {
+  it('buckets a multi-sell cycle under its LATEST sell, not its last array element', () => {
+    // The rollup is the surface the operator reads to decide whether a strategy's stops are firing too often, and it shares deriveExitIntent with the row badge. A `desc(closedAt)` array put this cycle in the `grid-sell` bucket while the badge on the same row said `protective-stop`.
+    const rollup = rollupByExitIntent([
+      item({
+        profit: '-5',
+        orders: [
+          { side: 'SELL', intent: 'protective-stop', closedAt: '2026-08-20T03:00:00.000Z' },
+          { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T02:00:00.000Z' },
+        ],
+      }),
+    ]);
+
+    expect(rollup.map((b) => b.intent)).toEqual(['protective-stop']);
+  });
+
   it('groups by exit intent with the win/loss split and gross magnitudes', () => {
     const rollup = rollupByExitIntent([
       item({ profit: '-5', orders: [{ side: 'SELL', intent: 'grid-stop-loss' }] }),

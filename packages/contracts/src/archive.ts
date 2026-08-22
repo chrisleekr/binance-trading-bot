@@ -3,41 +3,58 @@ import { z } from 'zod';
 import { asDecimalString, DecimalString, decimalAdd } from './decimal.js';
 
 /**
- * The exit intent of one archived buy/sell cycle: the `intent` of the LAST
- * SELL order in `orders`. The closing SELL is what actually realized the
- * cycle's P/L, so its intent (e.g. `grid-stop-loss`, `technicals-force-sell`,
- * `grid-sell`, `manual`) is the honest "why did this trade close" label. A
- * cycle with no SELL, or a SELL whose intent is missing, is `'unknown'` so
- * recovered/backfilled rows read truthfully rather than being dropped.
+ * The exit intent of one archived buy/sell cycle: the `intent` of the SELL that closed it, i.e. the one with the greatest `closedAt`. The closing SELL is what actually realized the cycle's P/L, so its intent (e.g. `grid-stop-loss`, `technicals-force-sell`, `grid-sell`, `manual`) is the honest "why did this trade close" label. A cycle with no SELL, or a SELL whose intent is missing, is `'unknown'` so recovered/backfilled rows read truthfully rather than being dropped.
+ *
+ * Selection is by timestamp, never by array position, because no writer guarantees a chronological array and the two disagree: the forward archive emits `desc(closedAt)` so its LAST SELL is the cycle's FIRST exit, and the backfill emits Map-insertion order keyed on each order's FIRST fill, so an order that partially fills, yields to a second SELL, then flattens the position lands before that second SELL. Reading by position picked the wrong SELL in both, which mislabels every cycle closed by more than one SELL and mis-buckets the by-exit-reason rollup that shares this function.
+ *
+ * Rows written before `closedAt` was carried, or whose stamps are unparseable, keep the previous last-in-array behaviour: with nothing to order by, position is the only signal left.
+ *
+ * @param orders - Archived order summaries of one cycle, in any order.
+ * @returns The closing SELL's base intent, or `'unknown'` when no SELL carries one.
  */
 export function deriveExitIntent(
-  orders: readonly { side: string; intent?: string | null }[],
+  orders: readonly { side: string; intent?: string | null; closedAt?: string | null }[],
 ): string {
-  for (let i = orders.length - 1; i >= 0; i--) {
-    const o = orders[i];
-    if (o !== undefined && o.side === 'SELL') {
-      return o.intent != null && o.intent.length > 0 ? baseIntent(o.intent) : 'unknown';
+  let closing: { intent?: string | null } | undefined;
+  let closingAt = -Infinity;
+  for (const order of orders) {
+    if (order.side !== 'SELL') continue;
+    const at = order.closedAt == null ? NaN : Date.parse(order.closedAt);
+    if (Number.isNaN(at)) {
+      // Unstamped rows only compete with each other, and the last one wins, which is the legacy behaviour. One stamped SELL retires them all.
+      if (closingAt === -Infinity) closing = order;
+      continue;
+    }
+    // `>=` keeps the later array element on a tie, so equal stamps degrade to the same last-wins rule.
+    if (at >= closingAt) {
+      closing = order;
+      closingAt = at;
     }
   }
-  return 'unknown';
+  const intent = closing?.intent;
+  return intent != null && intent.length > 0 ? baseIntent(intent) : 'unknown';
 }
 
 /**
  * Coerce the archived `orders` JSONB into the shape {@link deriveExitIntent}
- * needs. The persisted column is untyped at the DB boundary and a malformed or
- * legacy row must not throw the read path, so a non-array value yields `[]`,
- * elements that aren't objects with a string `side` are dropped, and a
- * non-string `intent` is normalised to null.
+ * needs. The persisted column is untyped at the DB boundary and a malformed or legacy row must not throw the read path, so a non-array value yields `[]`, elements that aren't objects with a string `side` are dropped, and a non-string `intent` or `closedAt` is normalised to null. `closedAt` is carried because {@link deriveExitIntent} orders by it.
+ *
+ * @param value - The raw `orders` JSONB as read from the archive row, of unknown shape.
+ * @returns Well-formed order summaries, possibly empty; never throws.
  */
-export function coerceArchivedOrders(value: unknown): { side: string; intent?: string | null }[] {
+export function coerceArchivedOrders(
+  value: unknown,
+): { side: string; intent?: string | null; closedAt?: string | null }[] {
   if (!Array.isArray(value)) return [];
-  const out: { side: string; intent?: string | null }[] = [];
+  const out: { side: string; intent?: string | null; closedAt?: string | null }[] = [];
   for (const o of value) {
     if (o !== null && typeof o === 'object' && typeof (o as { side?: unknown }).side === 'string') {
       const intent = (o as { intent?: unknown }).intent;
+      const closedAt = (o as { closedAt?: unknown }).closedAt;
       out.push({
         side: (o as { side: string }).side,
         intent: typeof intent === 'string' ? intent : null,
+        closedAt: typeof closedAt === 'string' ? closedAt : null,
       });
     }
   }
@@ -111,7 +128,8 @@ export interface ArchiveRollupItem {
   readonly source: string;
   readonly profit: string;
   readonly feesQuote?: string;
-  readonly orders: readonly { side: string; intent?: string | null }[];
+  // `closedAt` is what {@link deriveExitIntent} orders by; a projection that annotates itself with this type and drops the field silently falls back to position-based selection.
+  readonly orders: readonly { side: string; intent?: string | null; closedAt?: string | null }[];
 }
 
 interface RollupBucket {
@@ -209,7 +227,7 @@ function bucketMetrics(b: RollupBucket): {
 
 /**
  * Group archived trades by `(quoteAsset, exitIntent)`. The exit intent is
- * derived per row via {@link deriveExitIntent} (the last SELL's intent), so
+ * derived per row via {@link deriveExitIntent} (the intent of the SELL that closed the cycle, i.e. the one with the greatest `closedAt`), so
  * callers pass the raw archived `orders` and the rollup owns the derivation.
  */
 export function rollupByExitIntent(items: readonly ArchiveRollupItem[]): ByIntentRollup[] {
@@ -301,7 +319,7 @@ export const TradeArchiveResponse = z.object({
   netProfit: DecimalString.default(asDecimalString('0')),
   profit: DecimalString,
   profitPercent: DecimalString,
-  // Why the cycle closed: the intent of the last SELL order, derived at read
+  // Why the cycle closed: the intent of the SELL that closed it, i.e. the one with the greatest `closedAt`, derived at read
   // time from the archived `orders` (no stored column). `'unknown'` for rows
   // with no SELL or a missing intent (e.g. backfilled history). `.default`
   // keeps pre-existing response producers/consumers from breaking.

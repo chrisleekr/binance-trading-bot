@@ -72,6 +72,154 @@ describeIfDb('orders account-scoped reads and writes', () => {
     expect((rows[0]?.raw as { tag?: string } | undefined)?.tag).toBe('alice-buy');
   });
 
+  it('lists every exact profile-scoped attribution identity without coercing JSON numbers', async () => {
+    const targetOrderId = nextBinanceOrderId++;
+    const wrongSymbolOrderId = nextBinanceOrderId++;
+    const buyOrderId = nextBinanceOrderId++;
+    const nonFilledOrderId = nextBinanceOrderId++;
+    const openOrderId = nextBinanceOrderId++;
+    const numericQtyOrderId = nextBinanceOrderId++;
+    const closedAt = new Date('2026-08-20T00:00:00Z');
+    const siblingProfileId = asProfileId(randomUUID());
+    await fx.db.insert(profiles).values({
+      id: siblingProfileId,
+      accountId: fx.alice.accountId,
+      name: `sibling-${siblingProfileId}`,
+      strategyName: 'trailing-trade',
+      strategyVersion: '2.0.0',
+      config: {},
+      state: {},
+    });
+    const sibling = await profileRepo(fx.db, fx.alice.userId, fx.alice.accountId, siblingProfileId);
+
+    await ap.orders.insert({
+      symbol: 'ATTRUSDT',
+      side: 'SELL',
+      intent: 'grid-sell',
+      binanceOrderId: targetOrderId,
+      clientOrderId: 'attr-target',
+      status: 'FILLED',
+      raw: { executedQty: '3.12000000' },
+      closedAt,
+    });
+    await ap.orders.insert({
+      symbol: 'ATTRUSDT',
+      side: 'SELL',
+      intent: 'duplicate-canceled',
+      binanceOrderId: targetOrderId,
+      clientOrderId: 'attr-duplicate-canceled',
+      status: 'CANCELED',
+      raw: { executedQty: '3.12' },
+      closedAt,
+    });
+    await sibling.orders.insert({
+      symbol: 'ATTRUSDT',
+      side: 'SELL',
+      intent: 'protective-stop',
+      binanceOrderId: targetOrderId,
+      clientOrderId: 'attr-sibling',
+      status: 'FILLED',
+      raw: { executedQty: '3.12' },
+      closedAt,
+    });
+    await bp.orders.insert({
+      symbol: 'ATTRUSDT',
+      side: 'SELL',
+      intent: 'exit',
+      binanceOrderId: targetOrderId,
+      clientOrderId: 'attr-other-account',
+      status: 'FILLED',
+      raw: { executedQty: '3.12' },
+      closedAt,
+    });
+    await ap.orders.insert({
+      symbol: 'OTHERUSDT',
+      side: 'SELL',
+      intent: 'wrong-symbol',
+      binanceOrderId: wrongSymbolOrderId,
+      clientOrderId: 'attr-wrong-symbol',
+      status: 'FILLED',
+      raw: { executedQty: '3.12' },
+      closedAt,
+    });
+    await ap.orders.insert({
+      symbol: 'ATTRUSDT',
+      side: 'BUY',
+      intent: 'wrong-side',
+      binanceOrderId: buyOrderId,
+      clientOrderId: 'attr-buy',
+      status: 'FILLED',
+      raw: { executedQty: '3.12' },
+      closedAt,
+    });
+    await ap.orders.insert({
+      symbol: 'ATTRUSDT',
+      side: 'SELL',
+      intent: 'wrong-status',
+      binanceOrderId: nonFilledOrderId,
+      clientOrderId: 'attr-canceled',
+      status: 'CANCELED',
+      raw: { executedQty: '3.12' },
+      closedAt,
+    });
+    await ap.orders.insert({
+      symbol: 'ATTRUSDT',
+      side: 'SELL',
+      intent: 'not-closed',
+      binanceOrderId: openOrderId,
+      clientOrderId: 'attr-open',
+      status: 'FILLED',
+      raw: { executedQty: '3.12' },
+    });
+    await ap.orders.insert({
+      symbol: 'ATTRUSDT',
+      side: 'SELL',
+      intent: 'numeric-qty',
+      binanceOrderId: numericQtyOrderId,
+      clientOrderId: 'attr-numeric-qty',
+      status: 'FILLED',
+      raw: { executedQty: 3.12 },
+      closedAt,
+    });
+
+    const candidates = await ap.orders.listRecoveryAttributionRows('ATTRUSDT', [
+      targetOrderId,
+      wrongSymbolOrderId,
+      buyOrderId,
+      nonFilledOrderId,
+      openOrderId,
+      numericQtyOrderId,
+    ]);
+
+    expect(candidates).toHaveLength(6);
+    expect(candidates).toEqual(
+      expect.arrayContaining([
+        {
+          binanceOrderId: targetOrderId,
+          intent: 'grid-sell',
+          side: 'SELL',
+          status: 'FILLED',
+          closedAt,
+          executedQty: '3.12000000',
+        },
+        expect.objectContaining({
+          binanceOrderId: targetOrderId,
+          intent: 'duplicate-canceled',
+          status: 'CANCELED',
+        }),
+        expect.objectContaining({ intent: 'wrong-side', side: 'BUY' }),
+        expect.objectContaining({ intent: 'wrong-status', status: 'CANCELED' }),
+        expect.objectContaining({ intent: 'not-closed', closedAt: null }),
+        expect.objectContaining({ intent: 'numeric-qty', executedQty: null }),
+      ]),
+    );
+    // One assertion per leaked row, each naming its own predicate. A single `not.toEqual(arrayContaining([a, b, c]))` passes as soon as ANY one is absent, so it would stay green while two of the three predicates leaked.
+    const intents = candidates.map((candidate) => candidate.intent);
+    expect(intents).not.toContain('protective-stop'); // sibling profile, same account
+    expect(intents).not.toContain('exit'); // other account
+    expect(intents).not.toContain('wrong-symbol'); // other symbol
+  });
+
   it('findLive returns only the owner-scoped row on the happy path', async () => {
     const row = await ap.orders.findLive('BTCUSDT', 'grid-buy');
     if (!row) throw new Error('expected alice live order to exist');

@@ -235,6 +235,7 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
       // which is the exact distinction the list exists to state.
       'listLiveForProfile',
       'listRecordedAmong',
+      'listRecoveryAttributionRows',
       'listHistoryForSymbol',
       'findLive',
       'listHistory',
