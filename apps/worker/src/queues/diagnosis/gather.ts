@@ -12,6 +12,8 @@ import type { Logger } from 'pino';
 import {
   DiscoveryConfigSchema,
   DISCOVERY_HEALTH_WINDOW,
+  unwrapId,
+  type AssetPolicyAbortRecord,
   type OpenCondition,
   type ProfileDiagnosis,
   type ProfileDiagnosisInput,
@@ -27,6 +29,7 @@ import {
 } from '@app/db';
 import type { StrategyRegistry } from '@app/strategy-core';
 import { callAsync } from '../../lib/call-async.js';
+import { readAssetPolicyAbortRecord } from '../../crons/discovery/abort-record.js';
 
 type ScopedRepo = Awaited<ReturnType<typeof profileRepo>>;
 
@@ -92,6 +95,17 @@ const readHalts = async (deps: DiagnosisGatherDeps): Promise<ProfileDiagnosisInp
     return null;
   }
 };
+
+/**
+ * The newest discovery cycle's refusal to rank, if one is parked.
+ *
+ * Delegated to the module that writes the record, so the format has exactly one reader. Fail-soft to `null` there, matching the heartbeat read: an unreadable or unparseable record leaves rung 5 to judge the profile on staleness alone, which is a weaker answer but a true one.
+ *
+ * @param deps - The gather's ports; the Redis client, the logger, and the key parts the discovery cron composed the same key from.
+ * @returns The parked refusal with its cause and time, or null when none is recorded or the record could not be trusted.
+ */
+const readAssetPolicyAbort = (deps: DiagnosisGatherDeps): Promise<AssetPolicyAbortRecord | null> =>
+  readAssetPolicyAbortRecord(deps.redis, deps.logger, unwrapId(deps.keyParts.profileId));
 
 const toOpenConditions = (
   rows: readonly {
@@ -175,24 +189,29 @@ export const gatherDiagnosisInput = async (
     );
   }
 
-  const [heartbeatPresent, halts, conditionRows, snapshotRows, symbolRows, edgeRows] =
-    await Promise.all([
-      readHeartbeat(deps.redis, deps.logger),
-      readHalts(deps),
-      deps.repo.conditionStates.listOpen(),
-      deps.repo.discoveryUniverseSnapshots.listForProfile(SNAPSHOT_LIMIT),
-      deps.repo.profileSymbols.listForProfile(),
-      // `callAsync`, not a bare call: a synchronous throw here is raised while
-      // this array literal is being built, before any promise exists for the
-      // `.catch` to attach to, so it would escape the one read that is meant to
-      // be survivable and fail the whole investigation.
-      callAsync(() => deps.repo.actionLogs.listConditionEdges(TIMELINE_LIMIT)).catch(
-        (err: unknown) => {
-          deps.logger.warn({ err }, 'diagnosis: condition edge read failed; timeline omitted');
-          return [];
-        },
-      ),
-    ]);
+  const [
+    heartbeatPresent,
+    halts,
+    assetPolicyAbort,
+    conditionRows,
+    snapshotRows,
+    symbolRows,
+    edgeRows,
+  ] = await Promise.all([
+    readHeartbeat(deps.redis, deps.logger),
+    readHalts(deps),
+    readAssetPolicyAbort(deps),
+    deps.repo.conditionStates.listOpen(),
+    deps.repo.discoveryUniverseSnapshots.listForProfile(SNAPSHOT_LIMIT),
+    deps.repo.profileSymbols.listForProfile(),
+    // `callAsync`, not a bare call: a synchronous throw here is raised while this array literal is being built, before any promise exists for the `.catch` to attach to, so it would escape the one read that is meant to be survivable and fail the whole investigation.
+    callAsync(() => deps.repo.actionLogs.listConditionEdges(TIMELINE_LIMIT)).catch(
+      (err: unknown) => {
+        deps.logger.warn({ err }, 'diagnosis: condition edge read failed; timeline omitted');
+        return [];
+      },
+    ),
+  ]);
 
   const plugin = deps.strategies.get(profile.strategyName);
   // An unknown strategy leaves every lever unattributable. That degrades the
@@ -233,6 +252,7 @@ export const gatherDiagnosisInput = async (
     },
     worker: { heartbeatPresent },
     halts,
+    assetPolicyAbort,
     conditions: toOpenConditions(ownedConditionRows),
     snapshots: projections.toDiagnosisSnapshots(snapshotRows),
     reasonAttribution,

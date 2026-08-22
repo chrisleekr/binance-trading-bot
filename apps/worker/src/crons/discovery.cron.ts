@@ -20,12 +20,7 @@
 
 import { unwrapId, type StoredDiscoveryConfig } from '@app/contracts';
 import { Decimal } from '@app/money';
-import {
-  createBinanceRest,
-  type BinanceMode,
-  type ParsedKline,
-  type Ticker24hrDto,
-} from '@app/binance';
+import { createBinanceRest, type ParsedKline, type Ticker24hrDto } from '@app/binance';
 import { GLOBAL_KEYS, profileRepo, repo as dbRepo, scopeAccount } from '@app/db';
 import type { Candle } from '@app/strategy-core';
 import type { BootContext } from 'boot/boot-context.js';
@@ -41,14 +36,11 @@ import { computeSiblingConflict, siblingQuoteAssets } from './sibling-conflict.j
 import { discoveryResyncRequest, parseDiscoveryConfig } from './discovery/config.js';
 import { baseAssetHeld } from './discovery/held.js';
 import { shouldRunProfile } from './discovery/gate.js';
+import { createAssetPolicyAbortRecordStore } from './discovery/abort-record.js';
 import { persistSnapshotBestEffort } from './discovery/snapshot.js';
 import { applyDiscoveryAdd, applyDiscoveryReap } from './discovery/apply.js';
 import { discoveryMessage, notifyDiscovery, type ResolvedNotifiers } from './discovery/notify.js';
 import { runDiscoveryForProfile, type DiscoveryProfilePort } from './discovery/run.js';
-import {
-  fetchSymbolAdmission as readSymbolAdmission,
-  type SymbolAdmission,
-} from './discovery/symbol-admission.js';
 import {
   discoveryHandler,
   withTestModeFallback,
@@ -95,15 +87,6 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
     weightGovernor: ctx.weightGovernor,
   });
 
-  // exchangeInfo facts for every listed symbol, read from the symbol-info
-  // keyspace the exchange-info-refresh cron writes for that mode. The admission
-  // map must match the profile-account environment: a testnet profile admitted
-  // against the live universe binds symbols that do not exist on testnet, and
-  // every one of its ticks then DLQs. SCAN+MGET so a single Redis round of
-  // batches covers the whole universe. An unreadable or unprimed keyspace yields an empty map, which the handler treats as a reason to skip the profile.
-  const fetchSymbolAdmission = (mode: BinanceMode): Promise<ReadonlyMap<string, SymbolAdmission>> =>
-    readSymbolAdmission(ctx.redis, ctx.logger, mode, 'cron discovery');
-
   const loadConfig = async (p: ActiveProfile): Promise<LoadedDiscovery | null> => {
     const repo = await profileRepo(ctx.db, p.operatorId, p.accountId, p.profileId);
     const profile = await repo.profile.findById();
@@ -144,6 +127,8 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
 
   const shouldRun = (p: ActiveProfile, refreshPeriodMs: number, nowMs: number): Promise<boolean> =>
     shouldRunProfile(ctx.redis, unwrapId(p.profileId), refreshPeriodMs, nowMs, ctx.logger);
+
+  const abortRecords = createAssetPolicyAbortRecordStore(ctx.redis, ctx.logger);
 
   const runForProfile = async (
     p: ActiveProfile,
@@ -386,13 +371,17 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
       shouldRun,
       runForProfile,
       fetchAllTickers: () => rest.getAllTickers24hr(),
-      fetchSymbolAdmission,
-      // The process-wide snapshot, not a cron-local one: the diagnosis re-probe reads the same accessor, and two snapshots could classify one asset two ways at the same instant.
+      // The process-wide snapshot, not a cron-local one, for both of these: the diagnosis re-probe reads the same accessors, and two snapshots could classify one asset, or admit one symbol, two ways at the same instant.
+      fetchSymbolAdmission: ctx.getSymbolAdmission,
       getAssetPolicy: ctx.getAssetPolicy,
       fetchAccountPermissions: (p) =>
         readAccountPermissions(ctx.redis, ctx.logger, p.accountId, 'cron discovery'),
       resolveBinanceMode: async (p) =>
         withTestModeFallback(await dbRepo.accounts.binanceModeById(ctx.db, p.accountId)),
+      metrics: ctx.metrics,
+      recordAssetPolicyAbort: (p, cause, atMs) =>
+        abortRecords.record(unwrapId(p.profileId), cause, atMs),
+      clearAssetPolicyAbort: (p) => abortRecords.clear(unwrapId(p.profileId)),
     }),
   });
 };

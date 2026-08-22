@@ -13,12 +13,17 @@
 // window opened", which is the failure this view exists to prevent.
 
 import { CONDITION_SEVERITY, type ProfileDiagnosis } from '@app/contracts';
+import type { DiagnosisItem } from '@app/contracts';
 
 import { humaniseAge } from '@/shared/lib/format-time';
 
 export interface TimelineSpan {
   condition: string;
   code: string;
+  /** How the span is coloured. Carried, never re-derived from the condition name: a finding whose condition has no `CONDITION_SEVERITY` entry would otherwise fall through to amber while its own card renders red for the same event. */
+  severity: DiagnosisItem['severity'];
+  /** What the operator reads on hover. An item-synthesised span uses the item's own title, because a span drawn for a finding must not be the one place its internal reason code reaches the page. */
+  label: string;
   startMs: number;
   endMs: number;
   /** Still true at the end of the window. */
@@ -49,9 +54,15 @@ interface OpenSpan {
   condition: string;
   symbol: string | null;
   code: string;
+  severity: DiagnosisItem['severity'];
+  label: string;
   startMs: number;
   clipped: boolean;
 }
+
+// An edge names a condition and nothing else, so its tone comes from the catalogue, and a name the catalogue does not hold is the softer of the two rather than a crash.
+const edgeSeverity = (condition: string): DiagnosisItem['severity'] =>
+  CONDITION_SEVERITY[condition as keyof typeof CONDITION_SEVERITY] ?? 'degraded';
 
 /**
  * Fold condition edges and currently-open conditions into per-subject spans.
@@ -87,6 +98,8 @@ export const buildTimeline = (report: ProfileDiagnosis): Timeline => {
         condition: e.condition,
         symbol: e.symbol,
         code: e.previousCode,
+        severity: edgeSeverity(e.condition),
+        label: e.previousCode,
         startMs: chartStartMs,
         endMs: e.atMs,
         open: false,
@@ -98,6 +111,8 @@ export const buildTimeline = (report: ProfileDiagnosis): Timeline => {
         condition: e.condition,
         symbol: e.symbol,
         code: e.code,
+        severity: edgeSeverity(e.condition),
+        label: e.code,
         startMs: e.atMs,
         clipped: false,
       });
@@ -126,6 +141,8 @@ export const buildTimeline = (report: ProfileDiagnosis): Timeline => {
           condition: item.condition,
           symbol,
           code: item.code,
+          severity: item.severity,
+          label: item.title,
           startMs: sinceMs,
           clipped: clippedAt(sinceMs),
         });
@@ -146,6 +163,8 @@ export const buildTimeline = (report: ProfileDiagnosis): Timeline => {
     lane.spans.push({
       condition: s.condition,
       code: s.code,
+      severity: s.severity,
+      label: s.label,
       startMs: s.startMs,
       endMs: s.endMs,
       open: s.open,
@@ -167,10 +186,8 @@ export const buildTimeline = (report: ProfileDiagnosis): Timeline => {
   };
 };
 
-const spanTone = (condition: string): string =>
-  CONDITION_SEVERITY[condition as keyof typeof CONDITION_SEVERITY] === 'blocking'
-    ? 'bg-danger'
-    : 'bg-warning';
+const spanTone = (severity: DiagnosisItem['severity']): string =>
+  severity === 'blocking' ? 'bg-danger' : 'bg-warning';
 
 function Lane({
   lane,
@@ -196,10 +213,10 @@ function Lane({
               data-testid={`timeline-span-${s.condition}-${s.code}`}
               data-clipped={s.clipped ? 'true' : 'false'}
               data-open={s.open ? 'true' : 'false'}
-              title={`${s.code} — ${humaniseAge(s.endMs - s.startMs)}${s.clipped ? ', began before the log window' : ''}`}
-              className={`absolute inset-y-0 ${spanTone(s.condition)} ${
-                // A clipped span keeps its square left edge and a marker stripe:
-                // a rounded start would draw a beginning that was not observed.
+              title={`${s.label} — ${humaniseAge(s.endMs - s.startMs)}${s.clipped ? ', began before the log window' : ''}`}
+              data-severity={s.severity}
+              className={`absolute inset-y-0 ${spanTone(s.severity)} ${
+                // A clipped span keeps its square left edge and a marker stripe: a rounded start would draw a beginning that was not observed.
                 s.clipped ? 'rounded-r-sm border-l-2 border-dashed border-fg' : 'rounded-sm'
               }`}
               style={{ left: `${left}%`, width: `${Math.max(1, pos(s.endMs) - left)}%` }}

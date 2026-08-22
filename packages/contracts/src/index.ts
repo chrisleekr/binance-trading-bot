@@ -4,6 +4,7 @@ export * from './errors.js';
 export * from './decimal.js';
 export * from './entry-blocker.js';
 export * from './condition.js';
+export * from './asset-policy-abort.js';
 export * from './resting-order.js';
 export * from './discovery.js';
 export * from './discovery-health.js';

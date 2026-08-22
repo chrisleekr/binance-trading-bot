@@ -13,7 +13,8 @@
 //
 // Incompleteness is fail-closed at two granularities, because the two sources are cached independently and a handful of symbols routinely differ between them. A bulk disagreement is the gutted-feed signal and aborts the cycle; a per-symbol one means only that this coin was never classified, so that coin alone is refused and the rest of the wake proceeds. Collapsing the two would take the feature down for minutes after every listing.
 
-import { SymbolName } from '@app/contracts';
+import { SymbolName, type AssetPolicyAbortCause } from '@app/contracts';
+import { errorMessage } from '@app/core/error';
 import type { Logger } from 'pino';
 import type { SymbolAdmission } from './symbol-admission.js';
 
@@ -97,7 +98,7 @@ const isStringArray = (v: unknown): v is readonly string[] =>
  *
  * @param body - The parsed JSON body of the product feed, entirely unvalidated. A non-object, a missing `data`, or a `data` that is not an array all yield no rows; a `data` longer than the row cap THROWS instead, since a payload that size is not this feed and truncating it would present a partial classification as a whole one.
  * @returns The rows that carried every key this module reads, in payload order.
- * @throws When `data` holds more rows than the cap allows.
+ * @throws {AssetPolicyAbortError} `product-feed-unreadable`, when `data` holds more rows than the cap allows.
  */
 export const projectProducts = (body: unknown): RawProduct[] => {
   if (typeof body !== 'object' || body === null) return [];
@@ -105,7 +106,10 @@ export const projectProducts = (body: unknown): RawProduct[] => {
   if (!Array.isArray(data)) return [];
   // Throws rather than truncating: a silent cut would shrink the symbol set, which the completeness cross-check would then report as a product/exchangeInfo mismatch and send the operator hunting the wrong fault.
   if (data.length > MAX_ROWS) {
-    throw new Error(`discovery asset-policy: ${data.length} product rows exceeds ${MAX_ROWS}`);
+    throw new AssetPolicyAbortError(
+      `discovery asset-policy: ${data.length} product rows exceeds ${MAX_ROWS}`,
+      'product-feed-unreadable',
+    );
   }
   const out: RawProduct[] = [];
   for (const row of data) {
@@ -167,6 +171,28 @@ export const deriveAssetPolicy = (rows: readonly RawProduct[]): AssetPolicy => {
 };
 
 /**
+ * A refusal to hand back a classification, carrying the closed reason as data rather than only in its message.
+ *
+ * The discriminant means "the classification could not be established, and here is which check said so" — including the ones where the feed itself never answered. A distinct type, not a plain `Error`, because the per-profile catch in the discovery handler decides from it whether this profile's cycle raises a cause-labelled counter and parks a finding the operator can read, or is logged as one more transient. Message-sniffing would work until someone reworded a string, so the discriminant is a field.
+ *
+ * Every fault reachable from the fetch is typed, which is not the same as every fault being urgent: an unreachable feed can be one bad minute, and the alert that consumes the counter says so. Leaving that class untyped instead is what put a stopped coin list behind a generic warn with no counter, no record, and a profile page that blamed staleness.
+ */
+export class AssetPolicyAbortError extends Error {
+  /** Narrower than `Error.cause` deliberately: this rides straight onto a metric label, so its value space has to be closed at compile time rather than being whatever a thrower passed. Which also means the underlying error cannot be chained here, so a wrapped failure carries its original text in the message. */
+  override readonly cause: AssetPolicyAbortCause;
+
+  /**
+   * @param message - Operator-facing description, including whatever sample or underlying failure text the check could show.
+   * @param cause - Which check refused, forwarded to the abort counter as its label.
+   */
+  constructor(message: string, cause: AssetPolicyAbortCause) {
+    super(message);
+    this.name = 'AssetPolicyAbortError';
+    this.cause = cause;
+  }
+}
+
+/**
  * Refuse a classification that cannot be trusted to veto anything, by cross-checking it against live exchangeInfo in BOTH directions.
  *
  * The failure this guards is silent and total: a renamed key, a partial outage, or an empty response all degrade to "no asset is a stablecoin", which reads exactly like a healthy policy while admitting every one of them. One direction is not enough — a feed returning a stale subset still classifies correctly for the rows it does return, and only the missing live symbols expose it.
@@ -184,24 +210,32 @@ export const validateAssetPolicy = (
   liveAdmission: ReadonlyMap<string, SymbolAdmission>,
 ): ReadonlySet<string> => {
   if (policy.tradingSymbols.size === 0) {
-    throw new Error('discovery asset-policy: no product rows survived projection (schema drift?)');
+    throw new AssetPolicyAbortError(
+      'discovery asset-policy: no product rows survived projection (schema drift?)',
+      'no-product-rows',
+    );
   }
   // Per route, never on the merged set: the two routes are independent, and the fiat route alone always yields a dozen national currencies. A merged floor is therefore satisfied while the stablecoin route is dead, which admits every peg under a policy that still reads healthy.
   if (policy.taggedStablecoinBases.size === 0) {
-    throw new Error(
+    throw new AssetPolicyAbortError(
       'discovery asset-policy: the stablecoin tag route classified nothing (tag renamed?)',
+      'stablecoin-route-empty',
     );
   }
   if (policy.fiatQuoteAssets.size === 0) {
-    throw new Error('discovery asset-policy: the fiat parent-market route classified nothing');
+    throw new AssetPolicyAbortError(
+      'discovery asset-policy: the fiat parent-market route classified nothing',
+      'fiat-route-empty',
+    );
   }
   const liveTrading = new Set<string>();
   for (const [symbol, a] of liveAdmission) {
     if (a.status === 'TRADING') liveTrading.add(symbol);
   }
   if (liveTrading.size === 0) {
-    throw new Error(
+    throw new AssetPolicyAbortError(
       'discovery asset-policy: empty symbol-admission map; cannot verify the classification is complete',
+      'empty-admission-map',
     );
   }
   // Trading live with no product row: its base was never classified, so nothing here can say whether it is pegged. Returned rather than thrown on, and the caller refuses to admit exactly these.
@@ -219,8 +253,9 @@ export const validateAssetPolicy = (
   const gap = unclassified.size + staleInFeed.size;
   if (gap > liveTrading.size * MAX_CROSS_CHECK_GAP_SHARE) {
     const sample = [...unclassified, ...staleInFeed].slice(0, 10).join(', ');
-    throw new Error(
+    throw new AssetPolicyAbortError(
       `discovery asset-policy: product/exchangeInfo gap ${gap}/${liveTrading.size} exceeds ${MAX_CROSS_CHECK_GAP_SHARE * 100}%; the feed is stale or its schema moved (sample: ${sample})`,
+      'cross-check-gap',
     );
   }
   // A stale row on the feed's side needs no per-symbol handling: the admission map already refuses a symbol it does not list, so such a pair never reaches a ticker.
@@ -236,22 +271,23 @@ export interface AssetPolicyResolverDeps {
 }
 
 /**
- * Fetch the product feed once, projecting and deriving the classification.
- *
- * @param fetchImpl - The `fetch` implementation to call.
- * @returns The classification derived from this response; unvalidated, since completeness is checked per cycle against the mode-correct admission map.
- */
-/**
  * Read and parse a response body, counting bytes as they arrive.
  *
  * `Response.json()` reads the stream to completion first, so on a chunked response — which carries no `content-length` for the declared-size check to read — the allocation is entirely the upstream's choice for the whole abort window. Counting as we go is the only bound that holds without a declared size.
  *
  * @param res - The response whose body to read; its stream is cancelled as soon as the budget is passed, so nothing further is buffered.
  * @returns The parsed JSON body, still entirely unvalidated.
+ * @throws {AssetPolicyAbortError} `product-feed-unreachable` when there is no body to read at all, `product-feed-unreadable` when the bytes arrive but are too many or are not JSON.
  */
 const readCapped = async (res: Response): Promise<unknown> => {
   const reader = res.body?.getReader();
-  if (!reader) throw new Error('discovery asset-policy: upstream sent no body');
+  // A 200 with nothing behind it is an answer in name only, so it is graded with the transport failures rather than with the bodies that arrived and disappointed.
+  if (!reader) {
+    throw new AssetPolicyAbortError(
+      'discovery asset-policy: upstream sent no body',
+      'product-feed-unreachable',
+    );
+  }
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
@@ -259,9 +295,11 @@ const readCapped = async (res: Response): Promise<unknown> => {
     if (done) break;
     total += value.byteLength;
     if (total > MAX_DECLARED_BODY_BYTES) {
-      await reader.cancel();
-      throw new Error(
+      // Detached, and its failure discarded: a cancel can reject on its own (a connection that broke in the gap since the last read), and awaiting it would let that rejection replace this one. The outer catch would then regrade an implausibly large body as an unreachable endpoint and send the operator after their egress.
+      void reader.cancel().catch(() => undefined);
+      throw new AssetPolicyAbortError(
         `discovery asset-policy: upstream body passed ${MAX_DECLARED_BODY_BYTES}B while streaming`,
+        'product-feed-unreadable',
       );
     }
     chunks.push(value);
@@ -272,9 +310,27 @@ const readCapped = async (res: Response): Promise<unknown> => {
     joined.set(c, at);
     at += c.byteLength;
   }
-  return JSON.parse(new TextDecoder().decode(joined));
+  const text = new TextDecoder().decode(joined);
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    // The parser's verdict is worth keeping — "Unexpected token '<'" is what says an HTML error page answered a JSON URL — but V8 quotes a window of the input back in that message, and the input is whatever an unauthenticated public host chose to send. Truncated so the diagnosis survives without piping an arbitrary body fragment into the logs.
+    throw new AssetPolicyAbortError(
+      `discovery asset-policy: upstream body was not JSON: ${errorMessage(err).slice(0, 60)}`,
+      'product-feed-unreadable',
+    );
+  }
 };
 
+/**
+ * Fetch the product feed once, projecting and deriving the classification.
+ *
+ * Total in its failure mode: every exit from here is either a classification or an {@link AssetPolicyAbortError}, which is what lets the discovery handler tell a stopped coin list from an unrelated blip in the same catch. Nothing about the feed can escape untyped, however many checks are added later.
+ *
+ * @param fetchImpl - The `fetch` implementation to call.
+ * @returns The classification derived from this response; unvalidated, since completeness is checked per cycle against the mode-correct admission map.
+ * @throws {AssetPolicyAbortError} And only this: `product-feed-unreachable` when no usable answer arrived, `product-feed-unreadable` when one arrived that is not this catalogue, `no-product-rows` when the feed answered in its own shape with nothing to classify.
+ */
 const fetchAssetPolicy = async (fetchImpl: typeof fetch): Promise<AssetPolicy> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -286,22 +342,50 @@ const fetchAssetPolicy = async (fetchImpl: typeof fetch): Promise<AssetPolicy> =
       signal: controller.signal,
     });
     if (!res.ok) {
-      throw new Error(`discovery asset-policy: upstream ${res.status} ${res.statusText}`);
+      throw new AssetPolicyAbortError(
+        `discovery asset-policy: upstream ${res.status} ${res.statusText}`,
+        'product-feed-unreachable',
+      );
     }
     const declaredBytes = Number(res.headers.get('content-length') ?? '');
     if (Number.isFinite(declaredBytes) && declaredBytes > MAX_DECLARED_BODY_BYTES) {
-      throw new Error(
+      throw new AssetPolicyAbortError(
         `discovery asset-policy: upstream body ${declaredBytes}B exceeds ${MAX_DECLARED_BODY_BYTES}B`,
+        'product-feed-unreadable',
       );
     }
-    const policy = deriveAssetPolicy(projectProducts(await readCapped(res)));
+    const body = await readCapped(res);
+    // The envelope's own shape, checked here so {@link projectProducts} stays a projection that answers with rows or with none. Two ways the reply can fail to be this feed: it is not an envelope at all (a bare string, number, array), or it is one whose product list is present and is not a list. Neither supports any claim about the catalogue. An absent or null `data` is the opposite claim — the feed answered in its own shape and listed nothing — which is the refusal below, and the operator copy for the two is different for exactly that reason.
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      throw new AssetPolicyAbortError(
+        `discovery asset-policy: upstream answered with a ${Array.isArray(body) ? 'bare array' : typeof body} where the product envelope belongs`,
+        'product-feed-unreadable',
+      );
+    }
+    const data = (body as { data?: unknown }).data;
+    if (data !== undefined && data !== null && !Array.isArray(data)) {
+      throw new AssetPolicyAbortError(
+        `discovery asset-policy: upstream payload carried a ${typeof data} where the product list belongs`,
+        'product-feed-unreadable',
+      );
+    }
+    const policy = deriveAssetPolicy(projectProducts(body));
     // Refused here, not left to the per-cycle validation. `projectProducts` yields no rows for `{}`, `{ data: null }` or a `success: false` envelope, and a 200 carrying one of those is not a failure the fetch would otherwise notice — so the empty classification would be STAMPED as a fresh snapshot and reused for five minutes, while the resolver logged a success-shaped line and every cycle rejected it. One transient bad body should cost one wake, not five minutes.
     if (policy.tradingSymbols.size === 0) {
-      throw new Error(
+      // Typed, not a plain `Error`: this is the live `no-product-rows` path, and the per-profile catch discriminates on the class. A bare Error here would land in the generic branch, so the one refusal an operator has to act on would raise no counter and park no record, while `validateAssetPolicy`'s identical guard downstream never sees a snapshot this refusal already stopped.
+      throw new AssetPolicyAbortError(
         'discovery asset-policy: upstream answered 200 with no usable product rows (schema drift?)',
+        'no-product-rows',
       );
     }
     return policy;
+  } catch (err) {
+    // The one exit. Every throw above already carries its own cause, so they pass through untouched; anything else — the timeout firing while the body streams, a connection reset after the headers, a redirect refusal, DNS — reaches here as a raw rejection and is graded as the feed not answering. Total by construction rather than by one guard per throw site: this path fans out over a fetch, a stream and a parse, and the arrival order that nobody enumerated is exactly the one that left a stopped coin list in the generic branch with no counter and no record. The cost is honest — a genuine bug in this function now reads to the operator as an upstream outage — and it is the right side to be wrong on, because the alternative is the silence this abort exists to end. The original text rides in the message, since `cause` is spent on the classification.
+    if (err instanceof AssetPolicyAbortError) throw err;
+    throw new AssetPolicyAbortError(
+      `discovery asset-policy: could not reach the product feed: ${errorMessage(err)}`,
+      'product-feed-unreachable',
+    );
   } finally {
     clearTimeout(timer);
   }

@@ -12,10 +12,18 @@
 // timer pretending to be one.
 
 import { z } from 'zod';
-import { assessDiscoveryHealth, type SnapshotHealth } from './discovery-health.js';
+import {
+  abortStillExplainsGap,
+  assessDiscoveryHealth,
+  type SnapshotHealth,
+} from './discovery-health.js';
 import { labelForPath, titleCase } from './form-builder.js';
 import { attributeBlocker, type ReasonAttributionMap } from './reason-attribution.js';
 import { CONDITION_SEVERITY, type Condition, type ConditionSeverity } from './condition.js';
+import {
+  ASSET_POLICY_ABORT_CAUSE_COPY,
+  type AssetPolicyAbortRecord,
+} from './asset-policy-abort.js';
 
 /**
  * The ladder, in order. Position IS the ranking: the first rung that finds
@@ -338,6 +346,12 @@ export interface ProfileDiagnosisInput {
    */
   readonly halts: readonly { readonly label: string; readonly sinceMs: number | null }[] | null;
   readonly conditions: readonly OpenCondition[];
+  /**
+   * The last discovery cycle's refusal to rank, or null when the newest cycle ranked normally.
+   *
+   * Separate from `conditions` because it has no per-symbol subject and no closing writer: the refusal happens before any symbol is chosen, and the cycle that clears it is the next one that completes. Nullable rather than absent so a gather that could not read the store still has to say which it means.
+   */
+  readonly assetPolicyAbort: AssetPolicyAbortRecord | null;
   /** Newest-first. */
   readonly snapshots: readonly DiagnosisSnapshot[];
   /**
@@ -733,6 +747,37 @@ const stepDiscoveryRunning = (input: ProfileDiagnosisInput): DiagnosisStepResult
     'Auto-discovery is switched off for this profile, so it adds no coins by design.',
   );
   if (unavailable) return unavailable;
+  // Ahead of both staleness branches, because an aborted cycle IS why the scans stopped: reporting it as staleness would send the operator to widen filters that the cycle never reached. Blocking, and deliberately louder than the degraded stale finding — the profile is not merely behind, it is refusing to decide on a classification it cannot trust, and it stays that way until the upstream fault clears.
+  const abort = input.assetPolicyAbort;
+  // Bounded on the same lease the monitor suppresses staleness under. The record outlives the fault whenever its clear loses a DEL, which `discovery-health.cron.ts` already treats as reachable, and an unbounded read here would then assert a blocking halt on a profile that is demonstrably scanning AND mask the real staleness finding this branch sits in front of. An unmeasurable period cannot prove the record stale, so the finding stands rather than being hidden on a guess.
+  if (
+    abort &&
+    (input.profile.refreshPeriodMs === null ||
+      abortStillExplainsGap(abort.atMs, input.profile.refreshPeriodMs, input.nowMs))
+  ) {
+    return {
+      status: 'finding',
+      line: 'Auto-discovery refused to pick coins because it could not trust its own view of the market.',
+      items: [
+        {
+          id: 'discovery-asset-policy-abort',
+          condition: 'asset-policy-refused',
+          code: abort.cause,
+          severity: 'blocking',
+          title: 'Auto-discovery stopped before it picked any coins',
+          detail: ASSET_POLICY_ABORT_CAUSE_COPY[abort.cause],
+          // The run's START, not the last attempt: the record is rewritten every aborting cycle, so `atMs` would cap the rendered duration at one refresh period and paint a chronic refusal as minutes old.
+          sinceMs: abort.firstAtMs ?? abort.atMs,
+          evidence: [
+            `Last scan gave up ${humanizeDuration(input.nowMs - abort.atMs)} ago, before ranking any candidate.`,
+            'Your existing coins keep trading; only the search for new ones stopped.',
+          ],
+          symbols: [],
+          lever: null,
+        },
+      ],
+    };
+  }
   const open = openOf(input, 'discovery-stale');
   if (open.length > 0) {
     const c = open[0] as OpenCondition;

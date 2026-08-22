@@ -1,11 +1,19 @@
 import type { Job } from 'bullmq';
 import { describe, expect, it, vi } from 'vitest';
-import { asAccountId, asProfileId, asUserId, DiscoveryConfigSchema } from '@app/contracts';
-import type { Ticker24hrDto } from '@app/binance';
+import {
+  asAccountId,
+  asProfileId,
+  asUserId,
+  ASSET_POLICY_ABORT_CAUSES,
+  DiscoveryConfigSchema,
+  unwrapId,
+} from '@app/contracts';
+import type { BinanceMode, Ticker24hrDto } from '@app/binance';
 import type { ActiveProfile } from '../../../src/profile-manager/profile-manager.js';
 import { discoveryHandler, withTestModeFallback } from '../../../src/crons/discovery/handler.js';
 import type { SymbolAdmission } from '../../../src/crons/discovery/symbol-admission.js';
 import {
+  AssetPolicyAbortError,
   createAssetPolicyResolver,
   type AssetPolicy,
 } from '../../../src/crons/discovery/asset-policy.js';
@@ -32,6 +40,7 @@ const assetPolicy = (symbols: readonly string[]): AssetPolicy => ({
 const profile = (id: string, accountId = 'acct-default'): ActiveProfile => ({
   profileId: asProfileId(`00000000-0000-4000-8000-${id.padStart(12, '0')}`),
   userId: asUserId('00000000-0000-4000-8000-000000000099'),
+  operatorId: asUserId('00000000-0000-4000-8000-000000000099'),
   accountId: accountId as never,
   candleInterval: '1h',
   symbols: [],
@@ -89,8 +98,12 @@ describe('discoveryHandler', () => {
     ),
     fetchAccountPermissions: vi.fn(async () => ['SPOT']),
     getAssetPolicy: vi.fn(async () => assetPolicy(['AAAUSDT'])),
-    resolveBinanceMode: vi.fn(async () => 'live'),
+    resolveBinanceMode: vi.fn(async (): Promise<BinanceMode> => 'live'),
     clock: { nowMs: () => NOW },
+    // Default no-op sink so the two abort cases can override it with a recording one. The dep bag requires it, which is what keeps a production construction site from dropping the abort counter.
+    metrics: { record: vi.fn(), forget: vi.fn() },
+    recordAssetPolicyAbort: vi.fn(async () => {}),
+    clearAssetPolicyAbort: vi.fn(async () => {}),
     ...over,
   });
 
@@ -228,6 +241,200 @@ describe('discoveryHandler', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
+  it('counts an asset-policy abort against its own cause so the refusal is alertable', async () => {
+    // The classification guard refuses a snapshot that cannot veto anything, and every caller's correct response is to abandon the cycle. That refusal currently lands in the same warn as a Binance blip, so a feed whose tag vocabulary moved reads as ordinary flakiness: the symbol set is left untouched, discovery keeps reporting healthy, and nothing says the stablecoin veto has been dead since the rename. A cause-labelled counter is what makes it possible to alert on the refusal specifically, and the cause is what says which of the five routes died — they have different remedies.
+    const record = vi.fn();
+    const runForProfile = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new AssetPolicyAbortError(
+          'discovery asset-policy: the stablecoin tag route classified nothing (tag renamed?)',
+          'stablecoin-route-empty',
+        ),
+      )
+      .mockResolvedValueOnce({ added: 1, removed: 0 });
+    await discoveryHandler(
+      deps({
+        listActive: () => [profile('1'), profile('2')],
+        runForProfile,
+        metrics: { record, forget: vi.fn() },
+      }),
+    )({} as Job);
+    expect(record).toHaveBeenCalledWith('discovery_asset_policy_abort_total', 1, {
+      profileId: unwrapId(profile('1').profileId),
+      cause: 'stablecoin-route-empty',
+    });
+    // The abort is still fail-safe: it costs its own profile's cycle, not the wake.
+    expect(runForProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves the asset-policy counter alone for a generic profile failure', async () => {
+    // The discriminating half. The same catch swallows a Binance outage, a Redis blip, and a policy refusal, so a counter incremented from the catch without testing the error type would fire on all three — and an alert that fires on every transient is one an operator learns to ignore, which is worse than no alert on the refusal at all.
+    const record = vi.fn();
+    const runForProfile = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('binance down'))
+      .mockResolvedValueOnce({ added: 1, removed: 0 });
+    await discoveryHandler(
+      deps({
+        listActive: () => [profile('1'), profile('2')],
+        runForProfile,
+        metrics: { record, forget: vi.fn() },
+      }),
+    )({} as Job);
+    // The counter IS written on both profiles, at 0, by the zero-seed at the head of each cycle. The property under test is that neither cycle REPORTS an abort: a seed carries no incident, an increment does. Asserting the name is absent would assert the seed away, and the seed is what makes `increase()` able to see the first real abort at all.
+    expect(
+      record.mock.calls.filter(
+        (c) => c[0] === 'discovery_asset_policy_abort_total' && (c[1] as number) > 0,
+      ),
+    ).toEqual([]);
+    expect(runForProfile).toHaveBeenCalledTimes(2);
+  });
+
+  it('parks the abort where the profile diagnosis can name it', async () => {
+    // The counter proves an abort happened to someone. The operator never sees it: they see a coin list that stopped moving and a funnel that looks merely old. A durable per-profile record with its cause and its time is the only thing that lets rung 5 say "it gave up before ranking, and here is why" instead of blaming staleness.
+    const recordAssetPolicyAbort = vi.fn(async () => {});
+    const clearAssetPolicyAbort = vi.fn(async () => {});
+    const runForProfile = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new AssetPolicyAbortError('stablecoin route dead', 'stablecoin-route-empty'),
+      );
+    await discoveryHandler(
+      deps({
+        listActive: () => [profile('1')],
+        runForProfile,
+        recordAssetPolicyAbort,
+        clearAssetPolicyAbort,
+      }),
+    )({} as Job);
+    expect(recordAssetPolicyAbort).toHaveBeenCalledWith(
+      profile('1'),
+      'stablecoin-route-empty',
+      NOW,
+    );
+    // Not cleared on the very cycle that aborted, which would erase the record it just wrote.
+    expect(clearAssetPolicyAbort).not.toHaveBeenCalled();
+  });
+
+  it('clears the parked abort once a cycle completes', async () => {
+    // The record has a TTL longer than the longest legal gap between cycles, so nothing else retires it. A cycle that ranked normally is the proof the classification is trustworthy again, and without this clear the finding would outlive the fault and send the operator after a route that is already healthy.
+    const clearAssetPolicyAbort = vi.fn(async () => {});
+    await discoveryHandler(deps({ listActive: () => [profile('1')], clearAssetPolicyAbort }))(
+      {} as Job,
+    );
+    expect(clearAssetPolicyAbort).toHaveBeenCalledWith(profile('1'));
+  });
+
+  it('neither parks nor clears the abort on a generic profile failure', async () => {
+    // A Binance timeout says nothing about the classification either way. Parking would put a cause on the page that no check produced; clearing would drop a live refusal on the strength of an unrelated outage, and the next abort is a refresh period away.
+    const recordAssetPolicyAbort = vi.fn(async () => {});
+    const clearAssetPolicyAbort = vi.fn(async () => {});
+    const runForProfile = vi.fn().mockRejectedValueOnce(new Error('binance down'));
+    await discoveryHandler(
+      deps({
+        listActive: () => [profile('1')],
+        runForProfile,
+        recordAssetPolicyAbort,
+        clearAssetPolicyAbort,
+      }),
+    )({} as Job);
+    expect(recordAssetPolicyAbort).not.toHaveBeenCalled();
+    expect(clearAssetPolicyAbort).not.toHaveBeenCalled();
+  });
+
+  it('parks the abort when the classification fetch itself refuses', async () => {
+    // The live `no-product-rows` path: a 200 carrying no usable rows is refused where the snapshot would be stamped, not where a cycle validates one. That refusal reaches this catch through `getAssetPolicy`, so it has to be typed all the way or the one cause the docs describe to the operator can never appear on their page.
+    const recordAssetPolicyAbort = vi.fn(async () => {});
+    await discoveryHandler(
+      deps({
+        listActive: () => [profile('1')],
+        getAssetPolicy: vi.fn(async () => {
+          throw new AssetPolicyAbortError('no usable product rows', 'no-product-rows');
+        }),
+        recordAssetPolicyAbort,
+      }),
+    )({} as Job);
+    expect(recordAssetPolicyAbort).toHaveBeenCalledWith(profile('1'), 'no-product-rows', NOW);
+  });
+
+  it.each(['product-feed-unreachable', 'product-feed-unreadable'] as const)(
+    'parks and counts a %s refusal from the classification fetch',
+    async (cause) => {
+      // The feed's own failures reach this catch through `getAssetPolicy`, exactly like the empty-rows refusal, so a typed cause rides the branch that already exists — one increment for the cause, one parked record for the profile. Membership in the union is asserted from the runtime array because the type annotation on the constructor is stripped before this file runs, so it would pass against a cause that does not exist.
+      expect([...ASSET_POLICY_ABORT_CAUSES]).toContain(cause);
+      const record = vi.fn();
+      const recordAssetPolicyAbort = vi.fn(async () => {});
+      await discoveryHandler(
+        deps({
+          listActive: () => [profile('1')],
+          getAssetPolicy: vi.fn(async () => {
+            throw new AssetPolicyAbortError('product feed down', cause);
+          }),
+          recordAssetPolicyAbort,
+          metrics: { record, forget: vi.fn() },
+        }),
+      )({} as Job);
+      expect(
+        record.mock.calls.filter(
+          (c) => c[0] === 'discovery_asset_policy_abort_total' && (c[1] as number) > 0,
+        ),
+      ).toEqual([
+        [
+          'discovery_asset_policy_abort_total',
+          1,
+          { profileId: unwrapId(profile('1').profileId), cause },
+        ],
+      ]);
+      expect(recordAssetPolicyAbort).toHaveBeenCalledTimes(1);
+      expect(recordAssetPolicyAbort).toHaveBeenCalledWith(profile('1'), cause, NOW);
+    },
+  );
+
+  it('neither parks nor clears for a profile that is not due', async () => {
+    // A wake that does no work cannot prove whether an existing refusal is still true.
+    const recordAssetPolicyAbort = vi.fn(async () => {});
+    const clearAssetPolicyAbort = vi.fn(async () => {});
+    await discoveryHandler(
+      deps({
+        listActive: () => [profile('1')],
+        shouldRun: async () => false,
+        recordAssetPolicyAbort,
+        clearAssetPolicyAbort,
+      }),
+    )({} as Job);
+    expect(recordAssetPolicyAbort).not.toHaveBeenCalled();
+    expect(clearAssetPolicyAbort).not.toHaveBeenCalled();
+  });
+
+  it('seeds every abort cause at zero for each profile whose cycle actually runs', async () => {
+    // Without this the alert over this counter is structurally unable to fire. A prom-client child does not exist until its first write and is BORN holding that value, so an unseeded counter's first abort is a series that has always read 1 — a level, not a rise, and `increase()` reports no change. At the maximum legal refreshPeriodMs a second abort is a day away, which is the whole window the alert is meant to catch.
+    const record = vi.fn();
+    await discoveryHandler(
+      deps({ listActive: () => [profile('1')], metrics: { record, forget: vi.fn() } }),
+    )({} as Job);
+
+    const seeded = record.mock.calls
+      .filter((c) => c[0] === 'discovery_asset_policy_abort_total' && c[1] === 0)
+      .map((c) => (c[2] as { cause: string }).cause)
+      .sort();
+    expect(seeded).toEqual([...ASSET_POLICY_ABORT_CAUSES].sort());
+  });
+
+  it('does not seed a profile that is gated out before its cycle runs', async () => {
+    // A seed per gated profile per wake would mint a child for every profile on the box every 60 seconds and never retire one. The seed belongs to a cycle that actually ran, which is also the only cycle that could have aborted.
+    const record = vi.fn();
+    await discoveryHandler(
+      deps({
+        listActive: () => [profile('1')],
+        shouldRun: async () => false,
+        metrics: { record, forget: vi.fn() },
+      }),
+    )({} as Job);
+
+    expect(record.mock.calls.map((c) => c[0])).not.toContain('discovery_asset_policy_abort_total');
+  });
+
   it('fetches the all-symbols ticker once per wake, shared across profiles', async () => {
     const fetchAllTickers = vi.fn(async () => [ticker({ symbol: 'AAAUSDT' })]);
     // Each profile pulls tickers through the shared getter (as the real port does).
@@ -325,12 +532,7 @@ describe('discoveryHandler', () => {
   });
 
   it('fails closed on an empty admission map, whatever the profile mode', async () => {
-    // Was test-mode-only. Test-mode candidates come from the live ticker feed, so
-    // an empty status map re-admits live-only symbols — but the live half was
-    // never safe either: with no admission map there is no status cut, no
-    // base/quote split, and no base to classify, so a "still runs" live profile
-    // would score the raw ticker feed. One rule now covers both, because two
-    // spellings of it is how the live half stayed open.
+    // Neither mode can safely score the ticker feed without status, base, and quote facts from its admission map.
     const pLive = profile('p-live', 'acct-live');
     const pTest = profile('p-test', 'acct-test');
     const resolveBinanceMode = vi.fn(async (p: ActiveProfile) =>
@@ -343,6 +545,9 @@ describe('discoveryHandler', () => {
       return { added: 0, removed: 0 };
     });
     const warn = vi.fn();
+    const record = vi.fn();
+    const recordAssetPolicyAbort = vi.fn(async () => {});
+    const clearAssetPolicyAbort = vi.fn(async () => {});
     await discoveryHandler(
       deps({
         logger: { info: vi.fn(), warn, error: vi.fn(), debug: vi.fn() } as never,
@@ -350,12 +555,49 @@ describe('discoveryHandler', () => {
         resolveBinanceMode,
         fetchSymbolAdmission,
         runForProfile,
+        metrics: { record, forget: vi.fn() },
+        recordAssetPolicyAbort,
+        clearAssetPolicyAbort,
       }),
     )({} as Job);
 
-    expect(ran).toEqual([]); // neither profile ran
+    expect(ran).toEqual([]);
     expect(runForProfile).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledTimes(2); // one per skipped profile
+    expect(warn).toHaveBeenCalledTimes(2);
+
+    for (const p of [pLive, pTest]) {
+      const seededCauses = record.mock.calls
+        .filter(
+          (call) =>
+            call[0] === 'discovery_asset_policy_abort_total' &&
+            call[1] === 0 &&
+            (call[2] as { profileId: string }).profileId === unwrapId(p.profileId),
+        )
+        .map((call) => (call[2] as { cause: string }).cause)
+        .sort();
+      expect(seededCauses).toEqual([...ASSET_POLICY_ABORT_CAUSES].sort());
+    }
+
+    expect(
+      record.mock.calls.filter(
+        (call) => call[0] === 'discovery_asset_policy_abort_total' && (call[1] as number) > 0,
+      ),
+    ).toEqual([
+      [
+        'discovery_asset_policy_abort_total',
+        1,
+        { profileId: unwrapId(pLive.profileId), cause: 'empty-admission-map' },
+      ],
+      [
+        'discovery_asset_policy_abort_total',
+        1,
+        { profileId: unwrapId(pTest.profileId), cause: 'empty-admission-map' },
+      ],
+    ]);
+    expect(recordAssetPolicyAbort).toHaveBeenCalledTimes(2);
+    expect(recordAssetPolicyAbort).toHaveBeenNthCalledWith(1, pLive, 'empty-admission-map', NOW);
+    expect(recordAssetPolicyAbort).toHaveBeenNthCalledWith(2, pTest, 'empty-admission-map', NOW);
+    expect(clearAssetPolicyAbort).not.toHaveBeenCalled();
   });
 
   it('never touches the asset-policy feed on a wake with nothing due', async () => {

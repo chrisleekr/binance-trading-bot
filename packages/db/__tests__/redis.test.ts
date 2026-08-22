@@ -1,10 +1,11 @@
-import { asAccountId, asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId, asUserId, DiscoveryConfigSchema } from '@app/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   accountPermissionsKey,
   auditStreamKey,
   createBullMQConnection,
   dashboardAggregateCacheKey,
+  DISCOVERY_ASSET_POLICY_ABORT_TTL_S,
   EVENTS_CHANNEL_PATTERN,
   eventsChannelKey,
   eventsSeqKey,
@@ -121,6 +122,18 @@ describe('GLOBAL_KEYS catalogue', () => {
     expect(GLOBAL_KEYS.discoveryFlat(pid)).toBe(`discovery:flat:${pid}`);
     expect(GLOBAL_KEYS.discoveryExplain(pid)).toBe(`discovery:explain:${pid}`);
     expect(GLOBAL_KEYS.discoveryEnterOnAdd(pid)).toBe(`discovery:enter-on-add:${pid}`);
+    expect(GLOBAL_KEYS.discoveryAssetPolicyAbort(pid)).toBe(`discovery:asset-policy-abort:${pid}`);
+  });
+
+  it('keeps the asset-policy abort record alive past the longest legal gap between cycles', () => {
+    // The record is cleared by the next cycle that completes, and nothing else retires it. A TTL shorter than the maximum a profile may set its refresh period to would let the finding vanish on its own while the refusal is still in force — the profile would go back to reading as merely stale, which is the exact silence this record exists to end. Derived from the schema's own bound so raising that bound fails here instead of quietly re-opening the gap.
+    const maxRefreshPeriodMs = DiscoveryConfigSchema.parse({
+      refreshPeriodMs: 86_400_000,
+    }).refreshPeriodMs;
+    expect(DISCOVERY_ASSET_POLICY_ABORT_TTL_S * 1_000).toBeGreaterThan(maxRefreshPeriodMs);
+    expect(() =>
+      DiscoveryConfigSchema.parse({ refreshPeriodMs: maxRefreshPeriodMs + 1 }),
+    ).toThrow();
   });
 });
 

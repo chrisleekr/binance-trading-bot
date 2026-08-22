@@ -78,6 +78,7 @@ export {
   PROFILE_KEYS,
   GLOBAL_KEYS,
   ORPHAN_SNAPSHOT_TTL_S,
+  DISCOVERY_ASSET_POLICY_ABORT_TTL_S,
   profileKey,
   profilePrefix,
   dashboardAggregateCacheKey,

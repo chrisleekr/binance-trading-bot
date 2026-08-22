@@ -357,6 +357,8 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
       strategies: ctx.strategies,
       weightGovernor: ctx.weightGovernor,
       getAssetPolicy: ctx.getAssetPolicy,
+      // The same closure the discovery cron holds, not a second resolver: sharing the snapshot is the whole point, and two resolvers would each sweep the keyspace.
+      getSymbolAdmission: ctx.getSymbolAdmission,
       nowMs: () => Date.now(),
     });
   }

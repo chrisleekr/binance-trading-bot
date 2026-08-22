@@ -66,6 +66,7 @@ const input = (over: Partial<ProfileDiagnosisInput> = {}): ProfileDiagnosisInput
   // the unreadable-flag cases below turn on.
   halts: over.halts === undefined ? [] : over.halts,
   conditions: over.conditions ?? [],
+  assetPolicyAbort: over.assetPolicyAbort ?? null,
   snapshots: over.snapshots ?? [snapshot()],
   ...(over.liveFunnel ? { liveFunnel: over.liveFunnel } : {}),
   reasonAttribution: over.reasonAttribution ?? {},
@@ -386,6 +387,77 @@ describe('rung 5: discovery running', () => {
       input({ profile: { ...input().profile, refreshPeriodMs: null }, snapshots: [] }),
     );
     expect(r.status).toBe('unknown');
+  });
+
+  it('rung 5: asset-policy abort blocks the verdict', () => {
+    // A cycle that refused to rank on an untrustworthy asset classification leaves a symbol set that simply stopped moving. Without its own finding the panel reads as "nothing qualified", which sends the operator to loosen filters that were never consulted.
+    const i = input({
+      assetPolicyAbort: { cause: 'stablecoin-route-empty', atMs: NOW - 600_000 },
+    });
+
+    const r = runDiagnosisStep('discovery-running', i);
+    expect(r.status).toBe('finding');
+    const item = r.items[0];
+    expect(item?.severity).toBe('blocking');
+    expect(item?.code).toBe('stablecoin-route-empty');
+    // The copy has to say what happened; echoing the enum literal is the failure mode this finding exists to avoid.
+    const copy = `${item?.title ?? ''} ${item?.detail ?? ''}`.trim();
+    expect(copy).not.toBe('');
+    expect(copy).not.toContain('stablecoin-route-empty');
+
+    expect(buildProfileDiagnosis(i, runAll(i)).verdict).toBe('blocked');
+  });
+
+  it('dates an asset-policy abort from the start of the run, not from the last attempt', () => {
+    // The record is rewritten by every aborting cycle, so `atMs` is one refresh period old however long the fault has held. Reading the duration off it would render a six-day refusal as "for 15 minutes" and draw the same short span on the timeline, which is exactly the chronic-versus-unlucky distinction this finding exists to make.
+    const i = input({
+      assetPolicyAbort: {
+        cause: 'cross-check-gap',
+        atMs: NOW - 900_000,
+        firstAtMs: NOW - 6 * DAY,
+      },
+    });
+    const item = runDiagnosisStep('discovery-running', i).items[0];
+    expect(item?.sinceMs).toBe(NOW - 6 * DAY);
+    // The two times answer different questions and must not be collapsed into one: `sinceMs` is how long the fault has held, while the evidence line is when it was last attempted. Dating the evidence from the run start would tell an operator the bot has not tried for six days, when it has been trying every fifteen minutes and failing.
+    expect(item?.evidence[0]).toMatch(/15 minutes/);
+  });
+
+  it('stops reporting an abort that no longer explains the gap, and unmasks what does', () => {
+    // The record's clear swallows a failed DEL, so a cycle can succeed and leave the refusal parked for the key's whole 25-hour TTL. Ungated, the rung would call a profile that is demonstrably scanning blocked, and because it sits ahead of the staleness branch it would also hide whatever fault IS open. The monitor already expires the same record on `2 x refreshPeriodMs`; disagreeing with it is worse than either answer alone.
+    const stranded = { cause: 'cross-check-gap', atMs: NOW - 4 * 900_000 } as const;
+    const i = input({
+      assetPolicyAbort: stranded,
+      conditions: [cond({ condition: 'discovery-stale', symbol: null, sinceMs: NOW - DAY })],
+    });
+
+    const r = runDiagnosisStep('discovery-running', i);
+    expect(r.items[0]?.id).toBe('discovery-stale');
+    expect(r.items.some((it) => it.id === 'discovery-asset-policy-abort')).toBe(false);
+
+    // Same record one tick inside the bound still blocks: the gate is the age, not the presence.
+    const fresh = runDiagnosisStep(
+      'discovery-running',
+      input({ ...i, assetPolicyAbort: { ...stranded, atMs: NOW - 2 * 900_000 } }),
+    );
+    expect(fresh.items[0]?.id).toBe('discovery-asset-policy-abort');
+  });
+
+  it('keeps a blocking abort when there is no refresh period to measure it against', () => {
+    // Unreachable through `gather`, which derives both fields from one parsed config, but the type allows it. Suppressing a blocking fault because the bound is unknown fails in the wrong direction.
+    const i = input({
+      profile: { ...input().profile, refreshPeriodMs: null },
+      assetPolicyAbort: { cause: 'cross-check-gap', atMs: NOW - 30 * DAY },
+    });
+    expect(runDiagnosisStep('discovery-running', i).items[0]?.id).toBe(
+      'discovery-asset-policy-abort',
+    );
+  });
+
+  it('falls back to the abort time when a record carries no start of its own', () => {
+    // A record parked by an earlier worker has only `atMs`. Dropping the finding over a missing field would hide a live refusal; dating it from `atMs` understates the age and says so honestly.
+    const i = input({ assetPolicyAbort: { cause: 'cross-check-gap', atMs: NOW - 900_000 } });
+    expect(runDiagnosisStep('discovery-running', i).items[0]?.sinceMs).toBe(NOW - 900_000);
   });
 });
 

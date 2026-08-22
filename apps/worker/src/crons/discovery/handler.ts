@@ -8,10 +8,16 @@
 
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';
-import { unwrapId, type StoredDiscoveryConfig } from '@app/contracts';
+import {
+  ASSET_POLICY_ABORT_CAUSES,
+  unwrapId,
+  type AssetPolicyAbortCause,
+  type StoredDiscoveryConfig,
+} from '@app/contracts';
 import type { BinanceMode, Ticker24hrDto } from '@app/binance';
 import type { ActiveProfile } from 'profile-manager/profile-manager.js';
-import type { AssetPolicy } from './asset-policy.js';
+import type { MetricsSink } from 'metrics/catalog.js';
+import { AssetPolicyAbortError, type AssetPolicy } from './asset-policy.js';
 import type { SymbolAdmission } from './symbol-admission.js';
 
 /**
@@ -78,6 +84,22 @@ export interface DiscoveryHandlerDeps {
   readonly getAssetPolicy: () => Promise<AssetPolicy>;
   /** Resolves a profile's Binance environment, so its admission map is mode-correct. */
   readonly resolveBinanceMode: (p: ActiveProfile) => Promise<BinanceMode>;
+  /**
+   * Required, not optional. The only thing it counts here is an asset-policy refusal, which is the one failure in this loop an operator has to act on rather than wait out, so a caller that forgets the sink turns a page-worthy abort into a log line nobody reads.
+   */
+  readonly metrics: MetricsSink;
+  /**
+   * Park the refusal where the profile's diagnosis can read it. A metric proves an abort happened somewhere; this is what lets the operator's own page name the cause, which is the only surface they look at when their coin list stops moving. Must not throw: this runs inside the per-profile catch, so a rejected diagnostic write would escape it and take the rest of the wake down with it.
+   */
+  readonly recordAssetPolicyAbort: (
+    p: ActiveProfile,
+    cause: AssetPolicyAbortCause,
+    atMs: number,
+  ) => Promise<void>;
+  /**
+   * Drop the parked refusal once a cycle ranks normally again. Called only on the success path: a cycle that failed for an unrelated reason has proven nothing about the classification, and clearing there would erase a live fault on the strength of a Binance timeout. Must not throw, for the same reason as its sibling: a failed clear would be reported as a failed cycle.
+   */
+  readonly clearAssetPolicyAbort: (p: ActiveProfile) => Promise<void>;
   readonly clock?: { nowMs(): number };
 }
 
@@ -129,6 +151,13 @@ export const discoveryHandler =
         if (!loaded || !loaded.cfg.enabled) continue;
         const { cfg, quoteAsset, name } = loaded;
         if (!(await deps.shouldRun(p, cfg.refreshPeriodMs, nowMs))) continue;
+        // Zero-seed every cause for a profile that is actually running a cycle, ahead of anything that can refuse. A prom-client child does not exist until its first write and is born holding that value, so an unseeded counter's first abort reads as a series that has always been 1, and `increase()` sees no rise. At the default 15-minute refresh a second abort would eventually make it visible; at the maximum legal period it would take a day, and the alert exists precisely to catch the case where discovery has silently stopped rotating.
+        for (const cause of ASSET_POLICY_ABORT_CAUSES) {
+          deps.metrics.record('discovery_asset_policy_abort_total', 0, {
+            profileId: unwrapId(p.profileId),
+            cause,
+          });
+        }
         const accountKey = String(unwrapId(p.accountId));
         let mode = modeByAccount.get(accountKey);
         if (mode === undefined) {
@@ -138,6 +167,11 @@ export const discoveryHandler =
         // One rule, not two. A profile whose exchangeInfo keyspace is unprimed has no status filter, no base/quote split, and no way to classify an asset, so its universe would be the raw ticker feed. That was already fail-closed for test mode (whose candidate universe is the LIVE feed, so an unfiltered run binds symbols testnet does not list and DLQs every tick); it is no less wrong for a live profile, and two spellings of one rule is how the live half stayed open.
         const admissionBySymbol = await getSymbolAdmission(mode);
         if (admissionBySymbol.size === 0) {
+          deps.metrics.record('discovery_asset_policy_abort_total', 1, {
+            profileId: unwrapId(p.profileId),
+            cause: 'empty-admission-map',
+          });
+          await deps.recordAssetPolicyAbort(p, 'empty-admission-map', nowMs);
           deps.logger.warn(
             { profileId: unwrapId(p.profileId), mode },
             'cron discovery: exchangeInfo not primed; skipping profile this wake (fail closed)',
@@ -159,6 +193,7 @@ export const discoveryHandler =
           assetPolicy: await deps.getAssetPolicy(),
           accountPermissions: await cachedPermissions,
         });
+        await deps.clearAssetPolicyAbort(p);
         if (r.added > 0 || r.removed > 0) {
           deps.logger.info(
             { profileId: unwrapId(p.profileId), added: r.added, removed: r.removed },
@@ -166,6 +201,19 @@ export const discoveryHandler =
           );
         }
       } catch (err) {
+        // Separated from the generic failure by TYPE, not by message: this catch also receives Binance timeouts and Redis blips from every other stage of the cycle, and those say nothing about the classification. A typed abort does: the cycle could not establish which assets are pegs, so the veto is not protecting admission, and the cause says whether that is a dead route to chase at Binance, a cold local cache, or a feed that never answered. Only the typed ones raise the counter and park a finding the operator can read.
+        if (err instanceof AssetPolicyAbortError) {
+          deps.metrics.record('discovery_asset_policy_abort_total', 1, {
+            profileId: unwrapId(p.profileId),
+            cause: err.cause,
+          });
+          await deps.recordAssetPolicyAbort(p, err.cause, nowMs);
+          deps.logger.warn(
+            { profileId: unwrapId(p.profileId), cause: err.cause, err },
+            'cron discovery: asset policy refused; profile cycle abandoned and symbol set left untouched',
+          );
+          continue;
+        }
         deps.logger.warn(
           { profileId: unwrapId(p.profileId), err: err },
           'cron discovery: profile cycle failed; symbol set left untouched',
