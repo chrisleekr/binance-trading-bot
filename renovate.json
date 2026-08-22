@@ -45,12 +45,6 @@
       "semanticCommitType": "chore"
     },
     {
-      "description": "The legacy root-heap migration fixture stays below TimescaleDB 2.28.0, which is where a row inserted under `timescaledb.restoring` stops reaching the parent heap and the fixture can no longer be built. Matched on the 2.27.x value rather than on a file, because the db-isolation lanes now declare the deployed server AND this fixture in one file and only the fixture is held. Expressed as `allowedVersions` rather than `enabled: false` so Renovate keeps resolving the image and the hold stays visible on its dashboard: no automated advisory check covers a held Docker image here, since the nightly `bun audit` backstop reads the lockfile and sees npm packages only. This pin sits inside the affected range of GHSA-hcfx-29v5-2rcw (2.7.0 through 2.29.0); accepted because these are CI-only service containers with no untrusted input, and retiring the fixture is what removes the exposure.",
-      "matchPackageNames": ["timescale/timescaledb"],
-      "matchCurrentValue": "/^2\\.27\\./",
-      "allowedVersions": "<2.28.0"
-    },
-    {
       "description": "BullMQ >= 5.58.7 rejects ':' in custom job ids. The worker's single-execution guarantee is jobId coalescing over colon-delimited keys (tick:<profileId>:<symbol>, backtest:<runId>), and the repo runs no distributed locks, so adopting a newer BullMQ means redesigning that key scheme first. Verified: 5.58.6 passes the worker integration suite, 5.58.7+ fails it.",
       "matchPackageNames": ["bullmq"],
       "allowedVersions": "<5.58.7"
@@ -83,7 +77,7 @@
     },
     {
       "customType": "regex",
-      "description": "TimescaleDB runtime pinned in the Testcontainers wrapper. This copy moves with production Compose, while the separately named root-heap migration pin remains fixed.",
+      "description": "TimescaleDB runtime pinned in the Testcontainers wrapper. This copy moves with production Compose, so the suites migrate the server the operator actually deploys.",
       "managerFilePatterns": ["/^packages/testcontainers/src/index\\.ts$/"],
       "matchStrings": [
         "const POSTGRES_IMAGE\\s*=\\s*['\"]timescale/timescaledb:(?<currentValue>[^@'\"]+)@(?<currentDigest>sha256:[0-9a-f]{64})['\"]"

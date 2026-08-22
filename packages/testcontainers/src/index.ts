@@ -14,13 +14,9 @@ import { RedisContainer, type StartedRedisContainer } from '@testcontainers/redi
 
 /**
  * The runtime pin matches `deploy/compose/docker-compose.prod.yml` so ordinary integration tests exercise the deployed Postgres extension surface. Floating tags would silently change that surface between runs.
- *
- * The root-heap migration fixture is version-specific and keeps a separate legacy pin. Through TimescaleDB 2.27.x an insert under `timescaledb.restoring` reaches the parent heap, while 2.28.0 and later discard it before the migration can be exercised.
  */
 const POSTGRES_IMAGE =
   'timescale/timescaledb:2.29.1-pg17@sha256:981e3016a2810fec47515e3828ad70ae97b84f4c9ef63d032180b54f61566fd6';
-export const ROOT_HEAP_MIGRATION_POSTGRES_IMAGE =
-  'timescale/timescaledb:2.27.1-pg17@sha256:6e4b469dee0395a8a6d8c818384b0226a749997a29a312f314413f98e4161f82';
 const REDIS_IMAGE = 'redis@sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2';
 
 /**
@@ -39,15 +35,14 @@ export interface PostgresFixture {
 /**
  * Returns a Postgres endpoint for an integration suite. `TESTCONTAINERS=1` boots the requested pinned image, while `DATABASE_TEST_URL` reuses the service container supplied by CI. `TESTCONTAINERS=1` wins when both are set so the wrapper's smoke test exercises real provisioning.
  *
- * @param image - The pinned server image needed by the suite, normally the current runtime image and only overridden by the legacy root-heap migration fixture.
  * @returns The connection string, optional provisioned container, and cleanup hook owned by the caller.
  */
-export const withPostgres = async (image: string = POSTGRES_IMAGE): Promise<PostgresFixture> => {
+export const withPostgres = async (): Promise<PostgresFixture> => {
   const reuseUrl = process.env['DATABASE_TEST_URL'];
   if (process.env['TESTCONTAINERS'] !== '1' && reuseUrl) {
     return { databaseUrl: reuseUrl, stop: async () => undefined };
   }
-  const container = await new PostgreSqlContainer(image)
+  const container = await new PostgreSqlContainer(POSTGRES_IMAGE)
     .withDatabase('binance_trading_bot')
     .withUsername('postgres')
     .withPassword('postgres')
