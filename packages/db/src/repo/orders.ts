@@ -168,6 +168,74 @@ export async function listRecordedAmong(
     );
 }
 
+/**
+ * One local `orders` row claiming a reconstructed closing Binance order ID, carrying exactly the fields the recovery attributor checks before it will copy an intent onto an archived cycle.
+ *
+ * `executedQty` is null both when the column holds no executed quantity AND when it holds a JSON number, which is why the attributor treats null as "quantity unproven" rather than "quantity zero": a number has already been through IEEE-754 and can no longer be compared for exact decimal equality.
+ */
+export interface RecoveryAttributionRow {
+  readonly binanceOrderId: bigint;
+  readonly intent: string;
+  readonly side: string;
+  readonly status: string;
+  readonly closedAt: Date | null;
+  readonly executedQty: string | null;
+}
+
+/**
+ * Ids per statement. The caller's batch is one closing order per reconstructed round-trip over a symbol's ENTIRE Binance history, so it is bounded by the operator's lifetime trade count and by nothing in the code. Each id costs one bind parameter, and Postgres encodes a Bind message's parameter count as an Int16, so a single statement dies past 65535; long before that, a several-thousand-term OR is a planner cost this repo has already been bitten by. Chunking lives here, not at the call site, so every caller inherits the bound.
+ */
+const ATTRIBUTION_ID_CHUNK = 500;
+
+/**
+ * Returns every local identity row for reconstructed closing order IDs. The caller must reject ambiguous identities before validating terminal state, intent, and quantity.
+ *
+ * The id set is an OR of `eq`, not `inArray`, for the reason {@link listRecordedAmong} states: `eq` runs each value through the column's `bigint`-mode driver mapper and `inArray` does not, so collapsing this to `inArray` silently stops matching. Large batches are chunked rather than widened.
+ *
+ * `executedQty` surfaces only when `raw.executedQty` is a JSON string. A JSON number has already been through IEEE-754 and can no longer be trusted to be the exact decimal the caller's quantity check compares, so it is reported as absent rather than cast into a false match.
+ *
+ * @param scope - Ownership-proven account and profile scope.
+ * @param symbol - Symbol reconstructed from Binance trade history.
+ * @param binanceOrderIds - Closing Binance order IDs present in the recovery batch.
+ * @returns Rows within the exact account, profile, symbol, and order-ID set, with executed quantity exposed only when stored as a JSON string.
+ */
+export async function listRecoveryAttributionRows(
+  scope: ProfileScope,
+  symbol: string,
+  binanceOrderIds: readonly bigint[],
+): Promise<RecoveryAttributionRow[]> {
+  if (binanceOrderIds.length === 0) return [];
+  // Deduped here rather than trusted from the caller: a repeated id inside one chunk matches its row once, but split across two chunks it comes back twice, and the caller cannot tell that from two local rows genuinely claiming one exchange order. It would report a chunking artifact as a data-integrity anomaly.
+  const uniqueIds = [...new Set(binanceOrderIds)];
+  const rows: RecoveryAttributionRow[] = [];
+  for (let i = 0; i < uniqueIds.length; i += ATTRIBUTION_ID_CHUNK) {
+    const chunk = uniqueIds.slice(i, i + ATTRIBUTION_ID_CHUNK);
+    rows.push(
+      ...(await scope.db
+        .select({
+          binanceOrderId: orders.binanceOrderId,
+          intent: orders.intent,
+          side: orders.side,
+          status: orders.status,
+          closedAt: orders.closedAt,
+          executedQty: sql<
+            string | null
+          >`case when jsonb_typeof(${orders.raw} -> 'executedQty') = 'string' then ${orders.raw} ->> 'executedQty' else null end`,
+        })
+        .from(orders)
+        .where(
+          and(
+            eq(orders.accountId, scope.accountId),
+            eq(orders.profileId, scope.profileId),
+            eq(orders.symbol, symbol),
+            or(...chunk.map((id) => eq(orders.binanceOrderId, id))),
+          ),
+        )),
+    );
+  }
+  return rows;
+}
+
 export async function listHistoryForSymbol(
   scope: ProfileScope,
   symbol: string,

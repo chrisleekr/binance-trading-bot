@@ -25,6 +25,7 @@ export type { BacktestResultLedgerRow } from './schema/backtest-result-ledger.js
 export type { BacktestAdvisorResultRow } from './schema/backtest-advisor-result.js';
 export type { LedgerEntry, LedgerWindow } from './repo/result-ledger.js';
 export type { ReapExpiredResult } from './repo/override-actions.js';
+export type { RecoveryAttributionRow } from './repo/orders.js';
 export type { ActionLogInsert, ActionLogRow } from './schema/action-logs.js';
 export type { RetentionConfigRow } from './schema/retention-config.js';
 export type { ActionLogCursor, ActionLogFilter } from './repo/action-logs.js';

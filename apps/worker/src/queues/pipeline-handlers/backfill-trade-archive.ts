@@ -5,23 +5,23 @@
 // predates the forward archive (which only records cycles going forward and
 // reads the local `orders` table, where the historic BUY rows are missing).
 //
-// Attribution is the operator's explicit `(profile, symbol)` choice: every
-// fill on that symbol/account is credited to the chosen profile, so no
-// clientOrderId inference is needed (myTrades does not carry it anyway). With
-// a single shared Binance account, two profiles trading the same symbol in
-// the same mode cannot be told apart from trade history; the operator picks
-// the owning profile.
+// Profile attribution is the operator's explicit `(profile, symbol)` choice: every fill on that symbol/account is credited to the chosen profile because myTrades cannot distinguish two profiles sharing that market. Exit-reason attribution is stricter: only one exact local terminal SELL can replace the synthetic closing order's `backfill` intent.
 
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 import type { BinanceMode, BinanceRestClient, MyTradeDto } from '@app/binance';
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
-import type { Database } from '@app/db';
+import type { Database, RecoveryAttributionRow } from '@app/db';
 import { profileRepo, repo } from '@app/db';
+import { Decimal, isPlainDecimalString } from '@app/money';
 
 import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
 import { loadSymbolInfo } from 'queues/pipeline-handlers/archive-grid-trade.js';
-import { reconstructRoundTrips } from 'queues/pipeline-handlers/reconstruct-round-trips.js';
+import {
+  reconstructRoundTrips,
+  type ReconstructedOrderSummary,
+  type ReconstructedRoundTrip,
+} from 'queues/pipeline-handlers/reconstruct-round-trips.js';
 
 export interface BackfillTradeArchiveJobPayload {
   readonly userId: UserId;
@@ -47,6 +47,81 @@ export interface BackfillTradeArchiveHandlerDeps {
 // Binance's max page; myTrades returns oldest-first and `fromId` bounds the
 // query to trade ids >= fromId, so paginating from 0 walks the full history.
 const PAGE = 1000;
+
+/** Why one cycle's closing exit stayed `backfill`, or `attributed` when it did not. Counted per run so a recovery that restores nothing says WHICH proof failed instead of going quiet. */
+type AttributionOutcome =
+  | 'attributed'
+  | 'no-closing-summary'
+  | 'no-candidate'
+  | 'ambiguous-identity'
+  | 'not-terminal-sell'
+  | 'blank-intent'
+  | 'quantity-unproven';
+
+/**
+ * Checks that two order quantities are positive decimals with the same numeric value.
+ *
+ * Only `local` gets the plain-string guard: it is DB-stored wire input, whereas `reconstructed` is a `Decimal` this codebase just summed and rendered, and `Decimal.prototype.toString` emits exponential notation at or below `toExpNeg` (default -7). Guarding it too refused a legitimate `1e-7` closing quantity.
+ *
+ * @param local - Executed quantity stored on the local order.
+ * @param reconstructed - Quantity summed from Binance trade fills.
+ * @returns True only when both quantities are positive and Decimal-equal.
+ */
+const samePositiveQuantity = (local: string, reconstructed: string): boolean => {
+  if (!isPlainDecimalString(local)) return false;
+  const localQuantity = new Decimal(local);
+  const reconstructedQuantity = new Decimal(reconstructed);
+  return (
+    localQuantity.gt(0) && reconstructedQuantity.gt(0) && localQuantity.eq(reconstructedQuantity)
+  );
+};
+
+/**
+ * Restores the closing SELL intent only when one local order proves its identity and quantity.
+ *
+ * @param roundTrip - Reconstructed cycle whose synthetic orders default to the backfill intent.
+ * @param candidatesById - Profile-scoped identity rows for the recovery batch, bucketed by decimal-string order id so each cycle is a lookup rather than a rescan of the whole batch.
+ * @returns The summaries to archive, and why the closing exit was or was not attributed.
+ */
+const attributeRecoveredClosingExit = (
+  roundTrip: ReconstructedRoundTrip,
+  candidatesById: ReadonlyMap<string, readonly RecoveryAttributionRow[]>,
+): { readonly orders: ReconstructedOrderSummary[]; readonly outcome: AttributionOutcome } => {
+  const closingOrder = roundTrip.orders.find(
+    (order) => order.side === 'SELL' && order.binanceOrderId === roundTrip.closingBinanceOrderId,
+  );
+  if (closingOrder === undefined) {
+    // Unreachable while `buildRoundTrip` holds: it emits one summary per order id in the cycle and takes `closingBinanceOrderId` from the closing fill, which is always the SELL that flattened the position. Kept, but under its own name: folding it into `no-candidate` would report a broken reconstruction invariant as the benign "history predates the local rows" case, which is the one distinction this tally exists to make.
+    return { orders: roundTrip.orders, outcome: 'no-closing-summary' };
+  }
+
+  const [candidate, ...rest] = candidatesById.get(roundTrip.closingBinanceOrderId) ?? [];
+  if (candidate === undefined) {
+    return { orders: roundTrip.orders, outcome: 'no-candidate' };
+  }
+  if (rest.length > 0) {
+    return { orders: roundTrip.orders, outcome: 'ambiguous-identity' };
+  }
+  if (candidate.side !== 'SELL' || candidate.status !== 'FILLED' || candidate.closedAt === null) {
+    return { orders: roundTrip.orders, outcome: 'not-terminal-sell' };
+  }
+  if (candidate.intent.trim().length === 0) {
+    return { orders: roundTrip.orders, outcome: 'blank-intent' };
+  }
+  if (
+    candidate.executedQty === null ||
+    !samePositiveQuantity(candidate.executedQty, closingOrder.qty)
+  ) {
+    return { orders: roundTrip.orders, outcome: 'quantity-unproven' };
+  }
+
+  return {
+    orders: roundTrip.orders.map((order) =>
+      order === closingOrder ? { ...order, intent: candidate.intent } : order,
+    ),
+    outcome: 'attributed',
+  };
+};
 
 /**
  * Whether the mode's symbol-info keyspace holds anything at all.
@@ -227,10 +302,41 @@ export const handleBackfillTradeArchive = async (
     }
   }
 
+  const missing = inWindow.filter(
+    (roundTrip) =>
+      !seenTradeIds.has(roundTrip.closingTradeId) &&
+      !seenBinanceOrderIds.has(roundTrip.closingBinanceOrderId),
+  );
+  // `BigInt()` throws on anything that is not an integer literal, and `orderId` reaches here from an unvalidated `myTrades` response, so a malformed id is dropped instead of killing a job that has already walked the whole history. A dropped id simply finds no local row, which is the same fail-closed outcome as a failed proof.
+  const closingOrderIds = [...new Set(missing.map((roundTrip) => roundTrip.closingBinanceOrderId))]
+    .filter((orderId) => /^\d+$/.test(orderId))
+    .map((orderId) => BigInt(orderId));
+  const localExitCandidates = await p.orders.listRecoveryAttributionRows(
+    payload.symbol,
+    closingOrderIds,
+  );
+  // Bucket once. Rescanning the batch per cycle is O(cycles x candidates) with a `toString()` per comparison, and both sides scale with the symbol's whole history.
+  const candidatesById = new Map<string, RecoveryAttributionRow[]>();
+  for (const candidate of localExitCandidates) {
+    const key = candidate.binanceOrderId.toString();
+    const bucket = candidatesById.get(key);
+    if (bucket) bucket.push(candidate);
+    else candidatesById.set(key, [candidate]);
+  }
+
   let inserted = 0;
-  for (const rt of inWindow) {
-    if (seenTradeIds.has(rt.closingTradeId)) continue;
-    if (seenBinanceOrderIds.has(rt.closingBinanceOrderId)) continue;
+  const attribution: Record<AttributionOutcome, number> = {
+    attributed: 0,
+    'no-closing-summary': 0,
+    'no-candidate': 0,
+    'ambiguous-identity': 0,
+    'not-terminal-sell': 0,
+    'blank-intent': 0,
+    'quantity-unproven': 0,
+  };
+  for (const rt of missing) {
+    const { orders: attributedOrders, outcome } = attributeRecoveredClosingExit(rt, candidatesById);
+    attribution[outcome] += 1;
     const row = await p.tradeArchive.insert({
       symbol: payload.symbol,
       baseAsset: symbolInfo.baseAsset,
@@ -240,7 +346,7 @@ export const handleBackfillTradeArchive = async (
       breakdown: rt.breakdown,
       profit: rt.profit,
       profitPercent: rt.profitPercent,
-      orders: rt.orders,
+      orders: attributedOrders,
       fees: rt.fees,
       // Backfilled cycles are reconstructed from discovery-era trade history;
       // the discovery scoreboard reads source='auto', so stamp it.
@@ -269,8 +375,30 @@ export const handleBackfillTradeArchive = async (
     droppedOvershoot: droppedOvershootCycles,
     attemptedAt,
   });
+  // Two local rows claiming one exchange order id is a data-integrity anomaly, not a normal miss: a Binance orderId is an exact identity for an order on the account's book, so a duplicate means one of the rows is wrong. Surfaced rather than folded into the silent tally.
+  if (attribution['ambiguous-identity'] > 0) {
+    deps.logger.warn(
+      { ...logCtx, ambiguousIdentities: attribution['ambiguous-identity'] },
+      'pipeline_backfill_trade_archive_ambiguous_exit_identity',
+    );
+  }
   deps.logger.info(
-    { ...logCtx, inserted, candidates: inWindow.length, reconstructed: roundTrips.length },
+    {
+      ...logCtx,
+      inserted,
+      candidates: inWindow.length,
+      reconstructed: roundTrips.length,
+      // Without these an operator cannot tell "no local row survived the era" from "the rows were there and failed the proof", which is the difference between expected data loss and a bug.
+      exitsAttributed: attribution.attributed,
+      exitsUnattributed: {
+        noClosingSummary: attribution['no-closing-summary'],
+        noCandidate: attribution['no-candidate'],
+        ambiguousIdentity: attribution['ambiguous-identity'],
+        notTerminalSell: attribution['not-terminal-sell'],
+        blankIntent: attribution['blank-intent'],
+        quantityUnproven: attribution['quantity-unproven'],
+      },
+    },
     'pipeline_backfill_trade_archive_ok',
   );
 };

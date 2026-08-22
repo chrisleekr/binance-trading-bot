@@ -1,8 +1,4 @@
-// Pure round-trip reconstruction from Binance `myTrades` fills, for the
-// `backfill-trade-archive` handler. The forward archive aggregates the local
-// `orders` table, but historic BUY rows can be ghost-missing, so the backfill
-// rebuilds realised P/L purely from trade history. No I/O, no clock: a fills
-// array in, reconstructed round-trips out, so it is fully unit-testable.
+// Pure round-trip reconstruction from Binance `myTrades` fills, for the `backfill-trade-archive` handler. The forward archive aggregates the local `orders` table, but historic BUY rows can be ghost-missing, so the backfill rebuilds realised P/L purely from trade history. Synthetic intents default to `backfill`; the I/O-owning handler may restore only a proven local closing SELL intent. No I/O, no clock: a fills array in, reconstructed round-trips out.
 
 import { Decimal } from '@app/money';
 import type { MyTradeDto } from '@app/binance';

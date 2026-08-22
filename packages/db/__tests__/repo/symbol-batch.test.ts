@@ -1,20 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { findBySymbols } from '../../src/repo/avg-entry-prices.js';
-import { listLiveForSymbols } from '../../src/repo/orders.js';
+import { listLiveForSymbols, listRecoveryAttributionRows } from '../../src/repo/orders.js';
 import { accountRepo, profileRepo } from '../../src/repo/index.js';
 import type { ProfileScope } from '../../src/repo/_scoped.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from '../isolation/_helpers.js';
 
-// The empty-list short-circuit is the one branch reachable without a database,
-// so it gets CI-enforced coverage here (the DB-backed cases below gate on
-// DATABASE_TEST_URL, which CI never sets). A throwing `db` proves neither
-// function issues a query for an empty symbol list.
+// The empty-list short-circuit is the one branch reachable without a database, so it gets CI-enforced coverage here (the DB-backed cases below gate on DATABASE_TEST_URL, which CI never sets). A throwing `db` proves none of the three functions issues a query for an empty id/symbol list.
 describe('batched per-symbol repo reads — empty short-circuit (no DB)', () => {
   const noQueryScope = {
     db: {
       select() {
-        throw new Error('listLiveForSymbols issued a query for an empty symbol list');
+        throw new Error('a batched repo read issued a query for an empty id/symbol list');
       },
     },
     profileId: 'p',
@@ -22,6 +19,7 @@ describe('batched per-symbol repo reads — empty short-circuit (no DB)', () => 
 
   it('returns [] for an empty symbol list without touching the db', async () => {
     expect(await listLiveForSymbols(noQueryScope, [])).toEqual([]);
+    expect(await listRecoveryAttributionRows(noQueryScope, 'BTCUSDT', [])).toEqual([]);
     expect(await findBySymbols(noQueryScope, [])).toEqual([]);
   });
 });

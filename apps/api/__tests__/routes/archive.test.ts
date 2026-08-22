@@ -64,10 +64,7 @@ describeIfInfra('archive router — trade-archive backfill', () => {
 });
 
 /**
- * The trade-archive GET projection: per-row `exitIntent` (last SELL's intent,
- * derived from the archived `orders` JSONB) and the period `byIntent` rollup.
- * Integration-level because the projection reads real `orders` JSONB from a
- * seeded row; ownership goes through the scoped repo.
+ * The trade-archive GET projection: per-row `exitIntent` (closing SELL's intent, derived from the archived `orders` JSONB) and the period `byIntent` rollup. Integration-level because the projection reads real `orders` JSONB from a seeded row; ownership goes through the scoped repo.
  */
 describeIfInfra('archive router — trade-archive GET exit-intent projection', () => {
   let fx: ApiFixture;

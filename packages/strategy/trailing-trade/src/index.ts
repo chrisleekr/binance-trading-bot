@@ -84,6 +84,8 @@ export {
 // Exported so the observability gate can enumerate that set from the type rather
 // than from a copy of it that would silently rot when a reason is added.
 export type { SellEmissionReason } from './branches/sell-gate.js';
+// Same reason, one surface later: these strings land verbatim in `orders.intent` and reach the operator as the archive's "why did this close" label. The type is DERIVED from the runtime array, and the array is what is exported, because the web gloss check runs under vitest, which strips types without checking them: a `satisfies TTIntent[]` guard there would never be evaluated at all. Iterating the array instead makes a new intent fail a real assertion.
+export { TT_INTENTS, type TTIntent } from './decisions.js';
 
 /**
  * Domain events trailing-trade emits. Each entry pairs an `emit-event`

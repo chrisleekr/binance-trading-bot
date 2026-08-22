@@ -24,18 +24,21 @@ import type { TTBundle, TTConfig, TTState } from './schema.js';
  * TT pins its own set here for type-safety at the decision-build sites. These
  * land verbatim in `orders.intent`, which has no CHECK constraint.
  */
-export type TTIntent =
-  | 'grid-buy'
-  | 'bull-pyramid'
-  | 'grid-sell'
-  | 'grid-stop-loss'
-  | 'protective-stop'
-  | 'technicals-force-sell'
-  | 'regime-exit'
-  | 'discovery-time-stop'
-  | 'break-even-stop'
-  | 'time-stop'
-  | 'manual';
+export const TT_INTENTS = [
+  'grid-buy',
+  'bull-pyramid',
+  'grid-sell',
+  'grid-stop-loss',
+  'protective-stop',
+  'technicals-force-sell',
+  'regime-exit',
+  'discovery-time-stop',
+  'break-even-stop',
+  'time-stop',
+  'manual',
+] as const;
+
+export type TTIntent = (typeof TT_INTENTS)[number];
 
 /** Whether the open-order set already contains a BUY for `symbol`; gates first-buy emission so retries coalesce at Binance instead of double-spending. */
 export const hasOpenBuyForSymbol = (orders: readonly OpenOrder[], symbol: string): boolean =>
