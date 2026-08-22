@@ -84,5 +84,6 @@
   "0083_orphan_per_symbol_state_cleanup.sql": "f5713ce7080ae740e039a88f4fac59ca6ac9220eafe3df9d8f7fae8ba4e22558",
   "0084_diagnosis_runs.sql": "311ef49ae1173a048ecbecd33f014fb968f61aa3fe6d185caa91e6a6c413bde9",
   "0085_purge_cross_quote_equity_snapshots.sql": "5483e595d07d7e5fe4172f63b37b6cf2508d3668e530bd304dc6948c830afd02",
-  "0086_trade_archive_profile_archived_id.sql": "bb2b4ddb3eed587f77029f16ab2a118e5ba6800fb9271bd55d6a54fd44aa0505"
+  "0086_trade_archive_profile_archived_id.sql": "bb2b4ddb3eed587f77029f16ab2a118e5ba6800fb9271bd55d6a54fd44aa0505",
+  "0087_better_auth_account_issuer.sql": "3e00f0560de4cbad544049819a1c5e3a75d67d3f173da0f144a757349ee047bb"
 }

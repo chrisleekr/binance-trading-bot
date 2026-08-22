@@ -5,7 +5,8 @@ Canonical references for the auth surface — the in-repo files are the source o
 - `apps/api/src/auth.ts` — Better Auth factory: email + password only, argon2id, no SMTP, no 2FA, login throttle 60s / 5, session cookie 24h with sliding refresh < 1h idle.
 - `apps/api/src/routes/auth.ts` — onboarding gate (single master account), sign-up / session / change-password handlers.
 - `apps/api/src/routes/account-settings.ts` — `GET`/`PATCH /account/settings` for the master user's account-global display preferences. Today this carries `timezone` (a validated IANA zone, default `UTC`) the web UI applies to every rendered timestamp; the value persists on `users.timezone`.
-- `packages/db/migrations/0007_better_auth.sql` — Better Auth tables.
+- `packages/db/migrations/0007_better_auth.sql` — initial Better Auth tables.
+- `packages/db/migrations/0087_better_auth_account_issuer.sql` — Better Auth 1.7 account identity migration.
 - `packages/db/src/schema/better-auth.ts` — drizzle schema for the same.
 - `apps/api/src/middleware/cors.ts` / `apps/api/src/routes/ws.ts` — the `WEB_ORIGIN` allowlist (a comma-separated list of exact `scheme://host:port` origins) gates CORS, Better Auth `trustedOrigins` (CSRF), and the WebSocket upgrade. Every origin is matched exactly; a `*` wildcard is rejected at env-parse time because credentialed CORS forbids it. Add a LAN origin to reach the dev server from another device.
 

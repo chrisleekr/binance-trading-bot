@@ -317,11 +317,14 @@ function VirtualisedBalanceList({
   readonly quoteAsset: string;
   readonly positionByAsset: ReadonlyMap<string, DashboardSymbol>;
 }): React.JSX.Element {
+  'use no memo';
+
   const parentRef = useRef<HTMLDivElement | null>(null);
   // Row height varies (some carry value / avg-entry / P/L lines, some don't).
   // 84px is the median for the taller stacked row; the virtualizer measures
   // each row on mount and reconciles, so the estimate only affects the initial
   // layout — not the steady-state scroll.
+  // oxlint-disable-next-line react/incompatible-library -- TanStack Virtual is not compiler-memoizable.
   const virtualizer = useVirtualizer({
     count: visible.length,
     getScrollElement: () => parentRef.current,

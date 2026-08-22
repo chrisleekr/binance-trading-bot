@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { NavBar } from '@/features/profile/wizard/steps/NavBar';
 import type { StepProps } from '@/features/profile/wizard/reducer';
@@ -26,9 +26,14 @@ export function Step2Strategy({
   strategies: readonly StrategyDescriptor[];
   loading: boolean;
   error: unknown;
-  onSubmit: (config: unknown) => Promise<void>;
+  onSubmit: (
+    config: unknown,
+    strategy?: NonNullable<StepProps['state']['strategy']>,
+  ) => Promise<void>;
 }): ReactNode {
   const [pickError, setPickError] = useState<string | null>(null);
+  const onlyStrategy = strategies.length === 1 ? strategies[0] : undefined;
+  const selectedStrategy = state.strategy ?? onlyStrategy;
 
   const onSelect = (descriptor: StrategyDescriptor): void => {
     dispatch({
@@ -45,22 +50,15 @@ export function Step2Strategy({
   };
 
   const onNext = (): void => {
-    if (!state.strategy) {
+    if (!selectedStrategy) {
       setPickError(t('wizard.step2.error.required'));
       return;
     }
     // Create with the strategy's shipped defaults; the operator edits them on
     // the profile's config page. Pass the config explicitly — submit reads its
     // argument, not wizard state.
-    void onSubmit(state.strategy.defaultConfig);
+    void onSubmit(selectedStrategy.defaultConfig, selectedStrategy);
   };
-
-  // With exactly one strategy there is nothing to choose; pre-select it so the
-  // operator is not forced to click the only option before creating.
-  useEffect(() => {
-    const only = strategies.length === 1 ? strategies[0] : undefined;
-    if (only && !state.strategy) onSelect(only);
-  }, [strategies, state.strategy, onSelect]);
 
   if (loading) {
     // The step is the whole page body here, so its placeholder has to carry the
@@ -103,7 +101,7 @@ export function Step2Strategy({
             >
               {strategies.map((s) => {
                 const picked =
-                  state.strategy?.name === s.name && state.strategy.version === s.version;
+                  selectedStrategy?.name === s.name && selectedStrategy.version === s.version;
                 return (
                   <li key={`${s.name}@${s.version}`}>
                     <label

@@ -185,11 +185,9 @@ describe('Profile create wizard', () => {
       await user.type(await screen.findByLabelText(/profile name/i), 'btc-grid');
       await user.click(screen.getByTestId('wizard-next'));
 
-      // Step 2 (final): pick the (only) strategy; confirming creates the profile
-      // with the strategy default config — no config or symbols step. Uses a
-      // strategy with a NON-EMPTY defaultConfig so the forwarding is observable.
+      // Step 2 (final): the only strategy is already selected; confirming creates the profile with its default config. A non-empty defaultConfig makes the forwarding observable.
       await screen.findByTestId('wizard-step-2');
-      await user.click(await screen.findByTestId('wizard-strategy-trailing-trade'));
+      expect(await screen.findByTestId('wizard-strategy-trailing-trade')).toBeChecked();
       await user.click(screen.getByTestId('wizard-next'));
 
       await waitFor(
@@ -222,6 +220,20 @@ describe('Profile create wizard', () => {
       });
     },
   );
+
+  it('requires an explicit choice when more than one strategy is available', async () => {
+    setUp([strategiesHandler([strategyDescriptor, unknownStrategyDescriptor])]);
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText(/profile name/i), 'btc-grid');
+    await user.click(screen.getByTestId('wizard-next'));
+    await screen.findByTestId('wizard-step-2');
+    expect(screen.getByTestId('wizard-strategy-trailing-trade')).not.toBeChecked();
+    expect(screen.getByTestId('wizard-strategy-unknown-strategy')).not.toBeChecked();
+
+    await user.click(screen.getByTestId('wizard-next'));
+    expect(await screen.findByText(/select a strategy to continue/i)).toBeInTheDocument();
+  });
 
   it(
     'creates at most one profile when the strategy step is double-submitted',

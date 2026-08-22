@@ -79,7 +79,7 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 | **pg** | 8.22.x | Postgres driver. |
 | **ioredis** | 6.0.x | Redis client, configured with `maxRetriesPerRequest: null` for BullMQ. |
 | **BullMQ** | 5.58.6, pinned exactly | Job queues: ticks, crons, backtest replays. Not a range: 5.58.7 rejects `:` in a custom job id, which is what the coalescing keys are built from. See [Worker pipeline](worker-pipeline.md). |
-| **Better Auth** | 1.6.x | Session auth. No email, no SMTP, no 2FA — one master account. |
+| **Better Auth** | 1.7.x | Session auth. No email, no SMTP, no 2FA — one master account. |
 | **decimal.js** | 10.6.x | **All money math.** Every price, quantity, balance, and P/L is a `Decimal` end to end; `number` is only for counters and timestamps. |
 | **Zod** | 4.4.x | The contract layer: config schemas, API payloads, and the generated config docs all come from these. |
 | **pino** | 10.3.x | Structured logging. |

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Check, Copy, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -55,6 +55,13 @@ const SLOT_LABEL: Record<AdvisorVariant, string> = { ...VARIANT_LABEL, manual: '
 const NOT_CONFIGURED_NOTE =
   'AI suggestions are not configured. Pick a provider in Account → AI assistant, or use “Run it myself” to copy the prompt into your AI chat.';
 
+interface AdvisorViewState {
+  readonly runId: string;
+  readonly didAutoSelect: boolean;
+  readonly variant: AdvisorVariant | null;
+  readonly selectedIds: ReadonlySet<string>;
+}
+
 /**
  * On-demand config advisor for a finished run, backed by durable per-(run,
  * variant) rows. A reload rehydrates saved variants with no fresh model call.
@@ -77,30 +84,47 @@ export function BacktestLlmAdvisor({
 }: BacktestLlmAdvisorProps): React.JSX.Element {
   const advisor = useAdvisorRunStatus(profileId, runId);
 
-  // Which slot's result is on screen. Not derived from a mutation: a persisted
-  // row has no `mutation.variables`, so the shown variant is explicit state.
-  const [selectedVariant, setSelectedVariant] = useState<AdvisorVariant | null>(null);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  // A persisted row has no `mutation.variables`, so the shown slot is explicit state.
+  const terminal = advisor.results
+    .filter((r) => r.status !== 'running')
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const autoSelectedVariant = (terminal[0] ?? advisor.results[0])?.variant ?? null;
+  const [viewState, setViewState] = useState<AdvisorViewState>(() => ({
+    runId,
+    didAutoSelect: false,
+    variant: null,
+    selectedIds: new Set(),
+  }));
+  let currentView = viewState;
+  if (viewState.runId !== runId) {
+    currentView = {
+      runId,
+      didAutoSelect: advisor.results.length > 0,
+      variant: autoSelectedVariant,
+      selectedIds: new Set(),
+    };
+    setViewState(currentView);
+  } else if (!viewState.didAutoSelect && advisor.results.length > 0) {
+    currentView = {
+      ...viewState,
+      didAutoSelect: true,
+      variant: autoSelectedVariant,
+    };
+    setViewState(currentView);
+  }
+  const selectedVariant = currentView.variant;
+  const selected = currentView.selectedIds;
+  const showVariant = (variant: AdvisorVariant | null): void => {
+    setViewState((previous) => ({
+      ...previous,
+      runId,
+      didAutoSelect: true,
+      variant,
+      selectedIds: new Set(),
+    }));
+  };
   const [manualOpen, setManualOpen] = useState(false);
   const [reply, setReply] = useState('');
-
-  // Rehydrate: on the first load that carries any saved row, display the most
-  // recently updated terminal one so a reload shows saved work immediately. The
-  // ref makes this fire once — it must not fight the operator's later navigation
-  // (e.g. after they click "Ask a different variant" back to the grid).
-  const didAutoSelect = useRef(false);
-  useEffect(() => {
-    if (didAutoSelect.current || selectedVariant !== null || advisor.results.length === 0) return;
-    didAutoSelect.current = true;
-    const terminal = advisor.results
-      .filter((r) => r.status !== 'running')
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    const pick = terminal[0] ?? advisor.results[0];
-    if (pick) setSelectedVariant(pick.variant);
-  }, [advisor.results, selectedVariant]);
-
-  // Switching slots discards the previous slot's selection.
-  useEffect(() => setSelected(new Set()), [selectedVariant]);
 
   const promptMut = useMutation({
     mutationFn: () => fetchImproveConfigPrompt(profileId, runId),
@@ -109,7 +133,7 @@ export function BacktestLlmAdvisor({
     mutationFn: (r: string) => parseImproveConfigReply(profileId, runId, r),
     onSuccess: (row) => {
       advisor.seedRow(row);
-      setSelectedVariant('manual');
+      showVariant('manual');
       setManualOpen(false);
       setReply('');
     },
@@ -122,22 +146,24 @@ export function BacktestLlmAdvisor({
   // Click a variant: show a saved `done` row instantly (no re-bill); otherwise
   // enqueue a background generation. A `running` slot just shows its spinner.
   const pickVariant = (v: ImproveConfigMode): void => {
-    setSelectedVariant(v);
+    showVariant(v);
     const row = advisor.byVariant.get(v);
     if (row?.status === 'done' || isVariantBusy(v)) return;
     advisor.start.mutate(v);
   };
 
-  const toggle = (id: string): void =>
-    setSelected((prev) => {
-      const next = new Set(prev);
+  const toggle = (id: string): void => {
+    if (selectedVariant === null) return;
+    setViewState((previous) => {
+      const next = new Set(previous.selectedIds);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      return next;
+      return { ...previous, selectedIds: next };
     });
+  };
 
   const openManual = (): void => {
-    setSelectedVariant(null);
+    showVariant(null);
     setManualOpen(true);
     if (!promptMut.data && !promptMut.isPending) promptMut.mutate();
   };

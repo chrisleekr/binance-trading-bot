@@ -170,11 +170,14 @@ export function useBacktestWorkbench(profileId: string, search: BacktestSearch) 
   const deepLinkRef = useRef(false);
   useEffect(() => {
     if (deepLinkRef.current) return;
-    deepLinkRef.current = true;
-    if (runParam) {
-      config.primeConfigLoad(runParam);
-      setActiveRunId(runParam);
-    }
+    const hydrate = setTimeout(() => {
+      deepLinkRef.current = true;
+      if (runParam) {
+        config.primeConfigLoad(runParam);
+        setActiveRunId(runParam);
+      }
+    }, 0);
+    return () => clearTimeout(hydrate);
   }, [runParam, config.primeConfigLoad]);
 
   // With no `?run=` deep link, anchor the surface to the newest past run on
@@ -188,12 +191,15 @@ export function useBacktestWorkbench(profileId: string, search: BacktestSearch) 
     // Results. Not latched, so switching to Results later still anchors the newest.
     if (search.view !== undefined && search.view !== 'results') return;
     if (!history.runsQuery.isSuccess) return; // wait for the first settled list; never auto-anchor twice
-    autoAnchoredRef.current = true;
     const newest = history.runItems[0];
-    if (newest) {
-      config.markAutoAnchored(newest.runId);
-      showRun(newest.runId);
-    }
+    const anchor = setTimeout(() => {
+      autoAnchoredRef.current = true;
+      if (newest) {
+        config.markAutoAnchored(newest.runId);
+        showRun(newest.runId);
+      }
+    }, 0);
+    return () => clearTimeout(anchor);
   }, [
     history.runsQuery.isSuccess,
     history.runItems,
