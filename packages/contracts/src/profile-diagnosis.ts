@@ -12,7 +12,11 @@
 // timer pretending to be one.
 
 import { z } from 'zod';
-import { assessDiscoveryHealth, type SnapshotHealth } from './discovery-health.js';
+import {
+  abortStillExplainsGap,
+  assessDiscoveryHealth,
+  type SnapshotHealth,
+} from './discovery-health.js';
 import { labelForPath, titleCase } from './form-builder.js';
 import { attributeBlocker, type ReasonAttributionMap } from './reason-attribution.js';
 import { CONDITION_SEVERITY, type Condition, type ConditionSeverity } from './condition.js';
@@ -745,7 +749,12 @@ const stepDiscoveryRunning = (input: ProfileDiagnosisInput): DiagnosisStepResult
   if (unavailable) return unavailable;
   // Ahead of both staleness branches, because an aborted cycle IS why the scans stopped: reporting it as staleness would send the operator to widen filters that the cycle never reached. Blocking, and deliberately louder than the degraded stale finding — the profile is not merely behind, it is refusing to decide on a classification it cannot trust, and it stays that way until the upstream fault clears.
   const abort = input.assetPolicyAbort;
-  if (abort) {
+  // Bounded on the same lease the monitor suppresses staleness under. The record outlives the fault whenever its clear loses a DEL, which `discovery-health.cron.ts` already treats as reachable, and an unbounded read here would then assert a blocking halt on a profile that is demonstrably scanning AND mask the real staleness finding this branch sits in front of. An unmeasurable period cannot prove the record stale, so the finding stands rather than being hidden on a guess.
+  if (
+    abort &&
+    (input.profile.refreshPeriodMs === null ||
+      abortStillExplainsGap(abort.atMs, input.profile.refreshPeriodMs, input.nowMs))
+  ) {
     return {
       status: 'finding',
       line: 'Auto-discovery refused to pick coins because it could not trust its own view of the market.',
