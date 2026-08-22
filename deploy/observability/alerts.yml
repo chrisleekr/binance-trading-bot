@@ -329,6 +329,196 @@ groups:
           summary: 'Audit entries stuck in the drainer pending list on {{ $labels.stream }}'
           description: 'For 10 minutes the reclaim on stream {{ $labels.stream }} has been claiming the same entries back and neither persisting nor retiring them, so those audit rows are not in action_logs and no pass is making progress on them. Nothing has been destroyed yet, but the entries are lost once the stream reaches its approximate 100000-entry cap. Check Postgres reachability first. If Postgres is healthy, look for `audit reclaim persist failed` and `audit reclaim search stopped early` in the worker logs: the second carries a `reason`, where probe-budget means one pass could not search the whole backlog and no-proven-write means nothing at all reached the database during the pass.'
 
+      - alert: ReconcilePositionRemoved
+        # The bot deleting its own position, which is the most destructive thing the
+        # reconciler does and until now left no signal a rule could watch. Two actions
+        # reach here — the sub-notional flatten and the phantom-ledger prune — and both
+        # empty the strategy body AND delete the cost-basis row.
+        #
+        # Gated on `heldBefore="nonzero"` deliberately. The same counter also records
+        # converging a row that was ALREADY empty, which is routine cleanup after an
+        # external sale and happens on ordinary boots; paging on that is how an alert
+        # gets muted. `nonzero` is the case where the strategy believed it held coins —
+        # a parseable positive claim, or a corrupt one, which the reconciler also
+        # deletes — and the sweep overruled it on evidence assembled from a wallet
+        # snapshot taken once per profile and a cached price, both of which can be wrong.
+        #
+        # READS THE RAW COUNTER, NOT `increase()`, and that is the whole design of this
+        # rule. A labelled prom-client child does not exist until its first write and is
+        # born holding that write's value, so the first sample Prometheus ever sees for a
+        # freshly-deleted position is 1 — a level, not a rise. `increase()` reads that as
+        # zero. The worker zero-seeds this child, but the seed and the increment happen in
+        # the same synchronous block with no await between them, so no scrape can land in
+        # the gap and the seed is invisible to Prometheus on the pass that matters. And no
+        # second increment ever arrives to expose the step: after a flatten `heldQuantity`
+        # is null over a sub-notional residue, so every later pass takes the `no-op` arm.
+        # The boot sweep is also the FIRST pass in every process, and prom-client children
+        # die with the process.
+        #
+        # The cost of reading the raw value is that the alert LATCHES: the counter never
+        # decreases, so this fires until the operator silences it or the worker restarts.
+        # That is the honest behaviour for this event — the annotation below says nothing
+        # restores the cost basis automatically, and an alert that cleared itself while
+        # the position was still gone would be lying. A worker restart does clear it
+        # silently, which is a real limitation: treat a restart during an open instance of
+        # this alert as an unacknowledged incident.
+        #
+        # No `for:`. The delete already happened by the time the counter moves.
+        expr: sum by (profileId, symbol, action) (reconcile_position_removed_total{heldBefore="nonzero"}) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Reconciler deleted a held position on {{ $labels.profileId }}/{{ $labels.symbol }}'
+          description: 'The reconciler removed a position the strategy was claiming a quantity for, via {{ $labels.action }}, and dropped its avg_entry_prices row with it. Four paths run this reconcile: the boot sweep, the periodic backstop cron, the targeted symbol-reconcile job, and the mid-run reconfigure after an operator edits a profile symbol set. This is correct when the balance really is fee-and-rounding residue and destructive when the wallet snapshot or the reference price was wrong. Check the reconcileHeldQuantity warn for this symbol: it carries the wallet, the reference price, and the NOTIONAL floor the decision was made on. Nothing restores the cost basis automatically — the next pass will reconstruct it from myTrades only if the coins are still there. This alert does not clear on its own; silence it once you have judged the delete.'
+
+      - alert: ReconcileValueBoundDisarmed
+        # A disarmed bound reports the same `no-op` tally as a healthy converged position,
+        # so without this a symbol can sit with its dust protections inert for weeks while
+        # every sweep looks successful. That is the whole failure: not that the bounds
+        # stood down (which is the correct direction for a check that only ever deletes),
+        # but that standing down was silent.
+        #
+        # Counted in PASSES, not wall-clock. A cold boot legitimately disarms every symbol
+        # until the miniTicker cache repopulates and for any pair the REST fallback cannot
+        # price either, so one increment per symbol on a restart is the expected, healthy
+        # shape. Firing on it would page on every deploy, and a rule that pages on every
+        # deploy gets muted, which puts this signal right back where it started.
+        #
+        # `> 2` is three passes, and the `offset` form below is what makes that literal.
+        # A plain `increase()` does not mean three passes: the counter's zero-seed shares a
+        # synchronous block with the first increment, so no scrape observes the child at 0
+        # and its birth write is invisible as a rise, leaving a raw delta of 2 for three
+        # passes. It happens to clear a `> 2` bar anyway once range extrapolation is applied,
+        # but only by that margin, so the threshold would mean "two passes plus whatever the
+        # window alignment adds" rather than a countable number of passes. Subtracting the
+        # aggregate's own value two hours ago counts from series birth instead — a series
+        # absent then contributes 0 through the `or` arm — giving exactly 3, and it still
+        # resolves, because once the increments stop the difference returns to zero.
+        #
+        # Three passes rather than one because the passes are not on a fixed cadence and
+        # there is no 15-minute floor: the periodic backstop cron reaches this every 15
+        # minutes, the targeted symbol-reconcile job reaches it as often as its 60-second
+        # throttle allows, and the reconfigure door reaches it whenever an operator edits a
+        # symbol set. Requiring three is what keeps a burst of edits from reading as a
+        # persistent fault while still catching a symbol that cannot be priced at all.
+        #
+        # `for: 15m` is scrape-gap tolerance on top of that, not the anti-transient guard.
+        expr: |
+          sum by (profileId, symbol, reason) (reconcile_value_bound_disarmed_total)
+            - (sum by (profileId, symbol, reason) (reconcile_value_bound_disarmed_total offset 2h)
+               or sum by (profileId, symbol, reason) (reconcile_value_bound_disarmed_total) * 0)
+            > 2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Dust value bounds inert on {{ $labels.profileId }}/{{ $labels.symbol }} ({{ $labels.reason }})'
+          description: 'Reconcile passes for this symbol keep reaching a dust value bound without {{ $labels.reason }}, so the bound is not evaluating and the pass reporting no-op is not evidence the position is sound. no-reference-price means neither the miniTicker cache nor the REST fallback could price the symbol — check that the market stream is subscribed and that Binance still lists the pair. no-min-notional means the cached exchangeInfo carries no NOTIONAL filter, which an exchange-info-refresh run repairs. no-unreserved-total means a caller forwarded a target without the pre-reserve wallet total, which is a code fault rather than a data one.'
+
+      - alert: MomentumExitBlockedByFilters
+        # A position the strategy has decided to sell and CANNOT. `computeExitQuantity`
+        # refuses when the whole held quantity sizes below the exchange's minQty or
+        # minNotional filter, and momentum deliberately does not defer that refusal: it is
+        # permanent for this position, so retrying only replays it. Without a rule the
+        # operator's only trace is a `momentum: exit skipped` warn line.
+        #
+        # `side="exit"` is load-bearing. The same counter records entry-side sizing skips,
+        # which are routine and benign — the budget simply cannot buy a whole minimum lot
+        # yet, and the next tick with a larger balance proceeds. Paging on those would bury
+        # the case that matters.
+        #
+        # Same `offset` shape as the rule above, for a different reason. This counter
+        # CANNOT be zero-seeded at all: it is drained by a strategy-AGNOSTIC projection in
+        # the tick handler, which by contract declares which tag NAMES survive and never
+        # which values, so teaching it to pre-create `momentum.skip{side="exit"}` children
+        # would put one strategy's vocabulary inside the generic drain. Subtracting the
+        # aggregate's own value an hour ago needs no seed: a series that did not exist then
+        # contributes 0 through the `or` arm, so the birth write counts.
+        #
+        # Aggregating BEFORE the subtraction is also what makes the `(profileId, symbol)`
+        # grouping correct. A residual can trip minQty at one price and minNotional at
+        # another; summing the two series first gives 2, where a per-series `increase()`
+        # would yield 0 + 0 and this rule would stay silent on exactly the split it claims
+        # to handle.
+        #
+        # `> 1`, not `> 0`: one skip can be a momentary quote-price dip that pushed the
+        # notional under the floor for a single tick. Two refused exit attempts in an hour
+        # is the position being genuinely unsellable at its size, and a stuck one re-skips
+        # on every tick because the trail trigger is a level, not an edge.
+        #
+        # `for: 10m` is scrape-gap tolerance, not the anti-transient guard — `> 1` is that.
+        expr: |
+          sum by (profileId, symbol) (strategy_metric_total{name="momentum.skip", side="exit", reason=~"min-qty|min-notional"})
+            - (sum by (profileId, symbol) (strategy_metric_total{name="momentum.skip", side="exit", reason=~"min-qty|min-notional"} offset 1h)
+               or sum by (profileId, symbol) (strategy_metric_total{name="momentum.skip", side="exit", reason=~"min-qty|min-notional"}) * 0)
+            > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Cannot sell {{ $labels.symbol }} on {{ $labels.profileId }}: leftover amount is below the exchange minimum'
+          description: 'The strategy tried more than once in the last hour to close its {{ $labels.symbol }} position and Binance will not accept the order, because what is left is smaller than the smallest quantity — or worth less than the smallest order value — the exchange allows for this pair. THE BOT CANNOT FIX THIS. It is not waiting for a better price and retrying will not help: the amount is too small to sell at any price, so the position stays open and its cost basis keeps counting against the profile. Clear it by hand, one of two ways. Either use Binance''s "Convert Small Balance to BNB" (dust conversion) on the leftover coins, or buy a little more of the pair so the total clears the minimum and can be sold in one order. Once the wallet balance is gone the next reconcile pass drops the position and the profile is free to trade the symbol again. NOTE: this alert clears about an hour after the last refused attempt, which also happens when the price simply climbs back above the sell trigger and the strategy stops trying — the stranded amount is still there. Confirm the balance is actually gone before treating a resolve as the fix.'
+
+      - alert: DiscoveryAssetPolicyAborting
+        # The stablecoin/fiat classification refusing to be trusted. The profile cycle is
+        # abandoned when this fires, so nothing wrong is ADMITTED — the cost is that
+        # discovery stops rotating that profile's symbol set entirely, silently, for as
+        # long as the upstream fault lasts.
+        #
+        # Separate from the generic per-profile failure on purpose: that catch also
+        # swallows Binance timeouts and Redis blips raised anywhere else in the cycle,
+        # which say nothing about the classification, and a rule that could not tell them
+        # apart would fire on every transient. This counter is incremented only where the
+        # classification itself is the fault.
+        #
+        # Grouped by `cause` because the refusals need different responses. A dead
+        # classification route is a schema change to chase upstream; a cross-check gap is a
+        # stale or partial feed that may clear by itself; an empty admission map is this
+        # worker's own exchange-info cache being cold; and the two product-feed causes are
+        # the fetch itself failing, where unreachable in particular can be one bad minute.
+        #
+        # The range has to cover the SLOWEST legal wake, not the default one. `shouldRun`
+        # gates ahead of the cycle and stamps its Redis key on acquisition rather than on
+        # success, so an abort consumes that profile's whole window and cannot recur until
+        # the next one. `refreshPeriodMs` defaults to 900000 but is operator-settable up to
+        # 86400000 (packages/contracts/src/discovery.ts), so at any setting from an hour up
+        # a `[1h]` range would hold at most one increment and this rule would never fire
+        # while discovery silently stopped rotating — the exact condition it is for.
+        #
+        # `offset 25h` rather than `increase(...[25h])` for the same reason as the two
+        # rules above: the counter's zero-seed runs in the same cycle as the abort it
+        # precedes, milliseconds apart against a scrape interval measured in tens of
+        # seconds, so the birth write cannot be relied on to be visible as a rise. The
+        # subtraction counts from series birth and still resolves 25 hours after the last
+        # abort.
+        #
+        # The cost of a 25-hour range is deliberate and worth naming: at the 15-minute
+        # default the rule can no longer tell one abort from many, so a single refusal
+        # pages after the hold. That is the right side to err on. One refusal already means
+        # this profile's symbol set went untouched for a whole refresh period, which at the
+        # maximum legal setting is a day.
+        #
+        # `product-feed-unreachable` is the one cause where a single increment can be a
+        # transient the bot already recovered from, and it stays on this rule rather than
+        # getting a count threshold of its own: `shouldRun` stamps on acquisition, capping
+        # a profile at one abort per refresh period, so any `> N` would never fire for a
+        # profile on a slow refresh — the very case where one lost cycle costs the most.
+        # The description carries the caveat instead, and tells the operator how to check
+        # whether it already cleared.
+        #
+        # `for: 1h`, so a redeploy that aborts one cycle mid-rollout does not page.
+        expr: |
+          sum by (profileId, cause) (discovery_asset_policy_abort_total)
+            - (sum by (profileId, cause) (discovery_asset_policy_abort_total offset 25h)
+               or sum by (profileId, cause) (discovery_asset_policy_abort_total) * 0)
+            > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Discovery abandoned cycles on {{ $labels.profileId }}: asset policy refused ({{ $labels.cause }})'
+          description: "The stablecoin/fiat classification could not be established, so discovery has left this profile symbol set untouched and is no longer rotating it. Nothing unsafe was admitted — the cycle aborts before any add or remove. Cause {{ $labels.cause }}: no-product-rows and stablecoin-route-empty and fiat-route-empty mean the Binance product feed changed shape or renamed a key, which needs the projection in apps/worker/src/crons/discovery/asset-policy.ts updated. cross-check-gap means the feed disagrees with live exchangeInfo in bulk, which a stale feed causes and often clears on its own. empty-admission-map means this worker has no exchangeInfo cached, which the exchange-info-refresh cron repairs. product-feed-unreadable means the feed answered with something that is not this catalogue at all — not JSON, the wrong shape, or implausibly large — which is again a change to chase upstream. NOTE: product-feed-unreachable is different from the others. It means the fetch never got an answer (timeout, refused connection, error page), and a single one may already have healed: the rule holds for 25 hours after the last abort, so it can still be firing over a fault that is gone. Confirm before chasing it — open the profile page and check whether the asset-policy finding is still there, and whether discovery has rotated since. If it has, wait for the alert to resolve; if the finding is still open, the endpoint or this worker's egress is genuinely unreachable."
+
   - name: binance-trading-bot.infra
     interval: 30s
     rules:
@@ -448,6 +638,7 @@ groups:
         annotations:
           summary: 'Binance user-data stream reconnecting repeatedly on account {{ $labels.accountId }}'
           description: "More than five unrequested Binance websocket closes in fifteen minutes on account {{ $labels.accountId }}. The pool reconnects each time, but balance and order updates are stale for the gap and the worker falls back on REST reconciliation. Check that account's network egress and the worker logs for the close reason and code."
+
 # NO ALERT COVERAGE TODAY.
 #
 # Two gaps, both for want of a series rather than for want of a threshold.

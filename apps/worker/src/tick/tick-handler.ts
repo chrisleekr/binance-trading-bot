@@ -423,12 +423,9 @@ export const createTickHandler = (
             );
             continue;
           }
-          // Entry tags first, canonical attribution second, so a strategy tag that
-          // happens to be called `symbol` cannot misattribute the series. Of the
-          // free-form tags only `reason` is declared on the metric; `side`, `cap`,
-          // `level`, `regime` and friends are dropped by the sink's label
-          // projection on purpose, not by oversight — promoting a tag only one
-          // strategy emits multiplies the series count for every strategy.
+          // Entry tags first, canonical attribution second, so a strategy tag that happens to be called `symbol` cannot misattribute the series. Of the free-form tags only `reason` and `side` are declared on the metric; `cap`, `level`, `regime` and friends are dropped by the sink's label projection on purpose, not by oversight — promoting a tag only one strategy emits multiplies the series count for every strategy.
+          //
+          // `side` earns its place because without it the entry-path and exit-path emits of one metric name collapse onto a single series, and "is it refusing to open a position or refusing to close one" is the first question asked of these counters — the second being far more urgent than the first. Its value space is small and closed at each emitter, so the cost is a small constant factor rather than the unbounded fan-out the dropped tags carry. This projection is strategy-agnostic by contract: it declares which tag NAMES survive and never which values, so no strategy's vocabulary reaches this file.
           deps.metrics?.record('strategy_metric_total', entry.value, {
             ...(entry.tags ?? {}),
             strategy: profile.strategyName,

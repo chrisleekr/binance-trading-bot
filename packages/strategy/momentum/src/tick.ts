@@ -27,7 +27,8 @@ import { evaluateProtectiveStopArm, protectiveStopCancelDecisions } from './prot
 type MomentumInput = TickInput<MomentumConfig, MomentumState, MomentumBundle>;
 type MomentumOutput = TickOutput<MomentumState>;
 
-const skipMetric = (side: string, reason: string): MetricEntry =>
+// `side` is a DECLARED label on the worker's `strategy_metric_total`, so its value space is now series cardinality rather than free-form annotation, and prom-client never evicts a child. A `string` parameter here is the only thing between a typo at a call site and a permanent series. The union is the three values every call site already passes.
+const skipMetric = (side: 'entry' | 'exit' | 'sell', reason: string): MetricEntry =>
   metric('momentum.skip', { side, reason });
 
 // Unparsed state means the key may be absent on a row written before it existed.

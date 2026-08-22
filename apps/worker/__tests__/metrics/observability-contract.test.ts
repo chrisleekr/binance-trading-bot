@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { ASSET_POLICY_ABORT_CAUSES } from '@app/contracts';
 import { CATALOG, type MetricName } from '../../src/metrics/catalog.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
@@ -74,6 +75,17 @@ describe('alert rules against the metric catalogue', () => {
     const source = alerts();
     for (const [name] of RESTORED) {
       expect(source).not.toMatch(new RegExp(`#\\s+- ${name} wanted`));
+    }
+  });
+});
+
+describe('the asset-policy abort rule against the cause union', () => {
+  it('routes every cause the worker can label, by name', () => {
+    // The description is the whole remedy: it tells the operator which upstream fault this cause means and what to do about it, per cause. Nothing else ties that prose to the union — the CI gate reads metric names and label keys and skips annotations entirely — so a cause added to the union reaches an operator as a bare literal with no guidance beside it, which is what happened to the two product-feed causes across five surfaces. Iterated from the runtime array on purpose: a type-level guard is erased before this file runs and would hold nothing.
+    const block = ruleBlock(alerts(), 'DiscoveryAssetPolicyAborting');
+    expect(block).not.toBe('');
+    for (const cause of ASSET_POLICY_ABORT_CAUSES) {
+      expect(block).toContain(cause);
     }
   });
 });

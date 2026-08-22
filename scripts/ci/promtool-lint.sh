@@ -66,3 +66,20 @@ elif [[ ! -x "$PROMTOOL_BIN" ]]; then
 fi
 
 "$PROMTOOL_BIN" check rules "${RULE_FILES[@]}"
+
+# Syntax is only half of it. `check rules` accepts an expression that can never
+# evaluate true, which then reads exactly like a rule that has simply not tripped.
+# `test rules` replays synthetic series through the real rule file and asserts which
+# alerts fire, which is the only thing that catches a rule made silent by how
+# Prometheus samples a counter rather than by its threshold.
+#
+# Discovered rather than hard-coded, and a missing suite fails the gate: a test file
+# deleted or renamed would otherwise take its coverage with it silently.
+TEST_FILES=()
+while IFS= read -r -d '' f; do TEST_FILES+=("$f"); done \
+  < <(find deploy/observability/tests -maxdepth 1 -type f -name '*.test.yml' -print0 2>/dev/null | sort -z)
+if [[ "${#TEST_FILES[@]}" -eq 0 ]]; then
+  echo 'promtool-lint: no rule unit tests found under deploy/observability/tests.' >&2
+  exit 1
+fi
+"$PROMTOOL_BIN" test rules "${TEST_FILES[@]}"

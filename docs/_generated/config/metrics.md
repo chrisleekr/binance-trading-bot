@@ -33,7 +33,7 @@
 | `state_commit_latch_merged` | counter | `profileId`, `symbol` | Tick latch fields were successfully grafted onto the concurrent CAS winner. |
 | `state_commit_persist_error` | counter | `profileId`, `symbol` | Symbol-state PG persist rejected on the tick commit path (degrade-to-warn). |
 | `state_commit_persist_timeout` | counter | `profileId`, `symbol` | Symbol-state PG persist exceeded the tick commit timeout (degrade-to-warn). |
-| `strategy_metric_total` | counter | `strategy`, `name`, `profileId`, `symbol`, `reason` | Strategy-emitted metric entries drained from each tick, by strategy and entry name. Event-counted: every entry increments once per occurrence, never once per tick spent in the state it describes, so a rate is a rate of things happening and not a measure of how long a condition has held. |
+| `strategy_metric_total` | counter | `strategy`, `name`, `profileId`, `symbol`, `reason`, `side` | Strategy-emitted metric entries drained from each tick, by strategy and entry name. Event-counted: every entry increments once per occurrence, never once per tick spent in the state it describes, so a rate is a rate of things happening and not a measure of how long a condition has held. |
 | `tick_failures_total` | counter | `profileId`, `symbol` | Tick handler invocations that threw. Throttled skips are not failures and are excluded. |
 | `tick_latency_ms` | histogram | `profileId`, `symbol` | Tick handler wall-clock latency in milliseconds. |
 | `tick_throttled_kill_switch` | counter | `profileId`, `symbol` | Ticks short-circuited because the profile kill-switch was engaged. |

@@ -1,0 +1,176 @@
+# promtool unit tests for deploy/observability/alerts.yml.
+#
+# `promtool check rules` validates SYNTAX only: a rule whose expression can never
+# evaluate true parses clean and then stays silent forever, which is
+# indistinguishable from a healthy rule that has simply not tripped. These tests
+# close that gap for the rules whose correctness turns on how Prometheus SAMPLES a
+# counter rather than on the threshold.
+#
+# The class they exist for: a labelled prom-client child does not exist until its
+# first write and is BORN holding that write's value. The first sample Prometheus
+# ever sees for a freshly-incremented counter is therefore a level, not a rise, and
+# `increase()` reads it as zero. Three of the four rules below cover events whose
+# first increment may be their ONLY one — a deleted position that no later pass
+# revisits, a discovery abort that recurs at most once per refresh period — so an
+# `increase()` form would be structurally unable to fire. Every positive case starts
+# its series from ABSENT to reproduce that, and rewriting those three to `increase()`
+# fails their cases here.
+#
+# ReconcileValueBoundDisarmed is the exception and is NOT pinned that way. Its counter
+# increments on every pass, so a rising series remains and `increase()` still fires; it
+# clears the threshold by extrapolation margin alone (raw delta 2 over a `> 2` bar),
+# which is why the offset form is used there — determinism of what "three passes"
+# means, not an inability to fire. Do not read that case as proving the form.
+#
+# The negative cases carry the other half: the label gates that keep these rules off
+# routine behaviour, and that the two recoverable conditions still RESOLVE rather
+# than latching.
+#
+# Lives in a subdirectory because `discover-prometheus-rules.sh` classifies every
+# top-level YAML under deploy/observability as a rules file.
+#
+# Run: `bash scripts/ci/promtool-lint.sh` (CI runs this on every push).
+rule_files:
+  - ../alerts.yml
+evaluation_interval: 30s
+tests:
+  # A position deleted once, in the FIRST pass of a fresh process. The child is born at 1 and never moves again, because after a flatten heldQuantity is null over a sub-notional residue and every later pass takes the no-op arm. increase() sees no rise here; reading the raw counter does.
+  - interval: 1m
+    input_series:
+      - series: reconcile_position_removed_total{profileId="p1",symbol="ENAUSDT",action="flatten-sub-notional-dust",heldBefore="nonzero"}
+        values: _x5 1+0x120
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ReconcilePositionRemoved
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              profileId: p1
+              symbol: ENAUSDT
+              action: flatten-sub-notional-dust
+            exp_annotations:
+              summary: Reconciler deleted a held position on p1/ENAUSDT
+              description: 'The reconciler removed a position the strategy was claiming a quantity for, via flatten-sub-notional-dust, and dropped its avg_entry_prices row with it. Four paths run this reconcile: the boot sweep, the periodic backstop cron, the targeted symbol-reconcile job, and the mid-run reconfigure after an operator edits a profile symbol set. This is correct when the balance really is fee-and-rounding residue and destructive when the wallet snapshot or the reference price was wrong. Check the reconcileHeldQuantity warn for this symbol: it carries the wallet, the reference price, and the NOTIONAL floor the decision was made on. Nothing restores the cost basis automatically — the next pass will reconstruct it from myTrades only if the coins are still there. This alert does not clear on its own; silence it once you have judged the delete.'
+    # The prune reaches the same counter under its own action label, so the rule must cover both destructive routes.
+  - interval: 1m
+    input_series:
+      - series: reconcile_position_removed_total{profileId="p1",symbol="ENAUSDT",action="prune-phantom-ledger",heldBefore="nonzero"}
+        values: _x5 1+0x120
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ReconcilePositionRemoved
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              profileId: p1
+              symbol: ENAUSDT
+              action: prune-phantom-ledger
+            exp_annotations:
+              summary: Reconciler deleted a held position on p1/ENAUSDT
+              description: 'The reconciler removed a position the strategy was claiming a quantity for, via prune-phantom-ledger, and dropped its avg_entry_prices row with it. Four paths run this reconcile: the boot sweep, the periodic backstop cron, the targeted symbol-reconcile job, and the mid-run reconfigure after an operator edits a profile symbol set. This is correct when the balance really is fee-and-rounding residue and destructive when the wallet snapshot or the reference price was wrong. Check the reconcileHeldQuantity warn for this symbol: it carries the wallet, the reference price, and the NOTIONAL floor the decision was made on. Nothing restores the cost basis automatically — the next pass will reconstruct it from myTrades only if the coins are still there. This alert does not clear on its own; silence it once you have judged the delete.'
+    # heldBefore="zero" is the reconciler converging a row that was already empty after an external sale. It happens on ordinary boots, and paging on it is how this alert would get muted.
+  - interval: 1m
+    input_series:
+      - series: reconcile_position_removed_total{profileId="p1",symbol="BTCUSDT",action="flatten-sub-notional-dust",heldBefore="zero"}
+        values: _x5 1+0x120
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ReconcilePositionRemoved
+        exp_alerts: []
+    # Three passes counted from series birth. The zero-seed shares a synchronous block with the first increment so no scrape observes it; subtracting the aggregate own value two hours ago is what makes "> 2" mean three passes rather than four.
+  - interval: 1m
+    input_series:
+      - series: reconcile_value_bound_disarmed_total{profileId="p1",symbol="ENAUSDT",reason="no-reference-price"}
+        values: _x5 1+0x14 2+0x14 3+0x150
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: ReconcileValueBoundDisarmed
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              profileId: p1
+              symbol: ENAUSDT
+              reason: no-reference-price
+            exp_annotations:
+              summary: Dust value bounds inert on p1/ENAUSDT (no-reference-price)
+              description: Reconcile passes for this symbol keep reaching a dust value bound without no-reference-price, so the bound is not evaluating and the pass reporting no-op is not evidence the position is sound. no-reference-price means neither the miniTicker cache nor the REST fallback could price the symbol — check that the market stream is subscribed and that Binance still lists the pair. no-min-notional means the cached exchangeInfo carries no NOTIONAL filter, which an exchange-info-refresh run repairs. no-unreserved-total means a caller forwarded a target without the pre-reserve wallet total, which is a code fault rather than a data one.
+    # Two passes is a cold boot that has not healed yet, not a symbol that cannot be priced at all.
+  - interval: 1m
+    input_series:
+      - series: reconcile_value_bound_disarmed_total{profileId="p1",symbol="ETHUSDT",reason="no-reference-price"}
+        values: _x5 1+0x14 2+0x180
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: ReconcileValueBoundDisarmed
+        exp_alerts: []
+    # The split-reason case. One residual trips minQty at one price and minNotional at another, one skip each. Aggregating BEFORE the subtraction reads 2; a per-series increase() would read 0 + 0 and stay silent on exactly the split the rule claims to handle.
+  - interval: 1m
+    input_series:
+      - series: strategy_metric_total{strategy="momentum",name="momentum.skip",side="exit",reason="min-qty",profileId="p1",symbol="ENAUSDT"}
+        values: _x5 1+0x120
+      - series: strategy_metric_total{strategy="momentum",name="momentum.skip",side="exit",reason="min-notional",profileId="p1",symbol="ENAUSDT"}
+        values: _x8 1+0x120
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: MomentumExitBlockedByFilters
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              profileId: p1
+              symbol: ENAUSDT
+            exp_annotations:
+              summary: 'Cannot sell ENAUSDT on p1: leftover amount is below the exchange minimum'
+              description: 'The strategy tried more than once in the last hour to close its ENAUSDT position and Binance will not accept the order, because what is left is smaller than the smallest quantity — or worth less than the smallest order value — the exchange allows for this pair. THE BOT CANNOT FIX THIS. It is not waiting for a better price and retrying will not help: the amount is too small to sell at any price, so the position stays open and its cost basis keeps counting against the profile. Clear it by hand, one of two ways. Either use Binance''s "Convert Small Balance to BNB" (dust conversion) on the leftover coins, or buy a little more of the pair so the total clears the minimum and can be sold in one order. Once the wallet balance is gone the next reconcile pass drops the position and the profile is free to trade the symbol again. NOTE: this alert clears about an hour after the last refused attempt, which also happens when the price simply climbs back above the sell trigger and the strategy stops trying — the stranded amount is still there. Confirm the balance is actually gone before treating a resolve as the fix.'
+    # One skip can be a momentary quote-price dip that pushed the notional under the floor for a single tick.
+  - interval: 1m
+    input_series:
+      - series: strategy_metric_total{strategy="momentum",name="momentum.skip",side="exit",reason="min-qty",profileId="p1",symbol="SOLUSDT"}
+        values: _x5 1+0x120
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: MomentumExitBlockedByFilters
+        exp_alerts: []
+    # Entry-side sizing skips are routine: the budget cannot buy a whole minimum lot yet and the next tick with a larger balance proceeds. The side="exit" matcher is the only thing keeping them off this page.
+  - interval: 1m
+    input_series:
+      - series: strategy_metric_total{strategy="momentum",name="momentum.skip",side="entry",reason="min-notional",profileId="p1",symbol="ADAUSDT"}
+        values: _x5 1+1x120
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: MomentumExitBlockedByFilters
+        exp_alerts: []
+    # This condition is recoverable, so unlike the delete above the rule must RESOLVE once the skips stop rather than latch on a counter that never decreases.
+  - interval: 1m
+    input_series:
+      - series: strategy_metric_total{strategy="momentum",name="momentum.skip",side="exit",reason="min-qty",profileId="p1",symbol="XRPUSDT"}
+        values: _x5 1+0x5 2+0x400
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: MomentumExitBlockedByFilters
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              profileId: p1
+              symbol: XRPUSDT
+            exp_annotations:
+              summary: 'Cannot sell XRPUSDT on p1: leftover amount is below the exchange minimum'
+              description: 'The strategy tried more than once in the last hour to close its XRPUSDT position and Binance will not accept the order, because what is left is smaller than the smallest quantity — or worth less than the smallest order value — the exchange allows for this pair. THE BOT CANNOT FIX THIS. It is not waiting for a better price and retrying will not help: the amount is too small to sell at any price, so the position stays open and its cost basis keeps counting against the profile. Clear it by hand, one of two ways. Either use Binance''s "Convert Small Balance to BNB" (dust conversion) on the leftover coins, or buy a little more of the pair so the total clears the minimum and can be sold in one order. Once the wallet balance is gone the next reconcile pass drops the position and the profile is free to trade the symbol again. NOTE: this alert clears about an hour after the last refused attempt, which also happens when the price simply climbs back above the sell trigger and the strategy stops trying — the stranded amount is still there. Confirm the balance is actually gone before treating a resolve as the fix.'
+      - eval_time: 200m
+        alertname: MomentumExitBlockedByFilters
+        exp_alerts: []
+    # ONE abort, ever. shouldRun stamps its Redis key on acquisition, so an abort consumes the whole refresh window and cannot recur until the next one; at the maximum legal refreshPeriodMs that is a day away. The rule has to fire on the birth write alone.
+  - interval: 4m
+    input_series:
+      - series: discovery_asset_policy_abort_total{profileId="p1",cause="cross-check-gap"}
+        values: _x5 1+0x500
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: DiscoveryAssetPolicyAborting
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              profileId: p1
+              cause: cross-check-gap
+            exp_annotations:
+              summary: 'Discovery abandoned cycles on p1: asset policy refused (cross-check-gap)'
+              description: "The stablecoin/fiat classification could not be established, so discovery has left this profile symbol set untouched and is no longer rotating it. Nothing unsafe was admitted — the cycle aborts before any add or remove. Cause cross-check-gap: no-product-rows and stablecoin-route-empty and fiat-route-empty mean the Binance product feed changed shape or renamed a key, which needs the projection in apps/worker/src/crons/discovery/asset-policy.ts updated. cross-check-gap means the feed disagrees with live exchangeInfo in bulk, which a stale feed causes and often clears on its own. empty-admission-map means this worker has no exchangeInfo cached, which the exchange-info-refresh cron repairs. product-feed-unreadable means the feed answered with something that is not this catalogue at all — not JSON, the wrong shape, or implausibly large — which is again a change to chase upstream. NOTE: product-feed-unreachable is different from the others. It means the fetch never got an answer (timeout, refused connection, error page), and a single one may already have healed: the rule holds for 25 hours after the last abort, so it can still be firing over a fault that is gone. Confirm before chasing it — open the profile page and check whether the asset-policy finding is still there, and whether discovery has rotated since. If it has, wait for the alert to resolve; if the finding is still open, the endpoint or this worker's egress is genuinely unreachable."

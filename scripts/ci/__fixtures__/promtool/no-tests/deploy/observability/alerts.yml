@@ -1,0 +1,5 @@
+groups:
+  - name: fixture.primary
+    rules:
+      - alert: PrimaryValid
+        expr: up == 0

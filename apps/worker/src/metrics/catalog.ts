@@ -388,7 +388,7 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
   strategy_metric_total: {
     kind: 'counter',
     help: 'Strategy-emitted metric entries drained from each tick, by strategy and entry name. Event-counted: every entry increments once per occurrence, never once per tick spent in the state it describes, so a rate is a rate of things happening and not a measure of how long a condition has held.',
-    labelNames: ['strategy', 'name', 'profileId', 'symbol', 'reason'],
+    labelNames: ['strategy', 'name', 'profileId', 'symbol', 'reason', 'side'],
   },
   // A self-rescheduling cron that overruns its period re-arms at delay 0, which is byte-identical to a healthy fast loop from outside: same queue depth, same completed jobs, same cron-status row. One sweep therefore ran for eight hours against a fifteen minute cadence and emitted nothing. Labelled by cron because the remedy is per cron, and a single unlabelled number could not say which one is late.
   cron_overrun_total: {
