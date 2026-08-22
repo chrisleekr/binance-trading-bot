@@ -32,8 +32,11 @@ import { migrate } from '../src/migrate.js';
 // on it so the partial-migration sequence starts from an empty schema). Skipped
 // in the no-Docker unit lane.
 
-const HAS_INFRA =
-  process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['DATABASE_TEST_URL']);
+// `ROOT_HEAP_DATABASE_TEST_URL` names the pre-2.28.0 server this fixture needs, which CI runs as a SECOND service beside the deployed one. Falling back to `DATABASE_TEST_URL` keeps a single-server developer setup working; on a current server the seed check below fails with the version it found rather than a null-constraint error from the next migration.
+const ROOT_HEAP_TEST_URL =
+  process.env['ROOT_HEAP_DATABASE_TEST_URL'] ?? process.env['DATABASE_TEST_URL'];
+
+const HAS_INFRA = process.env['TESTCONTAINERS'] === '1' || Boolean(ROOT_HEAP_TEST_URL);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = resolve(HERE, '..', 'migrations');
@@ -155,7 +158,8 @@ describe.skipIf(!HAS_INFRA)('action_logs root-heap drain', () => {
       throw new Error(
         `could not strand a row in the action_logs root heap on timescaledb ${rows[0]?.v ?? 'unknown'} ` +
           `(only action_logs = ${seeded.strandedBefore}). Servers from 2.28.0 discard rows inserted ` +
-          `while timescaledb.restoring is on, so this fixture needs the pinned pre-2.28.0 legacy image.`,
+          `while timescaledb.restoring is on, so this fixture needs the pinned pre-2.28.0 legacy image ` +
+          `that ROOT_HEAP_DATABASE_TEST_URL points at.`,
       );
     }
 
@@ -177,7 +181,7 @@ describe.skipIf(!HAS_INFRA)('action_logs root-heap drain', () => {
       baseUrl = pg.databaseUrl;
       stopContainer = pg.stop;
     } else {
-      baseUrl = process.env['DATABASE_TEST_URL'] as string;
+      baseUrl = ROOT_HEAP_TEST_URL as string;
     }
   }, 180_000);
 

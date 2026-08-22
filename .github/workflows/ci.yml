@@ -247,10 +247,8 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       postgres:
-        # TimescaleDB 2.27.1 is retained only for the action_logs root-heap migration fixture. The runtime and ordinary Testcontainers pin can move independently.
-        # Through 2.27.x a row inserted while `timescaledb.restoring` is on stays in the parent heap; from 2.28.0 it is discarded, so a newer server cannot build the historical failure fixture.
-        # Keep this reference identical to the GitLab db-isolation service and `ROOT_HEAP_MIGRATION_POSTGRES_IMAGE`; the pin test enforces all three.
-        image: timescale/timescaledb:2.27.1-pg17@sha256:6e4b469dee0395a8a6d8c818384b0226a749997a29a312f314413f98e4161f82
+        # The DEPLOYED server, identical to deploy/compose/docker-compose.prod.yml and the Testcontainers runtime pin. This lane replays every migration in packages/db, so it has to run the version that actually ships; a migration suite pointed anywhere else validates a database nobody runs.
+        image: timescale/timescaledb:2.29.1-pg17@sha256:981e3016a2810fec47515e3828ad70ae97b84f4c9ef63d032180b54f61566fd6
         env:
           POSTGRES_DB: binance_trading_bot_test
           POSTGRES_USER: postgres
@@ -259,9 +257,22 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
+      # A SECOND server, for the one suite that cannot run on the deployed one. Through 2.27.x a row inserted while `timescaledb.restoring` is on stays in the parent heap; from 2.28.0 it is discarded, so the action_logs root-heap fixture cannot be built at all on a current server. Scoping the old version to its own service is what keeps that single historical fixture from holding the whole migration lane back — the reason this is a second service and not a downgrade of the first.
+      # Keep identical to the GitLab legacy-postgres service and `ROOT_HEAP_MIGRATION_POSTGRES_IMAGE`; the pin test enforces all three.
+      legacy-postgres:
+        image: timescale/timescaledb:2.27.1-pg17@sha256:6e4b469dee0395a8a6d8c818384b0226a749997a29a312f314413f98e4161f82
+        env:
+          POSTGRES_DB: binance_trading_bot_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d binance_trading_bot_test" --health-interval 5s --health-timeout 3s --health-retries 10
 
     env:
       DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5432/binance_trading_bot_test
+      ROOT_HEAP_DATABASE_TEST_URL: postgres://postgres:postgres@localhost:5433/binance_trading_bot_test
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2

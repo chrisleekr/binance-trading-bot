@@ -33,7 +33,7 @@ jobs:
           fetch-depth: 0 # mkdocs-git-revision-date needs full history
 
       # Pinned to a full version: astral-sh/setup-uv stopped publishing the
-      # moving `vN` major tag after v7, so `@v8`/`@v9` do not resolve.
+      # moving `vN` major tag after v7, so no `@vN` major tag resolves.
       - uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true

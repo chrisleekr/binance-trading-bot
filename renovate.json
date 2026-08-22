@@ -45,10 +45,10 @@
       "semanticCommitType": "chore"
     },
     {
-      "description": "The db-isolation services stay on TimescaleDB 2.27.1 because the root-heap migration fixture cannot be created on 2.28.0 or later. Production Compose and the Testcontainers runtime pin still update together through the custom manager below.",
+      "description": "The legacy root-heap migration fixture stays below TimescaleDB 2.28.0, which is where a row inserted under `timescaledb.restoring` stops reaching the parent heap and the fixture can no longer be built. Matched on the 2.27.x value rather than on a file, because the db-isolation lanes now declare the deployed server AND this fixture in one file and only the fixture is held. Expressed as `allowedVersions` rather than `enabled: false` so Renovate keeps resolving the image and the hold stays visible on its dashboard: no automated advisory check covers a held Docker image here, since the nightly `bun audit` backstop reads the lockfile and sees npm packages only. This pin sits inside the affected range of GHSA-hcfx-29v5-2rcw (2.7.0 through 2.29.0); accepted because these are CI-only service containers with no untrusted input, and retiring the fixture is what removes the exposure.",
       "matchPackageNames": ["timescale/timescaledb"],
-      "matchFileNames": [".github/workflows/ci.yml", ".gitlab-ci.yml"],
-      "enabled": false
+      "matchCurrentValue": "/^2\\.27\\./",
+      "allowedVersions": "<2.28.0"
     },
     {
       "description": "BullMQ >= 5.58.7 rejects ':' in custom job ids. The worker's single-execution guarantee is jobId coalescing over colon-delimited keys (tick:<profileId>:<symbol>, backtest:<runId>), and the repo runs no distributed locks, so adopting a newer BullMQ means redesigning that key scheme first. Verified: 5.58.6 passes the worker integration suite, 5.58.7+ fails it.",

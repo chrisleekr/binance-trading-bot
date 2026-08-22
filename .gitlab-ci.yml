@@ -243,16 +243,19 @@ db-isolation:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
   services:
-    # TimescaleDB 2.27.1 is retained only for the action_logs root-heap migration fixture. The runtime and ordinary Testcontainers pin can move independently.
-    # Through 2.27.x a row inserted while `timescaledb.restoring` is on stays in the parent heap; from 2.28.0 it is discarded, so a newer server cannot build the historical failure fixture.
-    # Keep this reference identical to the GitHub db-isolation service and `ROOT_HEAP_MIGRATION_POSTGRES_IMAGE`; the pin test enforces all three.
-    - name: timescale/timescaledb:2.27.1-pg17@sha256:6e4b469dee0395a8a6d8c818384b0226a749997a29a312f314413f98e4161f82
+    # The DEPLOYED server, identical to deploy/compose/docker-compose.prod.yml and the Testcontainers runtime pin. This lane replays every migration in packages/db, so it has to run the version that actually ships; a migration suite pointed anywhere else validates a database nobody runs.
+    - name: timescale/timescaledb:2.29.1-pg17@sha256:981e3016a2810fec47515e3828ad70ae97b84f4c9ef63d032180b54f61566fd6
       alias: postgres
+    # A SECOND server, for the one suite that cannot run on the deployed one. Through 2.27.x a row inserted while `timescaledb.restoring` is on stays in the parent heap; from 2.28.0 it is discarded, so the action_logs root-heap fixture cannot be built at all on a current server. Scoping the old version to its own service is what keeps that single historical fixture from holding the whole migration lane back — the reason this is a second service and not a downgrade of the first.
+    # Keep identical to the GitHub legacy-postgres service and `ROOT_HEAP_MIGRATION_POSTGRES_IMAGE`; the pin test enforces all three.
+    - name: timescale/timescaledb:2.27.1-pg17@sha256:6e4b469dee0395a8a6d8c818384b0226a749997a29a312f314413f98e4161f82
+      alias: legacy-postgres
   variables:
     POSTGRES_DB: binance_trading_bot_test
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: postgres
     DATABASE_TEST_URL: postgres://postgres:postgres@postgres:5432/binance_trading_bot_test
+    ROOT_HEAP_DATABASE_TEST_URL: postgres://postgres:postgres@legacy-postgres:5432/binance_trading_bot_test
     # The timescaledb image's auto-tune init script reads cgroup limit files
     # (/sys/fs/cgroup/memory.max, cpu.max) that do not exist in this k8s runner
     # pod, so timescaledb-tune panics and aborts Postgres init (the server never
