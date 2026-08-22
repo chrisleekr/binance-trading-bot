@@ -13,14 +13,10 @@ import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testconta
 import { RedisContainer, type StartedRedisContainer } from '@testcontainers/redis';
 
 /**
- * Pinned image references, matched to `deploy/compose/docker-compose.prod.yml` so integration tests exercise the *same* Postgres extension surface (TimescaleDB 2.27.1) and Redis minor that production runs. Floating tags like `latest-pg17` or `8-alpine` would silently pull whatever the registry serves on the day CI runs, which breaks hermetic builds and lets an upstream-shaped regression sneak past local dev.
- *
- * Four references carry this image: the production compose, this pin, and the `db-isolation` service in each CI lane. They move together, and `__tests__/timescaledb-image-pin.test.ts` fails if any drifts. It compares the WHOLE reference, tag included, because Docker resolves by digest: a stale tag beside a correct digest boots the right server and lies to every reader.
- *
- * That test also refuses a reference whose *tag* names TimescaleDB 2.28.0 or later, the release where a row inserted under `timescaledb.restoring` is discarded rather than left in the parent heap, so the migration lane's root-heap fixture can no longer be built. Crossing that line means splitting the pins, not carrying all four across. Nothing offline resolves a digest, so the tag check is a proxy: swap a digest without its tag and only `action-logs-root-heap-migration` notices, at runtime.
+ * The runtime pin matches `deploy/compose/docker-compose.prod.yml` so ordinary integration tests exercise the deployed Postgres extension surface. Floating tags would silently change that surface between runs.
  */
 const POSTGRES_IMAGE =
-  'timescale/timescaledb:2.27.1-pg17@sha256:6e4b469dee0395a8a6d8c818384b0226a749997a29a312f314413f98e4161f82';
+  'timescale/timescaledb:2.29.1-pg17@sha256:981e3016a2810fec47515e3828ad70ae97b84f4c9ef63d032180b54f61566fd6';
 const REDIS_IMAGE = 'redis@sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2';
 
 /**
@@ -37,18 +33,9 @@ export interface PostgresFixture {
 }
 
 /**
- * A Postgres endpoint for an integration suite. When `TESTCONTAINERS=1` is set
- * this boots a fresh throwaway container (the default user/db match what
- * `scripts/setup.ts` writes to the local `.env`, so a test that calls
- * `bun run db:migrate` against the returned URL applies the full migration set
- * without further config). Otherwise, when `DATABASE_TEST_URL` names a
- * pre-existing endpoint, that endpoint is reused with no container — the path
- * CI takes, where a service container already provides Postgres and spinning a
- * nested container would need a Docker socket the job deliberately lacks. The
- * suite owns its own determinism there (migrate + truncate its slice).
+ * Returns a Postgres endpoint for an integration suite. `TESTCONTAINERS=1` boots the requested pinned image, while `DATABASE_TEST_URL` reuses the service container supplied by CI. `TESTCONTAINERS=1` wins when both are set so the wrapper's smoke test exercises real provisioning.
  *
- * `TESTCONTAINERS=1` wins over `DATABASE_TEST_URL` when both are set so the
- * wrapper's own smoke test always exercises real provisioning.
+ * @returns The connection string, optional provisioned container, and cleanup hook owned by the caller.
  */
 export const withPostgres = async (): Promise<PostgresFixture> => {
   const reuseUrl = process.env['DATABASE_TEST_URL'];

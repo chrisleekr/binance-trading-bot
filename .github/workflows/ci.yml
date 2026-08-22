@@ -247,11 +247,8 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       postgres:
-        # TimescaleDB 2.27.1, the same reference deploy/compose/docker-compose.prod.yml and packages/testcontainers pin, not the other jobs' moving `latest-pg17`.
-        # This job replays migrations, and the hypertable root-heap behaviour they have to survive is version-specific: through 2.27.x a row inserted while `timescaledb.restoring` is on stays in the parent heap, from 2.28.0 it is discarded. A migration suite pointed at `latest` validates a database nobody runs and cannot build that fixture at all.
-        # One reference across every lane so this job, its twin in .gitlab-ci.yml, and the hermetic testcontainers lane cannot disagree. Moving it means moving all four together, and only to a version below 2.28.0.
-        # The tag is spelled with its version rather than `latest-pg17` so the reference describes itself: dropping the digest then lands this lane on 2.27.1 rather than on the floating tag the other jobs use, which is already past 2.28.0. Docker resolves by digest, so the version text is documentation and the pin test is what keeps it honest.
-        image: timescale/timescaledb:2.27.1-pg17@sha256:6e4b469dee0395a8a6d8c818384b0226a749997a29a312f314413f98e4161f82
+        # The DEPLOYED server, identical to deploy/compose/docker-compose.prod.yml and the Testcontainers runtime pin; the pin test enforces all three. This lane replays every migration in packages/db, so it has to run the version that actually ships — a migration suite pointed anywhere else validates a database nobody runs.
+        image: timescale/timescaledb:2.29.1-pg17@sha256:981e3016a2810fec47515e3828ad70ae97b84f4c9ef63d032180b54f61566fd6
         env:
           POSTGRES_DB: binance_trading_bot_test
           POSTGRES_USER: postgres

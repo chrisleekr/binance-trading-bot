@@ -74,6 +74,17 @@
       "depNameTemplate": "oven/bun",
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "TimescaleDB runtime pinned in the Testcontainers wrapper. This copy moves with production Compose, so the suites migrate the server the operator actually deploys.",
+      "managerFilePatterns": ["/^packages/testcontainers/src/index\\.ts$/"],
+      "matchStrings": [
+        "const POSTGRES_IMAGE\\s*=\\s*['\"]timescale/timescaledb:(?<currentValue>[^@'\"]+)@(?<currentDigest>sha256:[0-9a-f]{64})['\"]"
+      ],
+      "depNameTemplate": "timescale/timescaledb",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
     }
   ]
 }
