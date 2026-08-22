@@ -104,8 +104,8 @@ const buildStrategy = (metrics?: readonly unknown[]): Strategy =>
       logs: [],
       metrics: metrics ?? [
         metric('momentum.entry'),
-        metric('momentum.skip', { side: 'BUY', reason: 'cooldown' }),
-        metric('momentum.skip', { side: 'BUY', reason: 'cooldown' }),
+        metric('momentum.skip', { side: 'exit', reason: 'cooldown' }),
+        metric('momentum.skip', { side: 'exit', reason: 'cooldown' }),
         metric('tt_risk_cap_veto', { symbol: 'WRONGUSDT', cap: 'per-symbol' }),
       ],
     }),
@@ -222,10 +222,12 @@ describe('tick handler — strategy metric drain', () => {
     expect(sample).not.toContain('cap=');
   });
 
-  it('promotes side onto the series so a rate can be split by order direction', async () => {
-    // Without `side` declared, every BUY-path and SELL-path emit of one entry name collapses onto a single series. That reads as one number whose movement cannot be attributed to a direction, which is exactly the question asked of these counters first — "is it refusing to buy, or refusing to sell?" — and the answer is not recoverable after the fact. The drain already spreads the entry's own tags, so the catalogue's `labelNames` is the only thing gating it.
+  it('promotes side onto the series so a rate can be split by entry and exit path', async () => {
+    // Without `side` declared, the entry-path and exit-path emits of one entry name collapse onto a single series. That reads as one number whose movement cannot be attributed to a path, which is exactly the question asked of these counters first — "is it refusing to open a position, or refusing to close one?" — and the answer is not recoverable after the fact. The drain already spreads the entry's own tags, so the catalogue's `labelNames` is the only thing gating it.
+    //
+    // `exit` rather than an arbitrary string because `MomentumExitBlockedByFilters` selects on exactly this label value. The projection under test is value-agnostic and would promote any string, but a fixture that emits one no producer can reach would leave that alert's selector unexercised and would contradict `skipMetric`, whose union is `entry | exit | sell`.
     const body = await run();
-    expect(sampleFor(body, 'momentum.skip')).toContain('side="BUY"');
+    expect(sampleFor(body, 'momentum.skip')).toContain('side="exit"');
   });
 
   it('stamps side unknown when the entry carries none', async () => {

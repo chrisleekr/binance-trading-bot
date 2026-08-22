@@ -403,11 +403,30 @@ groups:
         # persistent fault while still catching a symbol that cannot be priced at all.
         #
         # `for: 15m` is scrape-gap tolerance on top of that, not the anti-transient guard.
+        #
+        # THE SECOND ARM IS RESET AWARENESS, and it is load-bearing on every rule built from
+        # this offset shape. prom-client children die with the process, but the TSDB series
+        # identity survives, so after a worker restart the subtrahend is the PRE-restart
+        # level while the left term is the fresh child's. The difference goes negative and
+        # the rule goes silent for the whole offset window — which a routine deploy lands
+        # inside. Plain vector arithmetic has none of the counter-reset handling `increase()`
+        # would bring, and `increase()` is unusable here for the birth-write reason above.
+        #
+        # `X offset W > X` IS the restart signature: an in-process counter only ever
+        # increments, so the historical level can exceed the current one no other way. The
+        # threshold is repeated inside the arm so a restart cannot smuggle in a lower bar,
+        # and the post-restart child's own value is the honest count of passes since. Pinned
+        # by the reset cases in `tests/alerts.test.yml`, which fail without this arm.
         expr: |
           sum by (profileId, symbol, reason) (reconcile_value_bound_disarmed_total)
             - (sum by (profileId, symbol, reason) (reconcile_value_bound_disarmed_total offset 2h)
                or sum by (profileId, symbol, reason) (reconcile_value_bound_disarmed_total) * 0)
             > 2
+          or (
+            sum by (profileId, symbol, reason) (reconcile_value_bound_disarmed_total) > 2
+            and sum by (profileId, symbol, reason) (reconcile_value_bound_disarmed_total offset 2h)
+                > sum by (profileId, symbol, reason) (reconcile_value_bound_disarmed_total)
+          )
         for: 15m
         labels:
           severity: warning
@@ -447,11 +466,20 @@ groups:
         # on every tick because the trail trigger is a level, not an edge.
         #
         # `for: 10m` is scrape-gap tolerance, not the anti-transient guard — `> 1` is that.
+        #
+        # Reset-aware second arm, for the reason `ReconcileValueBoundDisarmed` sets out. This
+        # is the shortest offset window of the three, so it is the one a deploy is most
+        # likely to sit inside.
         expr: |
           sum by (profileId, symbol) (strategy_metric_total{name="momentum.skip", side="exit", reason=~"min-qty|min-notional"})
             - (sum by (profileId, symbol) (strategy_metric_total{name="momentum.skip", side="exit", reason=~"min-qty|min-notional"} offset 1h)
                or sum by (profileId, symbol) (strategy_metric_total{name="momentum.skip", side="exit", reason=~"min-qty|min-notional"}) * 0)
             > 1
+          or (
+            sum by (profileId, symbol) (strategy_metric_total{name="momentum.skip", side="exit", reason=~"min-qty|min-notional"}) > 1
+            and sum by (profileId, symbol) (strategy_metric_total{name="momentum.skip", side="exit", reason=~"min-qty|min-notional"} offset 1h)
+                > sum by (profileId, symbol) (strategy_metric_total{name="momentum.skip", side="exit", reason=~"min-qty|min-notional"})
+          )
         for: 10m
         labels:
           severity: warning
@@ -507,11 +535,20 @@ groups:
         # whether it already cleared.
         #
         # `for: 1h`, so a redeploy that aborts one cycle mid-rollout does not page.
+        #
+        # Reset-aware second arm, for the reason `ReconcileValueBoundDisarmed` sets out. The
+        # 25-hour window makes this the worst case of the three: without the arm, one restart
+        # buries the next abort for a full day.
         expr: |
           sum by (profileId, cause) (discovery_asset_policy_abort_total)
             - (sum by (profileId, cause) (discovery_asset_policy_abort_total offset 25h)
                or sum by (profileId, cause) (discovery_asset_policy_abort_total) * 0)
             > 0
+          or (
+            sum by (profileId, cause) (discovery_asset_policy_abort_total) > 0
+            and sum by (profileId, cause) (discovery_asset_policy_abort_total offset 25h)
+                > sum by (profileId, cause) (discovery_asset_policy_abort_total)
+          )
         for: 1h
         labels:
           severity: warning
