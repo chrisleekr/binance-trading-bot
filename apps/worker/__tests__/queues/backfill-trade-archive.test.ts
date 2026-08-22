@@ -398,6 +398,7 @@ describe('handleBackfillTradeArchive', () => {
     };
     expect(ok.exitsAttributed).toBe(0);
     expect(ok.exitsUnattributed).toEqual({
+      noClosingSummary: 0,
       noCandidate: 0,
       ambiguousIdentity: 1,
       notTerminalSell: 0,

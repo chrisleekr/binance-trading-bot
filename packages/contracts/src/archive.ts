@@ -226,9 +226,7 @@ function bucketMetrics(b: RollupBucket): {
 }
 
 /**
- * Group archived trades by `(quoteAsset, exitIntent)`. The exit intent is
- * derived per row via {@link deriveExitIntent} (the intent of the SELL that closed the cycle, i.e. the one with the greatest `closedAt`), so
- * callers pass the raw archived `orders` and the rollup owns the derivation.
+ * Group archived trades by `(quoteAsset, exitIntent)`. The exit intent is derived per row via {@link deriveExitIntent} (the intent of the SELL that closed the cycle, i.e. the one with the greatest `closedAt`), so callers pass the raw archived `orders` and the rollup owns the derivation.
  */
 export function rollupByExitIntent(items: readonly ArchiveRollupItem[]): ByIntentRollup[] {
   return accumulateBuckets(items, (item) => deriveExitIntent(item.orders)).map((b) => ({
@@ -319,10 +317,7 @@ export const TradeArchiveResponse = z.object({
   netProfit: DecimalString.default(asDecimalString('0')),
   profit: DecimalString,
   profitPercent: DecimalString,
-  // Why the cycle closed: the intent of the SELL that closed it, i.e. the one with the greatest `closedAt`, derived at read
-  // time from the archived `orders` (no stored column). `'unknown'` for rows
-  // with no SELL or a missing intent (e.g. backfilled history). `.default`
-  // keeps pre-existing response producers/consumers from breaking.
+  // Why the cycle closed: the intent of the SELL that closed it, i.e. the one with the greatest `closedAt`, derived at read time from the archived `orders` (no stored column). `'unknown'` for rows with no SELL or a missing intent (e.g. backfilled history). `.default` keeps pre-existing response producers/consumers from breaking.
   exitIntent: z.string().default('unknown'),
   // How many SELLs in this cycle had no cost basis. Those contribute nothing to
   // `profit`, so a positive count means `profit`/`netProfit`/`profitPercent`

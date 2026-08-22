@@ -6,10 +6,7 @@ import { accountRepo, profileRepo } from '../../src/repo/index.js';
 import type { ProfileScope } from '../../src/repo/_scoped.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from '../isolation/_helpers.js';
 
-// The empty-list short-circuit is the one branch reachable without a database,
-// so it gets CI-enforced coverage here (the DB-backed cases below gate on
-// DATABASE_TEST_URL, which CI never sets). A throwing `db` proves none of the
-// three functions issues a query for an empty id/symbol list.
+// The empty-list short-circuit is the one branch reachable without a database, so it gets CI-enforced coverage here (the DB-backed cases below gate on DATABASE_TEST_URL, which CI never sets). A throwing `db` proves none of the three functions issues a query for an empty id/symbol list.
 describe('batched per-symbol repo reads — empty short-circuit (no DB)', () => {
   const noQueryScope = {
     db: {

@@ -51,6 +51,7 @@ const PAGE = 1000;
 /** Why one cycle's closing exit stayed `backfill`, or `attributed` when it did not. Counted per run so a recovery that restores nothing says WHICH proof failed instead of going quiet. */
 type AttributionOutcome =
   | 'attributed'
+  | 'no-closing-summary'
   | 'no-candidate'
   | 'ambiguous-identity'
   | 'not-terminal-sell'
@@ -90,7 +91,8 @@ const attributeRecoveredClosingExit = (
     (order) => order.side === 'SELL' && order.binanceOrderId === roundTrip.closingBinanceOrderId,
   );
   if (closingOrder === undefined) {
-    return { orders: roundTrip.orders, outcome: 'no-candidate' };
+    // Unreachable while `buildRoundTrip` holds: it emits one summary per order id in the cycle and takes `closingBinanceOrderId` from the closing fill, which is always the SELL that flattened the position. Kept, but under its own name: folding it into `no-candidate` would report a broken reconstruction invariant as the benign "history predates the local rows" case, which is the one distinction this tally exists to make.
+    return { orders: roundTrip.orders, outcome: 'no-closing-summary' };
   }
 
   const [candidate, ...rest] = candidatesById.get(roundTrip.closingBinanceOrderId) ?? [];
@@ -325,6 +327,7 @@ export const handleBackfillTradeArchive = async (
   let inserted = 0;
   const attribution: Record<AttributionOutcome, number> = {
     attributed: 0,
+    'no-closing-summary': 0,
     'no-candidate': 0,
     'ambiguous-identity': 0,
     'not-terminal-sell': 0,
@@ -388,6 +391,7 @@ export const handleBackfillTradeArchive = async (
       // Without these an operator cannot tell "no local row survived the era" from "the rows were there and failed the proof", which is the difference between expected data loss and a bug.
       exitsAttributed: attribution.attributed,
       exitsUnattributed: {
+        noClosingSummary: attribution['no-closing-summary'],
         noCandidate: attribution['no-candidate'],
         ambiguousIdentity: attribution['ambiguous-identity'],
         notTerminalSell: attribution['not-terminal-sell'],

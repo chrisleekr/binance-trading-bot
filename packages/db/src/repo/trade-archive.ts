@@ -82,14 +82,7 @@ export async function listForProfilePaginated(
 }
 
 /**
- * Every archive row for the profile in `[from, ∞)` (or all-time when `from`
- * is `null`), projected to just the columns the archive rollups need:
- * `quoteAsset`, `source`, `profit`, and the archived `orders` (the by-intent
- * rollup derives each row's exit intent from the SELL that closed the cycle, i.e. the one with the greatest `closedAt`; the by-source
- * rollup groups on `source`). Unpaginated on purpose: the rollup is
- * period-scoped (the whole window, not the visible page), and a profile's
- * archive is small enough to read in full. The caller owns the period
- * boundary, matching {@link listForProfilePaginated}.
+ * Every archive row for the profile in `[from, ∞)` (or all-time when `from` is `null`), projected to just the columns the archive rollups need: `quoteAsset`, `source`, `profit`, and the archived `orders` (the by-intent rollup derives each row's exit intent from the SELL that closed the cycle, i.e. the one with the greatest `closedAt`; the by-source rollup groups on `source`). Unpaginated on purpose: the rollup is period-scoped (the whole window, not the visible page), and a profile's archive is small enough to read in full. The caller owns the period boundary, matching {@link listForProfilePaginated}.
  */
 export async function listForProfileInRange(
   scope: ProfileScope,
