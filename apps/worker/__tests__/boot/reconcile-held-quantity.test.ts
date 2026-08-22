@@ -4,6 +4,7 @@ import type { Redis } from 'ioredis';
 
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
 import type { ProfileScope } from '@app/db';
+import { Decimal } from '@app/money';
 
 // `runHeldQuantityReconciliation` resolves `profileRepo` from `@app/db`.
 // Mock at module level so the orchestrator test can drive scope methods
@@ -54,8 +55,10 @@ import {
   ensureCostBasisFromTrades,
   migrateProfileIfNeeded,
   reconcileHeldQuantity,
+  readTickerPrice,
   reconcileHeldQuantityForTarget,
   reconcileSymbol,
+  resolveWalletFields,
   runHeldQuantityReconciliation,
   type BinanceAccountClient,
   type MigrationStrategy,
@@ -64,9 +67,15 @@ import {
   type ReconcileWalletDeps,
   type StrategyLookup,
 } from '../../src/boot/reconcile-held-quantity.js';
+import type { MyTradeDto, PriceTickerDto } from '@app/binance';
+import { GLOBAL_KEYS } from '@app/db';
 import { buildSymbolInfoKey } from '../../src/executor/redis-namespace.js';
-import { createChainByKey } from '../../src/lib/chain-by-key.js';
-import { trailingTradePositionAdapter } from '@app/strategy-trailing-trade';
+import { createChainByKey, type ChainByKey } from '../../src/lib/chain-by-key.js';
+import type { MetricsSink } from '../../src/metrics/catalog.js';
+import { TTStateSchema, trailingTradePositionAdapter } from '@app/strategy-trailing-trade';
+
+// These cases assert reconcile ACTIONS, not counters. The sink is required by the dep bag so a construction site cannot forget it, and a no-op satisfies that requirement without pinning anything here; the counter assertions live in the value-bound suite.
+const noopMetrics = (): MetricsSink => ({ record: () => undefined, forget: () => undefined });
 
 const USER_ID = 'u1' as unknown as UserId;
 const ACCOUNT_ID = 'a1' as unknown as AccountId;
@@ -83,6 +92,9 @@ const stubStrategies = (strategy: MigrationStrategy | null): StrategyLookup => (
   get: () => (strategy ? { ...strategy, position: trailingTradePositionAdapter } : undefined),
 });
 
+/** The `state` a persister hands back is `unknown` by contract. The position adapter is the only thing that can read that body, so its own parameter type is where a test narrows it. */
+type TTStateBody = Parameters<typeof trailingTradePositionAdapter.readPosition>[0];
+
 const fakeLogger = {
   info: vi.fn(),
   warn: vi.fn(),
@@ -93,20 +105,218 @@ const fakeLogger = {
 describe('reconcileHeldQuantity (pure core)', () => {
   it('no-ops when state and wallet agree within stepSize', () => {
     const r = reconcileHeldQuantity({
+      minNotional: null,
+      referencePrice: null,
       heldQuantity: '0.0010',
       walletFree: '0.0010',
       walletLocked: '0',
+      unreservedWalletTotal: '0.001',
       stepSize: '0.0001',
     });
     expect(r.action).toBe('no-op');
     expect(r.nextHeldQuantity).toBe('0.0010');
   });
 
+  it('does NOT seed an untracked balance worth less than one minimum order', () => {
+    // The live ENAUSDT strand. Without this the fill fold flattens the position and the very next reconcile pass reads the same untradeable 0.01184 ENA off the wallet and re-creates it, so the symbol never leaves the dashboard.
+    const r = reconcileHeldQuantity({
+      heldQuantity: null,
+      walletFree: '0.01184',
+      walletLocked: '0',
+      unreservedWalletTotal: '0.01184',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1094',
+    });
+    expect(r.action).toBe('no-op');
+    expect(r.nextHeldQuantity).toBeNull();
+  });
+
+  it('still seeds an untracked balance worth at least one minimum order', () => {
+    const r = reconcileHeldQuantity({
+      heldQuantity: null,
+      walletFree: '421.30',
+      walletLocked: '0',
+      unreservedWalletTotal: '421.3',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1094',
+    });
+    expect(r.action).toBe('seed-from-wallet');
+    expect(r.nextHeldQuantity).toBe('421.3');
+  });
+
+  it('seeds a sub-notional balance when no reference price is available', () => {
+    // Guessing a price could orphan a real holding, so an absent ticker restores the increment-only behaviour rather than assuming dust.
+    const r = reconcileHeldQuantity({
+      heldQuantity: null,
+      walletFree: '0.01184',
+      walletLocked: '0',
+      unreservedWalletTotal: '0.01184',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: null,
+    });
+    expect(r.action).toBe('seed-from-wallet');
+  });
+
+  it('does NOT flatten a deliberate partial remainder that merely sits below minNotional', () => {
+    // `rebalance` trims to a target weight on purpose; 4 of a prior 12 is a holding, not residue, even though it is under the 5 floor.
+    const r = reconcileHeldQuantity({
+      heldQuantity: '12',
+      walletFree: '4',
+      walletLocked: '0',
+      unreservedWalletTotal: '4',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '1',
+    });
+    expect(r.action).toBe('adopt-wallet-smaller');
+    expect(r.nextHeldQuantity).toBe('4');
+  });
+
+  it('keeps adopting a crumb when no reference price is available (value bound skipped)', () => {
+    // Guessing a price could flatten a real position, so an absent ticker restores the increment-only behaviour rather than assuming dust.
+    const r = reconcileHeldQuantity({
+      heldQuantity: '420.88184',
+      walletFree: '0.01184',
+      walletLocked: '0',
+      unreservedWalletTotal: '0.01184',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: null,
+    });
+    expect(r.action).toBe('adopt-wallet-smaller');
+    expect(r.nextHeldQuantity).toBe('0.01184');
+  });
+
+  it('flattens rather than adopting a wallet crumb below minNotional', () => {
+    // Deliberately NOT the converged flatten. The tracked 420.88 is worth USD 46, so the CLAIM is not valueless and the destructive branch stands down — which is what protects a position whose BUY filled after the once-per-profile `getAccount` snapshot was taken. This path converges the quantity through `adopt-wallet-smaller` and `isUnsellableDust`, which nulls the quantity while leaving the cost-basis row alone for the prune to judge.
+    const r = reconcileHeldQuantity({
+      heldQuantity: '420.88184',
+      walletFree: '0.01184',
+      walletLocked: '0',
+      unreservedWalletTotal: '0.01184',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1094',
+    });
+    expect(r.action).toBe('adopt-wallet-smaller');
+    expect(r.nextHeldQuantity).toBeNull();
+  });
+
+  it('flattens a converged strand where the claim is as valueless as the wallet', () => {
+    // The live shape once the strand has converged: held and wallet agree exactly, both worth USD 0.0013 against a USD 5 floor. This is the case the stale-snapshot guard must still let through, so it is pinned separately from the drifted case above.
+    const r = reconcileHeldQuantity({
+      heldQuantity: '0.01184',
+      walletFree: '0.01184',
+      walletLocked: '0',
+      unreservedWalletTotal: '0.01184',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1094',
+    });
+    expect(r.action).toBe('flatten-sub-notional-dust');
+    expect(r.nextHeldQuantity).toBeNull();
+  });
+
+  it('flattens a corrupt heldQuantity over a valueless wallet (a corrupt claim is no claim)', () => {
+    const r = reconcileHeldQuantity({
+      heldQuantity: 'not-a-number',
+      walletFree: '0.01184',
+      walletLocked: '0',
+      unreservedWalletTotal: '0.01184',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1094',
+    });
+    expect(r.action).toBe('flatten-sub-notional-dust');
+    expect(r.nextHeldQuantity).toBeNull();
+  });
+
+  it('does not flatten a freshly-bought position against a stale dust snapshot', () => {
+    // The race this MR would otherwise introduce: `getAccount` is read once per profile, outside the per-symbol loop, so by the Nth symbol the balance is several REST round trips old. A BUY that filled in that window leaves a fresh 420-ENA claim over a stale dust wallet. Deleting its cost basis would be strictly worse than the pre-MR behaviour, so the claim's own value has to clear the bar too.
+    const r = reconcileHeldQuantity({
+      heldQuantity: '420',
+      walletFree: '0.01184',
+      walletLocked: '0',
+      unreservedWalletTotal: '0.01184',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1158',
+    });
+    expect(r.action).toBe('adopt-wallet-smaller');
+  });
+
+  it('seeds a reserved holding whose tradeable surplus alone is sub-notional', () => {
+    // The operator reserves 45 of their 50 ENA, so `walletFree` carries the 5 the strategy may trade, worth USD 0.579. The SEED bar is the full USD 5 floor, unscaled, so those two numbers straddle it and this case discriminates: mis-wire the bound to the surplus and 0.579 < 5 refuses to seed a position backed by USD 5.79 of real coins. The converged FLATTEN cannot be pinned this way — its bar is the 1%-scaled USD 0.05, which 0.579 clears by more than 10x under either wiring — so the deep-reserve cases below carry that half.
+    const r = reconcileHeldQuantity({
+      heldQuantity: null,
+      walletFree: '5',
+      walletLocked: '0',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1158',
+      unreservedWalletTotal: '50',
+    });
+    expect(r.action).toBe('seed-from-wallet');
+    expect(r.nextHeldQuantity).toBe('5');
+  });
+
+  it('does not flatten a position whose whole balance is locked in a resting SELL', () => {
+    // `walletLocked` counts toward the holding: a position with its exit resting on the book reads `free: 0`, and treating that as an empty wallet would delete the cost basis of the very position the order is trying to close.
+    const r = reconcileHeldQuantity({
+      heldQuantity: '50',
+      walletFree: '0',
+      walletLocked: '50',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1158',
+      unreservedWalletTotal: '50',
+    });
+    expect(r.action).toBe('no-op');
+    expect(r.nextHeldQuantity).toBe('50');
+  });
+
+  // The next two cases sit in the DEEP-RESERVE BAND, the only band where threading the pre-reserve total and quietly reading the reserve-adjusted balance disagree. The operator holds 50 ENA worth USD 5.79 and reserves 49.7 of it, leaving 0.3 tradeable and worth USD 0.03474 — under the scaled floor of USD 0.05, so the wrong wiring destroys a real position while the right one keeps it. Every shallower reserve clears that floor by more than 10x and reads identically either way, which is why a case built on a small reserve pins nothing.
+  //
+  // Note the direction these run in. A DROPPED field disarms the bound, so it can only ever be caught by a case that demands a DELETE; a MIS-WIRED field substitutes a smaller number, so it can only be caught by a case that forbids one. Both detectors are needed and neither substitutes for the other.
+  it('seeds a deeply-reserved holding the strategy may only trade a sliver of', () => {
+    const r = reconcileHeldQuantity({
+      heldQuantity: null,
+      walletFree: '0.3',
+      walletLocked: '0',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1158',
+      unreservedWalletTotal: '50',
+    });
+    expect(r.action).toBe('seed-from-wallet');
+    expect(r.nextHeldQuantity).toBe('0.3');
+  });
+
+  it('does not flatten a deeply-reserved position whose tradeable sliver is below the scaled floor', () => {
+    const r = reconcileHeldQuantity({
+      heldQuantity: '0.3',
+      walletFree: '0.3',
+      walletLocked: '0',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1158',
+      unreservedWalletTotal: '50',
+    });
+    expect(r.action).toBe('no-op');
+    expect(r.nextHeldQuantity).toBe('0.3');
+  });
+
   it('no-ops when diff is exactly stepSize (boundary)', () => {
     const r = reconcileHeldQuantity({
+      minNotional: null,
+      referencePrice: null,
       heldQuantity: '0.0011',
       walletFree: '0.0010',
       walletLocked: '0',
+      unreservedWalletTotal: '0.001',
       stepSize: '0.0001',
     });
     expect(r.action).toBe('no-op');
@@ -114,9 +324,12 @@ describe('reconcileHeldQuantity (pure core)', () => {
 
   it('adopts wallet when wallet < heldQuantity by more than stepSize (operator withdrew)', () => {
     const r = reconcileHeldQuantity({
+      minNotional: null,
+      referencePrice: null,
       heldQuantity: '0.0010',
       walletFree: '0.0005',
       walletLocked: '0',
+      unreservedWalletTotal: '0.0005',
       stepSize: '0.0001',
     });
     expect(r.action).toBe('adopt-wallet-smaller');
@@ -125,9 +338,12 @@ describe('reconcileHeldQuantity (pure core)', () => {
 
   it('adopts state when state < wallet by more than stepSize (external deposit)', () => {
     const r = reconcileHeldQuantity({
+      minNotional: null,
+      referencePrice: null,
       heldQuantity: '0.0005',
       walletFree: '0.0020',
       walletLocked: '0',
+      unreservedWalletTotal: '0.002',
       stepSize: '0.0001',
     });
     expect(r.action).toBe('adopt-state-smaller');
@@ -136,9 +352,12 @@ describe('reconcileHeldQuantity (pure core)', () => {
 
   it('counts locked in wallet total', () => {
     const r = reconcileHeldQuantity({
+      minNotional: null,
+      referencePrice: null,
       heldQuantity: '0.0010',
       walletFree: '0.0003',
       walletLocked: '0.0004',
+      unreservedWalletTotal: '0.0007',
       stepSize: '0.0001',
     });
     expect(r.action).toBe('adopt-wallet-smaller');
@@ -147,9 +366,12 @@ describe('reconcileHeldQuantity (pure core)', () => {
 
   it('seeds heldQuantity from wallet when state is null and wallet >= stepSize', () => {
     const r = reconcileHeldQuantity({
+      minNotional: null,
+      referencePrice: null,
       heldQuantity: null,
       walletFree: '0.0050',
       walletLocked: '0',
+      unreservedWalletTotal: '0.005',
       stepSize: '0.0001',
     });
     expect(r.action).toBe('seed-from-wallet');
@@ -158,9 +380,12 @@ describe('reconcileHeldQuantity (pure core)', () => {
 
   it('no-ops when state null and wallet < stepSize (dust)', () => {
     const r = reconcileHeldQuantity({
+      minNotional: null,
+      referencePrice: null,
       heldQuantity: null,
       walletFree: '0.00005',
       walletLocked: '0',
+      unreservedWalletTotal: '0.00005',
       stepSize: '0.0001',
     });
     expect(r.action).toBe('no-op');
@@ -169,9 +394,12 @@ describe('reconcileHeldQuantity (pure core)', () => {
 
   it('treats a corrupt heldQuantity string as a re-seed from wallet', () => {
     const r = reconcileHeldQuantity({
+      minNotional: null,
+      referencePrice: null,
       heldQuantity: 'not-a-number',
       walletFree: '0.0010',
       walletLocked: '0',
+      unreservedWalletTotal: '0.001',
       stepSize: '0.0001',
     });
     expect(r.action).toBe('seed-from-wallet');
@@ -205,8 +433,12 @@ describe('reconcileHeldQuantityForTarget (persist-side wrapper)', () => {
       logger: fakeLogger,
       mutate,
       position: trailingTradePositionAdapter,
+      removeLedgerRow: vi.fn(async () => undefined),
     };
     const action = await reconcileHeldQuantityForTarget(deps, {
+      minNotional: null,
+      referencePrice: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -226,6 +458,40 @@ describe('reconcileHeldQuantityForTarget (persist-side wrapper)', () => {
     expect(projected?.heldQuantity).toBe('0.0005');
   });
 
+  it('flattens sub-notional dust with the fill-adopter full clear and drops the ledger row', async () => {
+    // `setHeldQuantity(null)` would leave `avgEntryPrice` set, and a body holding a cost basis with no quantity is the shape the cost-basis adoption no-ops on forever. The flatten therefore takes `applyFill({kind:'empty'})`, the one primitive that empties both, and deletes the ledger row so the next boot revive cannot rehydrate what was just erased.
+    const inputState = buildState('0.01184');
+    const projections: unknown[] = [];
+    const mutate = vi.fn(async (_sym, mutator) => {
+      projections.push(mutator(inputState));
+    });
+    const removeLedgerRow = vi.fn(async () => undefined);
+    const deps: ReconcileWalletDeps = {
+      logger: fakeLogger,
+      mutate,
+      position: trailingTradePositionAdapter,
+      removeLedgerRow,
+    };
+    const action = await reconcileHeldQuantityForTarget(deps, {
+      userId: 'u1',
+      profileId: 'p1',
+      symbol: 'ENAUSDT',
+      baseAsset: 'ENA',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1158',
+      walletFree: '0.01184',
+      walletLocked: '0',
+      unreservedWalletTotal: '0.01184',
+      state: inputState,
+    });
+
+    expect(action).toBe('flatten-sub-notional-dust');
+    expect(projections).toHaveLength(1);
+    expect(projections[0]).toMatchObject({ heldQuantity: null, avgEntryPrice: null });
+    expect(removeLedgerRow).toHaveBeenCalledWith('u1', 'p1', 'ENAUSDT');
+  });
+
   it('mutator returns null on a non-object live slice (no write)', async () => {
     // Defensive contract: even though the schema gate above filters the
     // snapshot, `mutateSymbolState` can hand the mutator any shape (e.g.
@@ -240,8 +506,12 @@ describe('reconcileHeldQuantityForTarget (persist-side wrapper)', () => {
       logger: fakeLogger,
       mutate,
       position: trailingTradePositionAdapter,
+      removeLedgerRow: vi.fn(async () => undefined),
     };
     await reconcileHeldQuantityForTarget(deps, {
+      minNotional: null,
+      referencePrice: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -259,8 +529,12 @@ describe('reconcileHeldQuantityForTarget (persist-side wrapper)', () => {
       logger: fakeLogger,
       mutate,
       position: trailingTradePositionAdapter,
+      removeLedgerRow: vi.fn(async () => undefined),
     };
     const action = await reconcileHeldQuantityForTarget(deps, {
+      minNotional: null,
+      referencePrice: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -281,8 +555,12 @@ describe('reconcileHeldQuantityForTarget (persist-side wrapper)', () => {
       logger: { ...fakeLogger, info } as unknown as Logger,
       mutate,
       position: trailingTradePositionAdapter,
+      removeLedgerRow: vi.fn(async () => undefined),
     };
     const action = await reconcileHeldQuantityForTarget(deps, {
+      minNotional: null,
+      referencePrice: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -307,8 +585,12 @@ describe('reconcileHeldQuantityForTarget (persist-side wrapper)', () => {
       logger: { ...fakeLogger, warn } as unknown as Logger,
       mutate,
       position: trailingTradePositionAdapter,
+      removeLedgerRow: vi.fn(async () => undefined),
     };
     const action = await reconcileHeldQuantityForTarget(deps, {
+      minNotional: null,
+      referencePrice: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -336,8 +618,12 @@ describe('reconcileHeldQuantityForTarget (persist-side wrapper)', () => {
       logger: { ...fakeLogger, info } as unknown as Logger,
       mutate,
       position: trailingTradePositionAdapter,
+      removeLedgerRow: vi.fn(async () => undefined),
     };
     const action = await reconcileHeldQuantityForTarget(deps, {
+      minNotional: null,
+      referencePrice: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -371,7 +657,7 @@ describe('runHeldQuantityReconciliation (orchestrator wiring — #262 prune)', (
   const makeRedis = (symbolInfo: Record<string, unknown>): Redis =>
     ({
       get: vi.fn(async (key: string) => {
-        if (key === buildSymbolInfoKey('BTCUSDT')) {
+        if (key === buildSymbolInfoKey('BTCUSDT', 'live')) {
           return JSON.stringify(symbolInfo);
         }
         return null;
@@ -428,6 +714,8 @@ describe('runHeldQuantityReconciliation (orchestrator wiring — #262 prune)', (
         accountId: ACCOUNT_ID,
         profileId: PROFILE_ID,
         symbols: ['BTCUSDT'],
+        candleInterval: '1h',
+        technicalsIntervals: [],
       } as Parameters<
         typeof runHeldQuantityReconciliation
       >[0]['listActive'] extends () => readonly (infer T)[]
@@ -442,11 +730,16 @@ describe('runHeldQuantityReconciliation (orchestrator wiring — #262 prune)', (
       // empty history so the common path is a no-op; the held-but-unpriced
       // test overrides this with a single BUY fill.
       getMyTrades: vi.fn(async () => overrides.myTrades ?? []),
+      // No REST price by default, matching the absent ticker key: every case in this
+      // block pins the increment half of the bounds, so a fallback price would arm the
+      // value half and change verdicts the tallies below assert.
+      getPriceTickers: vi.fn(async (): Promise<PriceTickerDto[]> => []),
     }),
     strategies: stubStrategies({
       name: 'trailing-trade',
       version: '2.0.0',
     }),
+    metrics: noopMetrics(),
     persistMigratedState: vi.fn(async () => undefined),
     symbolStateDeps: stubSymbolStateDeps(),
     chain: createChainByKey(),
@@ -633,7 +926,7 @@ describe('runHeldQuantityReconciliation (orchestrator wiring — #262 prune)', (
     // expects — not just that some fields were spread.
     const finalWrite = persistedSymbolStates.at(-1);
     expect(finalWrite?.symbol).toBe('BTCUSDT');
-    const view = trailingTradePositionAdapter.readPosition(finalWrite?.state);
+    const view = trailingTradePositionAdapter.readPosition(finalWrite?.state as TTStateBody);
     expect(view).toEqual({ avgEntryPrice: '100', heldQuantity: '2' });
   });
 
@@ -750,8 +1043,14 @@ describe('runHeldQuantityReconciliation (orchestrator wiring — #262 prune)', (
 
     const events: string[] = [];
     const baseChain = createChainByKey();
-    const runSpy = vi.fn(baseChain.run);
-    const chain = { run: runSpy, size: baseChain.size };
+    const runSpy = vi.fn();
+    const chain: ChainByKey = {
+      run: (key, fn) => {
+        runSpy(key, fn);
+        return baseChain.run(key, fn);
+      },
+      size: baseChain.size,
+    };
     const chainKey = `${PROFILE_ID as unknown as string}:BTCUSDT`;
 
     // A fill grabs the (profile, symbol) chain key first and is held
@@ -831,7 +1130,7 @@ describe('runHeldQuantityReconciliation (orchestrator wiring — #262 prune)', (
 
     // Read the testnet key (proves mode threading), never the live key, and seeded.
     expect(redis.get).toHaveBeenCalledWith(testKey);
-    expect(redis.get).not.toHaveBeenCalledWith(buildSymbolInfoKey('BTCUSDT'));
+    expect(redis.get).not.toHaveBeenCalledWith(buildSymbolInfoKey('BTCUSDT', 'live'));
     expect(symbolStateDeps.persistSymbolState).toHaveBeenCalled();
   });
 
@@ -854,7 +1153,12 @@ describe('runHeldQuantityReconciliation (orchestrator wiring — #262 prune)', (
       state: { schemaVersion: '2.0.0', heldQuantity: null },
     });
     repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue(null);
-    const redis = makeRedis({ baseAsset: 'BTC', filters: { stepSize: '0.00001000' } });
+    const redisGet = vi.fn(async (key: string) =>
+      key === buildSymbolInfoKey('BTCUSDT', 'live')
+        ? JSON.stringify({ baseAsset: 'BTC', filters: { stepSize: '0.00001000' } })
+        : null,
+    );
+    const redis = { get: redisGet } as unknown as Redis;
 
     const base = makeDeps({ redis, balances: [{ asset: 'BTC', free: '0', locked: '0' }] });
     const resolveBinance = vi.fn(base.resolveBinance);
@@ -874,9 +1178,12 @@ describe('runHeldQuantityReconciliation (orchestrator wiring — #262 prune)', (
 
     // The sibling profile never even resolved a Binance client.
     expect(resolveBinance).toHaveBeenCalledTimes(1);
-    // And within the target profile, only the named symbol was looked at.
-    expect(redis.get).toHaveBeenCalledTimes(1);
-    expect(redis.get).toHaveBeenCalledWith(buildSymbolInfoKey('BTCUSDT'));
+    // And within the target profile, only the named symbol was looked at. Asserted as the exact key SET rather than a call count: the count moves whenever a per-symbol read is added (the ticker read for the dust valuation did exactly that), while the property under guard is that no key for a non-narrowed symbol is ever fetched.
+    const fetchedKeys = redisGet.mock.calls.map(([key]) => key);
+    expect(new Set(fetchedKeys)).toEqual(
+      new Set([buildSymbolInfoKey('BTCUSDT', 'live'), GLOBAL_KEYS.ticker('BTCUSDT')]),
+    );
+    expect(fetchedKeys.some((key) => key.includes('ETHUSDT'))).toBe(false);
   });
 });
 
@@ -1178,23 +1485,34 @@ describe('reconcileSymbol (per-symbol reconcile + revive unit)', () => {
     const ledgerFind = vi.fn(async () => ledger);
     const scope = {
       scope: SCOPE,
-      profile: { findById: vi.fn() },
+      profile: { findById: vi.fn(async () => ({ strategyName: 'trailing-trade', config: {} })) },
       avgEntryPrices: { findBySymbol: ledgerFind, remove },
       symbolStates: { findBySymbol: vi.fn(async () => row) },
     } as unknown as Scope;
     return { scope, remove, ledgerFind };
   };
 
-  const target = (o?: Partial<ReconcileSymbolTarget>): ReconcileSymbolTarget => ({
-    userId: USER_ID,
-    profileId: PROFILE_ID,
-    symbol: 'BTCUSDT',
-    baseAsset: 'BTC',
-    stepSize: '0.00001000',
-    walletFree: '0',
-    walletLocked: '0',
-    ...o,
+  // `apps/worker/tsconfig.json` compiles `src/**` only, so nothing type-checks this factory: a target missing a field the value bounds read yields `undefined` at runtime and disarms them while every case here still passes. `unreservedWalletTotal` is therefore DERIVED from the merged wallet rather than hardcoded — these fixtures model a symbol with no operator reserve, and a case that overrides `walletFree` must not leave the bounds judging a stale number.
+  const withUnreservedTotal = (t: ReconcileSymbolTarget): ReconcileSymbolTarget => ({
+    ...t,
+    unreservedWalletTotal:
+      t.unreservedWalletTotal ?? new Decimal(t.walletFree).plus(t.walletLocked).toFixed(),
   });
+
+  const target = (o?: Partial<ReconcileSymbolTarget>): ReconcileSymbolTarget =>
+    withUnreservedTotal({
+      userId: USER_ID,
+      profileId: PROFILE_ID,
+      symbol: 'BTCUSDT',
+      baseAsset: 'BTC',
+      stepSize: '0.00001000',
+      minNotional: null,
+      referencePrice: null,
+      unreservedWalletTotal: null,
+      walletFree: '0',
+      walletLocked: '0',
+      ...o,
+    });
 
   const ttState = (o: Record<string, unknown>): Record<string, unknown> => ({
     schemaVersion: '2.0.0',
@@ -1214,7 +1532,7 @@ describe('reconcileSymbol (per-symbol reconcile + revive unit)', () => {
       { avgEntryPrice: '68000', quantity: '0.0142' },
     );
     const result = await reconcileSymbol(
-      { logger: fakeLogger, symbolStateDeps: symbolStateDeps() },
+      { logger: fakeLogger, symbolStateDeps: symbolStateDeps(), metrics: noopMetrics() },
       scope,
       POSITION,
       target({ walletFree: '0.0142', walletLocked: '0' }),
@@ -1232,12 +1550,162 @@ describe('reconcileSymbol (per-symbol reconcile + revive unit)', () => {
       { avgEntryPrice: '68000', quantity: '0.0142' },
     );
     const result = await reconcileSymbol(
-      { logger: fakeLogger, symbolStateDeps: symbolStateDeps() },
+      { logger: fakeLogger, symbolStateDeps: symbolStateDeps(), metrics: noopMetrics() },
       scope,
       POSITION,
       target({ walletFree: '0.0142', walletLocked: '0' }),
     );
     expect(result.action).toBe('adopt-wallet-smaller');
+  });
+
+  it('flattens a converged strand, deletes its ledger row, and leaves the reviver nothing to resurrect', async () => {
+    // The pure core proves the DECISION and the wrapper test proves the two writes; only this proves they are wired to the real sinks and that the reviver running immediately afterwards does not put the cost basis straight back. The ledger lookup here reflects the delete, as the database does: the reviver reads AFTER `remove` has run.
+    const persisted: { symbol: string; state: unknown }[] = [];
+    const deps = {
+      logger: fakeLogger,
+      symbolStateDeps: {
+        ...symbolStateDeps(),
+        persistSymbolState: vi.fn(async (_scope: unknown, symbol: string, state: unknown) => {
+          persisted.push({ symbol, state });
+          return true;
+        }),
+      },
+      metrics: noopMetrics(),
+    } as unknown as Parameters<typeof reconcileSymbol>[0];
+    const { scope, remove, ledgerFind } = makeScope(
+      { state: ttState({ avgEntryPrice: '0.4587', heldQuantity: '0.01184' }) },
+      { avgEntryPrice: '0.4587', quantity: '0.01184' },
+    );
+    // `mutateSymbolState` resolves the strategy through the profile row before it
+    // touches state, so an unstubbed `findById` makes every write in this harness a
+    // silent no-op — which would make the state assertions below pass vacuously.
+    (scope.profile.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      strategyName: 'trailing-trade',
+      config: {},
+    });
+    let ledgerRow: { avgEntryPrice: string; quantity: string } | null = {
+      avgEntryPrice: '0.4587',
+      quantity: '0.01184',
+    };
+    remove.mockImplementation(async () => {
+      ledgerRow = null;
+    });
+    ledgerFind.mockImplementation(async () => ledgerRow);
+
+    const { action, reviveAction } = await reconcileSymbol(
+      deps,
+      scope,
+      POSITION,
+      target({
+        symbol: 'ENAUSDT',
+        baseAsset: 'ENA',
+        stepSize: '0.01',
+        minNotional: '5',
+        referencePrice: '0.1158',
+        walletFree: '0.01184',
+        walletLocked: '0',
+      }),
+    );
+
+    expect(action).toBe('flatten-sub-notional-dust');
+    expect(remove).toHaveBeenCalledWith('ENAUSDT');
+    // Nothing left to revive from, so the reviver is a no-op rather than a second delete.
+    expect(reviveAction).toBe('no-op');
+    // The STATE, not just the action name: a flatten that left `avgEntryPrice` behind is the half-cleared row the cost-basis adoption then no-ops on forever.
+    expect(persisted.at(-1)?.symbol).toBe('ENAUSDT');
+    expect(persisted.at(-1)?.state).toMatchObject({ heldQuantity: null, avgEntryPrice: null });
+  });
+
+  it('does not let a stale wallet snapshot delete the cost basis of a freshly-bought position', async () => {
+    // The full stale-snapshot path, end to end, because the two deletes on it are reached through different doors and guarding only one leaves the position dead anyway. `getAccount` is read once per profile, so the Nth symbol's balance is several REST round trips old; a BUY that filled in that window leaves a fresh 420-unit claim over a stale dust wallet. The flatten declines (the claim is worth USD 48), control falls to `adopt-wallet-smaller`, which nulls the quantity and leaves the cost basis — and then the prune must decline too, on the PRE-reconcile claim, or it deletes by the other door what the flatten just refused to touch.
+    const persisted: { symbol: string; state: unknown }[] = [];
+    const deps = {
+      logger: fakeLogger,
+      symbolStateDeps: {
+        ...symbolStateDeps(),
+        persistSymbolState: vi.fn(async (_scope: unknown, symbol: string, state: unknown) => {
+          persisted.push({ symbol, state });
+          return true;
+        }),
+      },
+      metrics: noopMetrics(),
+    } as unknown as Parameters<typeof reconcileSymbol>[0];
+    const { scope, remove } = makeScope(
+      { state: ttState({ avgEntryPrice: '0.0984', heldQuantity: '420' }) },
+      { avgEntryPrice: '0.0984', quantity: '420' },
+    );
+    (scope.profile.findById as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      strategyName: 'trailing-trade',
+      config: {},
+    });
+
+    const { action, reviveAction } = await reconcileSymbol(
+      deps,
+      scope,
+      POSITION,
+      target({
+        symbol: 'ENAUSDT',
+        baseAsset: 'ENA',
+        stepSize: '0.01',
+        minNotional: '5',
+        referencePrice: '0.1158',
+        walletFree: '0.01184',
+        walletLocked: '0',
+      }),
+    );
+
+    expect(action).toBe('adopt-wallet-smaller');
+    expect(reviveAction).toBe('no-op');
+    // The cost basis is the thing being protected, so assert IT, not the action name.
+    expect(remove).not.toHaveBeenCalled();
+    expect(persisted.at(-1)?.state).toMatchObject({ avgEntryPrice: '0.0984' });
+  });
+
+  it('deletes a residue-backed handoff row that no state body will ever let the prune reach', async () => {
+    // The disposal handoff shape: `avg_entry_prices` moved with the position, `symbol_states` did not, so there is a ledger row and no body. The reviver returns early on a non-object state before its value bound runs, so nothing downstream can clear this row — the cost-basis step has to delete it where it declines to seed from it, or the next disposal's seeding check blocks on it forever.
+    const { scope, remove, ledgerFind } = makeScope(null, {
+      avgEntryPrice: '0.4587',
+      quantity: '0.87',
+    });
+    let ledgerRow: { avgEntryPrice: string; quantity: string } | null = {
+      avgEntryPrice: '0.4587',
+      quantity: '0.87',
+    };
+    remove.mockImplementation(async () => {
+      ledgerRow = null;
+    });
+    ledgerFind.mockImplementation(async () => ledgerRow);
+    const enaTarget = target({
+      symbol: 'ENAUSDT',
+      baseAsset: 'ENA',
+      stepSize: '0.01',
+      minNotional: '5',
+      referencePrice: '0.1158',
+      walletFree: '0.01184',
+      walletLocked: '0',
+    });
+
+    const costBasisAction = await ensureCostBasisFromTrades(
+      { logger: fakeLogger, symbolStateDeps: symbolStateDeps() },
+      scope,
+      POSITION,
+      { getAccount: vi.fn(), getMyTrades: vi.fn(async () => []) } as unknown as Parameters<
+        typeof ensureCostBasisFromTrades
+      >[3],
+      enaTarget,
+    );
+    const { reviveAction } = await reconcileSymbol(
+      { logger: fakeLogger, symbolStateDeps: symbolStateDeps(), metrics: noopMetrics() },
+      scope,
+      POSITION,
+      enaTarget,
+    );
+
+    expect(costBasisAction).toBe('no-op');
+    expect(remove).toHaveBeenCalledWith('ENAUSDT');
+    // Proves the claim this branch used to make and could not keep: the reviver never
+    // reaches its value bound here, so it is not what cleared the row.
+    expect(reviveAction).toBe('no-op');
   });
 
   it('reconciles but does not revive a schema-skipped target (#266)', async () => {
@@ -1249,7 +1717,7 @@ describe('reconcileSymbol (per-symbol reconcile + revive unit)', () => {
       null,
     );
     const result = await reconcileSymbol(
-      { logger: fakeLogger, symbolStateDeps: symbolStateDeps() },
+      { logger: fakeLogger, symbolStateDeps: symbolStateDeps(), metrics: noopMetrics() },
       scope,
       POSITION,
       target(),
@@ -1287,7 +1755,7 @@ describe('ensureCostBasisFromTrades (cost-basis reconstruction step)', () => {
         get: () => ({
           name: 'trailing-trade',
           version: '2.0.0',
-          initialState: () => POSITION.setHeldQuantity({ schemaVersion: '2.0.0' }, null),
+          initialState: () => TTStateSchema.parse({ schemaVersion: '2.0.0' }),
         }),
       },
       persistSymbolState: vi.fn(async (_scope, symbol: string, state: unknown) => {
@@ -1300,31 +1768,43 @@ describe('ensureCostBasisFromTrades (cost-basis reconstruction step)', () => {
   const makeScope = (
     row: { state: unknown } | null,
     ledger: { avgEntryPrice: string; quantity: string } | null,
-  ): { scope: Scope; upsert: ReturnType<typeof vi.fn> } => {
+  ): { scope: Scope; upsert: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> } => {
     const upsert = vi.fn(async () => undefined);
+    const remove = vi.fn(async () => undefined);
     const scope = {
       scope: SCOPE,
       profile: {
         findById: vi.fn(async () => ({ strategyName: 'trailing-trade', config: {} })),
       },
-      avgEntryPrices: { findBySymbol: vi.fn(async () => ledger), upsert },
+      avgEntryPrices: { findBySymbol: vi.fn(async () => ledger), upsert, remove },
       symbolStates: { findBySymbol: vi.fn(async () => row) },
     } as unknown as Scope;
-    return { scope, upsert };
+    return { scope, upsert, remove };
   };
 
-  const target = (o?: Partial<ReconcileSymbolTarget>): ReconcileSymbolTarget => ({
-    userId: USER_ID,
-    profileId: PROFILE_ID,
-    symbol: 'BTCUSDT',
-    baseAsset: 'BTC',
-    stepSize: '0.00001000',
-    walletFree: '2',
-    walletLocked: '0',
-    ...o,
+  // `apps/worker/tsconfig.json` compiles `src/**` only, so nothing type-checks this factory: a target missing a field the value bounds read yields `undefined` at runtime and disarms them while every case here still passes. `unreservedWalletTotal` is therefore DERIVED from the merged wallet rather than hardcoded — these fixtures model a symbol with no operator reserve, and a case that overrides `walletFree` must not leave the bounds judging a stale number.
+  const withUnreservedTotal = (t: ReconcileSymbolTarget): ReconcileSymbolTarget => ({
+    ...t,
+    unreservedWalletTotal:
+      t.unreservedWalletTotal ?? new Decimal(t.walletFree).plus(t.walletLocked).toFixed(),
   });
 
-  const buyFill = (over: Record<string, unknown>): unknown => ({
+  const target = (o?: Partial<ReconcileSymbolTarget>): ReconcileSymbolTarget =>
+    withUnreservedTotal({
+      userId: USER_ID,
+      profileId: PROFILE_ID,
+      symbol: 'BTCUSDT',
+      baseAsset: 'BTC',
+      stepSize: '0.00001000',
+      minNotional: null,
+      referencePrice: null,
+      unreservedWalletTotal: null,
+      walletFree: '2',
+      walletLocked: '0',
+      ...o,
+    });
+
+  const buyFill = (over: Partial<MyTradeDto>): MyTradeDto => ({
     id: 1,
     orderId: 1,
     symbol: 'BTCUSDT',
@@ -1358,7 +1838,7 @@ describe('ensureCostBasisFromTrades (cost-basis reconstruction step)', () => {
     // State written through the persist path with the priced position.
     const last = persisted.at(-1);
     expect(last?.symbol).toBe('BTCUSDT');
-    expect(POSITION.readPosition(last?.state)).toMatchObject({
+    expect(POSITION.readPosition(last?.state as TTStateBody)).toMatchObject({
       avgEntryPrice: '50',
       heldQuantity: '2',
     });
@@ -1415,6 +1895,107 @@ describe('ensureCostBasisFromTrades (cost-basis reconstruction step)', () => {
     expect(getMyTrades).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
     expect(persisted.at(-1)?.state).toMatchObject({ avgEntryPrice: '40', heldQuantity: '2' });
+  });
+
+  it('adopts a deeply-reserved holding, valuing the operator balance rather than the surplus', async () => {
+    // The adoption gate reads the pre-reserve total too, and nothing else pins that. The operator holds 50 ENA (USD 5.79) with 45 reserved, leaving 5 tradeable (USD 0.579); the two straddle the UNSCALED USD 5 floor this branch uses, so mis-wiring the gate to the reserve-adjusted wallet refuses to price a real position and leaves it reading FLAT.
+    const { scope, upsert } = makeScope(null, null);
+    const getMyTrades = vi.fn(async () => [buyFill({})]);
+
+    const action = await ensureCostBasisFromTrades(
+      { logger: fakeLogger, symbolStateDeps: symbolStateDeps() },
+      scope,
+      POSITION,
+      client(getMyTrades),
+      target({
+        symbol: 'ENAUSDT',
+        baseAsset: 'ENA',
+        stepSize: '0.01',
+        minNotional: '5',
+        referencePrice: '0.1158',
+        walletFree: '5',
+        walletLocked: '0',
+        unreservedWalletTotal: '50',
+      }),
+    );
+
+    expect(action).toBe('reconstructed-from-trades');
+    expect(upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('still seeds a handoff ledger row worth less than one minimum order but more than residue', async () => {
+    // A handoff target holding USD 4 against a USD 5 floor is a REAL position, and the row is a durable statement that it exists. Refusing it here returns `no-op`, `assertTargetSeeded` throws, and the disposal retries into a dead letter with the source already disabled — so this branch is gated at the residue bar, not at the floor.
+    const persisted: { symbol: string; state: unknown }[] = [];
+    const deps = {
+      logger: fakeLogger,
+      symbolStateDeps: {
+        ...symbolStateDeps(),
+        persistSymbolState: vi.fn(async (_scope: unknown, symbol: string, state: unknown) => {
+          persisted.push({ symbol, state });
+          return true;
+        }),
+      },
+    } as unknown as Parameters<typeof ensureCostBasisFromTrades>[0];
+    const { scope } = makeScope(null, { avgEntryPrice: '1', quantity: '4' });
+
+    const action = await ensureCostBasisFromTrades(
+      deps,
+      scope,
+      POSITION,
+      client(vi.fn(async () => [buyFill({})])),
+      target({
+        stepSize: '0.01',
+        minNotional: '5',
+        referencePrice: '1',
+        walletFree: '4',
+        walletLocked: '0',
+      }),
+    );
+
+    expect(action).toBe('seeded-from-ledger');
+    expect(persisted.at(-1)?.state).toMatchObject({ avgEntryPrice: '1', heldQuantity: '4' });
+  });
+
+  it('deletes rather than seeds a ledger handoff row backed only by residue', async () => {
+    // Same disposal-handoff branch as above, on coins that have since decayed to residue. Seeding a body from the row would hand the strategy a position it can never exit — and merely declining would strand the row forever, because this branch only runs when there is NO state body and the reviver returns early on exactly that, never reaching its own value bound. So the row is deleted here.
+    const persisted: { symbol: string; state: unknown }[] = [];
+    const deps = {
+      logger: fakeLogger,
+      symbolStateDeps: {
+        ...symbolStateDeps(),
+        persistSymbolState: vi.fn(async (_scope: unknown, symbol: string, state: unknown) => {
+          persisted.push({ symbol, state });
+          return true;
+        }),
+      },
+    } as unknown as Parameters<typeof ensureCostBasisFromTrades>[0];
+    const { scope, upsert, remove } = makeScope(null, {
+      avgEntryPrice: '0.4587',
+      quantity: '0.87',
+    });
+    const getMyTrades = vi.fn(async () => [buyFill({})]);
+
+    const action = await ensureCostBasisFromTrades(
+      deps,
+      scope,
+      POSITION,
+      client(getMyTrades),
+      target({
+        symbol: 'ENAUSDT',
+        baseAsset: 'ENA',
+        stepSize: '0.01',
+        minNotional: '5',
+        referencePrice: '0.1158',
+        walletFree: '0.01184',
+        walletLocked: '0',
+      }),
+    );
+
+    expect(action).toBe('no-op');
+    expect(getMyTrades).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+    expect(persisted).toHaveLength(0);
+    expect(remove).toHaveBeenCalledWith('ENAUSDT');
   });
 
   it('leaves an existing state body alone when a ledger row exists (the reviver owns that)', async () => {
@@ -1483,5 +2064,104 @@ describe('ensureCostBasisFromTrades (cost-basis reconstruction step)', () => {
     );
     expect(action).toBe('no-op');
     expect(upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe('readTickerPrice (the only thing that arms a value bound)', () => {
+  // Every bound in this module is disarmed by a null here, so each way of returning
+  // null is a way of silently standing the bounds down. They are cheap to pin and
+  // each one is a sentence the module's comments already promise.
+  const redisWith = (raw: string | null): Redis =>
+    ({ get: vi.fn(async () => raw) }) as unknown as Redis;
+
+  it('returns null when no ticker is cached', async () => {
+    await expect(readTickerPrice(redisWith(null), 'ENAUSDT')).resolves.toBeNull();
+  });
+
+  it('returns null on a malformed cache entry rather than throwing', async () => {
+    await expect(readTickerPrice(redisWith('{'), 'ENAUSDT')).resolves.toBeNull();
+  });
+
+  it('returns null when the cached price is a JSON number, not a decimal string', async () => {
+    // Money crosses this boundary as a string; a number has already been through
+    // IEEE-754 and must not be trusted as a price.
+    await expect(
+      readTickerPrice(redisWith(JSON.stringify({ price: 0.1158 })), 'ENAUSDT'),
+    ).resolves.toBeNull();
+  });
+
+  it('returns null on a non-positive price', async () => {
+    await expect(
+      readTickerPrice(redisWith(JSON.stringify({ price: '0' })), 'ENAUSDT'),
+    ).resolves.toBeNull();
+  });
+
+  it('returns null on a non-finite price, which .gt(0) alone would accept', async () => {
+    // `new Decimal('Infinity').gt(0)` is true, so a positivity test passes it through. Every finite holding is below an infinite floor, so letting it reach the target ARMS the value bounds against a real position instead of standing them down.
+    await expect(
+      readTickerPrice(redisWith(JSON.stringify({ price: 'Infinity' })), 'ENAUSDT'),
+    ).resolves.toBeNull();
+  });
+
+  it('returns null on an unparseable price', async () => {
+    await expect(
+      readTickerPrice(redisWith(JSON.stringify({ price: 'abc' })), 'ENAUSDT'),
+    ).resolves.toBeNull();
+  });
+
+  it('returns the cached price verbatim, without re-formatting it', async () => {
+    await expect(
+      readTickerPrice(redisWith(JSON.stringify({ price: '0.11580000' })), 'ENAUSDT'),
+    ).resolves.toBe('0.11580000');
+  });
+
+  it('reads the global ticker key for the symbol', async () => {
+    const get = vi.fn(async () => null);
+    await readTickerPrice({ get } as unknown as Redis, 'ENAUSDT');
+    expect(get).toHaveBeenCalledWith(GLOBAL_KEYS.ticker('ENAUSDT'));
+  });
+});
+
+describe('resolveWalletFields (a bad balance must disarm, never throw)', () => {
+  it('drains the reserve and reports the pre-reserve total', () => {
+    expect(resolveWalletFields({ free: '100', locked: '0' }, '99.5')).toEqual({
+      walletFree: '0.5',
+      walletLocked: '0',
+      unreservedWalletTotal: '100',
+    });
+  });
+
+  it('treats an absent balance row as a real zero', () => {
+    // Binance omits the asset entirely when the holding is zero, which is a holding of none, not an unknown.
+    expect(resolveWalletFields(undefined, null)).toEqual({
+      walletFree: '0',
+      walletLocked: '0',
+      unreservedWalletTotal: '0',
+    });
+  });
+
+  it.each([
+    ['unparseable free', { free: 'not-a-number', locked: '0' }],
+    ['unparseable locked', { free: '1', locked: 'nope' }],
+    ['non-finite free', { free: 'Infinity', locked: '0' }],
+  ])('does not throw on a %s leg, and disarms the value bound instead', (_label, balance) => {
+    // This runs in the per-symbol loop where the only try covers `getAccount`, so a throw would abort the sweep for every remaining symbol and every remaining profile over one malformed string.
+    const fields = resolveWalletFields(balance, null);
+    expect(fields.unreservedWalletTotal).toBeNull();
+    // The raw leg is passed through rather than defaulted to '0', because zero reads as an empty wallet and an empty wallet is what arms the phantom prune.
+    expect(fields.walletFree).toBe(balance.free);
+    expect(fields.walletLocked).toBe(balance.locked);
+    // And the reconciler's own guard then declines to act on it.
+    expect(
+      reconcileHeldQuantity({
+        heldQuantity: '100',
+        walletFree: fields.walletFree,
+        walletLocked: fields.walletLocked,
+        unreservedWalletTotal: fields.unreservedWalletTotal,
+        stepSize: '0.01',
+        minNotional: '5',
+        referencePrice: '1',
+      }),
+    ).toEqual({ action: 'no-op', nextHeldQuantity: '100' });
   });
 });

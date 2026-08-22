@@ -18,6 +18,7 @@ export {
   DEFAULT_RECV_WINDOW_MS,
   KlineParseError,
   createBinanceRest,
+  isRateLimitError,
   parseKlines,
   readSignedCallTiming,
   type SignedCallTiming,
@@ -41,6 +42,7 @@ export {
   type PlaceOrderDto,
   type PlaceOrderParams,
   type RecentTradeDto,
+  type PriceTickerDto,
   type Ticker24hrDto,
 } from './binance-rest.js';
 

@@ -95,6 +95,8 @@ export type MetricName =
   | 'exchange_info_trailing_delta_unparseable_total'
   | 'strategy_metric_total'
   | 'cron_overrun_total'
+  | 'reconcile_position_removed_total'
+  | 'reconcile_value_bound_disarmed_total'
   | 'archive_recovery_sweep_profiles_total';
 
 /**
@@ -392,6 +394,18 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     kind: 'counter',
     help: 'Self-rescheduling cron runs whose elapsed time exceeded the configured period, by cron. A non-zero rate means that cron no longer holds its cadence.',
     labelNames: ['cron'],
+  },
+  // The reconciler owns two deletes — the sub-notional flatten and the phantom-ledger prune — and both empty a position and drop its cost basis. Their only trace was one warn inside a boot's worth of them, which no rule can watch. `heldBefore` is a two-value bucket rather than the quantity: it separates "deleted a position the strategy believed it held" from "converged a row that was already empty", which are a page and a routine convergence respectively, and bucketing keeps the series cardinality at 2 where the raw quantity would be unbounded.
+  reconcile_position_removed_total: {
+    kind: 'counter',
+    help: 'Positions the reconciler destroyed, by the action that did it and whether the strategy was claiming a quantity beforehand.',
+    labelNames: ['profileId', 'symbol', 'action', 'heldBefore'],
+  },
+  // Every dust VALUE bound stands down when an input is missing, because these bounds only ever REMOVE a position. That is the right failure direction and it is also silent: a disarmed pass tallies the same `no-op` as a healthy converged one, so "checked, the holding is real" and "could not check" are indistinguishable. Labelled by the input that was absent, since a missing price is a cache or REST problem while a missing NOTIONAL filter is an exchange-info refresh problem.
+  reconcile_value_bound_disarmed_total: {
+    kind: 'counter',
+    help: 'Reconcile passes that reached a dust value bound without the inputs to evaluate it, by the missing input.',
+    labelNames: ['profileId', 'symbol', 'reason'],
   },
   // The sweep walks profiles serially, so a run that stalled on the third of ten profiles reported the same tail log as a run where the other seven had nothing to repair. Outcome is a closed set of swept | failed | timeout | checkout | unswept: `timeout` separates a profile whose query hit the per-profile budget from one whose query simply errored, and `checkout` separates the account-wide shape — the pool was empty before this profile's work began, so every profile in the pass fails identically — because the three need different responses. No profileId label: the count is a fleet-level health signal and the per-profile identity already rides the warn log.
   archive_recovery_sweep_profiles_total: {

@@ -330,13 +330,18 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
       //     the credited quantity.
       const commissions = parseCommissions(deps, event);
       let sellStepSize: Decimal | undefined;
+      let sellMinNotional: Decimal | undefined;
       let baseAsset: string | undefined;
       let stepSizeUnknown = false;
       if (event.side === 'SELL' || commissions !== null) {
         try {
           const info = await deps.symbolInfo.get(event.symbol);
           baseAsset = info.baseAsset;
-          if (event.side === 'SELL') sellStepSize = new Decimal(info.filters.stepSize);
+          if (event.side === 'SELL') {
+            sellStepSize = new Decimal(info.filters.stepSize);
+            // Parsed separately and never allowed to throw: `stepSizeUnknown` below drives an operator action log that names the LOT_SIZE lookup specifically, and the cache hands back an unvalidated `JSON.parse` cast, so an entry written before `minNotional` joined the projection would raise that alert for a non-incident. An absent floor just disarms the value bound.
+            sellMinNotional = optionalDecimal(info.filters.minNotional);
+          }
         } catch (err) {
           stepSizeUnknown = event.side === 'SELL';
           deps.logger.warn(
@@ -379,7 +384,7 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
         if (event.side === 'BUY') {
           return resolveBuy(txScope, event, isFirstApply, buyQty);
         }
-        return resolveSell(txScope, event, isFirstApply, sellStepSize);
+        return resolveSell(txScope, event, isFirstApply, sellStepSize, sellMinNotional);
       });
 
       // Reconcile the orders-table row, and stamp realised P/L, BEFORE
@@ -662,11 +667,29 @@ const resolveBuy = async (
   };
 };
 
+/**
+ * Parses a decimal string that may be absent or malformed, without throwing.
+ *
+ * @param raw - Candidate decimal string from an unvalidated cache payload.
+ * @returns The parsed Decimal, or undefined when the value is missing or unparseable.
+ */
+// Finite-only, because `decimal.js` takes `Infinity` and `NaN` as values rather than throwing and this payload is unvalidated. An infinite `minNotional` is the direction that bites: every finite residual is below it, so the sub-notional flatten would clear live positions instead of standing down. Undefined is the safe answer, since an absent bound is a skipped bound.
+const optionalDecimal = (raw: string | undefined): Decimal | undefined => {
+  if (raw === undefined) return undefined;
+  try {
+    const parsed = new Decimal(raw);
+    return parsed.isFinite() ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const resolveSell = async (
   scope: Awaited<ReturnType<typeof profileRepo>>,
   event: FillEvent,
   isFirstApply: boolean,
   stepSize?: Decimal,
+  minNotional?: Decimal,
 ): Promise<FillResolution> => {
   const existing = await scope.avgEntryPrices.findBySymbol(event.symbol);
   if (!existing) {
@@ -677,13 +700,7 @@ const resolveSell = async (
     return { kind: 'clear', side: 'SELL' };
   }
 
-  // First apply: fold held - sold via the shared resolveFill (same fold the
-  // backtest uses), then persist. `stepSize` (the symbol's LOT_SIZE increment)
-  // flattens a sub-step residual — the base-asset trading-fee crumb left when a
-  // full exit's sold qty (sized to the fee-net wallet balance) falls a fee short
-  // of the tracked GROSS held qty — so avgEntryPrice clears and re-entry is not
-  // blocked. Absent (a delisted-symbol lookup failure, below) ⇒ the exact-zero
-  // residual behavior, never blocking the already-committed fill.
+  // First apply: fold held - sold via the shared resolveFill (same fold the backtest uses), then persist. `stepSize`, the symbol's LOT_SIZE increment, flattens a sub-step residual: the base-asset trading-fee crumb left when a full exit's sold qty, sized to the fee-net wallet balance, falls a fee short of the tracked GROSS held qty, so avgEntryPrice clears and re-entry is not blocked. `minNotional` flattens the crumb that clears the step but is worth less than one minimum order, which LOT_SIZE alone leaves stranded forever. Either being absent, from the delisted-symbol lookup failure below, degrades to the exact-zero residual behaviour, never blocking the already-committed fill.
   if (isFirstApply) {
     // Price the realised gain against the cost basis BEFORE the fold mutates the
     // ledger. Computed from `existing` (the pre-sell position), so a full exit
@@ -692,10 +709,14 @@ const resolveSell = async (
       { avgEntryPrice: existing.avgEntryPrice, heldQuantity: existing.quantity },
       { soldQty: new Decimal(event.cumQty), proceeds: new Decimal(event.cumQuoteQty) },
     );
+    // This sell's own VWAP, the price the crumb would have fetched had it been sellable. Guarded against a zero `cumQty` so a degenerate report values the residual at zero and skips the notional flatten rather than emptying the position.
+    const soldQty = new Decimal(event.cumQty);
+    const sellVwap = soldQty.gt(0) ? new Decimal(event.cumQuoteQty).div(soldQty) : new Decimal(0);
     const adopted = resolveFill(
       { avgEntryPrice: existing.avgEntryPrice, heldQuantity: existing.quantity },
-      { side: 'SELL', price: new Decimal(0), quantity: new Decimal(event.cumQty) },
+      { side: 'SELL', price: sellVwap, quantity: soldQty },
       stepSize,
+      minNotional,
     );
     if (adopted.kind === 'empty') {
       await scope.avgEntryPrices.remove(event.symbol);

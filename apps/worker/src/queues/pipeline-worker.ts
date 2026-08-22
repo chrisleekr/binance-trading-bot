@@ -29,7 +29,12 @@ import { reserveAdjustedBalance } from 'lib/reserve.js';
 import type { StatePort } from 'state/state-port.js';
 import { mutateSymbolState, type MutateSymbolStateDeps } from 'state/version-aware-mutate.js';
 import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
-import { ensureCostBasisFromTrades, reconcileSymbol } from 'boot/reconcile-held-quantity.js';
+import {
+  ensureCostBasisFromTrades,
+  resolveSweepPrices,
+  reconcileSymbol,
+  resolveWalletFields,
+} from 'boot/reconcile-held-quantity.js';
 import { buildBinanceClient } from 'profile-bindings/binance-client.js';
 import type { ProfileManager } from 'profile-manager/profile-manager.js';
 import { resolveTechnicalsIntervals } from 'profile-manager/technicals-intervals.js';
@@ -93,10 +98,8 @@ export interface PipelineWorkerDeps {
   // this converges it promptly instead of waiting for ownership's own interval
   // (#579). Optional: tests that don't exercise stream ownership omit it.
   readonly reconcileOwnership?: () => Promise<void>;
-  // Retires the profile's own metric children on teardown. Optional like every
-  // other sink injection point, so a stub deps object stays a no-op rather than
-  // a throw.
-  readonly metrics?: MetricsSink;
+  // Retires the profile's own metric children on teardown, and carries the reconcile counters for the mid-run reconfigure sweep below. Required, not optional: those counters are the only record that a reconcile deleted a position, and an omittable sink drops them silently.
+  readonly metrics: MetricsSink;
 }
 
 /**
@@ -340,7 +343,7 @@ const handleReconfigureProfile = async (
   const symbols = symbolRows.map((r) => r.symbol);
   const mode: BinanceMode =
     (await repo.accounts.binanceModeById(deps.db, ids.accountId)) === 'live' ? 'live' : 'test';
-  await reconcileSymbolsAfterReconfigure(deps, ids, mode, profile.strategyName, symbols);
+  await reconcileSymbolsAfterReconfigure(deps, ids, mode, profile.strategyName, symbolRows);
 
   const active = deps.profileManager.setTechnicalsIntervals(ids.profileId, intervals);
   if (!active) {
@@ -385,25 +388,24 @@ const handleReconfigureProfile = async (
 };
 
 /**
- * Mid-run per-symbol wallet reconcile for a reconfigured profile. Mirrors the
- * boot orchestrator's inner loop (`ensureCostBasisFromTrades` then
- * `reconcileSymbol`) for each current symbol, run under the tick handler's
- * `${profileId}:${symbol}` chain key so the writes serialise with concurrent
- * ticks and user-stream fills. `chainByKey` is per-key, so nesting this inside
- * the caller's `profileId` lock does not deadlock.
+ * Mid-run per-symbol wallet reconcile for a reconfigured profile. Mirrors the boot orchestrator's inner loop (`ensureCostBasisFromTrades` then `reconcileSymbol`) for each current symbol, run under the tick handler's `${profileId}:${symbol}` chain key so the writes serialise with concurrent ticks and user-stream fills. `chainByKey` is per-key, so nesting this inside the caller's `profileId` lock does not deadlock.
  *
- * Best-effort throughout: skip entirely when no Binance client resolves (a
- * test-mode profile without keys) or `getAccount` throws; a per-symbol failure
- * logs at `warn` and continues so one bad symbol never aborts the reconfigure.
+ * Best-effort throughout: skip entirely when no Binance client resolves (a test-mode profile without keys) or `getAccount` throws; a per-symbol failure logs at `warn` and continues so one bad symbol never aborts the reconfigure.
+ *
+ * @param deps - The pipeline worker's dep bag, supplying Redis, the chain, the strategy registry, and the metrics sink the reconcile counters record through.
+ * @param ids - The owning operator, account, and profile this reconfigure belongs to.
+ * @param mode - The account's Binance environment, selecting which cached exchangeInfo keyspace the symbol filters are read from.
+ * @param strategyName - The profile's strategy, resolved to its position adapter; an unknown name skips the whole sweep.
+ * @param symbolRows - The profile's current bindings WITH their reserve floors, passed in rather than re-read because the caller has already loaded them in this same job.
  */
 const reconcileSymbolsAfterReconfigure = async (
   deps: PipelineWorkerDeps,
   ids: { userId: UserId; accountId: AccountId; profileId: ProfileId },
   mode: BinanceMode,
   strategyName: string,
-  symbols: readonly string[],
+  symbolRows: readonly { symbol: string; reserveBaseQuantity: string | null }[],
 ): Promise<void> => {
-  if (symbols.length === 0) return;
+  if (symbolRows.length === 0) return;
   const position = deps.strategies.get(strategyName)?.position;
   if (!position) return;
 
@@ -419,27 +421,38 @@ const reconcileSymbolsAfterReconfigure = async (
   }
 
   const scope = await profileRepo(deps.db, ids.userId, ids.accountId, ids.profileId);
-  for (const symbol of symbols) {
+  // The same cache-first-then-REST resolver the boot sweep runs, and NOT optional here. This door reconciles BEFORE `setSymbols`, so a newly added symbol has never had a miniTicker subscription and its `ticker:<SYMBOL>` key is guaranteed absent — not merely cold. Without the batched fallback every value bound would stand down on exactly the pass that re-adopts a symbol, and an operator re-adding one that still carries sub-notional residue would have the seed gate re-create the unsellable strand. One weight-4 call per reconfigure covers the whole set.
+  const priceBySymbol = await resolveSweepPrices(
+    deps,
+    client,
+    symbolRows.map((r) => r.symbol),
+  );
+  for (const row of symbolRows) {
+    const symbol = row.symbol;
     // Symbol filters differ per Binance mode, so read the keyspace matching this
     // profile's mode — a test-mode profile reconciling against production
     // stepSize records the wrong adopted quantity (#582).
     const infoRaw = await deps.redis.get(buildSymbolInfoKey(symbol, mode));
     if (infoRaw === null) continue;
-    let info: { baseAsset: string; filters: { stepSize: string } };
+    let info: { baseAsset: string; filters: { stepSize: string; minNotional?: string } };
     try {
       info = JSON.parse(infoRaw) as typeof info;
     } catch {
       continue;
     }
-    const bal = account.balances.find((b) => b.asset === info.baseAsset);
     const target = {
       userId: ids.userId,
       profileId: ids.profileId,
       symbol,
       baseAsset: info.baseAsset,
       stepSize: info.filters.stepSize,
-      walletFree: bal?.free ?? '0',
-      walletLocked: bal?.locked ?? '0',
+      minNotional: info.filters.minNotional ?? null,
+      referencePrice: priceBySymbol.get(symbol) ?? null,
+      // The per-symbol floor the operator wants held back, drained through the same helper the boot sweep uses. Without it the same profile reconciles to two different held quantities depending on which door it came through, and the reconfigure door is the one an operator walks through immediately after setting a reserve: the bot would adopt the reserved coins as a position and sell them.
+      ...resolveWalletFields(
+        account.balances.find((b) => b.asset === info.baseAsset),
+        row.reserveBaseQuantity,
+      ),
     };
     try {
       await deps.chain.run(`${ids.profileId}:${symbol}`, async () => {
@@ -590,7 +603,7 @@ const handleUnsubscribe = async (
   // plausible weight reading and any alert over it could never resolve. Both
   // teardown routes reach this function, so the disposal path is covered by the
   // same line rather than by a second call that could drift from it.
-  deps.metrics?.forget('binance_api_weight', { profileId: ids.profileId });
+  deps.metrics.forget('binance_api_weight', { profileId: ids.profileId });
   // Drop the profile's cached tick context on teardown so a stale entry can
   // never outlive an active subscription (symmetric with the subscribe path).
   deps.evictProfileContext?.(ids.profileId);

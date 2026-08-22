@@ -404,6 +404,8 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     resolveBinanceClient,
     persistSymbolState,
     persistProfileState,
+    // Same sink the tick and pipeline paths hold, so the reconcile counters land on the registry the admin /metrics route serves.
+    metrics,
   });
 
   // Long-lived subsystems share one lifecycle protocol so boot sequences them

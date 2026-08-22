@@ -24,6 +24,8 @@
 | `pg_pool_idle` | gauge | — | Postgres pool connections currently idle. |
 | `pg_pool_total` | gauge | — | Postgres pool connections currently open, idle and in use together. |
 | `pg_pool_waiting` | gauge | — | Callers queued for a Postgres connection because the pool had none free. |
+| `reconcile_position_removed_total` | counter | `profileId`, `symbol`, `action`, `heldBefore` | Positions the reconciler destroyed, by the action that did it and whether the strategy was claiming a quantity beforehand. |
+| `reconcile_value_bound_disarmed_total` | counter | `profileId`, `symbol`, `reason` | Reconcile passes that reached a dust value bound without the inputs to evaluate it, by the missing input. |
 | `state_commit_cas_miss` | counter | `profileId`, `symbol` | Tick commit lost the symbol_states version race to a concurrent writer. |
 | `state_commit_latch_merge_error` | counter | `profileId`, `symbol` | Latch merge threw; the latch was dropped and the tick continued. |
 | `state_commit_latch_merge_exhausted` | counter | `profileId`, `symbol` | Latch merge ran out of CAS retries; the pending latch fields were dropped. |

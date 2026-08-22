@@ -19,6 +19,7 @@ describe('buildEventStream', () => {
       notifierGapThrottle: anyProxy(),
       enqueueSymbolReconcile: async () => undefined,
       resolveBinanceFull: async () => null,
+      metrics: { record: () => undefined, forget: () => undefined },
     });
 
     expect(Object.keys(es).sort()).toEqual(['eventRouter', 'userStreamPool']);

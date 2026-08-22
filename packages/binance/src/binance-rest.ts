@@ -1,8 +1,6 @@
 // Minimal Binance REST client.
 //
 // Covers what the worker actually calls:
-//   - POST /api/v3/userDataStream      (start listenKey)
-//   - PUT  /api/v3/userDataStream      (keepalive)
 //   - GET  /api/v3/openOrders          (resync open orders)
 //   - GET  /api/v3/account             (account-snapshot-safety cron)
 //   - POST /api/v3/order               (place order)
@@ -13,6 +11,11 @@
 //
 // Captures `X-MBX-USED-WEIGHT-1M` from every response so the executor's
 // per-account weight limiter has fresh data without an extra round-trip.
+//
+// Every call declares whether it is signed, and that flag alone decides whether
+// the API key is attached. The unsigned market-data reads (klines, tickers,
+// trades, depth, and the time resync) go out with no credential at all: Binance
+// would ignore one, so sending it only widens where the key can be observed.
 //
 // Binance REST docs: https://developers.binance.com/docs/binance-spot-api-docs/rest-api
 
@@ -61,7 +64,7 @@ const TRANSIENT_NETWORK_RE = /timeout|abort|fetch failed|network|ECONN|ENOTFOUND
  * shares a config object across profiles.
  */
 export interface BinanceCredentials {
-  /** Public identifier sent in the `X-MBX-APIKEY` header on every request. */
+  /** Public identifier sent in the `X-MBX-APIKEY` header on signed requests. Unsigned market-data calls carry no key, so a client built for those alone works with an empty string. */
   readonly apiKey: string;
   /** HMAC-SHA256 signing key. Never logged; only used to sign query strings on private endpoints. */
   readonly secretKey: string;
@@ -143,6 +146,15 @@ export interface BinanceRestClient {
    * a self-rescheduling cron cannot wedge forever on a saturated weight budget.
    */
   getAllTickers24hr(signal?: AbortSignal): Promise<readonly Ticker24hrDto[]>;
+  /**
+   * Last traded price for each of `symbols`, in ONE unsigned call.
+   *
+   * Exists for readers that need a price the live miniTicker cache cannot supply. That cache is written only by the market stream and its keys expire in 60s, so it is empty for every symbol at cold boot — exactly when the boot sweep's dust value bounds are asked to judge whether a holding is real.
+   *
+   * @param symbols - Trading pairs to price. An empty list resolves to an empty result without touching the network, because a request carrying neither `symbol` nor `symbols` means "every pair on the exchange" to Binance.
+   * @returns One row per symbol the exchange answered for. Key on `symbol`, never on position: Binance's documentation does not state whether the batch form omits a member it does not list or rejects the whole request, so a caller that cannot tolerate the whole batch failing over one unknown pair must degrade per symbol itself.
+   */
+  getPriceTickers(symbols: readonly string[]): Promise<readonly PriceTickerDto[]>;
   /**
    * Fetches the most recent public trades for a symbol, newest last.
    * Unsigned public endpoint; the symbol-detail recent-trades panel renders
@@ -376,6 +388,15 @@ export const parseKlines = (raw: unknown): ParsedKline[] => {
     };
   });
 };
+
+/**
+ * One row of `GET /api/v3/ticker/price`. The endpoint returns the last traded price and nothing else, which is all a value bound needs and a fraction of the weight of the 24h form.
+ */
+export interface PriceTickerDto {
+  readonly symbol: string;
+  /** Last traded price in the quote asset, Decimal-as-string like every other money field on the wire. */
+  readonly price: string;
+}
 
 /**
  * Subset of `GET /api/v3/ticker/24hr` for a single symbol. Binance returns
@@ -625,6 +646,8 @@ const WEIGHT = {
   klines: 2,
   account: 20,
   ticker24hr: 2,
+  // `/api/v3/ticker/price`. Binance charges 2 only for the singular `symbol` form; the batch form omits `symbol` entirely, which is the 4 band. The governor is consume-and-decay with no release path, so an under-charge here cannot be corrected later.
+  tickerPrice: 4,
   // `/api/v3/ticker/24hr` with no symbol returns every symbol in one call;
   // Binance weights that all-symbols form at 80 (vs 2 for a single symbol).
   tickerAll: 80,
@@ -858,9 +881,12 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
         method === 'GET' || method === 'DELETE'
           ? `${host}${path}${qs ? `?${qs}` : ''}`
           : `${host}${path}`;
-      const headers: Record<string, string> = {
-        'X-MBX-APIKEY': opts.credentials.apiKey,
-      };
+      // Keyed only when the call is signed. A public endpoint authenticates nothing, so the header buys no access there and costs the credential's confidentiality: the unsigned reads dominate this client's traffic, and each one writes the key into every proxy, gateway and error log between here and Binance.
+      //
+      // One flag is enough for the endpoints this client calls, NOT because Binance's types line up that way: of its five security types, `USER_STREAM` and `MARKET_DATA` want the key WITHOUT a signature. This client sends neither — REST `userDataStream` moved to ws-api, and every unsigned read here is `NONE`, including `/api/v3/trades`, the `NONE` sibling of the `MARKET_DATA` `historicalTrades`. So `needsSignature` doubles as "needs the key" only for as long as that stays true. Adding a `USER_STREAM` or `MARKET_DATA` call means giving it its own flag; borrowing this one sends it out unkeyed and it fails with -2015.
+      const headers: Record<string, string> = needsSignature
+        ? { 'X-MBX-APIKEY': opts.credentials.apiKey }
+        : {};
       let body: string | undefined;
       if (method === 'POST' || method === 'PUT') {
         headers['Content-Type'] = 'application/x-www-form-urlencoded';
@@ -872,8 +898,10 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
         body,
         // Never follow a redirect. The Fetch Standard drops `Authorization` on a
         // cross-origin redirect but knows nothing about `X-MBX-APIKEY`, so a
-        // redirect off api.binance.com would replay the key to the new host.
-        // Binance's REST API never legitimately redirects, so failing is right.
+        // redirect off api.binance.com would replay the key of a signed call to
+        // the new host. On an unsigned one it would let that host answer for
+        // Binance. Binance's REST API never legitimately redirects, so failing
+        // is right.
         redirect: 'error',
         signal: signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
@@ -1069,6 +1097,17 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
         await call<unknown>('GET', '/api/v3/klines', params, false, WEIGHT.klines),
       );
     },
+    async getPriceTickers(symbols) {
+      if (symbols.length === 0) return [];
+      return call<readonly PriceTickerDto[]>(
+        'GET',
+        '/api/v3/ticker/price',
+        // JSON-serialised here rather than handed to `buildQs` as an array: that helper expands an array to repeated keys (`symbols=A&symbols=B`), which is right for the SAPI dust endpoint and wrong for this one — Binance wants a single `symbols=["A","B"]`.
+        { symbols: JSON.stringify([...symbols]) },
+        false,
+        WEIGHT.tickerPrice,
+      );
+    },
     async getTicker24hr(symbol) {
       return call<Ticker24hrDto>(
         'GET',
@@ -1152,6 +1191,22 @@ const RETRYABLE_BINANCE = new Set([-1003, -1006, -1007, -1015]);
 
 const classifyRetryable = (status: number, code: number): boolean =>
   RETRYABLE_HTTP.has(status) || RETRYABLE_BINANCE.has(code);
+
+// HTTP 418 is Binance's IP ban and 429 its rate-limit warning; -1003 is TOO_MANY_REQUESTS and -1015 TOO_MANY_ORDERS. Narrower than `retryable` on purpose: a 5xx is worth retrying but says nothing about the weight budget, while these four mean the budget is already spent. 418 appears here though not in RETRYABLE_HTTP, because "already banned" is exactly the state a caller must not add load to even though it is not itself a retry signal.
+const RATE_LIMIT_HTTP = new Set([418, 429]);
+const RATE_LIMIT_BINANCE = new Set([-1003, -1015]);
+
+/**
+ * Whether a thrown error means the request-weight budget is already spent, so a caller holding a fan-out fallback must abandon it rather than run it.
+ *
+ * A `catch` cannot otherwise tell "one bad symbol poisoned a batch" — where retrying members individually is the repair — from a throttle, where those same retries are the harm. Any non-Binance error answers false: an unrecognised failure gets the fallback, which is the behaviour that existed before this predicate.
+ *
+ * @param err - The caught value, of any shape; only a {@link BinanceApiError} can answer true.
+ * @returns True when Binance reported a rate limit or an IP ban.
+ */
+export const isRateLimitError = (err: unknown): boolean =>
+  err instanceof BinanceApiError &&
+  (RATE_LIMIT_HTTP.has(err.status) || RATE_LIMIT_BINANCE.has(err.code));
 
 /**
  * Binance error codes whose own documentation says the request's EXECUTION

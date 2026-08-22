@@ -163,7 +163,7 @@ const REVIEWED_IGNORES: Record<string, readonly string[]> = {
 };
 
 const REVIEWED_IDENTITY_DIGESTS: Record<string, string> = {
-  'packages/binance/src/binance-rest.ts': '15e8e53fdef129b0',
+  'packages/binance/src/binance-rest.ts': '3456cdb7a4f2bb82',
   'packages/binance/src/market-data/fake-port.ts': '64e259fdba0be49f',
   'packages/binance/src/market-data/kline-fetcher.ts': '8bc0a3461d279b30',
   'packages/binance/src/public-klines.ts': '009866645bd7ee6e',

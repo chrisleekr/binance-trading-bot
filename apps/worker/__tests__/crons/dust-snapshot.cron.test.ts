@@ -17,25 +17,32 @@ const PROFILE_ID = 'p1' as unknown as ProfileId;
 
 const silentLogger = pino({ level: 'silent' });
 
-const stubRest = (overrides: Partial<BinanceRestClient> = {}): BinanceRestClient => ({
-  getOpenOrders: vi.fn(async () => []),
-  getAccount: vi.fn(async () => ({}) as never),
-  placeOrder: vi.fn(async () => ({}) as never),
-  cancelOrder: vi.fn(async () => ({}) as never),
-  getKlines: vi.fn(async () => []),
-  getTicker24hr: vi.fn(async () => ({}) as never),
-  getRecentTrades: vi.fn(async () => []),
-  getDepth: vi.fn(async () => ({}) as never),
-  getDustBtc: vi.fn(async () => ({
-    totalTransferBtc: '0',
-    totalTransferBnb: '0',
-    details: [],
-  })),
-  convertDust: vi.fn(async () => ({}) as never),
-  ctx: vi.fn(() => ({}) as never),
-  signWsApiPayload: vi.fn(),
-  ...overrides,
-});
+const stubRest = (overrides: Partial<BinanceRestClient> = {}): BinanceRestClient => {
+  const base = {
+    getOpenOrders: vi.fn(async () => []),
+    getAccount: vi.fn(async () => ({}) as never),
+    placeOrder: vi.fn(async () => ({}) as never),
+    cancelOrder: vi.fn(async () => ({}) as never),
+    getOrder: vi.fn(async () => ({}) as never),
+    getKlines: vi.fn(async () => []),
+    getTicker24hr: vi.fn(async () => ({}) as never),
+    getAllTickers24hr: vi.fn(async () => []),
+    getPriceTickers: vi.fn(async () => []),
+    getRecentTrades: vi.fn(async () => []),
+    getMyTrades: vi.fn(async () => []),
+    getDepth: vi.fn(async () => ({}) as never),
+    getDustBtc: vi.fn(async () => ({
+      totalTransferBtc: '0',
+      totalTransferBNB: '0',
+      dribbletPercentage: '0',
+      details: [],
+    })),
+    convertDust: vi.fn(async () => ({}) as never),
+    ctx: vi.fn(() => ({}) as never),
+    signWsApiPayload: vi.fn(() => ({ id: '', method: '', params: {} })),
+  } satisfies BinanceRestClient;
+  return { ...base, ...overrides };
+};
 
 const buildDeps = (
   rest: BinanceRestClient,
@@ -54,14 +61,17 @@ const buildDeps = (
       technicalsIntervals: [],
     },
   ],
-  resolveBinance: vi.fn(async () => ({ rest, mode })),
-  persistDust: vi.fn(async () => undefined),
-  listPendingDustTransfers: vi.fn(async () => []),
-  claimAction: vi.fn(async () => true),
-  finalize: vi.fn(async () => true),
-  releaseClaim: vi.fn(async () => undefined),
-  reapStaleProcessing: vi.fn(async () => 0),
-  reapExpiredOverrides: vi.fn(async () => ({ expired: 0, unresolved: [] })),
+  resolveBinance: vi.fn<DustSnapshotDeps['resolveBinance']>(async () => ({ rest, mode })),
+  persistDust: vi.fn<DustSnapshotDeps['persistDust']>(async () => undefined),
+  listPendingDustTransfers: vi.fn<DustSnapshotDeps['listPendingDustTransfers']>(async () => []),
+  claimAction: vi.fn<DustSnapshotDeps['claimAction']>(async () => true),
+  finalize: vi.fn<DustSnapshotDeps['finalize']>(async () => true),
+  releaseClaim: vi.fn<DustSnapshotDeps['releaseClaim']>(async () => undefined),
+  reapStaleProcessing: vi.fn<DustSnapshotDeps['reapStaleProcessing']>(async () => 0),
+  reapExpiredOverrides: vi.fn<DustSnapshotDeps['reapExpiredOverrides']>(async () => ({
+    expired: 0,
+    unresolved: [],
+  })),
 });
 
 describe('dust-snapshot cron handler', () => {
@@ -95,7 +105,7 @@ describe('dust-snapshot cron handler', () => {
     const warn = vi.fn();
     const logger = { ...silentLogger, info: vi.fn(), warn } as unknown as Logger;
     const rest = stubRest();
-    const reapStaleProcessing = vi.fn(async () => 1);
+    const reapStaleProcessing = vi.fn<DustSnapshotDeps['reapStaleProcessing']>(async () => 1);
     const now = 1_700_000_000_000;
     const staleProcessingMs = 600_000;
     const deps = {
@@ -121,7 +131,7 @@ describe('dust-snapshot cron handler', () => {
     // profile with a missing or broken Binance key would keep a stranded claim forever,
     // which is the same hole the live-only hoist closed on the other side.
     const rest = stubRest();
-    const reapStaleProcessing = vi.fn(async () => 1);
+    const reapStaleProcessing = vi.fn<DustSnapshotDeps['reapStaleProcessing']>(async () => 1);
     const deps = {
       ...buildDeps(rest, 'live'),
       resolveBinance: vi.fn(async () => null),
@@ -216,8 +226,10 @@ describe('dust-snapshot cron handler', () => {
         ],
       })),
     });
-    const finalize = vi.fn(async () => true);
-    const notifyDustConversion = vi.fn(async () => {});
+    const finalize = vi.fn<DustSnapshotDeps['finalize']>(async () => true);
+    const notifyDustConversion = vi.fn<NonNullable<DustSnapshotDeps['notifyDustConversion']>>(
+      async () => undefined,
+    );
     const deps: DustSnapshotDeps = {
       ...buildDeps(rest, 'live'),
       listPendingDustTransfers: vi.fn(async () => [{ id: 'a1', assets: ['XRP', 'ADA'] }]),
@@ -309,7 +321,10 @@ describe('dust-snapshot cron — stranded-override sweep', () => {
   });
 
   it('collapses both profiles of one account into a single sweep call', async () => {
-    const reapExpiredOverrides = vi.fn(async () => ({ expired: 0, unresolved: [] }));
+    const reapExpiredOverrides = vi.fn<DustSnapshotDeps['reapExpiredOverrides']>(async () => ({
+      expired: 0,
+      unresolved: [],
+    }));
     // test-mode, so the per-profile loop skips both profiles outright: the sweep
     // must still run, because an override is armed in test mode too.
     const deps = twoProfileDeps({ reapExpiredOverrides });
@@ -373,7 +388,9 @@ describe('dust-snapshot cron — stranded-override sweep', () => {
     // resolve for itself: an order may be live on the exchange. A log line does
     // not reach a phone, and the operator has no reason to open the symbol page
     // for a force-sell they believe already settled — so it has to be pushed.
-    const notifyOverrideUnresolved = vi.fn(async () => undefined);
+    const notifyOverrideUnresolved = vi.fn<
+      NonNullable<DustSnapshotDeps['notifyOverrideUnresolved']>
+    >(async () => undefined);
     const deps = twoProfileDeps({
       reapExpiredOverrides: vi.fn(async () => ({
         expired: 0,
@@ -436,7 +453,9 @@ describe('dust-snapshot cron — stranded-override sweep', () => {
   it('keeps escalating the remaining rows when one notification throws', async () => {
     // The wired notifier swallows its own faults, so this pins that the cron does not
     // DEPEND on that: one symbol's alert failing must not silence its siblings'.
-    const notifyOverrideUnresolved = vi.fn(async (input: { readonly symbol: string }) => {
+    const notifyOverrideUnresolved = vi.fn<
+      NonNullable<DustSnapshotDeps['notifyOverrideUnresolved']>
+    >(async (input) => {
       if (input.symbol === 'BTCUSDT') throw new Error('slack down');
     });
     const rest = stubRest();
@@ -466,7 +485,9 @@ describe('dust-snapshot cron — stranded-override sweep', () => {
     // These are the benign half: the window drained with no tick inside it, so
     // nothing was placed and there is nothing for a human to check. Alerting here
     // would train the operator to ignore the alert that matters.
-    const notifyOverrideUnresolved = vi.fn(async () => undefined);
+    const notifyOverrideUnresolved = vi.fn<
+      NonNullable<DustSnapshotDeps['notifyOverrideUnresolved']>
+    >(async () => undefined);
     const deps = twoProfileDeps({
       reapExpiredOverrides: vi.fn(async () => ({ expired: 2, unresolved: [] })),
       notifyOverrideUnresolved,

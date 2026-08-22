@@ -163,9 +163,9 @@ export const createDI = (env: Env): DI => {
     isProduction: env.NODE_ENV === 'production',
     logger,
   });
-  // One keyless REST client per Binance host. Klines is unsigned, so empty
-  // credentials are sufficient; Binance ignores X-MBX-APIKEY for public
-  // endpoints. Built once at boot rather than per request.
+  // One keyless REST client per Binance host. Klines is unsigned, and the client
+  // attaches the key to signed calls only, so empty credentials never reach the
+  // wire here. Built once at boot rather than per request.
   const emptyCredentials = { apiKey: '', secretKey: '' };
   const binanceByMode: Record<BinanceMode, ReturnType<typeof createBinanceRest>> = {
     test: createBinanceRest({ mode: 'test', credentials: emptyCredentials }),

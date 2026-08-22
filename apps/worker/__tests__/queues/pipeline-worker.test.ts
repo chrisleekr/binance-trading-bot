@@ -4,8 +4,10 @@ import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import { BinanceApiError } from '@app/binance';
-import { profileRepo, ProfileNotOwnedError } from '@app/db';
+import { GLOBAL_KEYS, profileRepo, ProfileNotOwnedError } from '@app/db';
+import { Decimal } from '@app/money';
 
+import { reconcileHeldQuantity } from '../../src/boot/reconcile-held-quantity.js';
 import { registerPipelineWorker } from '../../src/queues/pipeline-worker.js';
 import { buildSymbolInfoKey } from '../../src/executor/redis-namespace.js';
 import { createChainByKey } from '../../src/lib/chain-by-key.js';
@@ -24,6 +26,7 @@ import type { PipelineWorkerDeps } from '../../src/queues/pipeline-worker.js';
 const repoMocks = vi.hoisted(() => ({
   ordersFindById: vi.fn(),
   ordersListLiveForSymbol: vi.fn(),
+  ordersListRecoveryAttributionRows: vi.fn(),
   tradeArchiveLatestArchivedAt: vi.fn(),
   tradeArchiveSummarizeArchiveSince: vi.fn(),
   tradeArchiveListClosedSince: vi.fn(),
@@ -42,6 +45,7 @@ const repoMocks = vi.hoisted(() => ({
   profileSymbolsFindForSymbol: vi.fn(),
   binanceGetAccount: vi.fn(),
   binanceGetMyTrades: vi.fn(),
+  binanceGetPriceTickers: vi.fn(),
   // Per-account resolution: credentials + Binance mode live on the account now.
   binanceModeById: vi.fn(),
   accountGet: vi.fn(),
@@ -69,6 +73,7 @@ vi.mock('@app/db', async (importOriginal) => {
       orders: {
         findById: repoMocks.ordersFindById,
         listLiveForSymbol: repoMocks.ordersListLiveForSymbol,
+        listRecoveryAttributionRows: repoMocks.ordersListRecoveryAttributionRows,
       },
       tradeArchive: {
         latestArchivedAt: repoMocks.tradeArchiveLatestArchivedAt,
@@ -128,6 +133,7 @@ interface Harness {
   // Configurable `StrategyRegistry.get` so reset-grid-trade tests can supply
   // a strategy carrying the position capability + `reset-grid` operator action.
   // Defaults to undefined (unknown strategy) for the subscribe/dispatch tests.
+  evictProfileContext: ReturnType<typeof vi.fn>;
   strategiesGet: ReturnType<typeof vi.fn>;
   statePortMutate: ReturnType<typeof vi.fn>;
   resolveBinanceClient: ReturnType<typeof vi.fn>;
@@ -193,6 +199,7 @@ const buildHarness = (
   const resolveBinanceClient = vi.fn(async () => ({
     getMyTrades: repoMocks.binanceGetMyTrades,
     getAccount: repoMocks.binanceGetAccount,
+    getPriceTickers: repoMocks.binanceGetPriceTickers,
   }));
   // Captures every persistSymbolState write the mid-run reconcile drives, so a
   // wiring test can assert the symbol_states body carried heldQuantity +
@@ -216,6 +223,9 @@ const buildHarness = (
   }
   // Default account mode is live; the #582 test overrides it once to 'test'.
   repoMocks.binanceModeById.mockResolvedValue('live');
+  repoMocks.ordersListRecoveryAttributionRows.mockResolvedValue([]);
+  // Empty by default so the reconfigure reconcile's batched price fetch resolves rather than returning undefined; cases that exercise the fallback override it.
+  repoMocks.binanceGetPriceTickers.mockResolvedValue([]);
 
   let captured: ((job: Job) => Promise<void>) | null = null;
   const queueSet: QueueSet = {
@@ -287,6 +297,10 @@ const buildHarness = (
       persistSymbolState,
     } as unknown as PipelineWorkerDeps['symbolStateDeps'],
     reconcileOwnership,
+    // The reconfigure/disable notify wrapper resolves providers through this; no test here drives a notification, so an empty registry is the whole surface they need.
+    notifyRegistry: {} as PipelineWorkerDeps['notifyRegistry'],
+    // Required by the dep bag because the mid-run reconcile below records position removals through it; no case here asserts a counter, so a no-op is the whole surface needed.
+    metrics: { record: vi.fn(), forget: vi.fn() },
   } satisfies PipelineWorkerDeps;
   registerPipelineWorker(queueSet, deps);
   if (captured === null) throw new Error('test setup: registerWorker did not capture handler');
@@ -1361,6 +1375,227 @@ describe('pipeline-worker dispatch', () => {
     expect(h.chainKeys).toContain(`${ids.profileId}:BTCUSDT`);
   });
 
+  /**
+   * Wires the mid-run reconcile fixture the reserve cases share.
+   *
+   * @param h - The harness whose redis + repo mocks are being programmed.
+   * @param opts - Wallet balance, per-symbol reserve, cached price, and the exchange filters the cached symbolInfo reports.
+   * @returns Nothing; the harness mocks are mutated in place.
+   */
+  const armReserveReconcile = (
+    h: ReturnType<typeof buildHarness>,
+    opts: {
+      walletFree: string;
+      reserve: string;
+      price: string;
+      stepSize: string;
+      minNotional: string;
+    },
+  ): void => {
+    h.strategiesGet.mockReturnValue(reconcileStrategy);
+    repoMocks.profilesFindById.mockResolvedValue({
+      id: ids.profileId,
+      enabled: true,
+      binanceMode: 'live',
+      strategyName: 'trailing-trade',
+      strategyVersion: '1.0.0',
+      config: {},
+    });
+    // Both lookup shapes carry the reserve, so the assertion turns on the reserve being APPLIED rather than on which repo call the implementation happens to reach for.
+    repoMocks.profileSymbolsListForProfile.mockResolvedValue([
+      { symbol: 'BTCUSDT', reserveBaseQuantity: opts.reserve },
+    ]);
+    repoMocks.profileSymbolsFindForSymbol.mockResolvedValue({
+      reserveBaseQuantity: opts.reserve,
+    });
+    h.redis.get.mockImplementation(async (key: string) => {
+      if (key === buildSymbolInfoKey('BTCUSDT', 'live')) {
+        return JSON.stringify({
+          baseAsset: 'BTC',
+          filters: { stepSize: opts.stepSize, minNotional: opts.minNotional },
+        });
+      }
+      if (key === GLOBAL_KEYS.ticker('BTCUSDT')) return JSON.stringify({ price: opts.price });
+      return null;
+    });
+    repoMocks.binanceGetAccount.mockResolvedValue({
+      balances: [{ asset: 'BTC', free: opts.walletFree, locked: '0' }],
+    });
+  };
+
+  it('reconfigure-profile: adopts only the tradeable surplus, never the operator reserve', async () => {
+    // The boot sweep drains the per-symbol reserve out of the wallet before adoption, so a reserved holding is never claimed as a position the strategy may sell. This path does not, which makes the same profile reconcile to two different held quantities depending on which door it came through — and the reconfigure door is the one an operator walks through immediately after setting the reserve.
+    const h = buildHarness();
+    armReserveReconcile(h, {
+      walletFree: '2',
+      reserve: '0.5',
+      price: '50',
+      stepSize: '0.0001',
+      minNotional: '10',
+    });
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue(null);
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+    repoMocks.avgEntryPricesUpsert.mockResolvedValue(undefined);
+    repoMocks.binanceGetMyTrades.mockResolvedValue([
+      {
+        id: 1,
+        orderId: 1,
+        symbol: 'BTCUSDT',
+        price: '50',
+        qty: '2',
+        quoteQty: '100',
+        commission: '0',
+        commissionAsset: 'USDT',
+        time: 1000,
+        isBuyer: true,
+        isMaker: false,
+      },
+    ]);
+
+    await h.invoke('reconfigure-profile', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+    });
+
+    const upserted = repoMocks.avgEntryPricesUpsert.mock.calls[0]?.[1] as { quantity: string };
+    expect(new Decimal(upserted.quantity).eq('1.5')).toBe(true);
+    const held = (h.persistedSymbolStates.at(-1)?.state as { heldQuantity: string }).heldQuantity;
+    expect(new Decimal(held).eq('1.5')).toBe(true);
+  });
+
+  it('reconfigure-profile: a fully-reserved wallet reconciles flat instead of holding the reserve', async () => {
+    // Same rule from the other side. Every coin is reserved, so the tradeable surplus is zero and the strategy must read FLAT and trade on top — not carry a position made entirely of coins the operator told it never to sell.
+    const h = buildHarness();
+    armReserveReconcile(h, {
+      walletFree: '2',
+      reserve: '2',
+      price: '50',
+      stepSize: '0.0001',
+      minNotional: '10',
+    });
+    const pricedBody = {
+      schemaVersion: '1.0.0',
+      avgEntryPrice: '50',
+      heldQuantity: '2',
+      highSinceBuy: null,
+    };
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      avgEntryPrice: '50',
+      quantity: '2',
+    });
+    // A read returns the LAST write, as a database would. The pass makes two writes here — the reconciler converges the quantity, then the phantom prune clears the cost basis over it — and a mock that replays the pre-reconcile body to the second one hands it a position that no longer exists.
+    repoMocks.symbolStatesFindBySymbol.mockImplementation(async () => ({
+      symbol: 'BTCUSDT',
+      strategyVersion: '1.0.0',
+      state: h.persistedSymbolStates.at(-1)?.state ?? pricedBody,
+    }));
+
+    await h.invoke('reconfigure-profile', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+    });
+
+    expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({ heldQuantity: null });
+  });
+
+  it('reconfigure-profile: values the dust bounds at the operator holding, not the surplus', async () => {
+    // Where the two numbers genuinely disagree, and the case a single forwarded wallet figure cannot get right. A deep reserve leaves a surplus worth a fraction of one minimum order while the operator's own holding is worth twenty times it. The dust VALUE bounds ask "is this residue?", which is a question about the coins the operator owns; asked of the surplus instead they answer yes, refuse to adopt, and the reconfigure leaves a real position invisible. Sizing keeps reading the surplus — only the value bounds read the raw total.
+    const h = buildHarness();
+    armReserveReconcile(h, {
+      walletFree: '2',
+      reserve: '1.9999',
+      price: '50',
+      stepSize: '0.00001',
+      minNotional: '10',
+    });
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue(null);
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+    repoMocks.avgEntryPricesUpsert.mockResolvedValue(undefined);
+    repoMocks.binanceGetMyTrades.mockResolvedValue([
+      {
+        id: 1,
+        orderId: 1,
+        symbol: 'BTCUSDT',
+        price: '50',
+        qty: '2',
+        quoteQty: '100',
+        commission: '0',
+        commissionAsset: 'USDT',
+        time: 1000,
+        isBuyer: true,
+        isMaker: false,
+      },
+    ]);
+
+    await h.invoke('reconfigure-profile', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+    });
+
+    // The boot sweep's own verdict for the identical inputs. Asserting against it rather than a literal is what makes the two doors provably one rule: change the rule and both move together, or this fails.
+    const bootVerdict = reconcileHeldQuantity({
+      heldQuantity: null,
+      walletFree: '0.0001',
+      walletLocked: '0',
+      stepSize: '0.00001',
+      minNotional: '10',
+      referencePrice: '50',
+      unreservedWalletTotal: '2',
+    });
+    expect(bootVerdict.action).toBe('seed-from-wallet');
+    const held = (h.persistedSymbolStates.at(-1)?.state as { heldQuantity: string }).heldQuantity;
+    expect(new Decimal(held).eq(bootVerdict.nextHeldQuantity ?? '0')).toBe(true);
+  });
+
+  it('reconfigure-profile: prices a symbol the ticker cache has never held, via the batched REST fallback', async () => {
+    // Not a cold-start race — a guaranteed miss. `handleReconfigure` runs this reconcile BEFORE `setSymbols`, so a newly added symbol has never had a miniTicker subscription and its `ticker:` key cannot exist. Without the fallback every dust value bound stands down on exactly the pass that re-adopts a symbol, and an operator re-adding one that still carries sub-notional residue has the seed gate rebuild the unsellable strand this whole change exists to prevent.
+    const h = buildHarness();
+    armReserveReconcile(h, {
+      walletFree: '0.5',
+      reserve: '0',
+      price: '50',
+      stepSize: '0.0001',
+      minNotional: '10',
+    });
+    // The cache holds nothing for this symbol, which is the guaranteed state for a fresh binding.
+    h.redis.get.mockImplementation(async (key: string) =>
+      key === buildSymbolInfoKey('BTCUSDT', 'live')
+        ? JSON.stringify({ baseAsset: 'BTC', filters: { stepSize: '0.0001', minNotional: '10' } })
+        : null,
+    );
+    // 0.5 x 0.001 = 0.0005 quote, four orders of magnitude under the 10 floor: unmistakably dust once a price exists to value it by.
+    repoMocks.binanceGetPriceTickers.mockResolvedValue([{ symbol: 'BTCUSDT', price: '0.001' }]);
+    const pricedBody = {
+      schemaVersion: '1.0.0',
+      avgEntryPrice: '50',
+      heldQuantity: '0.5',
+      highSinceBuy: null,
+    };
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      avgEntryPrice: '50',
+      quantity: '0.5',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockImplementation(async () => ({
+      symbol: 'BTCUSDT',
+      strategyVersion: '1.0.0',
+      state: h.persistedSymbolStates.at(-1)?.state ?? pricedBody,
+    }));
+
+    await h.invoke('reconfigure-profile', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+    });
+
+    expect(repoMocks.binanceGetPriceTickers).toHaveBeenCalledWith(['BTCUSDT']);
+    // The bound ARMED and acted: the residue is flattened and its cost basis dropped. With no price this pass would have converged the strand instead and left it on the dashboard forever.
+    expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({ heldQuantity: null });
+    expect(repoMocks.avgEntryPricesRemove).toHaveBeenCalledWith('BTCUSDT');
+  });
+
   it('reconfigure-profile: seeds the strategy state of a DISABLED profile — the handoff target case', async () => {
     // The handoff hands a live position to another profile, and the natural target
     // is a fresh or stopped one, i.e. NOT in ProfileManager. Gating the wallet
@@ -1821,6 +2056,7 @@ describe('pipeline-worker dispatch', () => {
       // converge path). One symbol so profilesUsing has something to lose.
       await pm.enable({
         userId: ids.userId,
+        operatorId: ids.userId,
         accountId: ids.accountId,
         profileId: ids.profileId,
         symbols: ['BTCUSDT'],
@@ -1926,6 +2162,7 @@ describe('pipeline-worker dispatch', () => {
         new BinanceApiError(
           { status: 401, code: -2015, msg: 'Invalid API-key, IP, or permissions for action' },
           false,
+          'rejected',
         ),
       );
       await h.invoke('verify-key', { userId: ids.userId, accountId: ids.accountId });
@@ -1941,7 +2178,11 @@ describe('pipeline-worker dispatch', () => {
       const h = buildHarness();
       seedKeyAndProfile();
       repoMocks.binanceGetAccount.mockRejectedValueOnce(
-        new BinanceApiError({ status: 503, code: -1003, msg: 'Service unavailable' }, true),
+        new BinanceApiError(
+          { status: 503, code: -1003, msg: 'Service unavailable' },
+          true,
+          'ambiguous',
+        ),
       );
       await expect(
         h.invoke('verify-key', { userId: ids.userId, accountId: ids.accountId }),

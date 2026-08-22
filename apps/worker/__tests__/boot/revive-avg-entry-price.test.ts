@@ -83,6 +83,11 @@ describe('reviveAvgEntryPriceForTarget (persist-side wrapper)', () => {
     // these cases exercise the revive path they are about.
     walletQuantity: '0.5' as string | null,
     stepSize: '0.00001000',
+    // `apps/worker/tsconfig.json` compiles `src/**` only, so nothing type-checks this factory: a target missing one of these reads `undefined` at runtime and disarms the value bound while every case here still passes. Named explicitly, and null by default so these cases keep exercising the increment bound alone.
+    minNotional: null as string | null,
+    referencePrice: null as string | null,
+    unreservedWalletTotal: null as string | null,
+    preReconcileHeldQuantity: null as string | null,
     ...overrides,
   });
 
@@ -268,6 +273,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
     // the CLAIM instead makes the recovery total.
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: null,
         stateAvgEntryPrice: '213.1',
         walletQuantity: '0',
@@ -276,11 +285,65 @@ describe('isPhantomLedgerRow (pure decision)', () => {
     ).toBe(true);
   });
 
+  it('prunes a claim the wallet backs only with sub-notional residue', () => {
+    // 1.18 LOT_SIZE steps of a coin worth a tenth of a cent against a USD 5 floor. Every increment comparison reads that as a real holding, which is how the claim survived pass after pass; valuing it is the only thing that separates it from the smallest LEGAL position.
+    expect(
+      isPhantomLedgerRow({
+        preReconcileHeldQuantity: null,
+        ledgerAvgEntryPrice: '0.4587',
+        stateAvgEntryPrice: '0.4587',
+        walletQuantity: '0.01184',
+        stepSize: '0.01',
+        minNotional: '5',
+        referencePrice: '0.1158',
+        unreservedWalletTotal: '0.01184',
+      }),
+    ).toBe(true);
+  });
+
+  it('does not prune a deliberate partial holding that merely sits below the floor', () => {
+    // `rebalance` trims to a target weight on purpose. 4 units at a price of 1 is 80% of one minimum order — residue is orders of magnitude smaller than that, and flattening on bare value would delete a real position's cost basis.
+    expect(
+      isPhantomLedgerRow({
+        preReconcileHeldQuantity: null,
+        ledgerAvgEntryPrice: '1',
+        stateAvgEntryPrice: '1',
+        walletQuantity: '4',
+        stepSize: '0.01',
+        minNotional: '5',
+        referencePrice: '1',
+        unreservedWalletTotal: '4',
+      }),
+    ).toBe(false);
+  });
+
+  it('does not prune a deeply-reserved claim whose tradeable sliver is below the scaled floor', () => {
+    // The DEEP-RESERVE BAND: the operator holds 50 ENA worth USD 5.79 and reserves 49.7, leaving 0.3 tradeable and worth USD 0.03474 — under the scaled floor of USD 0.05. This is the only band where valuing the pre-reserve total and quietly valuing `walletQuantity` disagree, so it is the case that pins the threading; a shallower reserve clears the floor by more than 10x and reads identically either way.
+    //
+    // It runs in the opposite direction from the sub-notional prune above, and both directions are needed: a DROPPED field disarms the bound and can only be caught by a case demanding a DELETE, while a MIS-WIRED field substitutes a smaller number and can only be caught by a case forbidding one.
+    expect(
+      isPhantomLedgerRow({
+        preReconcileHeldQuantity: null,
+        ledgerAvgEntryPrice: '0.4587',
+        stateAvgEntryPrice: '0.4587',
+        walletQuantity: '0.3',
+        stepSize: '0.01',
+        minNotional: '5',
+        referencePrice: '0.1158',
+        unreservedWalletTotal: '50',
+      }),
+    ).toBe(false);
+  });
+
   it('returns false when nothing claims a position at all', () => {
     // Neither the ledger nor the state says anything — there is no phantom to
     // prune, whatever the wallet reads.
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: null,
         stateAvgEntryPrice: null,
         walletQuantity: '0',
@@ -292,6 +355,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
   it('does not prune a state claim the wallet DOES back', () => {
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: null,
         stateAvgEntryPrice: '213.1',
         walletQuantity: '0.5',
@@ -309,6 +376,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
     // The threshold must stay STRICT (`wallet.lt(step)`).
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '213.1',
         stateAvgEntryPrice: '213.1',
         walletQuantity: '1',
@@ -324,6 +395,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
     // FROM the wallet, so it cannot tell these two cases apart.
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '213.1',
         stateAvgEntryPrice: '213.1',
         walletQuantity: '0',
@@ -335,6 +410,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
   it('prunes a wallet JUST below one stepSize (dust the strategy can never sell)', () => {
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '213.1',
         stateAvgEntryPrice: '213.1',
         walletQuantity: '0.999',
@@ -346,6 +425,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
   it('returns false when the ledger has no row', () => {
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: null,
         stateAvgEntryPrice: null,
         walletQuantity: '0',
@@ -357,6 +440,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
   it('returns true when the base asset is ABSENT from the wallet (definite phantom)', () => {
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
         walletQuantity: null,
@@ -368,6 +455,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
   it('returns true when the wallet is below stepSize (dust)', () => {
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
         walletQuantity: '0.000001',
@@ -379,6 +470,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
   it('returns false when the wallet is at or above stepSize (real position)', () => {
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
         walletQuantity: '0.0142',
@@ -389,6 +484,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
     // minimum-size position from having its cost basis deleted.
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
         walletQuantity: '0.00001',
@@ -400,6 +499,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
   it('returns false when stepSize is null — cannot compare, must not prune', () => {
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
         walletQuantity: '0.0142',
@@ -411,6 +514,10 @@ describe('isPhantomLedgerRow (pure decision)', () => {
   it('returns false on malformed Decimal inputs (refuses to delete on parse failure)', () => {
     expect(
       isPhantomLedgerRow({
+        minNotional: null,
+        referencePrice: null,
+        unreservedWalletTotal: null,
+        preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
         walletQuantity: 'nope',
@@ -445,6 +552,10 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
     const state = { schemaVersion: '2.0.0', avgEntryPrice: null, heldQuantity: null };
     const { mutate, removeLedgerRow, written, deps } = buildDeps(state);
     const action = await reviveAvgEntryPriceForTarget(deps, {
+      minNotional: null,
+      referencePrice: null,
+      preReconcileHeldQuantity: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -471,6 +582,10 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
     };
     const { mutate, removeLedgerRow, written, deps } = buildDeps(state);
     const action = await reviveAvgEntryPriceForTarget(deps, {
+      minNotional: null,
+      referencePrice: null,
+      preReconcileHeldQuantity: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -492,6 +607,11 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
     const state = { schemaVersion: '2.0.0', avgEntryPrice: null, heldQuantity: '0.0142' };
     const { mutate, removeLedgerRow, written, deps } = buildDeps(state);
     const action = await reviveAvgEntryPriceForTarget(deps, {
+      walletQuantity: '0.0142',
+      minNotional: null,
+      referencePrice: null,
+      preReconcileHeldQuantity: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -510,6 +630,11 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
   it('does NOT prune when the ledger has no row to begin with', async () => {
     const { removeLedgerRow, deps } = buildDeps();
     const action = await reviveAvgEntryPriceForTarget(deps, {
+      walletQuantity: null,
+      minNotional: null,
+      referencePrice: null,
+      preReconcileHeldQuantity: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -526,6 +651,11 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
     const state = { schemaVersion: '2.0.0', avgEntryPrice: null, heldQuantity: '0.0142' };
     const { removeLedgerRow, deps } = buildDeps(state);
     const action = await reviveAvgEntryPriceForTarget(deps, {
+      walletQuantity: '0.0142',
+      minNotional: null,
+      referencePrice: null,
+      preReconcileHeldQuantity: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -545,6 +675,10 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
     const state = { schemaVersion: '2.0.0', avgEntryPrice: '213.1', heldQuantity: '0' };
     const { mutate, removeLedgerRow, written, deps } = buildDeps(state);
     const action = await reviveAvgEntryPriceForTarget(deps, {
+      minNotional: null,
+      referencePrice: null,
+      preReconcileHeldQuantity: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'TAOUSDT',
@@ -570,6 +704,11 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
     const cleared = { schemaVersion: '2.0.0', avgEntryPrice: null, heldQuantity: '0' };
     const { mutate, removeLedgerRow, deps } = buildDeps(cleared);
     const action = await reviveAvgEntryPriceForTarget(deps, {
+      walletQuantity: null,
+      minNotional: null,
+      referencePrice: null,
+      preReconcileHeldQuantity: null,
+      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'TAOUSDT',
