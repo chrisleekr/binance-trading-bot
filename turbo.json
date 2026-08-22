@@ -25,6 +25,7 @@
       "env": [
         "COVERAGE_LANE",
         "DATABASE_TEST_URL",
+        "ROOT_HEAP_DATABASE_TEST_URL",
         "REDIS_TEST_URL",
         "TESTCONTAINERS",
         "TESTCONTAINERS_CONTENTION_CHECK"
