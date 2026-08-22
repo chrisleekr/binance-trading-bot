@@ -9,6 +9,7 @@ describe('buildReconcile', () => {
     const chain = buildChain();
     const persistSymbolState = async (): Promise<boolean> => true;
     const persistProfileState = async (): Promise<void> => undefined;
+    const metrics = { record: () => undefined, forget: () => undefined };
 
     const { symbolStateDeps, reconcileDeps } = buildReconcile({
       db: fakeDb(),
@@ -19,6 +20,7 @@ describe('buildReconcile', () => {
       resolveBinanceClient: async () => null,
       persistSymbolState,
       persistProfileState,
+      metrics,
     });
 
     // The single-chain invariant: reconcileDeps must carry the passed instance,
@@ -28,5 +30,7 @@ describe('buildReconcile', () => {
     expect(symbolStateDeps.persistSymbolState).toBe(persistSymbolState);
     // The shared symbolStateDeps is the same object handed to the reconcile bag.
     expect(reconcileDeps.symbolStateDeps).toBe(symbolStateDeps);
+    // The sink must survive the builder by identity. The reconcile counters record position deletions, and a builder that drops the sink emits nothing while every unit test that injects its own stub still passes.
+    expect(reconcileDeps.metrics).toBe(metrics);
   });
 });

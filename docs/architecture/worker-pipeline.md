@@ -143,6 +143,36 @@ Silence here is **not** a fault: Binance emits an account event only when a bala
 
 On boot (`runHeldQuantityReconciliation`, `apps/worker/src/boot/reconcile-held-quantity.ts`) and on a mid-run reconfigure after an operator adopts an orphan (`reconcileSymbolsAfterReconfigure` in `apps/worker/src/queues/pipeline-worker.ts`), the worker reconciles each `(profile, symbol)` under the `profileId:symbol` chain key so a boot-window fill cannot interleave. `ensureCostBasisFromTrades` runs first: for a held-but-unpriced position — the wallet holds the coin but both the strategy state and the `avg_entry_prices` ledger are empty — it reconstructs the average entry price from Binance `myTrades` (`limit: 1000`, average-cost method), upserts the ledger, and applies a synthetic buy onto strategy state so the entry gate does not re-buy a position it already holds. Then `reconcileSymbol` pins `heldQuantity` to wallet truth and revives `avgEntryPrice` from the ledger. On a reconfigure this runs **before** `setSymbols`, so the newly-subscribed symbol is not yet tickable and there is no tick-vs-reconcile race. Both steps are best-effort: a `getMyTrades` / `getAccount` failure logs at warn and continues.
 
+#### What counts as a position, and what is only residue
+
+`LOT_SIZE.stepSize` is the smallest tradeable **increment**; `NOTIONAL.minNotional` is the smallest tradeable **value**. A balance can clear the first and fail the second by orders of magnitude: a crumb one step wide can be worth a fraction of a cent, and no sell will ever dispose of it. Seeding a position asks both halves; the flatten that removes one asks value alone, because an increment test cannot see a position whose wallet has decayed to residue.
+
+Two bars, split by whether the decision creates a position or destroys one:
+
+| Decision point | Bar |
+| --- | --- |
+| Seed an untracked wallet balance (`reconcileHeldQuantity`, `heldQuantity === null`) | full `minNotional` |
+| Reconstruct a cost basis from `myTrades` (`ensureCostBasisFromTrades`) | full `minNotional` |
+| Seed a body from an existing `avg_entry_prices` row | residue (1% of `minNotional`) |
+| Flatten a converged position (`reconcileHeldQuantity`) | residue |
+| Phantom prune (`isPhantomLedgerRow`) | residue |
+
+Declining to **create** costs only a blind spot on a balance nothing could trade anyway. Destroying a cost basis, or abandoning a position a ledger row already records, destroys something real, so the destructive paths take the stricter bar. Seeding from an existing row counts as destructive: that branch runs only when no state body exists, and a decline deletes the row.
+
+Three rules bind any change here:
+
+- **The flatten tests the claim, not just the wallet.** `getAccount` is read once per profile outside the per-symbol loop, while `heldQuantity` is read inside the per-symbol lock, so a BUY filling mid-sweep presents as a dust wallet under a fresh claim and must keep its cost basis. An unparseable claim counts as valueless; a claim of exactly zero is not a claim at all and falls through to the no-op band, since every idle symbol carries one.
+- **The flatten sits ahead of the `|held − wallet| ≤ stepSize` no-op band.** That band is where a stranded position ends up: pinning `heldQuantity` to the wallet makes the two agree exactly, so every later pass short-circuits on a difference of zero before reaching any dust test.
+- **A missing input disarms the bound rather than guessing.** These bounds only ever remove a position, so absence must mean "do not act", whether the symbol is unpriceable, `minNotional` is missing, or `unreservedWalletTotal` is.
+
+Value bounds read `unreservedWalletTotal`, the wallet **before** the operator's reserve is drained out of it, for the reason given under [Per-symbol reserve](account-isolation.md#per-symbol-reserve-always-hold-floor). Increment bounds read the adjusted balance instead, because no order can be placed for less than one step of the slice the strategy may trade. Where a rule combines the two, they are asked of different balances rather than both of the adjusted one.
+
+A flatten clears strategy state first (`applyFill({kind: 'empty'})`), then deletes the `avg_entry_prices` row. The writes are not atomic and the order is deliberate: a lost delete is repaired by the next prune, but a lost clear leaves a claim nothing can heal. No `archive-grid-trade` is enqueued, matching the phantom prune: a flatten asserts the position never existed, so there is no exit fill and no realised P/L.
+
+Prices resolve cache-first (`readTickerPrice`), then one batched `getPriceTickers` call per profile for whatever the cache missed. The REST half is not redundant: the miniTicker cache is written only by the market stream and its keys expire in 60s, so at cold boot, exactly when this sweep runs, it is empty for every symbol.
+
+Both outcomes are observable. `reconcile_value_bound_disarmed_total` separates "checked, the holding is real" from "could not check", which previously both tallied as `no-op`; `reconcile_position_removed_total` records the two destructive paths.
+
 The operator sets the average entry price via the API, which enqueues a pipeline job to update the strategy's position state. See the "Tell the bot the entry price" section in the troubleshooting guide.
 
 ## Auto-archiving a closed cycle
@@ -166,6 +196,14 @@ The netting happens in the **adapter**, before `resolveFill` is called, so the s
 - `apps/worker/src/executor/fill-backfiller.ts` builds the same per-asset totals from `myTrades`, so reconnect recovery and the live stream use the same fee contract and fail-closed behavior. Before aggregating, it validates the requested symbol, numeric trade/order identities, side, and non-negative decimal quantities, then deduplicates identical trade-id replays. An invalid row or conflicting payload for one trade id rejects the whole response before any order is adopted.
 
 With the BUY folding 1680.6177, the live case's residual becomes 0.0177 — below the 0.1 step — and the existing sub-step flatten resolves it to `clear` on its own. When the LOT_SIZE lookup itself fails the residual cannot be checked at all; rather than stranding it silently, the adopter logs an error and appends a plain-language action log so the operator sees the unverified position.
+
+### Two filters make a residual unsellable, not one
+
+The same split applies to a sell's leftover: netting shrinks the residual but does not guarantee it lands under one step, and a crumb above the step can still be worth far less than one minimum order. `resolveFill` therefore takes `minNotional` alongside `stepSize` and flattens on either, valuing the residual at the exiting sell's own VWAP (`cumQuoteQty / cumQty`), the best evidence of what it is worth at the moment it would strand. A non-positive price skips the check, so a caller that does not price its sells cannot empty a live position through a zero. Both parameters are optional and the backtest passes neither, so the shared fold and the golden fixtures replay byte-identical.
+
+The value bound additionally requires the leftover to be under **1%** of the pre-sell position, and that qualifier is load-bearing: `rebalance` trims a holding to a target weight on purpose, and a small target weight is legitimately worth less than the floor, so flattening on value alone would delete a real cost basis and archive a phantom cycle. The increment bound needs no such qualifier, because an increment is price-invariant.
+
+Flattening the fill is only half of it: `reconcileHeldQuantity` would read the same untradeable balance off the wallet on its next pass and re-create the position the fold just cleared, so both apply the same predicates. See [What counts as a position, and what is only residue](#what-counts-as-a-position-and-what-is-only-residue).
 
 ### Cost-basis accounting
 

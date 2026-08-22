@@ -13,20 +13,31 @@ const USER_ID = 'u1' as unknown as UserId;
 const ACCOUNT_ID = 'a1' as unknown as AccountId;
 const PROFILE_ID = 'p1' as unknown as ProfileId;
 
-const stubRest = (overrides: Partial<BinanceRestClient> = {}): BinanceRestClient => ({
-  getOpenOrders: vi.fn(async () => []),
-  getAccount: vi.fn(async () => ({}) as never),
-  placeOrder: vi.fn(async () => ({}) as never),
-  cancelOrder: vi.fn(async () => ({}) as never),
-  getKlines: vi.fn(async () => []),
-  ctx: vi.fn(() => ({}) as never),
-  signWsApiPayload: vi.fn((id, method) => ({
-    id,
-    method,
-    params: { apiKey: 'stub-key', timestamp: 0, signature: 'stub-sig' },
-  })),
-  ...overrides,
-});
+const stubRest = (overrides: Partial<BinanceRestClient> = {}): BinanceRestClient => {
+  const base = {
+    getOpenOrders: vi.fn(async () => []),
+    getAccount: vi.fn(async () => ({}) as never),
+    placeOrder: vi.fn(async () => ({}) as never),
+    cancelOrder: vi.fn(async () => ({}) as never),
+    getOrder: vi.fn(async () => ({}) as never),
+    getKlines: vi.fn(async () => []),
+    getTicker24hr: vi.fn(async () => ({}) as never),
+    getAllTickers24hr: vi.fn(async () => []),
+    getPriceTickers: vi.fn(async () => []),
+    getRecentTrades: vi.fn(async () => []),
+    getMyTrades: vi.fn(async () => []),
+    getDepth: vi.fn(async () => ({}) as never),
+    getDustBtc: vi.fn(async () => ({}) as never),
+    convertDust: vi.fn(async () => ({}) as never),
+    ctx: vi.fn(() => ({}) as never),
+    signWsApiPayload: vi.fn((id, method) => ({
+      id,
+      method,
+      params: { apiKey: 'stub-key', timestamp: 0, signature: 'stub-sig' },
+    })),
+  } satisfies BinanceRestClient;
+  return { ...base, ...overrides };
+};
 
 interface WsHooks {
   triggerOpen: () => void;

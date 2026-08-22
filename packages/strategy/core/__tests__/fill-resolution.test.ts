@@ -1,6 +1,11 @@
 import { Decimal } from '@app/money';
 import { describe, expect, it } from 'vitest';
-import { resolveFill, realizedPnlOnSell } from '../src/fill-resolution.js';
+import {
+  resolveFill,
+  realizedPnlOnSell,
+  isBelowMinNotional,
+  isValuelessResidue,
+} from '../src/fill-resolution.js';
 import type { PositionView } from '../src/contract.js';
 
 const buy = (price: string, quantity: string) => ({
@@ -8,9 +13,9 @@ const buy = (price: string, quantity: string) => ({
   price: new Decimal(price),
   quantity: new Decimal(quantity),
 });
-const sell = (quantity: string) => ({
+const sell = (quantity: string, price = '0') => ({
   side: 'SELL' as const,
-  price: new Decimal(0),
+  price: new Decimal(price),
   quantity: new Decimal(quantity),
 });
 const held = (avgEntryPrice: string, heldQuantity: string): PositionView => ({
@@ -89,6 +94,51 @@ describe('resolveFill', () => {
       heldQuantity: '0.00001',
     });
   });
+
+  it('flattens a residual that clears stepSize but is worth less than minNotional', () => {
+    // ENAUSDT's real filters and price, on a residual constructed to land between them: a fee-net 420.88184 held, 420.87 sold at 0.1094, leaving 0.01184 against a 0.01 step and a $5 NOTIONAL floor. The crumb is 1.18 steps wide so LOT_SIZE passes it, but it is worth $0.0013 and selling it needs ~45.7 ENA. The live strand carried the same 0.01184 as untracked wallet dust rather than as a fold residual, so this pins the bound against a shape the fold could produce, not against the case that was observed.
+    expect(
+      resolveFill(
+        held('0.0984', '420.88184'),
+        sell('420.87', '0.1094'),
+        new Decimal('0.01'),
+        new Decimal('5'),
+      ),
+    ).toEqual({ kind: 'empty' });
+  });
+
+  it('keeps a residual worth at least minNotional as a partial reduce', () => {
+    // 100 units at 0.1094 is $10.94, comfortably sellable, so the position is genuinely still open.
+    expect(
+      resolveFill(
+        held('0.0984', '521.30'),
+        sell('421.30', '0.1094'),
+        new Decimal('0.01'),
+        new Decimal('5'),
+      ),
+    ).toEqual({ kind: 'sell-reduce', heldQuantity: '100' });
+  });
+
+  it('skips the notional flatten when the sell carries no usable price', () => {
+    // A zero price would value every residual at zero and empty every position, so an unpriced sell must fall through to the step test alone.
+    expect(
+      resolveFill(held('0.0984', '521.30'), sell('421.30'), new Decimal('0.01'), new Decimal('5')),
+    ).toEqual({ kind: 'sell-reduce', heldQuantity: '100' });
+  });
+
+  it('does NOT flatten a deliberate partial sell whose remainder is below minNotional', () => {
+    // `rebalance` trims to a target weight on purpose, and a small target is legitimately worth less than the floor. Held 12 at 1.0, sold 8, remainder 4 is under the 5 floor but is 33% of the position, so it is a holding and not a crumb.
+    expect(
+      resolveFill(held('1', '12'), sell('8', '1'), new Decimal('0.01'), new Decimal('5')),
+    ).toEqual({ kind: 'sell-reduce', heldQuantity: '4' });
+  });
+
+  it('without minNotional keeps the stepSize-only behavior (replay-safe)', () => {
+    // Exactly what shipped: the step test alone passes the crumb through as a live position.
+    expect(
+      resolveFill(held('0.0984', '420.88184'), sell('420.87', '0.1094'), new Decimal('0.01')),
+    ).toEqual({ kind: 'sell-reduce', heldQuantity: '0.01184' });
+  });
 });
 
 const sellFill = (soldQty: string, proceeds: string) => ({
@@ -151,5 +201,44 @@ describe('realizedPnlOnSell', () => {
 
   it('returns null on a non-positive sold quantity (never book a zero/negative fill)', () => {
     expect(realizedPnlOnSell(held('100', '10'), sellFill('0', '0'))).toBeNull();
+  });
+});
+
+describe('isValuelessResidue', () => {
+  // The delete-side bound. `isBelowMinNotional` asks whether a balance clears the
+  // exchange's floor; this asks whether it is a rounding error AGAINST that floor,
+  // which is a different question with a factor of 100 between the answers. The gap
+  // is where a `rebalance` target weight and a mostly-reserved holding live, and
+  // both are real positions whose cost basis a delete-side caller must not destroy.
+  const price = new Decimal('1');
+  const floor = new Decimal('5');
+
+  it('is false for a balance that merely sits below the floor', () => {
+    // 4 of 5 is 80% of one minimum order — the exact case a bare floor would delete.
+    expect(isBelowMinNotional(new Decimal('4'), price, floor)).toBe(true);
+    expect(isValuelessResidue(new Decimal('4'), price, floor)).toBe(false);
+  });
+
+  it('is true only once the balance is worth under 1% of one minimum order', () => {
+    expect(isValuelessResidue(new Decimal('0.049'), price, floor)).toBe(true);
+  });
+
+  it('holds the 1% boundary strictly, so exactly 1% is not residue', () => {
+    expect(isValuelessResidue(new Decimal('0.05'), price, floor)).toBe(false);
+  });
+
+  it('stands down without a price, because it can only ever remove a position', () => {
+    expect(isValuelessResidue(new Decimal('0.0001'), null, floor)).toBe(false);
+  });
+
+  it('stands down without a floor, since the floor is its denominator', () => {
+    expect(isValuelessResidue(new Decimal('0.0001'), price, null)).toBe(false);
+  });
+
+  it('agrees with the live ENAUSDT numbers that motivated it', () => {
+    // 0.01184 ENA at 0.1158 is USD 0.00137 against a USD 5 floor: 0.027% of one order.
+    expect(
+      isValuelessResidue(new Decimal('0.01184'), new Decimal('0.1158'), new Decimal('5')),
+    ).toBe(true);
   });
 });

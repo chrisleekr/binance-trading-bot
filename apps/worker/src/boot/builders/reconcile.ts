@@ -14,6 +14,7 @@ import type { Database } from '@app/db';
 import { strategies as strategiesRegistry } from 'strategies.js';
 import type { ChainByKey } from 'lib/chain-by-key.js';
 import type { MutateSymbolStateDeps } from 'state/version-aware-mutate.js';
+import type { MetricsSink } from 'metrics/catalog.js';
 import type { ReconcileOrchestratorDeps } from '../reconcile-held-quantity.js';
 import type { ProfileManager } from 'profile-manager/profile-manager.js';
 
@@ -29,6 +30,10 @@ export interface ReconcileDeps {
   readonly resolveBinanceClient: ResolveBinanceClient;
   readonly persistSymbolState: PersistSymbolState;
   readonly persistProfileState: PersistProfileState;
+  /**
+   * The process-wide catalogue-typed sink. Required all the way down: the reconcile counters record position deletions, which is the one class of event an operator cannot reconstruct after the fact.
+   */
+  readonly metrics: MetricsSink;
 }
 
 export interface Reconcile {
@@ -45,6 +50,7 @@ export const buildReconcile = ({
   resolveBinanceClient,
   persistSymbolState,
   persistProfileState,
+  metrics,
 }: ReconcileDeps): Reconcile => {
   // Deps for `mutateSymbolState`; `persistSymbolState` already matches the
   // mutator's persister contract directly.
@@ -65,6 +71,7 @@ export const buildReconcile = ({
     persistMigratedState: persistProfileState,
     symbolStateDeps,
     chain,
+    metrics,
   };
 
   return { symbolStateDeps, reconcileDeps };

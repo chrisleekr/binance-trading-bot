@@ -8,6 +8,7 @@ import {
   BinanceNonJsonBodyError,
   createBinanceRest,
   createOrderRateGovernor,
+  isRateLimitError,
   OrderBudgetUnavailableError,
   parseOrderRateLimits,
   readSignedCallTiming,
@@ -27,8 +28,22 @@ interface RecordedCall {
   headers: Headers;
   body: string | undefined;
   signal: AbortSignal | null | undefined;
-  redirect: RequestRedirect | undefined;
+  redirect: RequestInit['redirect'] | undefined;
 }
+
+type FetchImpl = NonNullable<CreateBinanceRestOptions['fetchImpl']>;
+
+/**
+ * Lends a bare stub the statics that make it structurally a `fetch`.
+ *
+ * `CreateBinanceRestOptions['fetchImpl']` is typed `typeof fetch`, not just its call signature, so a plain arrow is missing the `preconnect` static and will not assign. Borrowing the real one is cheaper than widening the production option's type for tests alone, and it is never called: every test drives the returned function through its call signature.
+ *
+ * @param implementation - The stub that answers the request; only its call signature is exercised.
+ * @returns The same function object, augmented with `preconnect` so it type-checks as a `fetch`.
+ */
+const withFetchStatics = (
+  implementation: (...args: Parameters<FetchImpl>) => ReturnType<FetchImpl>,
+): FetchImpl => Object.assign(implementation, { preconnect: fetch.preconnect });
 
 function jsonResponse(body: unknown, init: { status?: number; weight?: string } = {}): Response {
   const headers = new Headers({ 'content-type': 'application/json' });
@@ -43,7 +58,7 @@ function makeFetchSpy(...responses: Response[]): {
 } {
   const calls: RecordedCall[] = [];
   let i = 0;
-  const fetchImpl: typeof fetch = async (input, init) => {
+  const fetchImpl = withFetchStatics(async (input, init) => {
     const url = typeof input === 'string' ? input : input.toString();
     const method = (init?.method ?? 'GET') as string;
     const headers = new Headers(init?.headers ?? {});
@@ -52,7 +67,7 @@ function makeFetchSpy(...responses: Response[]): {
     const r = responses[i++];
     if (!r) throw new Error(`fetch spy out of programmed responses (call ${i})`);
     return r;
-  };
+  });
   return {
     fetch: fetchImpl,
     calls,
@@ -68,7 +83,6 @@ function options(overrides: Partial<CreateBinanceRestOptions> = {}): CreateBinan
   return {
     mode: 'test',
     credentials,
-    fetchImpl: overrides.fetchImpl,
     clock: fixedClock,
     ...overrides,
   };
@@ -288,6 +302,64 @@ describe('createBinanceRest — request shape', () => {
     expect(url.searchParams.get('signature')).toBeNull();
     expect(url.searchParams.get('timestamp')).toBeNull();
     expect(url.searchParams.get('limit')).toBe('100');
+  });
+
+  it('sends no API key at all on an unsigned public endpoint', async () => {
+    // A public endpoint authenticates nothing, so the header buys no access and costs the credential's confidentiality: it is attached to reads that dominate this client's traffic, and every one of them writes the key into whatever proxy, gateway or error log sits between here and Binance. The key belongs only where a signature already proves the caller.
+    const spy = makeFetchSpy(jsonResponse([]), jsonResponse([]));
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    await client.getKlines({ symbol: 'BTCUSDT', interval: '1m', limit: 100 });
+    await client.getAllTickers24hr();
+    expect(spy.calls).toHaveLength(2);
+    // `has`, not a value check: an empty-string header is still the header, and it would still be recorded upstream.
+    for (const call of spy.calls) expect(call.headers.has('x-mbx-apikey')).toBe(false);
+  });
+
+  it.each([
+    [
+      'getKlines',
+      (c: ReturnType<typeof createBinanceRest>) =>
+        c.getKlines({ symbol: 'BTCUSDT', interval: '1m', limit: 1 }),
+      [],
+    ],
+    [
+      'getPriceTickers',
+      (c: ReturnType<typeof createBinanceRest>) => c.getPriceTickers(['BTCUSDT']),
+      [],
+    ],
+    ['getTicker24hr', (c: ReturnType<typeof createBinanceRest>) => c.getTicker24hr('BTCUSDT'), {}],
+    ['getAllTickers24hr', (c: ReturnType<typeof createBinanceRest>) => c.getAllTickers24hr(), []],
+    [
+      'getRecentTrades',
+      (c: ReturnType<typeof createBinanceRest>) => c.getRecentTrades('BTCUSDT', 1),
+      [],
+    ],
+    ['getDepth', (c: ReturnType<typeof createBinanceRest>) => c.getDepth('BTCUSDT', 5), {}],
+  ])('sends no API key on %s', async (_name, issue, body) => {
+    // Every unsigned method, not a sample of them: the signed/unsigned decision is a positional boolean at each call site, so a flag flipped on one endpoint re-attaches the key there alone and a two-method check would never see it.
+    const spy = makeFetchSpy(jsonResponse(body));
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    await issue(client);
+    expect(spy.calls).toHaveLength(1);
+    expect(spy.nth(0).headers.has('x-mbx-apikey')).toBe(false);
+  });
+
+  it('keeps the API key and the form content type together on a signed POST', async () => {
+    // The other half of the boundary. A gate that dropped the key from the POST path would take order placement offline, and the content type rides the same header object, so both are pinned on the one call that sets them together.
+    const spy = makeFetchSpy(jsonResponse({ orderId: 9, clientOrderId: 'c-9', status: 'NEW' }));
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    await client.placeOrder({
+      symbol: 'BTCUSDT',
+      side: 'BUY',
+      type: 'LIMIT',
+      price: '30000',
+      quantity: '0.001',
+      timeInForce: 'GTC',
+      newClientOrderId: 'c-9',
+    });
+    const call = spy.nth(0);
+    expect(call.headers.get('x-mbx-apikey')).toBe('pub');
+    expect(call.headers.get('content-type')).toBe('application/x-www-form-urlencoded');
   });
 
   it('reserves the flat klines weight (2) regardless of the requested limit', async () => {
@@ -914,12 +986,13 @@ describe('createBinanceRest — ORDERS governor', () => {
       sleep: (ms: number) => Promise.reject(new Error(`unexpected sleep ${ms}`)),
     });
     let weightReserved = 0;
-    const weightGovernor = {
+    const weightGovernor: NonNullable<CreateBinanceRestOptions['weightGovernor']> = {
       reserve: async () => {
         weightReserved += 1;
       },
-      release: () => undefined,
-    } as unknown as CreateBinanceRestOptions['weightGovernor'];
+      used: () => weightReserved,
+      ceiling: () => 1_000,
+    };
     const spy = makeFetchSpy(orderResponse({ orderId: 1, clientOrderId: 'c-1', status: 'NEW' }));
     const client = createBinanceRest(
       options({ fetchImpl: spy.fetch, orderGovernor, weightGovernor, clock: fixedClock }),
@@ -1004,10 +1077,10 @@ describe('createBinanceRest — transient GET retry (empty/non-JSON 200 + networ
   it('retries a raw transient network error on a GET', async () => {
     let n = 0;
     const good = jsonResponse([]);
-    const fetchImpl: typeof fetch = async () => {
+    const fetchImpl = withFetchStatics(async () => {
       if (n++ === 0) throw new Error('fetch failed');
       return good;
-    };
+    });
     const client = createBinanceRest(options({ fetchImpl, sleep: noSleep }));
     const out = await client.getKlines({ symbol: 'BTCUSDT', interval: '1m', limit: 5 });
     expect(out).toEqual([]);
@@ -1037,9 +1110,9 @@ describe('createBinanceRest — transient GET retry (empty/non-JSON 200 + networ
   it('does not retry a GET when a non-Error value is thrown', async () => {
     // A thrown non-Error is neither a body-parse failure nor a matchable
     // network error, so it propagates on the first attempt.
-    const fetchImpl: typeof fetch = async () => {
+    const fetchImpl = withFetchStatics(async () => {
       throw 'weird';
-    };
+    });
     const client = createBinanceRest(options({ fetchImpl, sleep: noSleep }));
     await expect(client.getKlines({ symbol: 'BTCUSDT', interval: '1m', limit: 5 })).rejects.toBe(
       'weird',
@@ -1234,14 +1307,20 @@ describe('signed-call timing on a transport failure', () => {
       clock,
       sleep: noSleep,
       ...(governor ? { weightGovernor: governor } : {}),
-      fetchImpl: (async () => {
+      fetchImpl: withFetchStatics(async () => {
         now += 300;
         throw new Error('ECONNRESET');
-      }) as unknown as typeof fetch,
+      }),
     });
 
     const err = await client
-      .placeOrder({ symbol: 'BTCUSDT', side: 'BUY', type: 'MARKET', quantity: '1' })
+      .placeOrder({
+        symbol: 'BTCUSDT',
+        side: 'BUY',
+        type: 'MARKET',
+        quantity: '1',
+        newClientOrderId: 'timing-test',
+      })
       .then(
         () => undefined,
         (e: unknown) => e,
@@ -1255,5 +1334,97 @@ describe('signed-call timing on a transport failure', () => {
   it('reports no timing for a value that never carried it', () => {
     expect(readSignedCallTiming(new Error('boom'))).toBeUndefined();
     expect(readSignedCallTiming(null)).toBeUndefined();
+  });
+});
+
+describe('createBinanceRest — batch price tickers', () => {
+  /**
+   * A governor that admits everything and records what each call charged.
+   *
+   * The weight a call reserves is invisible from its response, and the governor has no release path, so an under-charge silently under-books the shared per-IP budget and cannot be corrected afterwards. The recorded amounts are therefore the only observable that proves the charge was right, which is what these tests assert.
+   *
+   * @param reserved - Sink the reserve amounts are appended to in call order; owned by the caller so one array can span several calls.
+   * @returns A `weightGovernor` stub with a ceiling high enough never to block.
+   */
+  const recordingGovernor = (
+    reserved: number[],
+  ): NonNullable<CreateBinanceRestOptions['weightGovernor']> =>
+    ({
+      reserve: async (w: number): Promise<void> => {
+        reserved.push(w);
+      },
+      used: () => 0,
+      ceiling: () => 1_200,
+    }) as unknown as NonNullable<CreateBinanceRestOptions['weightGovernor']>;
+
+  it('reserves the batch weight (4) once for the whole symbol list', async () => {
+    // Binance weights `/api/v3/ticker/price` at 2 only for the singular `symbol` form; the batch form omits `symbol`, which is the 4 band. Charging 2 for it under-reserves the shared per-IP budget on every boot sweep, and the governor has no release path to correct an under-charge later.
+    const reserved: number[] = [];
+    const spy = makeFetchSpy(
+      jsonResponse([
+        { symbol: 'BTCUSDT', price: '50000.00' },
+        { symbol: 'ENAUSDT', price: '0.10940000' },
+      ]),
+    );
+    const client = createBinanceRest(
+      options({ fetchImpl: spy.fetch, weightGovernor: recordingGovernor(reserved) }),
+    );
+    const tickers = await client.getPriceTickers(['BTCUSDT', 'ENAUSDT']);
+    expect(reserved).toEqual([4]);
+    // One call for N symbols, not N calls: the caller is a boot sweep over every symbol of every profile, and a per-symbol call would multiply both the weight and the round trips by the fleet size.
+    expect(spy.calls).toHaveLength(1);
+    expect(tickers.map((t) => t.symbol)).toEqual(['BTCUSDT', 'ENAUSDT']);
+    expect(tickers.map((t) => t.price)).toEqual(['50000.00', '0.10940000']);
+  });
+
+  it('sends the list as an unsigned JSON-array `symbols` param', async () => {
+    // The wire format is a JSON array, not a comma-joined string. A naive `String(array)` serialises to `BTCUSDT,ENAUSDT`, which Binance rejects — and the rejection surfaces as a generic API error at boot, where the caller's fallback is "no price", so the value bounds quietly stand down instead of anything failing loudly.
+    const reserved: number[] = [];
+    const spy = makeFetchSpy(jsonResponse([{ symbol: 'BTCUSDT', price: '50000.00' }]));
+    const client = createBinanceRest(
+      options({ fetchImpl: spy.fetch, weightGovernor: recordingGovernor(reserved) }),
+    );
+    await client.getPriceTickers(['BTCUSDT', 'ENAUSDT']);
+    const url = new URL(spy.nth(0).url);
+    expect(url.pathname).toBe('/api/v3/ticker/price');
+    expect(url.searchParams.get('symbols')).toBe('["BTCUSDT","ENAUSDT"]');
+    // Public endpoint: signing it would leak the key pair onto a call that does not need it.
+    expect(url.searchParams.get('signature')).toBeNull();
+    expect(url.searchParams.get('timestamp')).toBeNull();
+  });
+
+  it('answers an empty symbol list without a call or a reservation', async () => {
+    // An empty list must not reach the wire. Binance reads a request with neither `symbol` nor `symbols` as "every symbol on the exchange", so the degenerate case would silently fetch thousands of rows the caller did not ask for.
+    const reserved: number[] = [];
+    const spy = makeFetchSpy();
+    const client = createBinanceRest(
+      options({ fetchImpl: spy.fetch, weightGovernor: recordingGovernor(reserved) }),
+    );
+    expect(await client.getPriceTickers([])).toEqual([]);
+    expect(spy.calls).toHaveLength(0);
+    expect(reserved).toEqual([]);
+  });
+});
+
+describe('isRateLimitError', () => {
+  const err = (status: number, code: number): BinanceApiError =>
+    new BinanceApiError({ status, code, msg: 'x' }, true, 'rejected');
+
+  it('answers true only for a spent weight budget, not for every retryable failure', () => {
+    // 429 is the rate-limit warning and 418 the IP ban that follows it; -1003 is TOO_MANY_REQUESTS and -1015 TOO_MANY_ORDERS.
+    expect(isRateLimitError(err(429, -1))).toBe(true);
+    expect(isRateLimitError(err(418, -1))).toBe(true);
+    expect(isRateLimitError(err(400, -1003))).toBe(true);
+    expect(isRateLimitError(err(400, -1015))).toBe(true);
+
+    // A 5xx is retryable but says nothing about the budget, so a caller holding a fan-out fallback may still run it.
+    expect(isRateLimitError(err(503, -1))).toBe(false);
+    expect(isRateLimitError(err(400, -1121))).toBe(false);
+  });
+
+  it('answers false for anything that is not a BinanceApiError', () => {
+    // An unrecognised failure keeps the pre-existing behaviour: the caller's fallback runs.
+    expect(isRateLimitError(new Error('boom'))).toBe(false);
+    expect(isRateLimitError(undefined)).toBe(false);
   });
 });

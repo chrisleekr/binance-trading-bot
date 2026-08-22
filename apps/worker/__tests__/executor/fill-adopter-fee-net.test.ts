@@ -179,7 +179,7 @@ const makeAdopter = (symbolInfoThrows = false) => {
     symbolInfo: {
       get: vi.fn(async () => {
         if (symbolInfoThrows) throw new Error('symbol-info-cache: delisted');
-        return { baseAsset: BASE_ASSET, filters: { stepSize: STEP_SIZE } };
+        return { baseAsset: BASE_ASSET, filters: { stepSize: STEP_SIZE, minNotional: '0' } };
       }),
     } as unknown as Parameters<typeof createFillAdopter>[0]['symbolInfo'],
   });

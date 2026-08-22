@@ -20,16 +20,17 @@
 
 import type { Logger } from 'pino';
 import { Decimal } from '@app/money';
-import type { PositionStateAdapter } from '@app/strategy-core';
+import { isValuelessResidue, type PositionStateAdapter } from '@app/strategy-core';
 
 /**
  * Outcomes the persist-side wrapper can return:
  * - `no-op` — nothing to do (ledger absent, or state already populated).
  * - `revive-from-ledger` — state.avgEntryPrice was null, ledger row exists,
  *   and the wallet backs a tradable position (wallet ≥ stepSize).
- * - `prune-phantom-ledger` — a claim exists but the wallet holds less than one
- *   stepSize (dust) or nothing at all; DELETE the row instead of reviving from
- *   it. See #262.
+ * - `prune-phantom-ledger` — a claim exists but the wallet holds nothing, less
+ *   than one stepSize (an untradeable INCREMENT), or a balance worth a rounding
+ *   error of one minimum order (an untradeable VALUE); DELETE the row instead of
+ *   reviving from it.
  * - `skip-schema-version` — defensive: state isn't at the expected version
  *   after migration; defer to a future boot.
  */
@@ -74,12 +75,7 @@ export interface ReviveResult {
  * Observed in production. Driving from the claim instead makes recovery total and
  * idempotent: whatever a previous partial run left behind, the next run finishes.
  *
- * The wallet side is the RAW WALLET (`free + locked`) plus the symbol's
- * `stepSize`: null is a definite absence, and strictly below one `stepSize` is
- * dust the strategy cannot trade anyway. It is deliberately NOT the strategy's
- * reconciled `heldQuantity` — that value was just pinned FROM the wallet, so
- * testing it cannot tell a real minimum-size position apart from a phantom claim
- * of the same magnitude.
+ * The wallet side is the RAW WALLET — `free + locked` BEFORE the operator's base-asset reserve is drained out of it, which is what `unreservedWalletTotal` carries and what the value bound is judged against. The claim used to be made here and be false: the caller only ever had the reserve-adjusted balance, so a fully-reserved holding presented as a sliver of tradeable surplus and any value bound would have called the operator's own coins a phantom. It is deliberately NOT the strategy's reconciled `heldQuantity` either — that value was just pinned FROM the wallet, so testing it cannot tell a real minimum-size position apart from a phantom claim of the same magnitude.
  *
  * Pure / Decimal-safe; never reads I/O. The persist-side wrapper owns the writes.
  *
@@ -102,14 +98,37 @@ export const isPhantomLedgerRow = (input: {
    */
   readonly walletQuantity: string | null;
   readonly stepSize: string | null;
+  /** The symbol's NOTIONAL order-value floor, or null to skip the value bound. */
+  readonly minNotional: string | null;
+  /** Latest cached quote-asset price that values the wallet against `minNotional`, or null when no ticker is cached and the value bound must be skipped rather than guessed. */
+  readonly referencePrice: string | null;
+  /** `free + locked` BEFORE the operator's base-asset reserve was drained out of it, or null, which disarms the value bound entirely. Read by the value bound alone: the reserve says what the STRATEGY may trade, `minNotional` says what the EXCHANGE will accept, and only the second one can make a holding worthless. */
+  readonly unreservedWalletTotal: string | null;
+  /** The strategy's `heldQuantity` as it stood BEFORE this pass's reconciler pinned it to the wallet, or null when nothing claimed a quantity. Guards the value bound against a stale wallet snapshot; null counts as valueless so a genuine external sale still prunes. */
+  readonly preReconcileHeldQuantity: string | null;
 }): boolean => {
   // Nothing claims a position ⇒ nothing to prune. This is the only "no" the
   // ledger row's absence may produce, and only when the STATE is silent too.
   if (input.ledgerAvgEntryPrice === null && input.stateAvgEntryPrice === null) return false;
   if (input.walletQuantity === null) return true;
-  if (input.stepSize === null) return false;
   try {
     const wallet = new Decimal(input.walletQuantity);
+    // The VALUE half of "does the wallet back this claim". Judged on the pre-reserve balance, because a reserve is the operator saying which of their own coins the strategy may not sell, not the exchange saying the coins are worthless. A null DISARMS this bound rather than falling back to `walletQuantity`, matching `referencePrice` and `minNotional`: the prune only ever DELETES, so a missing input must mean "do not act", and the reserve-adjusted balance it would otherwise fall back to is the one number guaranteed to read a fully-reserved holding as worthless. `isValuelessResidue` rather than a bare `isBelowMinNotional`: a holding worth most of one minimum order is what a `rebalance` target weight and a mostly-reserved wallet both look like, and pruning either would delete a real cost basis.
+    const valuation = parse(input.unreservedWalletTotal);
+    const price = parse(input.referencePrice);
+    const minNotional = parse(input.minNotional);
+    // The CLAIM has to be valueless too, exactly as the reconciler's flatten requires, and for the same reason: the wallet snapshot is read once per profile OUTSIDE the per-symbol loop, so on the Nth symbol it is several REST round trips old. A BUY that filled in that window leaves a fresh 420-unit position over a stale dust balance, and the reconciler ahead of this one has already declined to flatten it — pruning on the wallet alone would delete the same cost basis by the other door.
+    //
+    // The claim tested is the PRE-reconcile one. The post-reconcile `heldQuantity` is the stale wallet's own verdict written back onto state, so testing it would ask the same number twice and guard nothing. A null claim counts as valueless, matching the reconciler: a genuine external sale leaves nothing claiming a quantity, and that must still prune.
+    const claim = parse(input.preReconcileHeldQuantity);
+    if (
+      valuation !== null &&
+      isValuelessResidue(valuation, price, minNotional) &&
+      (claim === null || isValuelessResidue(claim, price, minNotional))
+    ) {
+      return true;
+    }
+    if (input.stepSize == null) return false;
     const step = new Decimal(input.stepSize);
     if (step.lte(0)) return false;
     // Phantom means THE WALLET DOES NOT BACK THE CLAIM — so the predicate tests
@@ -124,12 +143,30 @@ export const isPhantomLedgerRow = (input: {
     // stop and let the entry gate re-buy. Below one step the strategy can never
     // sell it, so it is dust and the claim on it is phantom.
     //
-    // This is NOT the same predicate as the held-quantity reconciler's
-    // `diff.lte(step)` no-op band, and it must not be made to match it: that band
-    // measures a DIFFERENCE (|held - wallet|), this measures an ABSOLUTE holding.
+    // The `diff.lte(step)` band in the held-quantity reconciler remains a
+    // different predicate, and this one still must not be made to match it: that
+    // band measures a DIFFERENCE (|held - wallet|) and this measures an ABSOLUTE
+    // holding. What DOES belong here, and was wrongly ruled out with it, is the
+    // value half of the same absolute question — asked just above, before this
+    // line. An increment test alone is what let the live case through: 1.18 steps
+    // of a coin worth a tenth of a cent reads as a real holding to every
+    // comparison on this line, and the claim on it survived every pass forever.
     return wallet.lt(step);
   } catch {
     return false;
+  }
+};
+
+/**
+ * @param raw - Decimal-as-string from a target, which may be absent or malformed.
+ * @returns The parsed value, or null when there is nothing usable and the bound reading it must stand down.
+ */
+const parse = (raw: string | null | undefined): Decimal | null => {
+  if (raw == null) return null;
+  try {
+    return new Decimal(raw);
+  } catch {
+    return null;
   }
 };
 
@@ -182,11 +219,20 @@ export interface ReviveTarget {
    * caller could not resolve it. Drives the phantom-ledger prune
    * threshold (#262): a WALLET strictly below `stepSize` is dust the strategy can
    * never sell, so a ledger row backed only by dust is phantom. When `stepSize` is
-   * null the prune falls back to the stricter "the asset is absent from the wallet
-   * entirely" gate — better to leave a real row untouched than to delete a row
-   * whose quantity we cannot compare.
+   * null the increment half stands down entirely — better to leave a real row
+   * untouched than to delete a row whose quantity we cannot compare — and the
+   * prune is left to the value bound and the "asset absent from the wallet
+   * entirely" gate.
    */
   readonly stepSize: string | null;
+  /** The symbol's NOTIONAL order-value floor from the cached exchangeInfo, or null when the symbol carries no such filter. Half of the prune's absolute test: `stepSize` says whether the balance is a tradeable INCREMENT, this says whether it is a tradeable VALUE, and a balance can clear one and fail the other by orders of magnitude. */
+  readonly minNotional: string | null;
+  /** Latest cached quote-asset price, used only to value the wallet against `minNotional`. Null when no ticker is cached, which skips the value bound rather than guessing — the bound only ever REMOVES a position, so a wrong price here deletes a real cost basis. */
+  readonly referencePrice: string | null;
+  /** The strategy's `heldQuantity` from the state body read at the START of this pass, before the held-quantity reconciler pinned it to the wallet, or null when nothing claimed a quantity. The value bound will not prune a claim that is still worth something, which is what keeps a stale once-per-profile wallet snapshot from deleting a position bought seconds ago. Required-but-nullable, not optional, for the same reason as the field below. */
+  readonly preReconcileHeldQuantity: string | null;
+  /** `free + locked` BEFORE the operator's base-asset reserve was drained out of it, or null, which disarms the value bound rather than letting `walletQuantity` stand in for it. Required-but-nullable, not optional: an omitted field is one a forwarding hop can drop silently, and a silently-dropped bound input is how an earlier fix here shipped as a no-op. */
+  readonly unreservedWalletTotal: string | null;
 }
 
 export interface ReviveTargetDeps {
@@ -265,6 +311,10 @@ export const reviveAvgEntryPriceForTarget = async (
       stateAvgEntryPrice,
       walletQuantity: target.walletQuantity,
       stepSize: target.stepSize,
+      minNotional: target.minNotional,
+      referencePrice: target.referencePrice,
+      unreservedWalletTotal: target.unreservedWalletTotal,
+      preReconcileHeldQuantity: target.preReconcileHeldQuantity,
     })
   ) {
     // Clear `state.avgEntryPrice` FIRST, then DELETE the ledger row.
@@ -296,6 +346,10 @@ export const reviveAvgEntryPriceForTarget = async (
         walletQuantity: target.walletQuantity,
         reconciledHeldQuantity,
         stepSize: target.stepSize,
+        minNotional: target.minNotional,
+        referencePrice: target.referencePrice,
+        unreservedWalletTotal: target.unreservedWalletTotal,
+        preReconcileHeldQuantity: target.preReconcileHeldQuantity,
       },
       'reviveAvgEntryPrice: pruned phantom ledger row (wallet does not back the position)',
     );

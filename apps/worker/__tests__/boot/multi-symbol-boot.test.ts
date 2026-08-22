@@ -50,6 +50,7 @@ import {
   type ReconcileOrchestratorDeps,
 } from '../../src/boot/reconcile-held-quantity.js';
 import { buildSymbolInfoKey } from '../../src/executor/redis-namespace.js';
+import type { MyTradeDto, PriceTickerDto } from '@app/binance';
 import { createChainByKey } from '../../src/lib/chain-by-key.js';
 import { trailingTradePositionAdapter } from '@app/strategy-trailing-trade';
 
@@ -74,7 +75,7 @@ const stubRedis = (symbolInfo: Record<string, { baseAsset: string; stepSize: str
   const store = new Map<string, string>();
   for (const [sym, info] of Object.entries(symbolInfo)) {
     store.set(
-      buildSymbolInfoKey(sym),
+      buildSymbolInfoKey(sym, 'live'),
       JSON.stringify({ baseAsset: info.baseAsset, filters: { stepSize: info.stepSize } }),
     );
   }
@@ -205,6 +206,7 @@ describe('boot: multi-symbol reconcile + revive', () => {
       db: {} as never,
       redis,
       logger: silentLogger,
+      metrics: { record: vi.fn(), forget: vi.fn() },
       listActive: () => [
         {
           userId: USER_ID,
@@ -212,6 +214,8 @@ describe('boot: multi-symbol reconcile + revive', () => {
           accountId: ACCOUNT_ID,
           profileId: PROFILE_ID,
           symbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'],
+          candleInterval: '1h',
+          technicalsIntervals: [],
         } as Parameters<
           typeof runHeldQuantityReconciliation
         >[0]['listActive'] extends () => readonly (infer T)[]
@@ -219,6 +223,9 @@ describe('boot: multi-symbol reconcile + revive', () => {
           : never,
       ],
       resolveBinance: async () => ({
+        getMyTrades: vi.fn(async (): Promise<MyTradeDto[]> => []),
+        // These fixtures publish no ticker key, and the fallback must not invent one either: both value bounds stand down and the increment half decides, which is what the tallies below pin.
+        getPriceTickers: vi.fn(async (): Promise<PriceTickerDto[]> => []),
         getAccount: vi.fn(async () => ({
           // BTC wallet empty -> phantom prune for BTC.
           // ETH wallet matches state heldQuantity -> reconciler no-op.
@@ -269,6 +276,14 @@ describe('boot: multi-symbol reconcile + revive', () => {
     //   revive-from-ledger:   1 (SOL)
     //   no-op:                1 (ETH)
     expect(tally.avgEntryPriceRevival['no-op']).toBe(1);
+
+    // The reconciler owns a delete of its own now — the sub-notional flatten, which
+    // clears the state and removes the same ledger row the prune would have. It must
+    // NOT be what cleared BTC here: these fixtures publish no NOTIONAL filter and no
+    // ticker, so both value bounds stand down and BTC is pruned on the increment half
+    // alone, exactly as before. Pinned so a future change that starts inferring a
+    // price moves this count and is seen, instead of silently re-routing the delete.
+    expect(tally.heldQuantity['flatten-sub-notional-dust']).toBe(0);
 
     // Now the real per-symbol body integrity check: every persisted
     // write must carry the matching `symbolTag` from its initial slice.
@@ -360,6 +375,7 @@ describe('boot: multi-symbol reconcile + revive', () => {
       db: {} as never,
       redis,
       logger: silentLogger,
+      metrics: { record: vi.fn(), forget: vi.fn() },
       listActive: () => [
         {
           userId: USER_ID,
@@ -367,6 +383,8 @@ describe('boot: multi-symbol reconcile + revive', () => {
           accountId: ACCOUNT_ID,
           profileId: PROFILE_ID,
           symbols: ['BTCUSDT', 'ETHUSDT'],
+          candleInterval: '1h',
+          technicalsIntervals: [],
         } as Parameters<
           typeof runHeldQuantityReconciliation
         >[0]['listActive'] extends () => readonly (infer T)[]
@@ -374,6 +392,9 @@ describe('boot: multi-symbol reconcile + revive', () => {
           : never,
       ],
       resolveBinance: async () => ({
+        getMyTrades: vi.fn(async (): Promise<MyTradeDto[]> => []),
+        // These fixtures publish no ticker key, and the fallback must not invent one either: both value bounds stand down and the increment half decides, which is what the tallies below pin.
+        getPriceTickers: vi.fn(async (): Promise<PriceTickerDto[]> => []),
         getAccount: vi.fn(async () => ({
           balances: [
             { asset: 'BTC', free: '0.0142', locked: '0' },
@@ -420,5 +441,7 @@ describe('boot: multi-symbol reconcile + revive', () => {
     expect(ethLookup).toBeUndefined();
     expect(tally.heldQuantity['skip-schema-version']).toBe(1);
     expect(tally.avgEntryPriceRevival['skip-schema-version']).toBe(1);
+    // Pins the SHORT-CIRCUIT, not the value bound. `reconcileSymbol` returns on `skip-schema-version` before it reaches any bound, any counter, or the reviver, so a body whose schema this worker cannot read is never judged as dust. Hoisting the flatten check or the metric emit above that early return would break exactly this line — the same hazard the wallet fixture below cannot see, since it publishes no price and the batched fallback returns nothing.
+    expect(tally.heldQuantity['flatten-sub-notional-dust']).toBe(0);
   });
 });

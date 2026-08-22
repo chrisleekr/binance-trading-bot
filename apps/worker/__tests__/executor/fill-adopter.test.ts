@@ -157,6 +157,8 @@ const makeAdopter = (
   stepSize = '0.00000001',
   stepSizeThrows = false,
   notifyEvent?: Parameters<typeof createFillAdopter>[0]['notifyEvent'],
+  // Defaults to '0', which disarms the NOTIONAL bound so every pre-existing case keeps its old meaning. A stub WITHOUT this field is worse than a wrong value: the adopter's Decimal parse would fail and silently push every SELL in the suite down the symbol-info-failure path.
+  minNotional = '0',
 ) => {
   const { redis, store } = makeRedisStub();
   const { logger, entries: logs } = makeRecordingLogger();
@@ -226,10 +228,10 @@ const makeAdopter = (
     symbolInfo: {
       get: vi.fn(async () => {
         if (stepSizeThrows) throw new Error('symbol-info-cache: delisted');
-        return { baseAsset: 'BTC', filters: { stepSize } };
+        return { baseAsset: 'BTC', filters: { stepSize, minNotional } };
       }),
     } as unknown as Parameters<typeof createFillAdopter>[0]['symbolInfo'],
-    notifyEvent,
+    ...(notifyEvent ? { notifyEvent } : {}),
   });
   return { adopter, redis, store, persistSymbolState, registry, pipelineQueue, logs };
 };
@@ -471,6 +473,71 @@ describe('createFillAdopter', () => {
         mkFill({ side: 'SELL', orderId: 9, tradeId: 9, cumQty: '0.001', cumQuoteQty: '63000' }),
       );
 
+      expect(pipelineQueue.add).not.toHaveBeenCalled();
+    });
+
+    it('flattens a residual that clears the step but is worth less than minNotional (ENAUSDT filters)', async () => {
+      reset();
+      // ENAUSDT's real filters, on a residual constructed to land between them: a fee-net 420.88184 ENA held, the protective stop sells 420.87 at ~0.1094, leaving 0.01184 against a 0.01 step and a 5 USDT floor. 1.18 steps wide so the step test passes it, worth 0.0013 USDT so no sell of it can ever be placed. The live exit did NOT leave this behind — it emptied its position and the cycle archived — so this covers a residual of that shape rather than the observed strand.
+      const { adopter, store, pipelineQueue, logs } = makeAdopter('0.01', false, undefined, '5');
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+        avgEntryPrice: '0.0984',
+        quantity: '420.88184',
+      });
+      repoMocks.symbolStatesFindBySymbol.mockResolvedValue(
+        defaultSymbolRow({ schemaVersion: '2.0.0', avgEntryPrice: '0.0984' }),
+      );
+
+      await adopter.adopt(
+        mkFill({
+          side: 'SELL',
+          orderId: 41,
+          tradeId: 41,
+          cumQty: '420.87',
+          cumQuoteQty: '46.0432',
+        }),
+      );
+
+      expect(repoMocks.avgEntryPricesRemove).toHaveBeenCalledTimes(1);
+      expect(repoMocks.avgEntryPricesUpsert).not.toHaveBeenCalled();
+      const updated = JSON.parse(
+        String(store.get(buildSymbolStateKey(ACCOUNT_ID, PROFILE_ID, SYMBOL))),
+      ) as Record<string, unknown>;
+      expect(updated['heldQuantity']).toBeNull();
+      expect(pipelineQueue.add).toHaveBeenCalledTimes(1);
+      // The LOT_SIZE lookup succeeded, so the operator must NOT see the unverified-position alert.
+      expect(logs.filter((l) => String(l.msg).includes('symbol-info lookup failed'))).toHaveLength(
+        0,
+      );
+    });
+
+    it('drops a zero-cumQty SELL report before it can touch a live position', async () => {
+      reset();
+      // The guard at the top of `adopt` returns on a non-positive cumQty/cumQuoteQty, so this never reaches `resolveSell` and the VWAP is never computed. That is what makes the notional bound's `price.gt(0)` skip unreachable FROM THIS CALLER, and it is the property worth pinning: a degenerate report must leave the position exactly as it found it, not merely decline to flatten it.
+      const { adopter, pipelineQueue, persistSymbolState } = makeAdopter(
+        '0.01',
+        false,
+        undefined,
+        '5',
+      );
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+        avgEntryPrice: '0.0984',
+        quantity: '420.88184',
+      });
+      repoMocks.symbolStatesFindBySymbol.mockResolvedValue(
+        defaultSymbolRow({ schemaVersion: '2.0.0', avgEntryPrice: '0.0984' }),
+      );
+
+      await adopter.adopt(
+        mkFill({ side: 'SELL', orderId: 42, tradeId: 42, cumQty: '0', cumQuoteQty: '0' }),
+      );
+
+      expect(repoMocks.avgEntryPricesRemove).not.toHaveBeenCalled();
+      // No read, no write, no archive: the early return fires before any of them.
+      expect(repoMocks.avgEntryPricesFindBySymbol).not.toHaveBeenCalled();
+      expect(repoMocks.avgEntryPricesUpsert).not.toHaveBeenCalled();
+      expect(persistSymbolState).not.toHaveBeenCalled();
+      expect(repoMocks.appliedFillsTryRecord).not.toHaveBeenCalled();
       expect(pipelineQueue.add).not.toHaveBeenCalled();
     });
 
@@ -1196,7 +1263,9 @@ describe('createFillAdopter', () => {
       reset();
       repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue(null);
       repoMocks.avgEntryPricesUpsert.mockResolvedValue({});
-      const notifyEvent = vi.fn(async () => {});
+      const notifyEvent = vi.fn<
+        NonNullable<Parameters<typeof createFillAdopter>[0]['notifyEvent']>
+      >(async () => undefined);
       const { adopter } = makeAdopter('0.00000001', false, notifyEvent);
 
       // avg price = cumQuoteQty / cumQty = 100 / 0.002 = 50000.
@@ -1212,7 +1281,9 @@ describe('createFillAdopter', () => {
     it('does not fire on a Binance replay (tryRecord=false is not a fresh fill)', async () => {
       reset();
       repoMocks.appliedFillsTryRecord.mockResolvedValue(false);
-      const notifyEvent = vi.fn(async () => {});
+      const notifyEvent = vi.fn<
+        NonNullable<Parameters<typeof createFillAdopter>[0]['notifyEvent']>
+      >(async () => undefined);
       const { adopter } = makeAdopter('0.00000001', false, notifyEvent);
 
       await adopter.adopt(mkFill());

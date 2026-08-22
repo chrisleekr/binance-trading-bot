@@ -52,7 +52,13 @@ export type { CandleInterval } from '@app/contracts';
 
 export { assertPreviewTickAgreement } from './preview-drift.js';
 
-export { resolveFill, realizedPnlOnSell } from './fill-resolution.js';
+export {
+  resolveFill,
+  realizedPnlOnSell,
+  isUnsellableDust,
+  isBelowMinNotional,
+  isValuelessResidue,
+} from './fill-resolution.js';
 export type { RawFill, RealizedPnl } from './fill-resolution.js';
 
 export type { Decision, OrderIntent, OrderParams } from './decision.js';
