@@ -45,6 +45,12 @@
       "semanticCommitType": "chore"
     },
     {
+      "description": "The db-isolation services stay on TimescaleDB 2.27.1 because the root-heap migration fixture cannot be created on 2.28.0 or later. Production Compose and the Testcontainers runtime pin still update together through the custom manager below.",
+      "matchPackageNames": ["timescale/timescaledb"],
+      "matchFileNames": [".github/workflows/ci.yml", ".gitlab-ci.yml"],
+      "enabled": false
+    },
+    {
       "description": "BullMQ >= 5.58.7 rejects ':' in custom job ids. The worker's single-execution guarantee is jobId coalescing over colon-delimited keys (tick:<profileId>:<symbol>, backtest:<runId>), and the repo runs no distributed locks, so adopting a newer BullMQ means redesigning that key scheme first. Verified: 5.58.6 passes the worker integration suite, 5.58.7+ fails it.",
       "matchPackageNames": ["bullmq"],
       "allowedVersions": "<5.58.7"
@@ -74,6 +80,17 @@
       "depNameTemplate": "oven/bun",
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "TimescaleDB runtime pinned in the Testcontainers wrapper. This copy moves with production Compose, while the separately named root-heap migration pin remains fixed.",
+      "managerFilePatterns": ["/^packages/testcontainers/src/index\\.ts$/"],
+      "matchStrings": [
+        "const POSTGRES_IMAGE\\s*=\\s*['\"]timescale/timescaledb:(?<currentValue>[^@'\"]+)@(?<currentDigest>sha256:[0-9a-f]{64})['\"]"
+      ],
+      "depNameTemplate": "timescale/timescaledb",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
     }
   ]
 }

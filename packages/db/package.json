@@ -19,7 +19,7 @@
     "@app/core": "workspace:*",
     "drizzle-orm": "~0.45.2",
     "ioredis": "~6.0.0",
-    "pg": "~8.22.0"
+    "pg": "~8.23.0"
   },
   "devDependencies": {
     "@app/testcontainers": "workspace:*",

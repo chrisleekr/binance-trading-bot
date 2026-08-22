@@ -155,7 +155,7 @@ describe.skipIf(!HAS_INFRA)('action_logs root-heap drain', () => {
       throw new Error(
         `could not strand a row in the action_logs root heap on timescaledb ${rows[0]?.v ?? 'unknown'} ` +
           `(only action_logs = ${seeded.strandedBefore}). Servers from 2.28.0 discard rows inserted ` +
-          `while timescaledb.restoring is on, so this fixture needs the version the deployment runs.`,
+          `while timescaledb.restoring is on, so this fixture needs the pinned pre-2.28.0 legacy image.`,
       );
     }
 
@@ -171,8 +171,9 @@ describe.skipIf(!HAS_INFRA)('action_logs root-heap drain', () => {
 
   beforeAll(async () => {
     if (process.env['TESTCONTAINERS'] === '1') {
-      const { withPostgres } = await import('@app/testcontainers');
-      const pg = await withPostgres();
+      const { ROOT_HEAP_MIGRATION_POSTGRES_IMAGE, withPostgres } =
+        await import('@app/testcontainers');
+      const pg = await withPostgres(ROOT_HEAP_MIGRATION_POSTGRES_IMAGE);
       baseUrl = pg.databaseUrl;
       stopContainer = pg.stop;
     } else {
