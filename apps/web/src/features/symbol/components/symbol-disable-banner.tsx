@@ -1,10 +1,6 @@
 // SymbolDisableBanner — surfaces the per-symbol kill-switch when present.
 //
-// `disable` arrives on `SymbolStateResponse` as `{ ttlSeconds, since, reason }`
-// derived from the `disable-action:<symbol>` Redis key plus its TTL. We freeze
-// the server-side TTL on mount and decrement locally so the UI doesn't hammer
-// the API every second; a 5s react-query refetch already covers the case
-// where the operator extends the disable from elsewhere.
+// `disable` arrives on `SymbolStateResponse` as `{ ttlSeconds, since, reason }` derived from the `disable-action:<symbol>` Redis key plus its TTL. We freeze the server-side TTL on mount and decrement locally so the UI does not request an update every second. A new disable write carries a new `since`, which re-seeds the countdown without remounting on ordinary TTL refreshes.
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -53,7 +49,7 @@ export function SymbolDisableBanner({ disable, ...props }: DisableBannerProps): 
 
   return (
     <SymbolDisableBannerBody
-      key={`${disable.since}:${disable.ttlSeconds}`}
+      key={disable.since}
       disable={disable}
       {...(props.clock ? { clock: props.clock } : {})}
       releaseError={release.error}
@@ -78,11 +74,7 @@ function SymbolDisableBannerBody({
   isResuming,
   onResume,
 }: DisableBannerBodyProps): React.JSX.Element {
-  // Freeze the server's TTL plus the wall-clock at which we received it.
-  // The anchor reseeds whenever the parent passes a new `disable` (e.g. the
-  // 5s state refetch picks up an extension applied from another tab) so
-  // the countdown tracks the latest server-side TTL instead of decaying
-  // toward the original expiry.
+  // Freeze the server's TTL plus the wall-clock at which we received it. The parent keys this body by `since`, so a new disable window re-seeds the anchor while an ordinary TTL refresh preserves the DOM and countdown phase.
   const [anchor] = useState(() => ({ baseMs: clock(), baseTtl: disable.ttlSeconds }));
 
   const [now, setNow] = useState(() => clock());

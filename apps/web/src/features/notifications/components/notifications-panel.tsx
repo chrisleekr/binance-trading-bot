@@ -169,12 +169,13 @@ function ProviderEditor({
         err instanceof ApiError ? `${err.code}: ${err.message}` : ((err as Error).message ?? '');
       setBanner({ kind: 'err', message: message || 'toggle failed' });
     },
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
       setEnabled(res.enabled);
       setBanner({ kind: 'ok', message: res.enabled ? 'Enabled.' : 'Disabled.' });
-      void queryClient.invalidateQueries({
+      await queryClient.invalidateQueries({
         queryKey: ['notify-provider-saved', profileId, provider.name],
       });
+      setEnabled(null);
     },
   });
 

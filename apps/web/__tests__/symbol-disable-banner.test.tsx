@@ -99,7 +99,7 @@ describe('SymbolDisableBanner', () => {
     });
   });
 
-  it('keeps the Resume mutation gated when a refreshed TTL resets the countdown', async () => {
+  it('keeps the Resume mutation gated across a refreshed TTL', async () => {
     let finishRelease: ((response: Response) => void) | undefined;
     vi.stubGlobal(
       'fetch',
@@ -129,10 +129,37 @@ describe('SymbolDisableBanner', () => {
     rerender(view(595));
     expect(screen.getByTestId('symbol-disable-resume')).toBeDisabled();
     expect(screen.getByTestId('symbol-disable-resume')).toHaveTextContent('Resuming');
-    expect(screen.getByTestId('symbol-disable-ttl')).toHaveTextContent('9:55');
+    expect(screen.getByTestId('symbol-disable-ttl')).toHaveTextContent('10:00');
 
     finishRelease?.(new Response(null, { status: 204 }));
     await waitFor(() => expect(screen.getByTestId('symbol-disable-resume')).not.toBeDisabled());
+  });
+
+  it('preserves button focus and countdown phase across a TTL refresh', () => {
+    vi.useFakeTimers();
+    let now = 1_000_000;
+    const clock = (): number => now;
+    const queryClient = createQueryClient();
+    const view = (ttlSeconds: number): React.JSX.Element => (
+      <QueryClientProvider client={queryClient}>
+        <SymbolDisableBanner
+          profileId={PROFILE_ID}
+          symbol={SYMBOL}
+          disable={{ ...baseDisable, ttlSeconds }}
+          clock={clock}
+        />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(view(600));
+    const resume = screen.getByTestId('symbol-disable-resume');
+    resume.focus();
+
+    now += 5_000;
+    act(() => vi.advanceTimersByTime(5_000));
+    rerender(view(595));
+
+    expect(document.activeElement).toBe(resume);
+    expect(screen.getByTestId('symbol-disable-ttl')).toHaveTextContent('9:55');
   });
 
   it('restarts the countdown when the disable identity changes with the same TTL', () => {

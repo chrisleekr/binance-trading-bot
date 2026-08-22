@@ -229,6 +229,37 @@ describe('NotificationsPanel', () => {
     expect(screen.getByTestId('enabled-slack')).toBeChecked();
   });
 
+  it('returns the enabled switch to refreshed server authority after a toggle', async () => {
+    let savedEnabled = true;
+    const { queryClient } = setUp((url, init) => {
+      if (url.endsWith('/profiles/p1/notify-providers')) return json([sampleProviders[0]]);
+      if (url.endsWith('/profiles/p1/notify-providers/slack/enabled') && init?.method === 'PATCH') {
+        savedEnabled = false;
+        return json({ enabled: false });
+      }
+      if (url.endsWith('/profiles/p1/notify-providers/slack')) {
+        return json({
+          ...sampleProviders[0],
+          enabled: savedEnabled,
+          config: { channel: '#alerts' },
+        });
+      }
+      return json({}, 404);
+    });
+    const toggle = await screen.findByTestId('enabled-slack');
+    await waitFor(() => expect(toggle).toBeChecked());
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).not.toBeChecked());
+    await waitFor(() => expect(toggle).not.toBeDisabled());
+
+    savedEnabled = true;
+    await queryClient.invalidateQueries({
+      queryKey: ['notify-provider-saved', 'p1', 'slack'],
+    });
+    await waitFor(() => expect(toggle).toBeChecked());
+  });
+
   it('posts the merged config on Save and renders a success banner', async () => {
     const calls: { url: string; body: unknown }[] = [];
     setUp((url, init) => {

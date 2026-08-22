@@ -163,23 +163,15 @@ export function useBacktestConfig({
   // measures the same round-trip cost the live bot pays. Seeds once when the
   // profile loads; the operator can still override.
   const [feesSeeded, setFeesSeeded] = useState(false);
-  useEffect(() => {
-    if (feesSeeded) return;
-    const fees = (profile.data?.config as { fees?: { makerBps?: string; takerBps?: string } })
-      ?.fees;
-    if (!fees) return;
-    const seedFees = setTimeout(() => {
-      setParams((p) => ({
-        ...p,
-        makerBps:
-          p.makerBps === INITIAL_PARAMS.makerBps ? (fees.makerBps ?? p.makerBps) : p.makerBps,
-        takerBps:
-          p.takerBps === INITIAL_PARAMS.takerBps ? (fees.takerBps ?? p.takerBps) : p.takerBps,
-      }));
-      setFeesSeeded(true);
-    }, 0);
-    return () => clearTimeout(seedFees);
-  }, [feesSeeded, profile.data]);
+  const fees = (profile.data?.config as { fees?: { makerBps?: string; takerBps?: string } })?.fees;
+  if (!feesSeeded && fees) {
+    setParams((p) => ({
+      ...p,
+      makerBps: p.makerBps === INITIAL_PARAMS.makerBps ? (fees.makerBps ?? p.makerBps) : p.makerBps,
+      takerBps: p.takerBps === INITIAL_PARAMS.takerBps ? (fees.takerBps ?? p.takerBps) : p.takerBps,
+    }));
+    setFeesSeeded(true);
+  }
 
   // The config form (AutoForm) starts seeded from the live config. Track when it
   // drifts so the "reset to live config" affordance shows only then; bumping the
