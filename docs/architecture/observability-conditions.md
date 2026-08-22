@@ -52,6 +52,10 @@ A **condition** is a named thing currently true of a subject, with a start time:
 
 Severity is `blocking` or `degraded`, never "error". A blocked entry is usually the strategy working correctly; colouring it as a fault trains the operator to ignore it.
 
+One diagnosis finding carries a condition string that is **not** in that set and has no `condition_states` row: `asset-policy-refused`, written by rung 5 from the [asset-policy abort record](../concepts/discovery.md) that the discovery cron parks in Redis. It is not a condition because it satisfies neither half of the rule — the refusal happens before any coin is chosen, so it has no per-symbol subject, and no tick owns it, so nothing would ever write its closing edge. The next cycle that completes deletes the record instead, and a TTL longer than the longest legal gap between cycles is the backstop.
+
+That record also **suppresses** one condition that a real `condition_states` row would otherwise carry. A cycle that aborted produced no discovery snapshot, so the `discovery-health` monitor's staleness bound trips on the very gap the abort already explains, and the operator gets two surfaces naming different causes for one fault. While a parked abort is no older than the same `2 × refreshPeriodMs` the staleness verdict measures — one bound, one helper, `abortStillExplainsGap` beside `assessDiscoveryHealth` — the monitor neither raises the stale alert nor writes `discovery-stale` at all. Not writing is the point: closing the condition would post "Discovery is scanning again" while discovery demonstrably is not. `discovery-breadth-blocked` is never suppressed, because a breadth floor that admits nothing is a separate fault the abort says nothing about, and an unreadable abort record suppresses nothing either — a monitor that mutes itself when its own lookup blips is quiet exactly when it should not be.
+
 ## Why `condition_states` is not more `action_logs` rows
 
 Three reasons, and the third is a hard blocker rather than a preference.
@@ -123,7 +127,7 @@ The ladder is both the ranking and the progress display. The first rung to find 
 | 2   | `profile-active`    | `profiles.enabled`, plus the daily-loss halt flag in Redis         |
 | 3   | `config-valid`      | the same zod schema the form uses                                  |
 | 4   | `order-execution`   | open `order-refusal-loop` rows and their exact request/rejection   |
-| 5   | `discovery-running` | `assessDiscoveryHealth`                                            |
+| 5   | `discovery-running` | the parked asset-policy abort first, then `assessDiscoveryHealth`  |
 | 6   | `market-breadth`    | the same function's full-window rule                               |
 | 7   | `candidate-funnel`  | largest proportional drop within each ladder                       |
 | 8   | `symbol-slots`      | auto-symbol count vs `maxAutoSymbols`                              |

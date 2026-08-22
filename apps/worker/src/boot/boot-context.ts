@@ -20,7 +20,7 @@ import type { Redis } from 'ioredis';
 import { repo, type Database } from '@app/db';
 import type { ProfileId } from '@app/contracts';
 import { createMetricsRegistry, type MetricsRegistry } from '@app/observability';
-import type { MarketDataPort, WeightGovernor } from '@app/binance';
+import type { BinanceMode, MarketDataPort, WeightGovernor } from '@app/binance';
 import type { SymbolInfo } from '@app/strategy-core';
 
 import { strategies as strategiesRegistry } from 'strategies.js';
@@ -35,6 +35,10 @@ import { createQueueSet, type QueueSet } from 'queues/queue-set.js';
 import type { SymbolReconcileRequest } from 'queues/symbol-reconcile-enqueue.js';
 import type { AccountSnapshotStore } from 'crons/account-snapshot.js';
 import { createAssetPolicyResolver, type AssetPolicy } from 'crons/discovery/asset-policy.js';
+import {
+  createSymbolAdmissionResolver,
+  type SymbolAdmission,
+} from 'crons/discovery/symbol-admission.js';
 import type { MutateSymbolStateDeps } from 'state/version-aware-mutate.js';
 import type { StatePort } from 'state/state-port.js';
 import type { LiveExecutor } from 'executor/live-executor.js';
@@ -158,6 +162,10 @@ export interface BootContext {
    * Binance's stablecoin/fiat classification, behind one process-wide five-minute snapshot. Shared rather than built per consumer so the discovery cron and the diagnosis re-probe can never classify the same asset differently, and so N consumers cost one fetch. Lazy: nothing is requested until a due profile or a probe asks.
    */
   readonly getAssetPolicy: () => Promise<AssetPolicy>;
+  /**
+   * Per-symbol exchangeInfo admission facts for one Binance mode, behind one process-wide snapshot per mode. Shared rather than built per consumer for the same two reasons as {@link BootContext.getAssetPolicy}: the discovery cron and the diagnosis re-probe must not admit the same symbol differently, and each was sweeping the whole symbol-info keyspace for itself moments apart.
+   */
+  readonly getSymbolAdmission: (mode: BinanceMode) => Promise<ReadonlyMap<string, SymbolAdmission>>;
   /** Symbol filters/precision lookup (cached); used by the backtest runner. */
   readonly getSymbolInfo: (symbol: string) => Promise<SymbolInfo>;
   /**
@@ -274,6 +282,13 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
   const getAssetPolicy = createAssetPolicyResolver({
     clock: { nowMs: () => Date.now() },
     logger,
+  });
+
+  // Built once per process for the same reason, and mode-keyed: a snapshot of the live universe served to a testnet profile binds symbols that do not exist there.
+  const getSymbolAdmission = createSymbolAdmissionResolver({
+    redis,
+    logger,
+    clock: { nowMs: () => Date.now() },
   });
 
   const { wsFactory, weightGovernor, klineFetcher, indicatorComputer } = buildMarketData({
@@ -485,6 +500,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     accountSnapshotStore,
     weightGovernor,
     getAssetPolicy,
+    getSymbolAdmission,
     getSymbolInfo: (symbol: string) => symbolInfoCache.get(symbol),
     marketDataPort: klineFetcher,
     strategies: strategiesRegistry,

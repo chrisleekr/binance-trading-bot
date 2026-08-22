@@ -19,12 +19,12 @@ const NOW = 1_700_000_000_000;
 // A scope whose `db` is never touched: every namespace the gather reads is
 // stubbed, so no bound method reaches drizzle. It exists only so the REAL
 // `profileRepoFromScope` can be built and its runtime surface exercised.
-const stubScope: ProfileScope = {
+const stubScope = {
   db: { __stub: 'db' } as unknown as Database,
   operatorId: asUserId('00000000-0000-0000-0000-0000000a0001'),
   accountId: asAccountId('00000000-0000-0000-0000-0000000ac001'),
   profileId: asProfileId('00000000-0000-0000-0000-0000000a1001'),
-};
+} as unknown as ProfileScope;
 
 const profileRow = {
   enabled: true,
@@ -73,7 +73,11 @@ const makeDeps = (
     logger,
     deps: {
       repo,
-      redis: { get: vi.fn(async () => 'sha:booted'), exists: vi.fn(async () => 0) } as never,
+      // Key-aware, because the gather now GETs two different keys off one client: a blanket payload would feed the heartbeat's bytes to the abort parser and make every case log a parse warning.
+      redis: {
+        get: vi.fn(async (key: string) => (key === 'worker:status' ? 'sha:booted' : null)),
+        exists: vi.fn(async () => 0),
+      } as never,
       strategies: { get: () => undefined } as never,
       logger,
       keyParts: { accountId: stubScope.accountId, profileId: stubScope.profileId },
@@ -98,6 +102,7 @@ const expectCompleteButTimelineless = (
   expect(input.profile.autoSymbolCount).toBe(1);
   expect(input.worker.heartbeatPresent).toBe(true);
   expect(input.halts).toEqual([]);
+  expect(input.assetPolicyAbort).toBeNull();
   expect(input.conditions).toEqual([
     {
       condition: 'entry-blocked',
@@ -212,7 +217,7 @@ describe('gatherDiagnosisInput — timeline is the only fail-soft read', () => {
     // control below — with the name restored it is just an async read.
     const logger = makeLogger();
     const actionLogs: Record<string, unknown> = { ...profileRepoFromScope(stubScope).actionLogs };
-    delete actionLogs.listConditionEdges;
+    delete actionLogs['listConditionEdges'];
     const { deps } = makeDeps(actionLogs, logger);
 
     expectCompleteButTimelineless(await gatherDiagnosisInput(deps));
@@ -290,10 +295,12 @@ describe('gatherDiagnosisInput — the Redis reads report absence, never health'
     // Unreadable is not the same as absent, but both leave liveness unproven,
     // and "the engine is running" is the one answer a failed read must not give.
     const logger = makeLogger();
+    // Scoped to the heartbeat key: the same client also carries the abort read, and a blanket throw would prove two reads failed rather than what this case is about.
     const deps = withRedis(
       {
-        get: async () => {
-          throw new Error('redis down');
+        get: async (key: string) => {
+          if (key === 'worker:status') throw new Error('redis down');
+          return null;
         },
       },
       logger,
@@ -301,6 +308,59 @@ describe('gatherDiagnosisInput — the Redis reads report absence, never health'
 
     const { input } = await gatherDiagnosisInput(deps);
     expect(input.worker.heartbeatPresent).toBe(false);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('carries the parked asset-policy abort so the discovery rung can name the cause', async () => {
+    // The record is the ONLY channel between the cron that refused and the page the operator reads: the abort leaves no condition row and no snapshot, so a gather that dropped it would leave rung 5 blaming staleness for a cycle that never got as far as ranking.
+    const deps = withRedis(
+      {
+        get: async (key: string) =>
+          key === 'worker:status'
+            ? 'sha:booted'
+            : JSON.stringify({ cause: 'stablecoin-route-empty', atMs: NOW - 3_600_000 }),
+      },
+      makeLogger(),
+    );
+
+    const { input } = await gatherDiagnosisInput(deps);
+    expect(input.assetPolicyAbort).toEqual({
+      cause: 'stablecoin-route-empty',
+      atMs: NOW - 3_600_000,
+    });
+  });
+
+  it('reads an unparseable abort record as absent rather than inventing a cause', async () => {
+    // A plain Redis value written by an older worker, or by hand, outlives any deploy. Guessing a cause from it would put a named upstream fault on the page that no check ever produced, which is worse than the weaker true answer of judging the profile on staleness alone.
+    const logger = makeLogger();
+    const deps = withRedis(
+      {
+        get: async (key: string) =>
+          key === 'worker:status' ? 'sha:booted' : '{"cause":"tag-vocabulary-moved","atMs":1}',
+      },
+      logger,
+    );
+
+    const { input } = await gatherDiagnosisInput(deps);
+    expect(input.assetPolicyAbort).toBeNull();
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a failed abort read as absent, and leaves the other reads alone', async () => {
+    const logger = makeLogger();
+    const deps = withRedis(
+      {
+        get: async (key: string) => {
+          if (key === 'worker:status') return 'sha:booted';
+          throw new Error('redis down');
+        },
+      },
+      logger,
+    );
+
+    const { input } = await gatherDiagnosisInput(deps);
+    expect(input.assetPolicyAbort).toBeNull();
+    expect(input.worker.heartbeatPresent).toBe(true);
     expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 });

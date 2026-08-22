@@ -4,6 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  abortStillExplainsGap,
   assessDiscoveryHealth,
   DISCOVERY_HEALTH_WINDOW,
   type SnapshotHealth,
@@ -70,5 +71,36 @@ describe('assessDiscoveryHealth', () => {
     expect(
       assessDiscoveryHealth(withGap, REFRESH, NOW, DISCOVERY_HEALTH_WINDOW).breadthBlocked,
     ).toBe(false);
+  });
+});
+
+// A parked abort explains the missing scan only while it is recent enough to be
+// the reason for THIS gap, and "recent enough" is the same lease the staleness
+// verdict measures. Two copies of that bound is how a monitor comes to alert on
+// a gap another surface is simultaneously explaining, so these pin the helper
+// against the verdict rather than against a second copy of the number.
+describe('abortStillExplainsGap', () => {
+  const staleAtAge = (ageMs: number): boolean =>
+    assessDiscoveryHealth([snap(NOW - ageMs, true)], REFRESH, NOW, DISCOVERY_HEALTH_WINDOW).stale;
+
+  it.each([REFRESH, 2 * REFRESH, 2 * REFRESH + 1, 3 * REFRESH])(
+    'is the exact complement of the stale verdict at an age of %d ms',
+    (ageMs) => {
+      expect(abortStillExplainsGap(NOW - ageMs, REFRESH, NOW)).toBe(!staleAtAge(ageMs));
+    },
+  );
+
+  it('refuses a stamp from the future, which would otherwise suppress forever', () => {
+    // The value is a plain Redis record the schema already treats as untrusted, and a clock step-back reaches the same state honestly. A negative age satisfies an upper bound at every later instant, so an open-ended `<=` would mute the staleness monitor for the record's whole TTL — the one direction this helper must never fail in.
+    expect(abortStillExplainsGap(NOW + 1, REFRESH, NOW)).toBe(false);
+    expect(abortStillExplainsGap(NOW + 10 * REFRESH, REFRESH, NOW)).toBe(false);
+    // The boundary itself is not the future.
+    expect(abortStillExplainsGap(NOW, REFRESH, NOW)).toBe(true);
+  });
+
+  it('still explains the gap at exactly twice the refresh period, and not one ms later', () => {
+    // Absolute, not relative: the complement cases above hold trivially if both sides collapse to one answer, and only these say which answer the boundary itself gives.
+    expect(abortStillExplainsGap(NOW - 2 * REFRESH, REFRESH, NOW)).toBe(true);
+    expect(abortStillExplainsGap(NOW - (2 * REFRESH + 1), REFRESH, NOW)).toBe(false);
   });
 });

@@ -39,6 +39,7 @@ const EXPECTED_FIELDS = [
   'fillAdopter',
   'fillBackfiller',
   'getAssetPolicy',
+  'getSymbolAdmission',
   'getSymbolInfo',
   'lifecycles',
   'listActive',
@@ -148,5 +149,10 @@ describeIfInfra('buildBootContext — public DI surface', () => {
   it('wires the metrics registry and the chain', () => {
     expect(ctx.metricsRegistry).toBeDefined();
     expect(ctx.chain).toBeDefined();
+  });
+
+  it('hands the reconcile dep bag the SAME sink the process exports', () => {
+    // The reconcile counters are the only machine-readable record that a sweep deleted a position. Every unit test around them injects its own stub sink, so none of them can observe the construction site forgetting to pass one; this asserts the real bag the real boot builds.
+    expect(ctx.reconcileDeps.metrics).toBe(ctx.metrics);
   });
 });

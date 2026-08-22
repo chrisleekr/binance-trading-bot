@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ASSET_POLICY_ABORT_CAUSES } from '@app/contracts';
 import type { SymbolAdmission } from '../../../src/crons/discovery/symbol-admission.js';
 import {
+  AssetPolicyAbortError,
   createAssetPolicyResolver,
   deriveAssetPolicy,
   projectProducts,
@@ -20,7 +22,8 @@ const PRODUCTS_URL =
 
 const MINUTE_MS = 60_000;
 
-const noopLogger = (): { info: ReturnType<typeof vi.fn> } => ({ info: vi.fn() });
+const noopLogger = (): Parameters<typeof createAssetPolicyResolver>[0]['logger'] =>
+  ({ info: vi.fn() }) as unknown as Parameters<typeof createAssetPolicyResolver>[0]['logger'];
 
 /** A real `Response`, not a shape: the fetch path reads the body as a STREAM to bound the bytes it buffers, so a hand-rolled object with only `json()` would exercise a path production never takes. */
 const okResponse = (body: unknown, headers: Record<string, string> = {}): unknown =>
@@ -291,6 +294,80 @@ describe('validateAssetPolicy', () => {
     ).toThrow(/empty symbol-admission/i);
   });
 
+  // Every other refusal above is asserted through `toThrow(/message/)`, which passes identically for a plain `Error`. The discovery handler discriminates on `instanceof` and labels its abort counter with `cause`, so regressing any of these five throws back to `new Error(...)` would leave this whole suite green while silently disabling both the counter and the alert over it. The cause values matter for the same reason: each routes a different remedy in the runbook, and a mis-tagged one sends the operator to the wrong fix.
+  //
+  // Written with try/throw/catch rather than `expect().toThrow()` because a regression that stops throwing at all has to FAIL here. `expect(fn).toThrow()` around a non-throwing call already fails, but a `.catch`-style assertion on the error object would silently never run.
+  it.each([
+    [
+      'no-product-rows',
+      (): unknown =>
+        validateAssetPolicy(
+          deriveAssetPolicy(
+            projectProducts(productsPayload([{ symbol: 'BTCUSDT', status: 'TRADING' }])),
+          ),
+          liveAdmission(),
+        ),
+    ],
+    [
+      'stablecoin-route-empty',
+      (): unknown => {
+        const ordinaryOnly = PRODUCT_ROWS.filter((r) => r.s === 'BTCUSDT' || r.s === 'ETHUSDT');
+        return validateAssetPolicy(policyFrom(ordinaryOnly), liveAdmission(ordinaryOnly));
+      },
+    ],
+    [
+      'fiat-route-empty',
+      (): unknown => {
+        const dropped = PRODUCT_ROWS.map((r) =>
+          r.pm === 'FIAT' ? { ...r, pm: 'USDT', pn: 'USDT' } : r,
+        );
+        return validateAssetPolicy(policyFrom(dropped), liveAdmission(dropped));
+      },
+    ],
+    [
+      'empty-admission-map',
+      (): unknown =>
+        validateAssetPolicy(policyFrom(PRODUCT_ROWS), new Map<string, SymbolAdmission>()),
+    ],
+    [
+      'cross-check-gap',
+      (): unknown => {
+        const admission = bulkAdmission(200);
+        for (let i = 0; i < 40; i += 1) {
+          admission.set(`GAP${i}USDT`, {
+            status: 'TRADING',
+            baseAsset: `GAP${i}`,
+            quoteAsset: 'USDT',
+          });
+        }
+        return validateAssetPolicy(bulkPolicy(200), admission);
+      },
+    ],
+  ])('refuses with a typed AssetPolicyAbortError carrying cause %s', (cause, refuse) => {
+    let caught: unknown = null;
+    try {
+      refuse();
+      throw new Error(`expected a refusal for cause ${cause}, but the call returned`);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(AssetPolicyAbortError);
+    expect((caught as AssetPolicyAbortError).cause).toBe(cause);
+  });
+
+  it('declares exactly the causes it can throw', () => {
+    // The counter seeds every entry of this array at zero per profile per cycle. A cause added to the union but not to the array is a child that never exists, so its first abort is a series born at 1 and `increase()` reads no rise — the alert stays silent forever for that one cause.
+    expect([...ASSET_POLICY_ABORT_CAUSES].sort()).toEqual([
+      'cross-check-gap',
+      'empty-admission-map',
+      'fiat-route-empty',
+      'no-product-rows',
+      'product-feed-unreachable',
+      'product-feed-unreadable',
+      'stablecoin-route-empty',
+    ]);
+  });
+
   it('ignores a product symbol the bot cannot represent, rather than halting on it forever', () => {
     // Live right now: Binance lists CJK-tickered pairs, and the exchange-info refresh drops them from the admission map by this same SymbolName boundary. Demanding they appear there would abort every cycle on every wake, permanently, over a pair discovery could never bind.
     const withCjk = [
@@ -328,7 +405,11 @@ describe('createAssetPolicyResolver', () => {
     fetchImpl: ReturnType<typeof vi.fn>,
     clock: ReturnType<typeof fakeClock>,
   ): (() => Promise<ReturnType<typeof deriveAssetPolicy>>) =>
-    createAssetPolicyResolver({ fetchImpl, clock, logger: noopLogger() });
+    createAssetPolicyResolver({
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      clock,
+      logger: noopLogger(),
+    });
 
   const okFetch = (payloads: readonly unknown[]): ReturnType<typeof vi.fn> => {
     let i = 0;
@@ -385,12 +466,172 @@ describe('createAssetPolicyResolver', () => {
     const fetchImpl = vi.fn(async () => okResponse({ code: '000000', success: false, data: null }));
     const getAssetPolicy = resolverWith(fetchImpl, clock);
 
-    await expect(getAssetPolicy()).rejects.toThrow(/no usable product rows/i);
+    // Typed, and the type is what the per-profile catch discriminates on: a plain Error satisfies the message match identically while landing in the generic branch, where the refusal raises no counter and parks no record. This is the LIVE `no-product-rows` path — `validateAssetPolicy`'s identical guard never sees a snapshot this refusal already stopped — so the cause an operator is shown for it exists only if it is carried from here.
+    const err = await getAssetPolicy().catch((cause: unknown) => cause);
+    expect(err).toBeInstanceOf(AssetPolicyAbortError);
+    if (!(err instanceof AssetPolicyAbortError)) {
+      throw new Error('expected an AssetPolicyAbortError');
+    }
+    expect(err.cause).toBe('no-product-rows');
+    expect(err).toMatchObject({ message: expect.stringMatching(/no usable product rows/i) });
     // Past the failure memo, so this is the next wake genuinely refetching rather than the memo replaying the first rejection.
     clock.advance(MINUTE_MS);
     await expect(getAssetPolicy()).rejects.toThrow(/no usable product rows/i);
 
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  // Everything above reaches a cause from a body the resolver could read. These are the other half: the feed itself failed, and until they were typed the whole class propagated as a bare Error into the handler's generic branch — no counter, no parked record, and a profile page that blamed staleness for a coin list stopped by an unreachable endpoint. Unreachable means the answer never arrived; unreadable means it arrived and could not be trusted as this feed.
+  const causeOf = async (fetchImpl: ReturnType<typeof vi.fn>): Promise<unknown> => {
+    const err: unknown = await resolverWith(fetchImpl, fakeClock())().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(AssetPolicyAbortError);
+    return (err as AssetPolicyAbortError).cause;
+  };
+
+  it('types a transport failure as an unreachable feed', async () => {
+    // A DNS failure or a refused connection rejects the fetch itself, which is the likeliest way this host goes away and the one path that never produced a typed refusal.
+    const fetchImpl = vi.fn(async () => {
+      throw new TypeError('fetch failed');
+    });
+    await expect(causeOf(fetchImpl)).resolves.toBe('product-feed-unreachable');
+  });
+
+  it('types the abort at the timeout as an unreachable feed', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi.fn(
+        (_url: string, init: { signal: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            init.signal.addEventListener('abort', () =>
+              reject(new Error('The operation was aborted.')),
+            );
+          }),
+      );
+      const pending = resolverWith(fetchImpl, fakeClock())().catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(15_000);
+      const err: unknown = await pending;
+      expect(err).toBeInstanceOf(AssetPolicyAbortError);
+      expect((err as AssetPolicyAbortError).cause).toBe('product-feed-unreachable');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('types the timeout firing mid-body as an unreachable feed', async () => {
+    // The abort can land after the headers, while the body is still streaming, and that rejection comes out of the reader rather than out of the fetch. It is the same fault as a stalled request and has to grade the same, or the one arrival order the header-phase injection cannot reach stays untyped.
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi.fn(async (_url: string, init: { signal: AbortSignal }) => {
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array([0x7b]));
+            init.signal.addEventListener('abort', () =>
+              controller.error(new Error('The operation was aborted.')),
+            );
+          },
+        });
+        return new Response(body, { status: 200, statusText: 'OK', headers: new Headers() });
+      });
+      const pending = resolverWith(fetchImpl, fakeClock())().catch((e: unknown) => e);
+      await vi.advanceTimersByTimeAsync(15_000);
+      const err: unknown = await pending;
+      expect(err).toBeInstanceOf(AssetPolicyAbortError);
+      expect((err as AssetPolicyAbortError).cause).toBe('product-feed-unreachable');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('types a connection reset mid-body as an unreachable feed', async () => {
+    // A 200 whose body dies halfway delivered no answer, whatever the status line promised. Nothing about the catalogue can be read from a truncated stream, and the transport is what failed.
+    const fetchImpl = vi.fn(async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([0x7b]));
+          controller.error(new Error('ECONNRESET'));
+        },
+      });
+      return new Response(body, { status: 200, statusText: 'OK', headers: new Headers() });
+    });
+    await expect(causeOf(fetchImpl)).resolves.toBe('product-feed-unreachable');
+  });
+
+  it('types a non-2xx answer as an unreachable feed', async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response('nope', { status: 503, statusText: 'Service Unavailable' }),
+    );
+    await expect(causeOf(fetchImpl)).resolves.toBe('product-feed-unreachable');
+  });
+
+  it('types a 200 with no body at all as an unreachable feed', async () => {
+    // Nothing to read means nothing arrived, whatever the status line claimed.
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 200, statusText: 'OK' }));
+    await expect(causeOf(fetchImpl)).resolves.toBe('product-feed-unreachable');
+  });
+
+  it('types a body past the declared ceiling as an unreadable feed', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-length': String(64 * 1024 * 1024) }),
+      json: vi.fn(),
+    }));
+    await expect(causeOf(fetchImpl)).resolves.toBe('product-feed-unreadable');
+  });
+
+  it('types a chunked body past the streaming ceiling as an unreadable feed', async () => {
+    const chunk = new Uint8Array(1024 * 1024);
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(chunk);
+      },
+    });
+    const fetchImpl = vi.fn(
+      async () => new Response(body, { status: 200, statusText: 'OK', headers: new Headers() }),
+    );
+    await expect(causeOf(fetchImpl)).resolves.toBe('product-feed-unreadable');
+  });
+
+  it('types a row count past the cap as an unreadable feed', async () => {
+    const flood = Array.from({ length: 20_001 }, (_, i) => ({
+      ...(PRODUCT_ROWS[0] as ProductRowFixture),
+      s: `X${i}USDT`,
+      b: `X${i}`,
+    }));
+    const fetchImpl = vi.fn(async () => okResponse(productsPayload(flood)));
+    await expect(causeOf(fetchImpl)).resolves.toBe('product-feed-unreadable');
+  });
+
+  it('types a body that is not JSON as an unreadable feed', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response('{not json', {
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'application/json' }),
+        }),
+    );
+    await expect(causeOf(fetchImpl)).resolves.toBe('product-feed-unreadable');
+  });
+
+  it.each([
+    ['a bare string', 'hello'],
+    ['a number', 123],
+    ['a boolean', true],
+    ['a bare array', [{ s: 'BTCUSDT' }]],
+  ])('types %s where the envelope belongs as an unreadable feed', async (_label, payload) => {
+    // Not an envelope at all, so its `data` is not merely absent — there is nothing to read a catalogue from. Falling through to the empty-rows refusal would tell the operator "Binance returned no coin catalogue", which is a Binance-side fault, when what actually arrived was the wrong thing entirely.
+    const fetchImpl = vi.fn(async () => okResponse(payload));
+    await expect(causeOf(fetchImpl)).resolves.toBe('product-feed-unreadable');
+  });
+
+  it('types an envelope whose data is not an array as an unreadable feed', async () => {
+    // Distinct from the empty-rows refusal below: there the feed answered in its own shape and simply listed nothing this projector could use, which is a Binance-side fault to chase. Here the shape itself is wrong, so no claim about the catalogue's contents can be made at all.
+    const fetchImpl = vi.fn(async () =>
+      okResponse({ code: '000000', success: true, data: 'nope' }),
+    );
+    await expect(causeOf(fetchImpl)).resolves.toBe('product-feed-unreadable');
   });
 
   it('replays a recent failure without refetching, then refetches once the memo lapses', async () => {

@@ -2,14 +2,26 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Job, Processor } from 'bullmq';
 import pino from 'pino';
 import { DIAGNOSIS_STEPS, type ProfileDiagnosisInput } from '@app/contracts';
+import type { ProfileRepo } from '@app/db';
+import type { BinanceMode } from '@app/binance';
+import type { DiagnosisWorkerDeps } from '../../src/queues/diagnosis-worker.js';
 import type { QueueSet } from '../../src/queues/queue-set.js';
 import type { DiagnosisJobData } from '../../src/queues/job-payloads.js';
 
+type DiagnosisMethod<K extends keyof ProfileRepo['diagnosisRuns']> =
+  ProfileRepo['diagnosisRuns'][K];
+
 const repoMocks = vi.hoisted(() => ({
   findById: vi.fn(),
-  patchSteps: vi.fn(async () => undefined),
-  finish: vi.fn(async () => undefined),
-  fail: vi.fn(async () => undefined),
+  patchSteps: vi.fn<(...args: Parameters<DiagnosisMethod<'patchSteps'>>) => Promise<void>>(
+    async () => undefined,
+  ),
+  finish: vi.fn<(...args: Parameters<DiagnosisMethod<'finish'>>) => Promise<void>>(
+    async () => undefined,
+  ),
+  fail: vi.fn<(...args: Parameters<DiagnosisMethod<'fail'>>) => Promise<void>>(
+    async () => undefined,
+  ),
   binanceModeById: vi.fn(async () => 'live' as 'live' | 'test' | null),
   profileRepo: vi.fn(),
 }));
@@ -36,10 +48,15 @@ vi.mock('@app/binance', async (importOriginal) => {
   };
 });
 
-const gatherMocks = vi.hoisted(() => ({ gatherDiagnosisInput: vi.fn() }));
+type GatherDiagnosisInput =
+  typeof import('../../src/queues/diagnosis/gather.js').gatherDiagnosisInput;
+const gatherMocks = vi.hoisted(() => ({ gatherDiagnosisInput: vi.fn<GatherDiagnosisInput>() }));
 vi.mock('../../src/queues/diagnosis/gather.js', () => gatherMocks);
 
-const probeMocks = vi.hoisted(() => ({ probeLiveFunnel: vi.fn(async () => null) }));
+type ProbeLiveFunnel = typeof import('../../src/queues/diagnosis/live-funnel.js').probeLiveFunnel;
+const probeMocks = vi.hoisted(() => ({
+  probeLiveFunnel: vi.fn<ProbeLiveFunnel>(async () => null),
+}));
 vi.mock('../../src/queues/diagnosis/live-funnel.js', () => probeMocks);
 
 const { registerDiagnosisWorker } = await import('../../src/queues/diagnosis-worker.js');
@@ -58,12 +75,14 @@ const healthyInput = (): ProfileDiagnosisInput => ({
     quoteAsset: 'USDT',
     config: {},
     discoveryEnabled: true,
+    discoveryConfig: {},
     maxAutoSymbols: 5,
     refreshPeriodMs: 900_000,
     autoSymbolCount: 1,
   },
   worker: { heartbeatPresent: true },
   halts: [],
+  assetPolicyAbort: null,
   conditions: [],
   snapshots: [
     {
@@ -100,10 +119,13 @@ const LIVE_FUNNEL = {
   activity: 101,
   spread: 101,
   changeBand: 51,
+  probed: 21,
   age: 21,
   trend: 11,
   eligible: 5,
   added: 1,
+  kept: 0,
+  removed: 0,
   breadthOk: true,
 };
 
@@ -126,7 +148,10 @@ const JOB: DiagnosisJobData = {
   liveProbe: true,
 };
 
-function harness(logger: typeof silentLogger = silentLogger) {
+function harness(
+  logger: typeof silentLogger = silentLogger,
+  overrides: Partial<DiagnosisWorkerDeps> = {},
+) {
   let processor: Processor<DiagnosisJobData> | undefined;
   const queueSet = {
     registerWorker: <T>(_name: string, p: Processor<T>) => {
@@ -147,7 +172,9 @@ function harness(logger: typeof silentLogger = silentLogger) {
       fiatQuoteAssets: new Set(['ZWL']),
       tradingSymbols: new Set(['BTCUSDT']),
     }),
+    getSymbolAdmission: async () => new Map(),
     nowMs: () => NOW,
+    ...overrides,
   });
   return (data: DiagnosisJobData = JOB): Promise<unknown> => {
     if (!processor) throw new Error('worker not registered');
@@ -182,6 +209,34 @@ beforeEach(() => {
 });
 
 describe('diagnosis worker', () => {
+  it('asks the shared resolver for the account mode and for live, in that order', async () => {
+    // The two probe thunks differ only in their argument, and the mode one carries
+    // the guarantee: a testnet profile admitted against the live universe binds
+    // symbols testnet does not list. Nothing else in this suite would notice
+    // `mode` being swapped for `'live'` there, because the funnel itself is
+    // mocked and the harness resolver ignores what it is asked for.
+    const asked: BinanceMode[] = [];
+    repoMocks.binanceModeById.mockResolvedValue('test');
+    const run = harness(silentLogger, {
+      getSymbolAdmission: async (mode) => {
+        asked.push(mode);
+        return new Map();
+      },
+    });
+
+    await run();
+
+    const probeDeps = probeMocks.probeLiveFunnel.mock.calls[0]?.[0];
+    if (!probeDeps) throw new Error('the probe was never called');
+    expect(probeDeps.mode).toBe('test');
+
+    // The thunks are lazy, so they have to be invoked here to see what they ask for.
+    await probeDeps.symbolAdmission();
+    await probeDeps.liveSymbolAdmission();
+
+    expect(asked).toEqual(['test', 'live']);
+  });
+
   it('logs the error a rung withheld from the operator line', async () => {
     // The rung runner takes the callback; nothing else proves THIS worker passes
     // one. Drop the third argument and the report still reads `unknown` while the

@@ -95,6 +95,7 @@ export type MetricName =
   | 'exchange_info_trailing_delta_unparseable_total'
   | 'strategy_metric_total'
   | 'cron_overrun_total'
+  | 'discovery_asset_policy_abort_total'
   | 'reconcile_position_removed_total'
   | 'reconcile_value_bound_disarmed_total'
   | 'archive_recovery_sweep_profiles_total';
@@ -394,6 +395,12 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     kind: 'counter',
     help: 'Self-rescheduling cron runs whose elapsed time exceeded the configured period, by cron. A non-zero rate means that cron no longer holds its cadence.',
     labelNames: ['cron'],
+  },
+  // The classification guard refuses a product feed that cannot veto anything, and the per-profile catch that receives the refusal also receives every Binance blip from every other stage. Both landed in one warn, so a tag rename that killed the stablecoin veto read as ordinary flakiness while every peg was admitted. Counted separately from the generic failure, and labelled by `cause` because the refusals have different remedies: a dead classification route is a schema change to chase upstream, a cross-check gap is a stale or partial feed that may clear on its own, and an unreachable feed can be a single bad minute.
+  discovery_asset_policy_abort_total: {
+    kind: 'counter',
+    help: 'Discovery profile cycles abandoned because the stablecoin/fiat classification could not be established, by cause. Any non-zero rate means the asset-policy veto is not protecting admission for that profile. It is raised only where the classification itself is the fault — including the feed being unreachable or unreadable — and never for a Binance or Redis failure elsewhere in the cycle, which is what keeps it alertable on its own. `cause` is what separates a standing fault from a transient: the `product-feed-unreachable` label alone can be one failed fetch.',
+    labelNames: ['profileId', 'cause'],
   },
   // The reconciler owns two deletes — the sub-notional flatten and the phantom-ledger prune — and both empty a position and drop its cost basis. Their only trace was one warn inside a boot's worth of them, which no rule can watch. `heldBefore` is a two-value bucket rather than the quantity: it separates "deleted a position the strategy believed it held" from "converged a row that was already empty", which are a page and a routine convergence respectively, and bucketing keeps the series cardinality at 2 where the raw quantity would be unbounded.
   reconcile_position_removed_total: {

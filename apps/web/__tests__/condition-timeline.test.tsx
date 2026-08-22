@@ -194,6 +194,8 @@ describe('buildTimeline', () => {
 
     const span = t.lanes[0]?.spans[0];
     expect(span?.code).toBe('knife-guard');
+    // The hover text of a closed span is the code that ENDED, not the one that replaced it: an edge carries both, and swapping them names the wrong reason for the span the operator is pointing at.
+    expect(span?.label).toBe('knife-guard');
     expect(span?.clipped).toBe(true);
     expect(span?.open).toBe(false);
   });
@@ -222,8 +224,51 @@ describe('buildTimeline', () => {
 
     const spans = t.lanes[0]?.spans ?? [];
     expect(spans).toHaveLength(2);
-    expect(spans[0]).toMatchObject({ code: 'knife-guard', endMs: NOW - HOUR, clipped: false });
-    expect(spans[1]).toMatchObject({ code: 'awaiting-trigger-price', open: true, endMs: NOW });
+    // `label` and `severity` are asserted here because this is the edge-fed half of the fold, and both are otherwise unpinned: an edge span's tone comes from the condition catalogue, so a changed default would repaint every unknown condition, and its label is what the operator reads on hover.
+    expect(spans[0]).toMatchObject({
+      code: 'knife-guard',
+      label: 'knife-guard',
+      severity: 'degraded',
+      endMs: NOW - HOUR,
+      clipped: false,
+    });
+    expect(spans[1]).toMatchObject({
+      code: 'awaiting-trigger-price',
+      label: 'awaiting-trigger-price',
+      severity: 'degraded',
+      open: true,
+      endMs: NOW,
+    });
+  });
+
+  it('tones an edge span from the catalogue, and defaults a name the catalogue does not hold', () => {
+    // `gather` writes `'unknown'` for any log row whose ctx did not carry a condition, so an out-of-catalogue name reaches this fold in production. It must land on the softer tone: painting every unrecognised span red says a fault is proven when nothing was established at all.
+    const t = buildTimeline(
+      report({
+        timeline: [
+          {
+            atMs: NOW - HOUR,
+            condition: 'config-invalid',
+            code: 'schema',
+            previousCode: null,
+            symbol: null,
+          },
+          {
+            atMs: NOW - HOUR,
+            condition: 'unknown',
+            code: 'mystery',
+            previousCode: null,
+            symbol: 'BTCUSDT',
+          },
+        ],
+      }),
+    );
+
+    const byCode = new Map(
+      t.lanes.flatMap((l) => l.spans).map((sp) => [sp.code, sp.severity] as const),
+    );
+    expect(byCode.get('schema')).toBe('blocking');
+    expect(byCode.get('mystery')).toBe('degraded');
   });
 
   it('puts profile-wide conditions above the per-symbol lanes', () => {

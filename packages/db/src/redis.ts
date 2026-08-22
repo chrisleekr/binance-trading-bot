@@ -231,6 +231,8 @@ export const GLOBAL_KEYS = {
   discoveryFlat: (pid: string): string => `discovery:flat:${pid}`,
   discoveryExplain: (pid: string): string => `discovery:explain:${pid}`,
   discoveryEnterOnAdd: (pid: string): string => `discovery:enter-on-add:${pid}`,
+  // Why the newest cycle refused to rank anything, written by the cron and read by the diagnosis gather so the profile page can say "it stopped before choosing" instead of showing a funnel that merely looks old.
+  discoveryAssetPolicyAbort: (pid: string): string => `discovery:asset-policy-abort:${pid}`,
   // Current orphan-order set for ONE account, written by the worker's
   // `orphan-orders-detect` cron and read by the api's `/orphan-orders` route. Per
   // account, because an order book belongs to exactly one Binance key pair: a
@@ -278,6 +280,11 @@ export type GlobalScopedKeyName = keyof typeof GLOBAL_KEYS;
  * would make the snapshot immortal.
  */
 export const ORPHAN_SNAPSHOT_TTL_S = 3_600;
+
+/**
+ * TTL of {@link GLOBAL_KEYS.discoveryAssetPolicyAbort}. 25 hours, deliberately longer than the 86,400,000 ms (24 h) maximum a profile's `refreshPeriodMs` may be set to: the record is cleared by the next cycle that completes, so a TTL shorter than the longest legal gap between cycles would let the finding disappear on its own while the fault is still in force — the exact silence this record exists to end. The upper bound is what makes the expiry safe, not a guess at how long an operator takes to look.
+ */
+export const DISCOVERY_ASSET_POLICY_ABORT_TTL_S = 90_000;
 
 // =============================================================================
 // Typed wrapper

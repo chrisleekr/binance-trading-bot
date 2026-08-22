@@ -32,6 +32,7 @@ const profile = (id: string): ActiveProfile => ({
 });
 
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never;
+const notifyMock = () => vi.fn<DiscoveryHealthDeps['notify']>(async () => undefined);
 
 const snap = (capturedAtMs: number, breadthOk: boolean | undefined): SnapshotHealth => ({
   capturedAtMs,
@@ -49,6 +50,7 @@ const buildDeps = (over: Partial<DiscoveryHealthDeps>): DiscoveryHealthDeps => (
   notify: vi.fn(async () => undefined),
   allowAlert: vi.fn(async () => true),
   recordCondition: vi.fn(async () => undefined),
+  readAssetPolicyAbort: vi.fn(async () => null),
   clock: { nowMs: () => NOW },
   ...over,
 });
@@ -68,38 +70,38 @@ const codeFor = (
 
 describe('discoveryHealthHandler', () => {
   it('alerts exactly once on a stale profile (T1)', async () => {
-    const notify = vi.fn(async () => undefined);
+    const notify = notifyMock();
     await run(
       buildDeps({ recentSnapshots: vi.fn(async () => [snap(NOW - 3 * REFRESH, true)]), notify }),
     );
     expect(notify).toHaveBeenCalledTimes(1);
-    expect(notify.mock.calls[0][0]).toMatchObject({ category: 'discovery-health' });
-    expect(notify.mock.calls[0][0].body).toMatch(/not produced a scan/i);
+    expect(notify.mock.calls[0]?.[0]).toMatchObject({ category: 'discovery-health' });
+    expect(notify.mock.calls[0]?.[0].body).toMatch(/not produced a scan/i);
   });
 
   it('alerts exactly once on a persistent breadth block (T2)', async () => {
-    const notify = vi.fn(async () => undefined);
+    const notify = notifyMock();
     await run(buildDeps({ recentSnapshots: vi.fn(async () => fullWindow(false)), notify }));
     expect(notify).toHaveBeenCalledTimes(1);
-    expect(notify.mock.calls[0][0].body).toMatch(/market-breadth/i);
+    expect(notify.mock.calls[0]?.[0].body).toMatch(/market-breadth/i);
   });
 
   it('stays silent on a fresh, breadth-healthy profile', async () => {
-    const notify = vi.fn(async () => undefined);
+    const notify = notifyMock();
     await run(buildDeps({ recentSnapshots: vi.fn(async () => fullWindow(true)), notify }));
     expect(notify).not.toHaveBeenCalled();
   });
 
   it('skips a profile whose discovery is disabled (no snapshot read, no alert)', async () => {
     const recentSnapshots = vi.fn(async () => fullWindow(false));
-    const notify = vi.fn(async () => undefined);
+    const notify = notifyMock();
     await run(buildDeps({ loadConfig: vi.fn(async () => null), recentSnapshots, notify }));
     expect(recentSnapshots).not.toHaveBeenCalled();
     expect(notify).not.toHaveBeenCalled();
   });
 
   it('suppresses the alert when the throttle denies the window', async () => {
-    const notify = vi.fn(async () => undefined);
+    const notify = notifyMock();
     await run(
       buildDeps({
         recentSnapshots: vi.fn(async () => [snap(NOW - 3 * REFRESH, true)]),
@@ -111,7 +113,7 @@ describe('discoveryHealthHandler', () => {
   });
 
   it('isolates a throwing profile so the others are still scanned', async () => {
-    const notify = vi.fn(async () => undefined);
+    const notify = notifyMock();
     const good = profile('2');
     const deps = buildDeps({
       listActive: () => [profile('1'), good],
@@ -124,7 +126,7 @@ describe('discoveryHealthHandler', () => {
     await run(deps);
     // The healthy-path profile still alerted despite the first throwing.
     expect(notify).toHaveBeenCalledTimes(1);
-    expect(notify.mock.calls[0][0].profileId).toBe(good.profileId);
+    expect(notify.mock.calls[0]?.[0].profileId).toBe(good.profileId);
   });
 });
 
@@ -151,7 +153,7 @@ describe('discovery-health condition recording', () => {
 
   it('clears both conditions on a healthy pass, which no alert ever does', async () => {
     const recordCondition = vi.fn(async () => undefined);
-    const notify = vi.fn(async () => undefined);
+    const notify = notifyMock();
     await run(
       buildDeps({ recentSnapshots: vi.fn(async () => fullWindow(true)), notify, recordCondition }),
     );
@@ -162,7 +164,7 @@ describe('discovery-health condition recording', () => {
 
   it('records the condition even when the throttle suppresses the alert', async () => {
     const recordCondition = vi.fn(async () => undefined);
-    const notify = vi.fn(async () => undefined);
+    const notify = notifyMock();
     await run(
       buildDeps({
         recentSnapshots: vi.fn(async () => [snap(NOW - 3 * REFRESH, true)]),
@@ -206,9 +208,16 @@ describe('discovery-health condition recording', () => {
 describe('discovery-health throttle wiring', () => {
   const fakeLogger = () => ({ warn: vi.fn() }) as unknown as Logger;
   const key = (trigger: string, pid: string) => `${trigger}:${pid}`;
+  type NxSet = (
+    key: string,
+    value: string,
+    mode: 'PX',
+    ttl: number,
+    condition: 'NX',
+  ) => Promise<'OK' | null>;
 
   it('opens a namespaced 1h window with NX and suppresses the second identical scan', async () => {
-    const set = vi.fn<Redis['set']>().mockResolvedValueOnce('OK').mockResolvedValue(null);
+    const set = vi.fn<NxSet>().mockResolvedValueOnce('OK').mockResolvedValue(null);
     const redis = { set } as unknown as Redis;
     const t = createRedisWindowThrottle({
       redis,
@@ -231,7 +240,7 @@ describe('discovery-health throttle wiring', () => {
   });
 
   it('keys the two triggers separately so a staleness window cannot suppress a breadth alert', async () => {
-    const set = vi.fn<Redis['set']>().mockResolvedValue('OK');
+    const set = vi.fn<NxSet>().mockResolvedValue('OK');
     const redis = { set } as unknown as Redis;
     const t = createRedisWindowThrottle({
       redis,
@@ -252,7 +261,7 @@ describe('discovery-health throttle wiring', () => {
   });
 
   it('fails open when Redis is unavailable so a real health alert is not dropped', async () => {
-    const set = vi.fn<Redis['set']>().mockRejectedValue(new Error('ECONNREFUSED'));
+    const set = vi.fn<NxSet>().mockRejectedValue(new Error('ECONNREFUSED'));
     const redis = { set } as unknown as Redis;
     const logger = fakeLogger();
     const t = createRedisWindowThrottle({
@@ -264,5 +273,96 @@ describe('discovery-health throttle wiring', () => {
 
     expect(await t.allow(key('stale', 'p1'))).toBe(true);
     expect(logger.warn).toHaveBeenCalledOnce();
+  });
+});
+
+// A profile whose discovery cycle refused to rank produces no snapshot, so the
+// staleness verdict fires on the very gap the refusal already explains. The
+// operator then gets two pages telling different stories about one fault, and
+// the one that interrupts them names the wrong cause. Suppression is scoped to
+// the staleness trigger only, and only while the parked abort is recent enough
+// to still be that gap's reason.
+describe('discovery-health stale suppression behind a parked asset-policy abort', () => {
+  /** Stale AND breadth-blocked, so a suppression that leaked past the staleness trigger is visible as a lost breadth alert. */
+  const agedBlockedWindow = (): SnapshotHealth[] =>
+    fullWindow(false).map((s) => snap(s.capturedAtMs - 3 * REFRESH, false));
+
+  it('suppresses the stale alert and the stale condition, leaving breadth-block untouched', async () => {
+    const notify = notifyMock();
+    const recordCondition = vi.fn(async () => undefined);
+    await run(
+      buildDeps({
+        recentSnapshots: vi.fn(async () => agedBlockedWindow()),
+        readAssetPolicyAbort: vi.fn(async () => ({
+          cause: 'cross-check-gap' as const,
+          atMs: NOW - REFRESH,
+        })),
+        notify,
+        recordCondition,
+      }),
+    );
+    // Only the breadth alert survives: the staleness one would name a wedged scan for a cycle that deliberately refused to produce.
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify.mock.calls[0]?.[0].body).toMatch(/market-breadth/i);
+    // Neither opened NOR closed. Closing would post "Discovery is scanning again" while discovery demonstrably is not.
+    expect(codeFor(recordCondition, 'discovery-stale')).toBeUndefined();
+    expect(codeFor(recordCondition, 'discovery-breadth-blocked')).toBe('breadth-floor');
+  });
+
+  it('alerts and records normally once the parked abort is older than the gap it could explain', async () => {
+    // Past the bound the abort is history, not this gap's cause — a scan that stopped for a different reason has to reach the operator.
+    const notify = notifyMock();
+    const recordCondition = vi.fn(async () => undefined);
+    await run(
+      buildDeps({
+        recentSnapshots: vi.fn(async () => [snap(NOW - 3 * REFRESH, true)]),
+        readAssetPolicyAbort: vi.fn(async () => ({
+          cause: 'cross-check-gap' as const,
+          atMs: NOW - 3 * REFRESH,
+        })),
+        notify,
+        recordCondition,
+      }),
+    );
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify.mock.calls[0]?.[0].body).toMatch(/not produced a scan/i);
+    expect(codeFor(recordCondition, 'discovery-stale')).toBe('no-recent-scan');
+  });
+
+  it('still closes an open stale condition once a snapshot lands, abort parked or not', async () => {
+    // Only the OPENING edge is suppressed. A close is written when the verdict is not stale, which means a snapshot exists, so "Discovery is scanning again" is true by construction. Suppressing it too would strand an open finding on a profile that is demonstrably scanning — reachable whenever the record outlives the cycle that should have cleared it, since that clear swallows a failed delete.
+    const recordCondition = vi.fn(async () => undefined);
+    const notify = vi.fn(async () => undefined);
+    await run(
+      buildDeps({
+        recentSnapshots: vi.fn(async () => fullWindow(true)),
+        readAssetPolicyAbort: vi.fn(async () => ({
+          cause: 'cross-check-gap' as const,
+          atMs: NOW - REFRESH,
+        })),
+        notify,
+        recordCondition,
+      }),
+    );
+    expect(notify).not.toHaveBeenCalled();
+    expect(codeFor(recordCondition, 'discovery-stale')).toBeNull();
+  });
+
+  it('alerts anyway when the abort read fails, rather than going quiet on a Redis blip', async () => {
+    // Fail-safe, not fail-closed: an unreadable record is not evidence of an abort, and a health monitor that mutes itself whenever its own lookup breaks goes quiet exactly when it should not be.
+    const notify = notifyMock();
+    const recordCondition = vi.fn(async () => undefined);
+    await run(
+      buildDeps({
+        recentSnapshots: vi.fn(async () => [snap(NOW - 3 * REFRESH, true)]),
+        readAssetPolicyAbort: vi.fn(async () => {
+          throw new Error('redis boom');
+        }),
+        notify,
+        recordCondition,
+      }),
+    );
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(codeFor(recordCondition, 'discovery-stale')).toBe('no-recent-scan');
   });
 });

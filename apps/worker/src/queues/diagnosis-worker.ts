@@ -24,12 +24,12 @@ import {
   type DiagnosisStepResult,
   type ProfileDiagnosisInput,
 } from '@app/contracts';
-import { createBinanceRest, type WeightGovernor } from '@app/binance';
+import { createBinanceRest, type BinanceMode, type WeightGovernor } from '@app/binance';
 import { profileRepo, repo as dbRepo, type Database } from '@app/db';
 import type { Redis } from 'ioredis';
 import type { StrategyRegistry } from '@app/strategy-core';
-import { fetchSymbolAdmission } from 'crons/discovery/symbol-admission.js';
 import type { AssetPolicy } from 'crons/discovery/asset-policy.js';
+import type { SymbolAdmission } from 'crons/discovery/symbol-admission.js';
 import { parseAccountPermissions } from 'lib/account-permissions.js';
 import { buildAccountPermissionsKey } from 'executor/redis-namespace.js';
 import type { QueueSet } from './queue-set.js';
@@ -49,6 +49,8 @@ export interface DiagnosisWorkerDeps {
   readonly weightGovernor: WeightGovernor;
   /** The SAME asset-classification snapshot the discovery cron reads, so the probe's funnel cannot classify an asset the cron classified differently. */
   readonly getAssetPolicy: () => Promise<AssetPolicy>;
+  /** The SAME mode-keyed admission snapshot the discovery cron reads. Shared so the probe cannot admit a symbol the cron cut, and so the probe stops re-sweeping the whole symbol-info keyspace the cron just swept. */
+  readonly getSymbolAdmission: (mode: BinanceMode) => Promise<ReadonlyMap<string, SymbolAdmission>>;
   readonly nowMs: () => number;
 }
 
@@ -169,10 +171,8 @@ export function registerDiagnosisWorker(queueSet: QueueSet, deps: DiagnosisWorke
                     getAllTickers: () => rest.getAllTickers24hr(),
                     getKlines: (symbol, limit) => rest.getKlines({ symbol, interval: '1h', limit }),
                     mode,
-                    symbolAdmission: () =>
-                      fetchSymbolAdmission(deps.redis, deps.logger, mode, 'diagnosis'),
-                    liveSymbolAdmission: () =>
-                      fetchSymbolAdmission(deps.redis, deps.logger, 'live', 'diagnosis'),
+                    symbolAdmission: () => deps.getSymbolAdmission(mode),
+                    liveSymbolAdmission: () => deps.getSymbolAdmission('live'),
                     assetPolicy: deps.getAssetPolicy,
                     accountPermissions: async () =>
                       parseAccountPermissions(
