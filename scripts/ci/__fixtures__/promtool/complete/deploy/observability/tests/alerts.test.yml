@@ -1,0 +1,6 @@
+# Fixture only. The shim promtool logs its argv and exits 0, so the content is
+# never parsed — what this file proves is that the gate DISCOVERS a rules-test
+# suite and hands it to `promtool test rules`.
+rule_files:
+  - ../alerts.yml
+tests: []

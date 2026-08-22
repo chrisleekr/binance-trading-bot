@@ -365,17 +365,11 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     help: 'Symbols that published a TRAILING_DELTA filter which could not be projected, per Binance mode. The rest of the filter set survives, so the symbol keeps trading while onBandBlock native-trail silently stops being placeable and falls back to refusing the stop.',
     labelNames: ['mode'],
   },
-  // The one series behind every `MetricEntry` a strategy puts on its tick output.
-  // Strategy names are dotted, per-plugin, and partly built at runtime, so they
-  // cannot be members of this union — and a name that is not a member reaches no
-  // registry at all. Carrying the strategy's own name as a LABEL is what lets the
-  // catalogue stay closed while the entries still export.
+  // The one series behind every `MetricEntry` a strategy puts on its tick output. Strategy names are dotted, per-plugin, and partly built at runtime, so they cannot be members of this union — and a name that is not a member reaches no registry at all. Carrying the strategy's own name as a LABEL is what lets the catalogue stay closed while the entries still export.
   //
-  // Label set is deliberately narrow. `name` is bounded by an exact-set gate over
-  // the emitting call sites; every other tag a strategy attaches (side, cap,
-  // level, regime, addIndex) is dropped by the sink's label projection rather than
-  // promoted, because each one would multiply the series count for a dimension
-  // only one strategy has.
+  // Label set is deliberately narrow. `name` is bounded by an exact-set gate over the emitting call sites; `cap`, `level`, `regime`, `addIndex` and friends are dropped by the sink's label projection rather than promoted, because each one would multiply the series count for a dimension only one strategy has.
+  //
+  // `side` is the one promoted tag with a bounded value space, and it is promoted because without it the entry-path and exit-path emits of one metric name collapse onto a single series — "is it refusing to open a position or refusing to close one" is the first question asked of these counters, and it is not recoverable after the fact. `MomentumExitBlockedByFilters` selects on it. The bound is held at the emitters, not here: the sink's projection declares which tag NAMES survive and never which values, so no strategy's vocabulary reaches it. Today the sole producer is momentum's `skipMetric`, whose parameter is the union `entry | exit | sell`. A new producer widens this series by however many values it invents.
   //
   // `reason` is the one promoted free-form tag and it carries NO such gate. Every
   // call site today passes a literal-union value (`SellSkipReason`,
@@ -388,7 +382,7 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
   strategy_metric_total: {
     kind: 'counter',
     help: 'Strategy-emitted metric entries drained from each tick, by strategy and entry name. Event-counted: every entry increments once per occurrence, never once per tick spent in the state it describes, so a rate is a rate of things happening and not a measure of how long a condition has held.',
-    labelNames: ['strategy', 'name', 'profileId', 'symbol', 'reason'],
+    labelNames: ['strategy', 'name', 'profileId', 'symbol', 'reason', 'side'],
   },
   // A self-rescheduling cron that overruns its period re-arms at delay 0, which is byte-identical to a healthy fast loop from outside: same queue depth, same completed jobs, same cron-status row. One sweep therefore ran for eight hours against a fifteen minute cadence and emitted nothing. Labelled by cron because the remedy is per cron, and a single unlabelled number could not say which one is late.
   cron_overrun_total: {

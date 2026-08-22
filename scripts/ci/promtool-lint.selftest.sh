@@ -45,6 +45,11 @@ expect_closed unsupported complete unsupported-bin 'unsupported arch'
 # a host that has no curl anyway, and would never reach the wget branch that the
 # alpine CI image actually takes.
 expect_closed download-failure complete download-fail-bin 'cannot reach'
+# `check rules` accepts an expression that can never evaluate true, so the rules
+# unit tests are the only half of this gate that can catch a rule made silent by
+# how Prometheus samples a counter. A deleted or renamed suite must fail the gate,
+# not quietly reduce it to a syntax check.
+expect_closed no-rule-tests no-tests promtool-bin 'no rule unit tests found'
 
 out="$(run_fixture complete complete promtool-bin 2>&1)"
 rc=$?
@@ -59,6 +64,9 @@ elif ! grep -qF 'deploy/observability/alerts.yml' <<<"$calls" || \
   fails=1
 elif grep -qF 'deploy/observability/otel-collector.yaml' <<<"$calls"; then
   echo 'FAIL: promtool received YAML explicitly classified as non-rule configuration'
+  fails=1
+elif ! grep -qF 'test rules deploy/observability/tests/alerts.test.yml' <<<"$calls"; then
+  echo 'FAIL: promtool was never asked to RUN the rules unit tests, only to parse the rules'
   fails=1
 fi
 

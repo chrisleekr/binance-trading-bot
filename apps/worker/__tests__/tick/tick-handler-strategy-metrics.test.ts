@@ -38,9 +38,18 @@ const STRATEGY = 'stub-strategy-metrics';
 
 const SYMBOL_INFO: SymbolInfo = {
   symbol: SYMBOL,
+  status: 'TRADING',
   baseAsset: 'BTC',
   quoteAsset: 'USDT',
-  filters: { minQty: '0.00001', stepSize: '0.00001', minNotional: '10', tickSize: '0.01' },
+  filters: {
+    minQty: '0.00001',
+    maxQty: '9000',
+    stepSize: '0.00001',
+    minNotional: '10',
+    minPrice: '0.01',
+    maxPrice: '1000000',
+    tickSize: '0.01',
+  },
 };
 
 /** Key-aware ioredis stub. Every queued GET answers a clean cache miss. */
@@ -95,8 +104,8 @@ const buildStrategy = (metrics?: readonly unknown[]): Strategy =>
       logs: [],
       metrics: metrics ?? [
         metric('momentum.entry'),
-        metric('momentum.skip', { side: 'BUY', reason: 'cooldown' }),
-        metric('momentum.skip', { side: 'BUY', reason: 'cooldown' }),
+        metric('momentum.skip', { side: 'exit', reason: 'cooldown' }),
+        metric('momentum.skip', { side: 'exit', reason: 'cooldown' }),
         metric('tt_risk_cap_veto', { symbol: 'WRONGUSDT', cap: 'per-symbol' }),
       ],
     }),
@@ -165,7 +174,7 @@ const run = async (metrics?: readonly unknown[]): Promise<string> => {
       accountId: String(ACCOUNT),
       profileId: String(PROFILE),
       symbol: SYMBOL,
-      event: 'tick',
+      event: 'resync',
       enqueuedAtMs: 0,
       payload: {},
     } satisfies TickJobData,
@@ -205,14 +214,26 @@ describe('tick handler — strategy metric drain', () => {
   });
 
   it('drops undeclared tags and keeps the canonical symbol', async () => {
-    // `cap` and `side` are per-strategy dimensions the series does not declare,
-    // and a strategy tag named `symbol` must not displace the tick's own symbol —
-    // otherwise one mislabelled emit misattributes the whole series.
+    // `cap` is a per-strategy dimension the series does not declare, and a strategy tag named `symbol` must not displace the tick's own symbol — otherwise one mislabelled emit misattributes the whole series. `side` IS declared and is covered by its own case above; `cap` is the example here precisely because nothing catalogues it, so this still proves the projection drops the undeclared.
     const body = await run();
     const sample = sampleFor(body, 'tt_risk_cap_veto');
     expect(sample).toContain(`symbol="${SYMBOL}"`);
     expect(sample).not.toContain('WRONGUSDT');
     expect(sample).not.toContain('cap=');
+  });
+
+  it('promotes side onto the series so a rate can be split by entry and exit path', async () => {
+    // Without `side` declared, the entry-path and exit-path emits of one entry name collapse onto a single series. That reads as one number whose movement cannot be attributed to a path, which is exactly the question asked of these counters first — "is it refusing to open a position, or refusing to close one?" — and the answer is not recoverable after the fact. The drain already spreads the entry's own tags, so the catalogue's `labelNames` is the only thing gating it.
+    //
+    // `exit` rather than an arbitrary string because `MomentumExitBlockedByFilters` selects on exactly this label value. The projection under test is value-agnostic and would promote any string, but a fixture that emits one no producer can reach would leave that alert's selector unexercised and would contradict `skipMetric`, whose union is `entry | exit | sell`.
+    const body = await run();
+    expect(sampleFor(body, 'momentum.skip')).toContain('side="exit"');
+  });
+
+  it('stamps side unknown when the entry carries none', async () => {
+    // A declared label a strategy does not emit must still resolve to a stable value, or the entry lands on a differently-shaped child and the accumulation in the case above silently splits.
+    const body = await run();
+    expect(sampleFor(body, 'momentum.entry')).toContain('side="unknown"');
   });
 
   it('drops an unusable value instead of letting it abort the tick', async () => {
