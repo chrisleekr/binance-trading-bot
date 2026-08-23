@@ -7,6 +7,7 @@ import {
   type SellSkipReason,
 } from '../quantity.js';
 import type { TTBundle, TTConfig, TTState } from '../schema.js';
+import { clearedSellPosition } from '../position-lifecycle.js';
 import { armAutoTriggerBuy, emitForcedFirstEntry } from './first-entry.js';
 import { protectiveStopCancelDecisions } from './protective-stop.js';
 import { reclaimableOwnSellBase, resolveHeldForSell, sellSkipLogLevel } from './sell-gate.js';
@@ -211,24 +212,11 @@ const overrideOutput = (
         // opted into autoTriggerBuy; null (feature off) ends the cycle.
         const postSellState: TTState = {
           ...nextState,
-          avgEntryPrice: null,
-          // `heldQuantity` is intentionally NOT cleared here — the
-          // fill-adopter owns the authoritative transition on the
-          // executionReport (null on a position-emptying fill, the
-          // reduced remainder on a partial). An optimistic clear would
-          // make the next tick size against `wallet.free` (which
-          // excludes the qty Binance locks into this just-placed SELL),
-          // under-sizing any follow-up sell in the partial-fill window.
-          highSinceBuy: null,
-          breakEvenArmed: false,
-          currentGridTradeIndex: null,
-          // A manual full-close ends any discovery single-entry too; reset the
-          // marker so the next position is a normal grid entry (mirrors the
-          // strategy-initiated sell resets in tick.ts).
-          discoveryEntry: false,
-          entryAtMs: null,
-          autoTriggerBuyAtMs: armAutoTriggerBuy(config, now),
-          // A closed position has no pending entry to block; drop any stale blocker.
+          // The shared full-exit reset, not a hand-copied field list. This branch is terminal, so the flat-path clears further down the chain never run on the tick that closes the position: whatever this object omits ships committed. A private list here had already drifted from the canonical one, keeping both position-scoped blockers and the bull-pyramid counters alive past a manual close.
+          //
+          // `heldQuantity` is intentionally NOT cleared, and the helper leaves it alone for the same reason — the fill-adopter owns the authoritative transition on the executionReport (null on a position-emptying fill, the reduced remainder on a partial). An optimistic clear would make the next tick size against `wallet.free`, which excludes the qty Binance locks into this just-placed SELL, under-sizing any follow-up sell in the partial-fill window.
+          ...clearedSellPosition(armAutoTriggerBuy(config, now)),
+          // A closed position has no pending entry to block; drop any stale blocker. Not part of the sell-side reset because it is scoped to a FLAT profile, so the shared helper deliberately does not carry it.
           entryBlocker: null,
         };
         return {

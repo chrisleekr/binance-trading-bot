@@ -122,5 +122,11 @@ export type {
   ProtectiveStopLevel,
   StopBandContext,
 } from './protective-stop.js';
+export {
+  POSITION_SCOPED_STATE_FIELDS,
+  clearPositionScopedFields,
+  hasPositionScopedFieldSet,
+} from './position-scope.js';
+export type { PositionScopedField } from './position-scope.js';
 export { freeBalance, sizableBase, decOrNull, accountEquity } from './balances.js';
 export type { SizableBase } from './balances.js';

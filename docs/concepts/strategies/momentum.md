@@ -174,7 +174,7 @@ Per (profile, symbol), between ticks (`MomentumStateSchema`, schema version `1.0
 | `lastEntryCandleMs` | Close time of the candle that opened the last entry; enforces one entry per cross. |
 | `profitTrailSinceMs` | Close instant of the newest 1-minute candle already closed when the position opened. The profit leg folds only candles that **open** at or after it, so the earliest close it can fold lands one minute later. Keeps a peak from before you were in the trade out of `profitHigh`. Stays `null` until a tick supplies a closed 1-minute window: a position reconciled from your wallet, or one whose entry was adopted from a fill, arrives without it and the next held tick stamps it. A caller with no 1-minute candles never stamps it and the profit leg stays inert. Stamping late can only ever fold FEWER closes, never a peak the position did not hold. |
 | `entryBlocker` | Why the last tick refused an entry (e.g. `below-trend`, `overextended`, `cap-reached`). |
-| `protectiveStopBlocker` | Why a held position currently has no exchange-side stop. |
+| `protectiveStopBlocker` | Why a held position currently has no exchange-side stop; cleared to `null` when the position closes, including a close the worker applies without a tick. A reset that clears the cost basis but leaves coins in your wallet keeps the warning. |
 
 ## Internals
 

@@ -599,6 +599,65 @@ describe('protective stop — the blocker is position-scoped', () => {
 
     expect(blockerOf(trailingTrade.tick(input).nextState)).toBeNull();
   });
+
+  it('still clears the blocker on a basis-less body that kept its coins', () => {
+    // Deliberately NOT the adapter's rule. A running tick re-derives the refusal from live exchange state and re-publishes it, so a record it can no longer re-derive must not be left standing: frozen band prices would keep alerting with a remedy that can never resolve. The adapter is the conservative one precisely because it has no tick to re-derive anything.
+    const base = buildInput({ avgEntryPrice: null, heldQuantity: '2' });
+    const input = {
+      ...base,
+      state: { ...base.state, protectiveStopBlocker: { reason: 'base-locked-by-foreign-order' } },
+    } as unknown as TickInput<TTConfig, TTState, TTBundle>;
+
+    expect(blockerOf(trailingTrade.tick(input).nextState)).toBeNull();
+  });
+
+  it('clears the blocker on the operator trigger-sell that closes the position', () => {
+    // The override branch is TERMINAL: it returns before the flat-path clears further down the chain, so whatever its reset omits is what gets committed. The operator's usual reason for force-closing is that the stop was refused, which makes this the common path, not a corner — and a kill-switch or symbol pause after it means no later tick ever heals the row.
+    const base = buildInput({
+      avgEntryPrice: '100',
+      currentPrice: '105.00',
+      override: {
+        kind: 'trigger-sell',
+        overrideActionId: '01234567-89ab-4cde-89ab-cdef0123456a',
+      },
+    });
+    const input = {
+      ...base,
+      state: {
+        ...base.state,
+        protectiveStopBlocker: { reason: 'base-locked-by-foreign-order' },
+        exitBlocker: { reason: 'no-exit-configured' },
+      },
+    } as unknown as TickInput<TTConfig, TTState, TTBundle>;
+
+    const next = trailingTrade.tick(input).nextState;
+    expect(blockerOf(next)).toBeNull();
+    expect(next.exitBlocker).toBeNull();
+  });
+
+  it('applies the shared full-exit reset on an operator trigger-sell', () => {
+    // Pins the helper, not the field list: this branch kept its own hand-copy of the reset and had already drifted from the three strategy-initiated sell sites, leaving the bull-pyramid counters alive across a manual close.
+    const base = buildInput({
+      avgEntryPrice: '100',
+      currentPrice: '105.00',
+      override: {
+        kind: 'trigger-sell',
+        overrideActionId: '01234567-89ab-4cde-89ab-cdef0123456b',
+      },
+    });
+    const input = {
+      ...base,
+      state: { ...base.state, bullAddCount: 2, lastBullAddPrice: '104', entryConfirmCount: 3 },
+    } as unknown as TickInput<TTConfig, TTState, TTBundle>;
+
+    const next = trailingTrade.tick(input).nextState;
+    expect(next.bullAddCount).toBeNull();
+    expect(next.lastBullAddPrice).toBeNull();
+    expect(next.entryConfirmCount).toBe(0);
+    expect(next.forceSellFirstSeenAtMs).toBeNull();
+    expect(next.avgEntryPrice).toBeNull();
+    expect(next.currentGridTradeIndex).toBeNull();
+  });
 });
 
 describe('protective stop — quantity drift on the resting stop (#613)', () => {
