@@ -32,7 +32,7 @@ export const hasPositionScopedFieldSet = (state: object): boolean =>
  *
  * Returns the SAME reference when there was nothing to clear, so a steady flat tick allocates nothing and a caller may use identity to tell whether anything changed.
  *
- * @param state - Strategy body to normalise; never mutated. The constraint types these fields as `object | null` rather than `unknown` so a body declaring one as non-nullable is rejected here instead of silently receiving a `null` the return type denies.
+ * @param state - Strategy body to normalise; never mutated. The constraint documents which fields this touches; it does NOT prove they are nullable, because a required non-nullable property still satisfies an optional `object | null` one. The `as S` on the way out is therefore load-bearing: a plugin that declares a position-scoped field non-nullable would receive a `null` its own type denies. Both shipped bodies declare these `.nullable()`, and the parity tests in each plugin suite are what actually hold that.
  * @returns The body with its position-scoped fields nulled, or `state` itself when none were set.
  */
 export const clearPositionScopedFields = <
