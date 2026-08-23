@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.2.0...v1.3.0) (2026-08-23)
+
+
+### Features
+
+* **discovery:** surface asset-policy aborts to the operator ([#755](https://github.com/chrisleekr/binance-trading-bot/issues/755)) ([8e20233](https://github.com/chrisleekr/binance-trading-bot/commit/8e202332d051d066776518d8f5c86bd88e950782))
+* **observability:** alert on the new counters and unit-test the rules ([#757](https://github.com/chrisleekr/binance-trading-bot/issues/757)) ([c7e96a0](https://github.com/chrisleekr/binance-trading-bot/commit/c7e96a06e212aaeb92c692c21f44ab454c423c68))
+
+
+### Bug Fixes
+
+* **archive:** recover the real exit reason on backfilled cycles ([#756](https://github.com/chrisleekr/binance-trading-bot/issues/756)) ([74790d2](https://github.com/chrisleekr/binance-trading-bot/commit/74790d2080c918fa3765cb2cf68e08249c28992e))
+* clear position-scoped state fields on every position close ([#761](https://github.com/chrisleekr/binance-trading-bot/issues/761)) ([7c5ffbc](https://github.com/chrisleekr/binance-trading-bot/commit/7c5ffbc24a97f08f63360a424ff18f82a7a5bc94))
+* **worker:** flatten sub-notional dust instead of stranding the position ([#754](https://github.com/chrisleekr/binance-trading-bot/issues/754)) ([6e51c2a](https://github.com/chrisleekr/binance-trading-bot/commit/6e51c2ae93965ccc6fbd8b215da16cd7d2f910b0))
+
 ## [1.2.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.1.0...v1.2.0) (2026-08-18)
 
 
