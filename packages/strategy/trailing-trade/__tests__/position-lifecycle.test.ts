@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { POSITION_SCOPED_STATE_FIELDS } from '@app/strategy-core';
 import {
   clearedAddTracking,
   clearedSellPosition,
@@ -17,6 +18,23 @@ import {
 } from '../src/position-lifecycle.js';
 import { TTStateSchema, initialTTState, type TTState } from '../src/schema.js';
 import { normalizeTickState } from '../src/tick.js';
+
+describe('position-scoped vocabulary parity', () => {
+  // The core list and this package's lifecycle helpers are two hand-maintained enumerations of the same rule. Nothing in the type system ties them, so a field added to one and not the other means the position adapters clear it while the three in-tick sell sites do not — the split-brain this file's other guards exist to prevent, one layer up.
+  const scopedInTT = POSITION_SCOPED_STATE_FIELDS.filter((f) => f in TTStateSchema.shape);
+
+  it('pins which core fields TT carries, so a typo in either list fails here', () => {
+    expect(scopedInTT).toEqual(['protectiveStopBlocker', 'exitBlocker']);
+  });
+
+  it.each(scopedInTT)('clearedSellPosition nulls %s', (field) => {
+    expect(clearedSellPosition(null)[field]).toBeNull();
+  });
+
+  it.each(scopedInTT)('POSITION_LIFECYCLE_KEYS contains %s', (field) => {
+    expect(POSITION_LIFECYCLE_KEYS).toContain(field);
+  });
+});
 
 describe('clearedAddTracking', () => {
   it('produces exactly the bull-pyramid + discovery reset fields', () => {

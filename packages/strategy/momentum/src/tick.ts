@@ -1,6 +1,12 @@
 import { Decimal } from '@app/money';
 import { ema, sma } from '@app/indicators';
-import { decOrNull, log, metric, protectiveStopBandAdjustment } from '@app/strategy-core';
+import {
+  clearPositionScopedFields,
+  decOrNull,
+  log,
+  metric,
+  protectiveStopBandAdjustment,
+} from '@app/strategy-core';
 import type {
   Candle,
   Decision,
@@ -168,9 +174,20 @@ const extensionGate = (
  * resting exchange-side protective stop mirrors the trailing level so the
  * position survives a worker outage or a gap. One long per (profile, symbol);
  * no grid. Pure — EMAs are computed in-strategy from the candle window.
+ *
+ * @param input - One tick's world for a single (profile, symbol): config, the state body as stored, the candle window and live price, wallet and account balances, and any pending operator override. Never mutated.
+ * @returns The next state body plus the decisions the worker should execute. A hold returns a `noop` decision rather than an empty list, so a tick that chose to do nothing is distinguishable from one that never ran.
  */
 export const computeTick = (input: MomentumInput): MomentumOutput => {
-  const { config, state, market } = input;
+  const { config, market } = input;
+  // A position-scoped blocker explains something about a position that is OPEN; with the position gone it describes nothing, so it must not outlive it. Cleared here rather than inside the flat branch below because the warm-up return above that branch is itself a flat tick, and would otherwise carry a refusal forward for as long as the candle window stays short.
+  //
+  // Position-free means no cost basis AND no coins. A body carrying a held quantity with no basis is a real, unguarded holding, not a flat profile, and its stop refusal is the only trace of that exposure — the reconciler names this exact shape as the one where the strategy reads flat while still holding.
+  // Strict `=== null` on both, deliberately matching the entry/exit dispatch below and the held-quantity test in the exit path. A looser test here would call a body flat that those two then treat as held, so the tick would clear the blocker and walk into the exit path on the same state. Flatness has to mean one thing per file, and an absent key that this predicate declines to treat as flat merely keeps the warning, which is the safe direction and which the position adapter clears anyway.
+  const positionFree = input.state.entryPrice === null && input.state.heldQuantity === null;
+  const state = positionFree ? clearPositionScopedFields(input.state) : input.state;
+  // One name for the normalised input, allocated unconditionally rather than aliased back to `input` on the no-clear path: aliasing is only sound while this predicate matches the entry/exit dispatch below, and that coupling is invisible at the call site. `clearPositionScopedFields` already returns its argument when there is nothing to clear, so the inner allocation is still skipped on a steady flat tick.
+  const scoped: MomentumInput = { ...input, state };
   const allCandles = market.candlesByInterval[config.candleInterval] ?? [];
   // Act only on closed candles: a forming candle's close moves intra-tick and
   // would make the cross non-deterministic.
@@ -268,9 +285,9 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
         );
       }
     }
-    return evaluateEntry(input, crossUp, lastCandle.closeTimeMs);
+    return evaluateEntry(scoped, crossUp, lastCandle.closeTimeMs);
   }
-  return evaluateExit(input, state.entryPrice, crossDown, lastCandle, candles, forceSell);
+  return evaluateExit(scoped, state.entryPrice, crossDown, lastCandle, candles, forceSell);
 };
 
 const evaluateEntry = (

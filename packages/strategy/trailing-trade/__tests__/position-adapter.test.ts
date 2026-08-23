@@ -1,11 +1,26 @@
 import { describe, it, expect } from 'vitest';
+import { POSITION_SCOPED_STATE_FIELDS, type PositionScopedField } from '@app/strategy-core';
 import { trailingTradePositionAdapter, type TTState } from '../src/index.js';
-import { initialTTState } from '../src/schema.js';
+import { initialTTState, TTStateSchema } from '../src/schema.js';
 
 const base = (overrides: Partial<TTState> = {}): TTState => ({
   ...initialTTState(),
   ...overrides,
 });
+
+// Driven off the exported vocabulary, not a hand-copy. The core list is declared as a value precisely so a plugin suite covers whatever is on it today; hard-coding the two names here would let a third field ship through both adapter paths with every test still green.
+const SCOPED_FIELDS = POSITION_SCOPED_STATE_FIELDS.filter((f) => f in TTStateSchema.shape);
+
+// Blocker values TT can actually produce. A reason outside the field's schema enum parses nowhere in the real system, so asserting against one would pin behaviour on a body the strategy can never hold. A total Record, not a ternary with a fallback: a field added to the core list is then a typecheck failure here rather than a case that silently seeds the wrong key and passes against a schema default.
+const BLOCKER_FIXTURE: Record<PositionScopedField, Partial<TTState>> = {
+  protectiveStopBlocker: { protectiveStopBlocker: { reason: 'base-below-exchange-minimum' } },
+  exitBlocker: { exitBlocker: { reason: 'no-exit-configured' } },
+};
+
+const blockerFor = (field: PositionScopedField): Partial<TTState> => BLOCKER_FIXTURE[field];
+
+const allBlockersSet = (): Partial<TTState> =>
+  Object.assign({}, ...SCOPED_FIELDS.map(blockerFor)) as Partial<TTState>;
 
 describe('trailingTradePositionAdapter.readPosition', () => {
   it('projects avgEntryPrice + heldQuantity from a current-schema body', () => {
@@ -109,6 +124,58 @@ describe('trailingTradePositionAdapter.applyFill', () => {
     // so a stale count would otherwise cap/misfire the next position's pyramid.
     expect(next.bullAddCount).toBeNull();
     expect(next.lastBullAddPrice).toBeNull();
+  });
+
+  it('covers every position-scoped field TT declares', () => {
+    // Guards the filter above: a typo in the core list matches no schema key and would silently reduce every derived test below to a no-op.
+    expect(SCOPED_FIELDS).toEqual(['protectiveStopBlocker', 'exitBlocker']);
+  });
+
+  it.each(SCOPED_FIELDS)('clears %s on the fill that flattens the position', (field) => {
+    // TT's tick already clears these on its flat path, but that path only runs if a tick runs at all: a kill-switch or a symbol pause short-circuits `buildTickInput` before the strategy is reached, and a disposal-blocked symbol never re-enables on its own. The writer that ends the position is the one that can close the records without depending on a later tick.
+    const held = base({ avgEntryPrice: '50000', heldQuantity: '0.5', ...blockerFor(field) });
+    const out = trailingTradePositionAdapter.applyFill(held, { kind: 'empty' });
+    expect(out?.[field]).toBeNull();
+  });
+
+  it.each(SCOPED_FIELDS)(
+    'still writes on an empty fill when a flat body is stranded carrying %s',
+    (field) => {
+      // The already-flat skip below tests the position fields; a stranded body passes every one of them, so a clear behind that guard never runs on the one shape it exists to reach.
+      const stranded = base({
+        avgEntryPrice: null,
+        heldQuantity: null,
+        highSinceBuy: null,
+        ...blockerFor(field),
+      });
+      const out = trailingTradePositionAdapter.applyFill(stranded, { kind: 'empty' });
+      expect(out).not.toBeNull();
+      expect(out?.[field]).toBeNull();
+    },
+  );
+
+  it('clears every position-scoped blocker when a basis clear leaves no coins behind', () => {
+    const flat = base({ avgEntryPrice: '50000', heldQuantity: null, ...allBlockersSet() });
+    const out = trailingTradePositionAdapter.clearPosition(flat);
+    for (const field of SCOPED_FIELDS) expect(out?.[field]).toBeNull();
+  });
+
+  it('keeps every position-scoped blocker when the cleared basis still has coins behind it', () => {
+    // `clearPosition` forgets the cost basis and deliberately keeps `heldQuantity` — the wallet reconciler owns that. The coins are still held and still unguarded, so the refusal describes a live exposure and dropping it would delete the operator's only in-state warning.
+    const stillHeld = base({ avgEntryPrice: '50000', heldQuantity: '0.5', ...allBlockersSet() });
+    const out = trailingTradePositionAdapter.clearPosition(stillHeld);
+    for (const field of SCOPED_FIELDS) expect(out?.[field]).not.toBeNull();
+  });
+
+  it('keeps every position-scoped blocker when the held quantity is unreadable', () => {
+    // Malformed reads as "cannot tell whether coins are held", and the only safe answer to that is to keep the warning: a stale hazard is visible and self-corrects, a deleted one is neither.
+    const malformed = base({
+      avgEntryPrice: '50000',
+      heldQuantity: 0.5 as never,
+      ...allBlockersSet(),
+    });
+    const out = trailingTradePositionAdapter.clearPosition(malformed);
+    for (const field of SCOPED_FIELDS) expect(out?.[field]).not.toBeNull();
   });
 
   it('empty is a no-op (null) when the position is already flat', () => {

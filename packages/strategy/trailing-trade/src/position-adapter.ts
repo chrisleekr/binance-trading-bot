@@ -7,7 +7,9 @@
 
 import {
   asStringOrNull,
+  clearPositionScopedFields,
   currentSchemaBody,
+  hasPositionScopedFieldSet,
   type AdoptedFill,
   type PositionStateAdapter,
   type PositionView,
@@ -66,11 +68,13 @@ export const trailingTradePositionAdapter: PositionStateAdapter<TTState> = {
         if (
           body['avgEntryPrice'] === null &&
           body['highSinceBuy'] === null &&
-          (body['heldQuantity'] === null || body['heldQuantity'] === undefined)
+          (body['heldQuantity'] === null || body['heldQuantity'] === undefined) &&
+          !hasPositionScopedFieldSet(body)
         ) {
           return null;
         }
-        return {
+        // The writer that ends the position closes the STATE fields the position owns. TT's tick clears these on its flat path, but that path only runs if a tick runs at all: a kill-switch or a symbol pause short-circuits `buildTickInput` first, and a disposal-blocked symbol never re-enables on its own. Scope is the body only: the paired `condition_states` row is written from the tick's audited commit, which no adapter write goes through, so that row still waits for a later tick to resolve it.
+        return clearPositionScopedFields({
           ...(body as unknown as TTState),
           avgEntryPrice: null,
           heldQuantity: null,
@@ -88,7 +92,7 @@ export const trailingTradePositionAdapter: PositionStateAdapter<TTState> = {
           // `buy` case spreads ...body, carrying these over, so they MUST be
           // reset here on full exit).
           ...clearedAddTracking(),
-        };
+        });
       }
     }
   },
@@ -110,7 +114,7 @@ export const trailingTradePositionAdapter: PositionStateAdapter<TTState> = {
     if (body === null) return null;
     // Clear entry price + trailing high-water mark together; held qty is
     // pinned to wallet truth separately by the held-quantity reconciler.
-    const cleared: TTState = {
+    const flattened: TTState = {
       ...(body as unknown as TTState),
       avgEntryPrice: null,
       highSinceBuy: null,
@@ -120,6 +124,15 @@ export const trailingTradePositionAdapter: PositionStateAdapter<TTState> = {
       // normal grid position (mirrors the full-exit reset above).
       ...clearedAddTracking(),
     };
+    // This clear forgets the cost basis and KEEPS the coins, so unlike the full-exit fill above it does not end the position. A stop or exit refusal on a still-held balance still describes a real, still-unguarded holding, and dropping it here would delete the operator's only in-state warning while the exposure is live. Only a body with nothing left to protect may have it cleared.
+    //
+    // Strictly `=== null`, which `asStringOrNull` returns only for an absent or explicitly null quantity. A malformed value comes back `undefined`, and the one safe reading of "I cannot tell whether coins are held" is to keep the warning.
+    //
+    // Deliberately stricter than TT's tick, which clears on the cost basis alone. The tick re-derives the refusal from live exchange state every run, so it may retire a record it can replace; this writer cannot re-derive anything, and the paths that reach it without a tick are exactly the ones where nothing will raise the warning again.
+    const cleared: TTState =
+      asStringOrNull(body['heldQuantity']) === null
+        ? clearPositionScopedFields(flattened)
+        : flattened;
     // `reset-grid-trade` (resetGridIndex) also abandons the current grid
     // cycle: clear the index so the next entry re-fires level 0, whose
     // precondition is `currentGridTradeIndex === null` (mirrors the full-exit

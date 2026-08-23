@@ -4,6 +4,7 @@ import {
   assertDeterministic,
   decOrNull,
   mergeConfig,
+  POSITION_SCOPED_STATE_FIELDS,
   PROTECTIVE_STOP_BLOCKER_REASONS,
 } from '@app/strategy-core';
 import type { Candle, OpenOrder, ProfileSnapshot, SymbolInfo, TickInput } from '@app/strategy-core';
@@ -145,6 +146,12 @@ const longState = (over: Partial<MomentumState> = {}): MomentumState => ({
 const CROSS_UP = ['12', '10', '8', '14']; // fast crosses above slow on the last candle
 const CROSS_DOWN = ['8', '10', '12', '6']; // fast crosses below slow on the last candle
 const FLAT_SERIES = ['10', '10', '10', '10']; // no cross either way
+const BLOCKED_PROTECTIVE_STOP: NonNullable<MomentumState['protectiveStopBlocker']> = {
+  reason: 'price-outside-exchange-band',
+};
+
+// Driven off the exported vocabulary, not a hand-copy. The core list is declared as a value precisely so a plugin suite covers whatever is on it today; hard-coding the name here would let a field added tomorrow ship through both adapter paths with every test still green. Momentum's body carries no `exitBlocker`, so the schema filter is what keeps the derived cases to the fields this plugin actually has.
+const SCOPED_FIELDS = POSITION_SCOPED_STATE_FIELDS.filter((f) => f in MomentumStateSchema.shape);
 
 // Close time of the last closed candle in those 4-bar series — the value `tick`
 // stamps into `lastEntryCandleMs` and later compares against.
@@ -325,6 +332,18 @@ describe('momentum.tick — entry', () => {
     expect(out.nextState).toEqual(flat());
   });
 
+  it('clears a stale protective-stop blocker while flat with no entry signal', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(FLAT_SERIES),
+        currentPrice: '10',
+        state: { ...flat(), protectiveStopBlocker: BLOCKED_PROTECTIVE_STOP },
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker).toBeNull();
+  });
+
   it('skips the entry with a typed reason when the budget cannot meet minNotional', () => {
     const out = momentum.tick(
       mkInput({
@@ -478,6 +497,57 @@ describe('momentum.tick — guards', () => {
       mkInput({ closes: mkCandles(['10', '10']), currentPrice: '10', state: flat() }),
     );
     expect(out.decisions).toEqual([{ type: 'noop' }]);
+  });
+
+  it('clears a stale protective-stop blocker when a flat state is warming up', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['10', '10']),
+        currentPrice: '10',
+        state: { ...flat(), protectiveStopBlocker: BLOCKED_PROTECTIVE_STOP },
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker).toBeNull();
+  });
+
+  it('preserves a protective-stop blocker while a basis-less body still holds coins', () => {
+    // Coins with no cost basis is a real unguarded holding, not a flat profile. Pins the second half of the tick's flatness test: drop it and this warning disappears on the one shape that most needs it.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['10', '10']),
+        currentPrice: '10',
+        state: longState({ entryPrice: null, protectiveStopBlocker: BLOCKED_PROTECTIVE_STOP }),
+      }),
+    );
+    expect(out.nextState.protectiveStopBlocker).toEqual(BLOCKED_PROTECTIVE_STOP);
+  });
+
+  it('clears the blocker when a basis-less body has no coins either', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['10', '10']),
+        currentPrice: '10',
+        state: longState({
+          entryPrice: null,
+          heldQuantity: null,
+          protectiveStopBlocker: BLOCKED_PROTECTIVE_STOP,
+        }),
+      }),
+    );
+    expect(out.nextState.protectiveStopBlocker).toBeNull();
+  });
+
+  it('preserves a protective-stop blocker when a held state is warming up', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['10', '10']),
+        currentPrice: '10',
+        state: longState({ protectiveStopBlocker: BLOCKED_PROTECTIVE_STOP }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker).toEqual(BLOCKED_PROTECTIVE_STOP);
   });
 
   it('holds when every candle is still forming', () => {
@@ -1367,6 +1437,51 @@ describe('momentumPositionAdapter', () => {
       highSinceEntry: null,
     } as unknown as MomentumState;
     expect(momentumPositionAdapter.applyFill(f, { kind: 'empty' })).toBeNull();
+  });
+
+  it('covers every position-scoped field momentum declares', () => {
+    // Derived from the exported vocabulary, not hand-copied: the core list is a value so a plugin suite covers whatever is on it today. Momentum carries no `exitBlocker`, so the filter is the assertion that this suite still tracks the real set.
+    expect(SCOPED_FIELDS).toEqual(['protectiveStopBlocker']);
+  });
+
+  it.each(SCOPED_FIELDS)('clears %s on the fill that flattens the position', (field) => {
+    // The writer that ends the position closes the record the position owns. Leaving it to the next tick strands it whenever no next tick comes: a kill-switch or a symbol pause short-circuits `buildTickInput` before the strategy runs, and a disposal-blocked symbol never re-enables on its own.
+    const held = body({ [field]: BLOCKED_PROTECTIVE_STOP });
+    expect(momentumPositionAdapter.applyFill(held, { kind: 'empty' })?.[field]).toBeNull();
+  });
+
+  it.each(SCOPED_FIELDS)(
+    'still writes on an empty fill when a flat body is stranded carrying %s',
+    (field) => {
+      // The already-flat skip tests the position fields; a stranded body passes every one of them, so a clear that sits behind that guard never runs on the one shape it exists to reach.
+      const stranded: MomentumState = {
+        ...initialMomentumState(),
+        entryPrice: null,
+        highSinceEntry: null,
+        heldQuantity: null,
+        [field]: BLOCKED_PROTECTIVE_STOP,
+      };
+      const out = momentumPositionAdapter.applyFill(stranded, { kind: 'empty' });
+      expect(out).not.toBeNull();
+      expect(out?.[field]).toBeNull();
+    },
+  );
+
+  it.each(SCOPED_FIELDS)('clears %s when a basis clear leaves no coins behind', (field) => {
+    const flat = body({ [field]: BLOCKED_PROTECTIVE_STOP, heldQuantity: null });
+    expect(momentumPositionAdapter.clearPosition(flat)?.[field]).toBeNull();
+  });
+
+  it.each(SCOPED_FIELDS)('keeps %s when the cleared basis still has coins behind it', (field) => {
+    // `clearPosition` forgets the cost basis and deliberately keeps `heldQuantity` — the wallet reconciler owns that. The coins are still held and still unguarded, so the refusal describes a live exposure and dropping it would delete the operator's only in-state warning.
+    const stillHeld = body({ [field]: BLOCKED_PROTECTIVE_STOP, heldQuantity: '0.5' });
+    expect(momentumPositionAdapter.clearPosition(stillHeld)?.[field]).not.toBeNull();
+  });
+
+  it.each(SCOPED_FIELDS)('keeps %s when the held quantity is unreadable', (field) => {
+    // Malformed reads as "cannot tell whether coins are held", and the only safe answer to that is to keep the warning: a stale hazard is visible and self-corrects, a deleted one is neither.
+    const malformed = body({ [field]: BLOCKED_PROTECTIVE_STOP, heldQuantity: 0.5 as never });
+    expect(momentumPositionAdapter.clearPosition(malformed)?.[field]).not.toBeNull();
   });
 
   it('pins held quantity and revives / clears the entry price', () => {

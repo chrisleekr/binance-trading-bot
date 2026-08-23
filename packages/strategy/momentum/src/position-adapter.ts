@@ -6,7 +6,9 @@
 
 import {
   asStringOrNull,
+  clearPositionScopedFields,
   currentSchemaBody,
+  hasPositionScopedFieldSet,
   type AdoptedFill,
   type PositionStateAdapter,
   type PositionView,
@@ -68,23 +70,24 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
         // Partial exit: lower held qty only; entry / high-water stay intact.
         return { ...(body as unknown as MomentumState), heldQuantity: fill.heldQuantity };
       case 'empty': {
-        // Full exit: flatten. Skip the write when already flat so a duplicate
-        // clear does not churn the row.
+        // Full exit: flatten. Skip the write when already flat so a duplicate clear does not churn the row — but only when the position-scoped fields are clear too. Testing the position fields alone waves through a body that is flat and STILL carrying a stop refusal, which is exactly the stranded shape this clear exists to reach.
         if (
           body['entryPrice'] === null &&
           body['highSinceEntry'] === null &&
-          (body['heldQuantity'] === null || body['heldQuantity'] === undefined)
+          (body['heldQuantity'] === null || body['heldQuantity'] === undefined) &&
+          !hasPositionScopedFieldSet(body)
         ) {
           return null;
         }
-        return {
+        // The writer that ends the position closes the STATE fields the position owns. Leaving that to the next tick strands them whenever no next tick comes: a kill-switch or a symbol pause short-circuits `buildTickInput` before the strategy runs, and a disposal-blocked symbol never re-enables on its own. Scope is the body only: the paired `condition_states` row is written from the tick's audited commit, which no adapter write goes through, so that row still waits for a later tick to resolve it.
+        return clearPositionScopedFields({
           ...(body as unknown as MomentumState),
           entryPrice: null,
           heldQuantity: null,
           highSinceEntry: null,
           profitHigh: null,
           profitTrailSinceMs: null,
-        };
+        });
       }
     }
   },
@@ -107,12 +110,18 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
     // Clear entry price + both high-water marks together; held qty is pinned
     // to wallet truth separately by the held-quantity reconciler. Momentum has
     // no grid, so the `resetGridIndex` option is inert here — ignored.
-    return {
+    const flattened: MomentumState = {
       ...(body as unknown as MomentumState),
       entryPrice: null,
       highSinceEntry: null,
       profitHigh: null,
       profitTrailSinceMs: null,
     };
+    // This clear forgets the cost basis and KEEPS the coins, so unlike the full-exit fill above it does not end the position. A stop refusal on a still-held balance still describes a real, still-unguarded holding, and dropping it here would delete the operator's only in-state warning while the exposure is live. Only a body with nothing left to protect may have it cleared.
+    //
+    // Strictly `=== null`, which `asStringOrNull` returns only for an absent or explicitly null quantity. A malformed value comes back `undefined`, and the one safe reading of "I cannot tell whether coins are held" is to keep the warning: a stale hazard is visible and self-corrects, a deleted one is neither.
+    return asStringOrNull(body['heldQuantity']) === null
+      ? clearPositionScopedFields(flattened)
+      : flattened;
   },
 };
