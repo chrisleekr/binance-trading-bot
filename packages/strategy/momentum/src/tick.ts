@@ -174,6 +174,9 @@ const extensionGate = (
  * resting exchange-side protective stop mirrors the trailing level so the
  * position survives a worker outage or a gap. One long per (profile, symbol);
  * no grid. Pure — EMAs are computed in-strategy from the candle window.
+ *
+ * @param input - One tick's world for a single (profile, symbol): config, the state body as stored, the candle window and live price, wallet and account balances, and any pending operator override. Never mutated.
+ * @returns The next state body plus the decisions the worker should execute. A hold returns a `noop` decision rather than an empty list, so a tick that chose to do nothing is distinguishable from one that never ran.
  */
 export const computeTick = (input: MomentumInput): MomentumOutput => {
   const { config, market } = input;
