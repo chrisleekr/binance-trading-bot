@@ -1,0 +1,5 @@
+{
+  "apps/web/src/features/profile/components/gauge.tsx": {
+    "reason": "percent readout",
+    "sites": [,]
+}

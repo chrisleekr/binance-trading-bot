@@ -1,0 +1,17 @@
+{
+  // Type-checks the TEST surface, which `tsc -b` does not: the build graph covers `src/` only, so a fixture can omit a required field, satisfy `Partial<T>` at runtime, and drift from the type it claims to build. Worse here than elsewhere, because most of these suites gate on `HAS_INFRA` and skip wholesale without Docker, so a broken test never even runs to reveal itself.
+  //
+  // Unlike `apps/worker`, this app has no `tsconfig.test-d.json`, so nothing is carved out: a `.test-d.ts` added here is checked by this project rather than by nothing.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "isolatedDeclarations": false,
+    "incremental": false
+  },
+  // `scripts/**` is in too: `scripts/reset-password.ts` is a real CLI entrypoint (`bun run reset-password`) that `tsc -b` never sees, and today it lands in a program only because two test files happen to import it. Delete or rename either test and a password-reset tool silently drops out of every type check.
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "__tests__/**/*.ts"]
+}

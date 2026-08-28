@@ -1,0 +1,4 @@
+# Scaffold. Pins the deploy root.
+services:
+  app:
+    image: app

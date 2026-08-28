@@ -9,7 +9,7 @@
     "dev": "bun --watch src/index.ts",
     "build": "tsc -b",
     "reset-password": "bun ./scripts/reset-password.ts",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b --noEmit && tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

@@ -27,8 +27,11 @@ ci::start no-undeclared-workspace-import
 
 root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root"
+# Overridable so no-undeclared-workspace-import.selftest.sh can drive this exact script over fixture trees rather than re-implementing its matching.
+GUARD_ROOT="${GUARD_ROOT:-$root}"
 
-GUARD_ROOT="$root" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
@@ -41,19 +44,40 @@ const NO_SRC = new Set(["e2e", "packages/config"]);
 // Expand the root `workspaces` globs. Only the trailing-/* and literal forms the
 // repo actually uses are handled; a richer pattern is a config change that must
 // come with a change here rather than be silently half-matched.
+//
+// One anchor per glob, because the expansion is where a workspace goes missing from this guard entirely rather than merely unscanned: a renamed packages/ used to be skipped in silence, leaving apps/* alone to satisfy every floor below while every package edge went unchecked. Each anchor is a workspace CLAUDE.md names as part of the layout, so it cannot move without the layout moving with it.
+const GLOB_ANCHORS = new Map([
+  ["apps/*", path.join("apps", "api")],
+  ["packages/*", path.join("packages", "core")],
+  ["packages/strategy/*", path.join("packages", "strategy", "trailing-trade")],
+]);
+
 const rootPkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const dirs = [];
+const globRoots = [];
 for (const pattern of rootPkg.workspaces ?? []) {
   if (!pattern.endsWith("/*")) {
     dirs.push(pattern);
     continue;
   }
-  const prefix = pattern.slice(0, -2);
-  const parent = path.join(root, prefix);
-  if (!fs.existsSync(parent)) continue;
-  for (const e of fs.readdirSync(parent, { withFileTypes: true })) {
-    if (e.isDirectory()) dirs.push(path.posix.join(prefix, e.name));
+  const anchor = GLOB_ANCHORS.get(pattern);
+  // Refused rather than expanded blind: a glob nobody pinned an anchor for is a glob whose expansion cannot be shown to still reach anything.
+  if (anchor === undefined) {
+    console.error("workspaces glob " + pattern + " has no pinned anchor in this guard, so its expansion cannot be checked.");
+    process.exit(1);
   }
+  globRoots.push({ name: pattern.slice(0, -2), anchors: [anchor] });
+}
+
+for (const dir of collectOrExit({
+  root,
+  label: "workspace directories",
+  entry: "dir",
+  flat: true,
+  test: () => true,
+  roots: globRoots,
+})) {
+  dirs.push(path.relative(root, dir).split(path.sep).join("/"));
 }
 
 // A glob parent such as packages/* also yields group dirs (packages/strategy),
@@ -77,15 +101,63 @@ const SPEC = /(?:from\s*|import\s*\(\s*|import\s+)["'"'"'](@app\/[^"'"'"']+)["'"
 // package would otherwise be reported as a hard violation.
 const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
-const srcFiles = (dir, out = []) => {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) srcFiles(p, out);
-    else if (/\.tsx?$/.test(e.name)) out.push(p);
-  }
-  return out;
+// One root per workspace src/, each anchored on the entry point that package declares for itself. The `unscanned` list below is already a per-package floor, but a floor only sees a src/ that yielded NOTHING; a package whose src/ merely narrowed — a feature tree moved, a nested workspace re-parented — still yields files, and its undeclared imports simply stop being reported while the scanned count stays healthy.
+//
+// The anchor is derived rather than hard-coded so a new package is covered with no edit here, and so the anchor is a file the package itself promises to ship: the entry every other workspace resolves it through cannot move without the manifest moving with it.
+const ENTRY_OVERRIDES = new Map([
+  // apps/web is a Vite app: its entry is named in index.html, so package.json declares none.
+  ["apps/web", path.join("src", "main.tsx")],
+]);
+
+const entryOf = ({ dir, manifest }) => {
+  const override = ENTRY_OVERRIDES.get(dir);
+  if (override !== undefined) return override;
+  const pkg = JSON.parse(fs.readFileSync(manifest, "utf8"));
+  // A subpath-only package (packages/core, packages/notify) declares no root entry, so the first of its exported modules in sorted order stands in: it is still a file the package promises to ship, and sorting rather than taking insertion order keeps the anchor from moving when the exports map is reordered.
+  const exported =
+    pkg.exports === null || typeof pkg.exports !== "object"
+      ? []
+      : Object.values(pkg.exports).filter((v) => typeof v === "string" && v.startsWith("./src/")).sort();
+  const entry = pkg.types ?? pkg.main ?? exported[0];
+  return entry === undefined ? undefined : path.normalize(entry.replace(/^\.\//, ""));
 };
+
+const roots = [];
+const noEntry = [];
+for (const pkg of pkgs) {
+  if (NO_SRC.has(pkg.dir)) continue;
+  const entry = entryOf(pkg);
+  // Refused rather than skipped: a package this guard cannot anchor is a package whose walk cannot be shown to still reach it, and silently dropping it is the fail-open the anchor exists to close.
+  if (entry === undefined || !entry.startsWith("src" + path.sep)) {
+    noEntry.push(pkg.dir);
+    continue;
+  }
+  roots.push({ name: path.join(pkg.dir, "src"), anchors: [path.join(pkg.dir, entry)] });
+}
+if (noEntry.length > 0) {
+  console.error("workspace packages with no src/ entry point for this guard to anchor on:\n  " + noEntry.join("\n  "));
+  console.error("");
+  console.error("Declare types, main, or exports[\".\"] pointing into src/, or list the package in NO_SRC if it ships no source.");
+  process.exit(1);
+}
+
+const walked = collectOrExit({
+  root,
+  label: ".ts/.tsx files",
+  test: (p) => /\.tsx?$/.test(p),
+  roots,
+});
+
+// Regrouped by owning package, because the declared-dependency check is per manifest.
+const filesByPkg = new Map();
+for (const file of walked) {
+  const rel = path.relative(root, file);
+  const owner = roots.find((r) => rel.startsWith(r.name + path.sep));
+  if (owner === undefined) continue;
+  const dir = owner.name.slice(0, -("/src".length));
+  if (!filesByPkg.has(dir)) filesByPkg.set(dir, []);
+  filesByPkg.get(dir).push(file);
+}
 
 const violations = new Set();
 const unscanned = [];
@@ -100,7 +172,7 @@ for (const { dir, manifest } of pkgs) {
     ...Object.keys(pkg.peerDependencies ?? {}),
   ]);
 
-  const files = srcFiles(path.join(root, dir, "src"));
+  const files = filesByPkg.get(dir) ?? [];
   if (files.length === 0 && !NO_SRC.has(dir)) unscanned.push(dir);
 
   for (const file of files) {

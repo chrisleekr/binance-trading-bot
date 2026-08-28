@@ -1,0 +1,4 @@
+# A repo-root YAML file sits under no scanned directory, so it is reached by its
+# own root glob rather than by the directory walk. Trade-off (accepted, #577).
+lint:
+  script: echo lint

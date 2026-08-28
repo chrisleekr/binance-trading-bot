@@ -33,4 +33,7 @@ export COVERAGE_LANE=db-isolation
   process.exit(1);
 ' )
 
-bunx turbo test --filter '@app/db' -- --coverage
+# `--continue=dependencies-successful` so one package's failing suite does not cancel the
+# packages queued behind it: without it turbo stops at the first non-zero exit and the run
+# reports one failure while leaving the rest of the workspace unrun and unreported.
+bunx turbo test --continue=dependencies-successful --filter '@app/db' -- --coverage

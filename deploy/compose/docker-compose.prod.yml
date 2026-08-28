@@ -18,7 +18,7 @@
 # - Docker Secrets surface secrets as files under /run/secrets/<name>. Postgres
 #   reads POSTGRES_PASSWORD_FILE; the app reads AUTH_SECRET / REDIS_URL from
 #   `.env` lines the operator populates from deploy/secrets/*.
-# - Hardening (#68): the app runs `read_only: true` with a tmpfs for /tmp;
+# - Hardening: the app runs `read_only: true` with a tmpfs for /tmp;
 #   cap_drop:[ALL] + no-new-privileges come from the base file. Base images
 #   (postgres, redis) are pinned by SHA256.
 

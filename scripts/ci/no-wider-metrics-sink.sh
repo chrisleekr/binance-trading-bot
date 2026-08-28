@@ -50,7 +50,8 @@ root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 GUARD_ROOT="${GUARD_ROOT:-$root}"
 cd "$root"
 
-GUARD_ROOT="$GUARD_ROOT" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
@@ -58,32 +59,23 @@ const root = process.env.GUARD_ROOT;
 const fail = (msg) => { console.error(msg); process.exit(1); };
 
 const CATALOG_REL = "apps/worker/src/metrics/catalog.ts";
-const SKIP_DIR = new Set(["node_modules", "dist", "__tests__"]);
-
-const tsFiles = (dir, out = []) => {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (!SKIP_DIR.has(e.name)) tsFiles(p, out);
-    } else if (/\.tsx?$/.test(e.name)) {
-      out.push(p);
-    }
-  }
-  return out;
-};
-
 const catalogPath = path.join(root, CATALOG_REL);
-const files = [...tsFiles(path.join(root, "apps")), ...tsFiles(path.join(root, "packages"))]
-  .filter((f) => path.relative(root, f) !== CATALOG_REL);
 
-if (files.length === 0) {
-  fail(
-    "zero candidate files under apps/ or packages/ — scan-path regression in this gate. " +
-      "Every file reads as clean when none is walked, which is the failure a moved directory " +
-      "or a new extension produces in silence.",
-  );
-}
+// Walked and vacuity-checked PER ROOT by the shared helper. The floor this gate already carried was over the UNION, so apps/ going dark still left every packages/ file to keep it healthy while the one tree that actually declares metrics sinks was never opened — and every file reads as clean when none is walked.
+//
+// The catalogue is excluded inside the walk rather than filtered after it, so the floor is computed over the set really scanned; it is the one file allowed to type its sink on MetricName and is checked separately below.
+//
+// The apps anchor is the boot-time sink builder — the module this rule exists to keep typed on MetricName — rather than the catalogue, which cannot be an anchor here because it is deliberately out of the scanned set. No .tsx anchor is declared even though the extension clause covers .tsx: no sink is declared in a component, so an anchor under apps/web would pin a file unrelated to the rule.
+const files = collectOrExit({
+  root,
+  label: ".ts/.tsx files",
+  skipDirs: ["node_modules", "dist", "__tests__"],
+  test: (p) => /\.tsx?$/.test(p) && path.relative(root, p) !== CATALOG_REL,
+  roots: [
+    { name: "apps", anchors: [path.join("apps", "worker", "src", "boot", "metrics-sink.ts")] },
+    { name: "packages", anchors: [path.join("packages", "observability", "src", "index.ts")] },
+  ],
+});
 
 // The line a match starts on, and that line verbatim. A diagnostic that quotes
 // the source is one the reader can go straight to; a normalised rendering of the

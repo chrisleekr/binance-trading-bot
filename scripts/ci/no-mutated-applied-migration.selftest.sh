@@ -53,6 +53,18 @@ expect_reject() {
   fi
 }
 
+# expect_reject_runner <case-label> <runner-path> <expected-substring>
+#   expect_reject against a different runner module. The gate imports its file list and its digest from the runner, so a runner it cannot load, or one that throws mid-scan, is a scan that never happened — and neither state can be staged as a directory of .sql files.
+expect_reject_runner() {
+  local label="$1" runner="$2" needle="$3" out rc
+  out="$(MIGRATIONS_DIR="$tmp/migrations" MIGRATIONS_RUNNER="$runner" bash "$gate" 2>&1)"
+  rc=$?
+  if [ "$rc" -eq 0 ] || ! grep -qF -- "$needle" <<<"$out"; then
+    echo "FAIL: $label not rejected for the expected reason '$needle' (rc=$rc)"
+    fails=1
+  fi
+}
+
 seed_fixture
 if ! MIGRATIONS_DIR="$tmp/migrations" bash "$gate" >/dev/null 2>&1; then
   echo "FAIL: pristine fixture expected exit 0"
@@ -83,6 +95,30 @@ expect_reject "missing manifest" "checksum manifest not found"
 seed_fixture
 rm -f "$tmp/migrations"/*.sql
 expect_reject "empty migrations directory" "vacuously"
+
+# Three manifests, three different branches, kept apart on purpose: `null` PARSES, so it can only ever reach the shape check, and a case that conflated them would leave the parse catch asserted by nothing.
+seed_fixture
+printf '{ not json\n' > "$tmp/migrations/checksums.json"
+expect_reject "unparseable manifest" "could not read the checksum manifest at"
+
+# Parses, but `Object.keys` on it would answer a TypeError for null and positional indices for an array — either way the comparison below would run against pins that are not filenames.
+seed_fixture
+printf 'null\n' > "$tmp/migrations/checksums.json"
+expect_reject "non-object manifest" "is not a name-to-digest object"
+
+# Parses AND is an object, but a value that is not a digest reaches `expected.slice(0, 12)` in the compare loop, which is past every catch in the gate. Null is the shape to probe: an array would slip through a `.slice` guard, so the check has to be about what a digest IS, not about what happens to have the method.
+seed_fixture
+printf '{ "0001_alpha.sql": null }\n' > "$tmp/migrations/checksums.json"
+expect_reject "non-digest manifest value" "not a SHA-256 digest"
+
+# The two ways the scan itself can fail, reached through the runner seam because neither is expressible as a fixture: the import happens before the directory is looked at, and a read fault inside `loadMigrations` cannot be provoked by file permissions on a CI image that runs as root.
+printf 'export const loadMigrations = async () => { throw new Error("EACCES: permission denied"); };\n' > "$tmp/throwing-runner.ts"
+
+seed_fixture
+expect_reject_runner "unloadable runner" "$tmp/no-such-runner.ts" "could not load the migration runner from"
+
+seed_fixture
+expect_reject_runner "runner that throws mid-scan" "$tmp/throwing-runner.ts" "could not read migrations from"
 
 if [ "$fails" -ne 0 ]; then
   echo "no-mutated-applied-migration self-test: RED"

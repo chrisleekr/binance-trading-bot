@@ -1,0 +1,3 @@
+# Pins the .github root. PR CI uses a mocked venue (#51); the nightly job runs
+# against the real testnet.
+on: schedule

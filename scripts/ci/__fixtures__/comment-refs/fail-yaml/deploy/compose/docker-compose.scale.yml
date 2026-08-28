@@ -1,0 +1,4 @@
+# Pins the deploy root. Multi-replica is dormant at one replica (epic #561).
+services:
+  worker:
+    image: app

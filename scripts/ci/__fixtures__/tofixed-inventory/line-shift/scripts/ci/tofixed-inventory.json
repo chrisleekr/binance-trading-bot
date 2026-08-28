@@ -1,0 +1,13 @@
+{
+  "apps/web/src/features/profile/components/gauge.tsx": {
+    "reason": "percent readout, fixed 2dp by design",
+    "sites": ["to-fixed: export const pct = (n: number): string => `${n.toFixed(2)}%`;"]
+  },
+  "apps/web/src/features/backtest/components/score.tsx": {
+    "reason": "backtest score display, not money",
+    "sites": [
+      "to-fixed: export const drop = (n: number): string => n.toFixed(1);",
+      "to-fixed: export const score = (n: number): string => n.toFixed(4);"
+    ]
+  }
+}

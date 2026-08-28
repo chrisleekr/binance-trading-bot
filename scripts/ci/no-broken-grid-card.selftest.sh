@@ -41,6 +41,30 @@ if [ "$fail_rc" -eq 0 ] || ! grep -q 'under-indented' <<<"$fail_out"; then
   fails=1
 fi
 
+
+# ---------------------------------------------------------------------------
+# The two walk stops. A count is not evidence: these are the two shapes a walk fails in, and only one of them is visible to a floor.
+# ---------------------------------------------------------------------------
+# Each asserts its OWN diagnostic rather than a bare non-zero exit. The gate exits 1 for a real violation, for a walk that returned nothing and for a walk that no longer reaches its anchor alike, so only the sentence says which branch ran — and a fixture that moved would otherwise trip a different branch and read as a successful catch.
+
+# A tree with no docs/ at all: the walk returns nothing and the floor every gate already carried is what catches it.
+empty_walk_out="$(GUARD_ROOT="$dir/__fixtures__/grid-card/reject-empty-walk" bash "$gate" 2>&1)"
+empty_walk_rc=$?
+if [ "$empty_walk_rc" -eq 0 ] || ! grep -qF 'scan matched no markdown files under docs —' <<<"$empty_walk_out"; then
+  echo "FAIL: reject-empty-walk expected the zero-file stop (rc=$empty_walk_rc)"
+  echo "$empty_walk_out"
+  fails=1
+fi
+
+# Pages under docs/ but not the one this rule is anchored on. The walk still returns files, so a floor is satisfied and the gate would print a confident count over a tree it no longer reads.
+narrowed_walk_out="$(GUARD_ROOT="$dir/__fixtures__/grid-card/reject-narrowed-walk" bash "$gate" 2>&1)"
+narrowed_walk_rc=$?
+if [ "$narrowed_walk_rc" -eq 0 ] || ! grep -qF 'walk narrowed' <<<"$narrowed_walk_out" || ! grep -qF 'docs/index.md' <<<"$narrowed_walk_out"; then
+  echo "FAIL: reject-narrowed-walk expected the anchor stop naming docs/index.md (rc=$narrowed_walk_rc)"
+  echo "$narrowed_walk_out"
+  fails=1
+fi
+
 if [ "$fails" -ne 0 ]; then
   echo "no-broken-grid-card self-test: RED"
   exit 1

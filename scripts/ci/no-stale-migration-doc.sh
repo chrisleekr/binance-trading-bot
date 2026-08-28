@@ -21,8 +21,11 @@ ci::start no-stale-migration-doc
 
 root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root"
+# Overridable so no-stale-migration-doc.selftest.sh can drive this exact script over fixture trees rather than re-implementing its matching.
+GUARD_ROOT="${GUARD_ROOT:-$root}"
 
-GUARD_ROOT="$root" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
@@ -31,28 +34,22 @@ const root = process.env.GUARD_ROOT;
 // or other single leader before the token.
 const PATTERN = /(no pending migrations after .?db:generate|drizzle-kit migrate apply)/;
 
-const mdFiles = (dir, out = []) => {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (e.name !== "node_modules") mdFiles(p, out);
-    } else if (/\.md$/.test(e.name)) {
-      out.push(p);
-    }
-  }
-  return out;
-};
+// Walked and vacuity-checked by the shared helper: it refuses a walk that returns nothing AND one that still returns pages but no longer reaches docs/index.md. The second stop is the one a page count cannot express — a docs re-layout leaves plenty of markdown in scope while the pages describing the migration workflow go unscanned.
+const files = collectOrExit({
+  root,
+  label: "markdown files",
+  skipDirs: ["node_modules"],
+  test: (p) => p.endsWith(".md"),
+  roots: [{ name: "docs", anchors: [path.join("docs", "index.md")] }],
+});
 
-const files = [];
+// The charter is a fixed path rather than part of the walk, so it needs a refusal of its own. Pushing it only when it exists reads as a scan of two sources but degrades in silence to a scan of one: a rename leaves the docs walk healthy, the count unchanged, and the file that states the migration convention unread.
 const claudeMd = path.join(root, "CLAUDE.md");
-if (fs.existsSync(claudeMd)) files.push(claudeMd);
-mdFiles(path.join(root, "docs"), files);
-
-if (files.length === 0) {
-  console.error("no markdown files scanned (CLAUDE.md + docs/) — scan-path regression in this gate.");
+if (!fs.existsSync(claudeMd)) {
+  console.error("CLAUDE.md not found — the charter is no longer scanned, and the docs count hides that.");
   process.exit(1);
 }
+files.push(claudeMd);
 
 const hits = [];
 for (const file of files) {

@@ -1,0 +1,6 @@
+{
+  "apps/web/src/features/profile/components/gauge.tsx": {
+    "reason": "   ",
+    "sites": ["to-fixed: export const pct = (n: number): string => `${n.toFixed(2)}%`;"]
+  }
+}

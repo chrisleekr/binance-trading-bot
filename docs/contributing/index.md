@@ -33,6 +33,16 @@ Read the engineering charter in `AGENTS.md` at the repo root before your first p
 - **CI secrets** — the image-tag scheme and the secrets table live in `docs/ci-secrets.md` in the repository. It is deliberately not published to this site: it maps which secrets exist in which provider and which job reads them, which is an infrastructure map rather than contributor documentation.
 - **Dependency updates** — automated by Renovate (`renovate.json`), the only dependency bot; there is no Dependabot config. Routine updates arrive weekly on `chore/renovate-*` branches as two grouped pull requests: one for every non-major bump, one for every major. Grouping spans managers because the Bun and Playwright versions are each duplicated across `package.json`, both CI providers and the Dockerfile, and only move consistently when one PR moves every managed copy. Two paths sit outside it: lock-file maintenance opens its own PR against the same two-PR budget, and a security update [ignores the concurrency limits and the schedule](https://docs.renovatebot.com/configuration-options/#vulnerabilityalerts) so a fix is never queued behind a routine bump. A dependency that must not advance is an `allowedVersions` rule with the reason in its `description` — never `enabled: false`, which drops it off the dashboard, and never a silent hand-pin.
 
+## Run the worker integration lane locally
+
+The `apps/worker` integration suites are excluded from `bun run test`: they need real Postgres and Redis, which CI supplies as service containers. Locally, one command provisions them:
+
+```bash
+bun run test:worker-integration
+```
+
+It requires a running Docker daemon and prints a one-line reason instead of failing when there isn't one. The lane then audits its own vitest report and prints every suite that stood down together with the reason, so a run that covered less than it looks like cannot pass unnoticed.
+
 ## Run the docs site locally
 
 The documentation you're reading is built with MkDocs. Requires `uv` (Python 3.14.7 or newer):

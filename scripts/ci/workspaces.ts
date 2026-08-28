@@ -23,6 +23,7 @@ const resolveInsideRoot = (root: string, pattern: string): string => {
   return path;
 };
 
+// Registered with no-blind-walk as a walk library rather than a walk gate: this listing is not a verdict. It expands the declared `workspaces` globs and hands the result to a caller, and the root is a parameter rather than an environment override, so a caller cannot reach it without choosing the tree. A pattern that expands to nothing is refused below instead of being reported as an empty result.
 export const discoverWorkspaceRoots = (root: string): string[] => {
   const workspaces = new Set<string>();
   for (const pattern of readWorkspacePatterns(root)) {
