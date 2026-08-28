@@ -15,6 +15,7 @@ import {
   // state — DO NOT implement the function to make this pass in Phase A.
   rollupAllProfilesForAccount,
 } from '../../src/repo/projections/profile-aggregate.js';
+import { NO_SELLABLE_POSITION, POSITION_SEED_REFUSED } from '../../src/repo/condition-states.js';
 import * as schema from '../../src/schema/index.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from '../isolation/_helpers.js';
 import { makeRedisStub } from './_redis-stub.js';
@@ -97,16 +98,55 @@ describeIfDb('rollupAllProfilesForAccount ≡ per-profile rollup (E10)', () => {
     const aggregate = await getAggregateForAccount(aliceAccount, redis);
     const rollups = await rollupAllProfilesForAccount(aliceAccount, redis);
 
-    // Phase B contract (asserted here to pin the design): the new function keys
-    // its rollup by profileId and each value is the {openOrderCount,
-    // openPositionCount, positions} triple. Compare it against the same fields
-    // getAggregateForAccount already projects per profile.
+    // The bulk rollup must match the existing per-profile aggregate fields, or the optimization changes dashboard semantics.
     for (const profile of aggregate.profiles) {
-      const rollup = rollups.get(profile.profileId);
+      const rollup = rollups.get(asProfileId(profile.profileId));
       expect(rollup).toBeDefined();
       expect(rollup?.openOrderCount).toBe(profile.openOrderCount);
       expect(rollup?.openPositionCount).toBe(profile.openPositionCount);
       expect(rollup?.positions).toEqual(profile.positions);
     }
+  });
+
+  it('drops a refused position seed from the count AND the positions array', async () => {
+    // The cost-basis row survives a refused seed by design, so this projection counts it and hands the web an entry price and a quantity to price. Both halves matter and they fail differently: the count is a number beside the coin list, while `positions` is summed into the ticker's unrealised total, which the operator reads as their live money. A fix applied to only one of them leaves the other lying.
+    const p2 = await profileRepo(
+      fx.db,
+      fx.alice.userId,
+      fx.alice.accountId,
+      asProfileId(secondProfileId),
+    );
+    // A live order so the profile keeps a rollup bucket either way. Without it the refused profile drops out of the map entirely and `openPositionCount` reads `undefined`, which would satisfy a `?? 0` assertion for the wrong reason.
+    await p2.orders.insert({
+      symbol: 'ETHUSDT',
+      side: 'BUY',
+      intent: 'grid-buy',
+      binanceOrderId: 22n,
+      clientOrderId: 'cli-r2',
+      status: 'NEW',
+      raw: {},
+    });
+    const before = await rollupAllProfilesForAccount(
+      aliceAccount,
+      makeRedisStub({ 'ticker:ETHUSDT': JSON.stringify({ price: '3100' }) }).redis,
+    );
+    expect(before.get(asProfileId(secondProfileId))?.openPositionCount).toBe(1);
+
+    await p2.conditionStates.recordCondition({
+      condition: POSITION_SEED_REFUSED,
+      symbol: 'ETHUSDT',
+      code: NO_SELLABLE_POSITION,
+      now: new Date('2026-08-27T00:00:00Z'),
+    });
+
+    const after = await rollupAllProfilesForAccount(
+      aliceAccount,
+      makeRedisStub({ 'ticker:ETHUSDT': JSON.stringify({ price: '3100' }) }).redis,
+    );
+    const rollup = after.get(asProfileId(secondProfileId));
+    expect(rollup?.openPositionCount).toBe(0);
+    expect(rollup?.positions).toEqual([]);
+    // The sibling profile's real position is untouched: the filter is keyed on (profile, symbol), so a refusal cannot spill across profiles that share a coin.
+    expect(after.get(fx.alice.profileId)?.openPositionCount).toBe(1);
   });
 });

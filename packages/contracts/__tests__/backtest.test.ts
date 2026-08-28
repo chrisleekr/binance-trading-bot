@@ -16,6 +16,7 @@ import {
   sameMarket,
   tokenizePath,
 } from '../src/backtest.js';
+import { asDecimalString } from '../src/decimal.js';
 
 const UUID = '11111111-1111-4111-8111-111111111111';
 const PARENT = '22222222-2222-4222-8222-222222222222';
@@ -339,6 +340,22 @@ describe('BacktestListItemSchema', () => {
     });
     expect(r.success).toBe(true);
   });
+
+  it('carries no resolved config, so the list stays a list', () => {
+    // The config comparison fetches both runs by id on demand. Widening this projection to carry a full merged strategy config per row would put one blob per past run into every page of history, on the one screen an operator scrolls, to answer a question they ask about two rows at a time. The key set is pinned whole rather than by absence alone, so a differently-named config field cannot slip past.
+    expect(Object.keys(BacktestListItemSchema.shape).sort()).toEqual([
+      'configFingerprint',
+      'createdAt',
+      'finishedAt',
+      'fromMs',
+      'progress',
+      'runId',
+      'status',
+      'symbols',
+      'toMs',
+      'totalReturnPct',
+    ]);
+  });
 });
 
 describe('BacktestRunDetailSchema', () => {
@@ -371,7 +388,7 @@ describe('sameMarket', () => {
     toMs: 5_000,
     strategyInterval: '1h',
     detailInterval: '5m',
-    initialQuoteBalance: '1000',
+    initialQuoteBalance: asDecimalString('1000'),
     fees: { makerBps: 10, takerBps: 12 },
     slippageBps: 5,
     spreadBps: 4,
@@ -421,7 +438,10 @@ describe('sameMarket', () => {
     { dim: 'spreadBps', mutate: (p) => ({ ...p, spreadBps: (p.spreadBps ?? 0) + 1 }) },
     { dim: 'volumeCapPct', mutate: (p) => ({ ...p, volumeCapPct: (p.volumeCapPct ?? 0) + 1 }) },
     { dim: 'discoveryMode', mutate: (p) => ({ ...p, discoveryMode: !p.discoveryMode }) },
-    { dim: 'initialQuoteBalance', mutate: (p) => ({ ...p, initialQuoteBalance: '2000' }) },
+    {
+      dim: 'initialQuoteBalance',
+      mutate: (p) => ({ ...p, initialQuoteBalance: asDecimalString('2000') }),
+    },
   ];
 
   it('enumerates exactly the 12 market dims (drift guard)', () => {
@@ -453,7 +473,7 @@ describe('marketOf', () => {
     toMs: 5_000,
     strategyInterval: '1h',
     detailInterval: '5m',
-    initialQuoteBalance: '1000',
+    initialQuoteBalance: asDecimalString('1000'),
     fees: { makerBps: 10, takerBps: 12 },
     slippageBps: 5,
     spreadBps: 4,

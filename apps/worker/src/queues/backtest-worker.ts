@@ -91,7 +91,7 @@ export function registerBacktestWorker(queueSet: QueueSet, deps: BacktestWorkerD
     // The whole body is inside the try so a failure BEFORE the run is scoped
     // (the `profileRepo` ownership lookup or `markRunning` throwing on a
     // transient DB blip) still marks the row `error` rather than stranding it
-    // `queued` forever (#363). The catch marks via the global `failById` because
+    // `queued` forever. The catch marks via the global `failById` because
     // a pre-scope failure has no `ProfileScope` to use.
     try {
       const p = await profileRepo(deps.db, userId, accountId, profileId);

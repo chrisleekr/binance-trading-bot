@@ -43,7 +43,11 @@ describe('evaluateBacktestGate', () => {
   });
 
   it('passes on the exact threshold boundaries (>= semantics)', () => {
-    const out = run([cand({ metrics: { profitFactor: 1.1, totalTrades: 30, alphaVsHoldPct: 0 } })]);
+    const out = run([
+      cand({
+        metrics: { profitFactor: 1.1, totalTrades: 30, alphaVsHoldPct: 0, outOfSample: null },
+      }),
+    ]);
     expect(out.ok).toBe(true);
   });
 
@@ -61,8 +65,14 @@ describe('evaluateBacktestGate', () => {
 
   it('uses the newest matching run (candidates are newest-first)', () => {
     const out = run([
-      cand({ runId: 'newest', metrics: { profitFactor: 2, totalTrades: 40, alphaVsHoldPct: 1 } }),
-      cand({ runId: 'older', metrics: { profitFactor: 9, totalTrades: 99, alphaVsHoldPct: 9 } }),
+      cand({
+        runId: 'newest',
+        metrics: { profitFactor: 2, totalTrades: 40, alphaVsHoldPct: 1, outOfSample: null },
+      }),
+      cand({
+        runId: 'older',
+        metrics: { profitFactor: 9, totalTrades: 99, alphaVsHoldPct: 9, outOfSample: null },
+      }),
     ]);
     expect(out).toMatchObject({ ok: true, runId: 'newest' });
   });
@@ -92,14 +102,20 @@ describe('evaluateBacktestGate', () => {
   });
 
   it('fails thresholds when profit factor is below the floor (or null)', () => {
-    const low = run([cand({ metrics: { profitFactor: 1.0, totalTrades: 50, alphaVsHoldPct: 5 } })]);
+    const low = run([
+      cand({
+        metrics: { profitFactor: 1.0, totalTrades: 50, alphaVsHoldPct: 5, outOfSample: null },
+      }),
+    ]);
     expect(low).toMatchObject({ ok: false, failure: 'thresholds' });
     if (!low.ok && low.failure === 'thresholds') {
       const pf = low.checks.find((c) => c.label === 'profit factor');
       expect(pf).toMatchObject({ ok: false, actual: '1.00', need: '>= 1.1' });
     }
     const nullPf = run([
-      cand({ metrics: { profitFactor: null, totalTrades: 50, alphaVsHoldPct: 5 } }),
+      cand({
+        metrics: { profitFactor: null, totalTrades: 50, alphaVsHoldPct: 5, outOfSample: null },
+      }),
     ]);
     expect(nullPf).toMatchObject({ ok: false, failure: 'thresholds' });
     if (!nullPf.ok && nullPf.failure === 'thresholds') {
@@ -108,7 +124,9 @@ describe('evaluateBacktestGate', () => {
   });
 
   it('fails thresholds when closed trades are below the minimum', () => {
-    const out = run([cand({ metrics: { profitFactor: 2, totalTrades: 10, alphaVsHoldPct: 5 } })]);
+    const out = run([
+      cand({ metrics: { profitFactor: 2, totalTrades: 10, alphaVsHoldPct: 5, outOfSample: null } }),
+    ]);
     expect(out).toMatchObject({ ok: false, failure: 'thresholds' });
     if (!out.ok && out.failure === 'thresholds') {
       expect(out.checks.find((c) => c.label === 'closed trades')).toMatchObject({
@@ -141,7 +159,11 @@ describe('evaluateBacktestGate', () => {
   });
 
   it('fails thresholds when alpha vs hold is negative', () => {
-    const out = run([cand({ metrics: { profitFactor: 2, totalTrades: 50, alphaVsHoldPct: -3 } })]);
+    const out = run([
+      cand({
+        metrics: { profitFactor: 2, totalTrades: 50, alphaVsHoldPct: -3, outOfSample: null },
+      }),
+    ]);
     expect(out).toMatchObject({ ok: false, failure: 'thresholds' });
     if (!out.ok && out.failure === 'thresholds') {
       expect(out.checks.find((c) => c.label === 'alpha vs hold')).toMatchObject({
@@ -155,7 +177,11 @@ describe('evaluateBacktestGate', () => {
 
 describe('failedChecksDetail', () => {
   it('joins only the failed checks into the gate detail phrasing', () => {
-    const out = run([cand({ metrics: { profitFactor: 1.0, totalTrades: 10, alphaVsHoldPct: 5 } })]);
+    const out = run([
+      cand({
+        metrics: { profitFactor: 1.0, totalTrades: 10, alphaVsHoldPct: 5, outOfSample: null },
+      }),
+    ]);
     if (!out.ok && out.failure === 'thresholds') {
       expect(failedChecksDetail(out.checks)).toBe(
         'profit factor 1.00 (need >= 1.1); closed trades 10 (need >= 30)',
@@ -295,7 +321,9 @@ describe('describeGateOutcome', () => {
       /could not be read/,
     );
     const thresholds = run([
-      cand({ metrics: { profitFactor: 1.0, totalTrades: 50, alphaVsHoldPct: 5 } }),
+      cand({
+        metrics: { profitFactor: 1.0, totalTrades: 50, alphaVsHoldPct: 5, outOfSample: null },
+      }),
     ]);
     expect(describeGateOutcome(thresholds)).toMatch(/does not clear the gate — profit factor/);
   });
@@ -311,7 +339,10 @@ describe('gateThresholdChecks', () => {
   };
 
   it('passes every check for clearing metrics', () => {
-    const checks = gateThresholdChecks({ profitFactor: 2, totalTrades: 50, alphaVsHoldPct: 5 }, t);
+    const checks = gateThresholdChecks(
+      { profitFactor: 2, totalTrades: 50, alphaVsHoldPct: 5, outOfSample: null },
+      t,
+    );
     expect(checks.every((c) => c.ok)).toBe(true);
     expect(checks.map((c) => c.label)).toEqual([
       'data coverage',
@@ -323,7 +354,13 @@ describe('gateThresholdChecks', () => {
 
   it('fails the data-coverage check (closed) when the run had coverage gaps', () => {
     const checks = gateThresholdChecks(
-      { profitFactor: 2, totalTrades: 50, alphaVsHoldPct: 5, dataCoverageOk: false },
+      {
+        profitFactor: 2,
+        totalTrades: 50,
+        alphaVsHoldPct: 5,
+        dataCoverageOk: false,
+        outOfSample: null,
+      },
       t,
     );
     expect(checks.find((c) => c.label === 'data coverage')).toMatchObject({
@@ -335,7 +372,7 @@ describe('gateThresholdChecks', () => {
 
   it('marks each metric below its threshold, with actual + need strings', () => {
     const checks = gateThresholdChecks(
-      { profitFactor: 1.0, totalTrades: 12, alphaVsHoldPct: -2 },
+      { profitFactor: 1.0, totalTrades: 12, alphaVsHoldPct: -2, outOfSample: null },
       t,
     );
     expect(checks.find((c) => c.label === 'profit factor')).toMatchObject({
@@ -352,7 +389,7 @@ describe('gateThresholdChecks', () => {
 
   it('reports per-check ok flags on a mixed result (one fails, two pass)', () => {
     const checks = gateThresholdChecks(
-      { profitFactor: 1.0, totalTrades: 50, alphaVsHoldPct: 5 },
+      { profitFactor: 1.0, totalTrades: 50, alphaVsHoldPct: 5, outOfSample: null },
       t,
     );
     expect(checks.map((c) => [c.label, c.ok])).toEqual([
@@ -365,7 +402,7 @@ describe('gateThresholdChecks', () => {
 
   it('renders a null profit factor as n/a and fails it', () => {
     const pf = gateThresholdChecks(
-      { profitFactor: null, totalTrades: 50, alphaVsHoldPct: 5 },
+      { profitFactor: null, totalTrades: 50, alphaVsHoldPct: 5, outOfSample: null },
       t,
     ).find((c) => c.label === 'profit factor');
     expect(pf).toMatchObject({ ok: false, actual: 'n/a' });
@@ -388,8 +425,10 @@ describe('gateThresholdChecks', () => {
 
   describe('out-of-sample enforcement', () => {
     const tOn = { ...t, requireOutOfSample: true };
-    const clearing = { profitFactor: 2, totalTrades: 50, alphaVsHoldPct: 5 };
-    const oos = (over: Partial<typeof clearing> = {}) => ({ ...clearing, ...over });
+    // Two roles, two objects. `holdout` is a `GateMetricsCore`, which declares no holdout of its own; `clearing` is the full `GateMetrics` wrapping it. Building the holdout from `clearing` would hand every one of them a nested `outOfSample` the core type never declares — inert, but it makes `oos({ outOfSample: … })` type-legal and meaningless.
+    const holdout = { profitFactor: 2, totalTrades: 50, alphaVsHoldPct: 5 };
+    const clearing = { ...holdout, outOfSample: null };
+    const oos = (over: Partial<typeof holdout> = {}) => ({ ...holdout, ...over });
 
     it('adds three holdout checks that pass when the holdout clears the same bars', () => {
       const checks = gateThresholdChecks({ ...clearing, outOfSample: oos() }, tOn);

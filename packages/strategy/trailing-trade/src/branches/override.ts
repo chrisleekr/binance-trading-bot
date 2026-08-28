@@ -163,7 +163,7 @@ const overrideOutput = (
       // A `wait` (lowest-price not reached / entry already resting) is not a
       // skip with structured context. The trigger-buy override is one-shot, so
       // unlike the auto-trigger-buy timer it has nothing to keep; report an
-      // accurate reason rather than the old mislabelled `open-buy` (#369).
+      // accurate reason rather than the old mislabelled `open-buy`.
       const reason = firstBuy.kind === 'wait' ? 'awaiting-entry' : firstBuy.reason;
       const context = firstBuy.kind === 'wait' ? {} : (firstBuy.context ?? {});
       return {
@@ -249,7 +249,7 @@ const overrideOutput = (
         nextState: { ...nextState, entryBlocker: null },
         decisions: [{ type: 'noop' }],
         // Operator-actionable skips stay at WARN; idle / dust skips fall to
-        // debug / info so the alert channel is not buried (#265). See
+        // debug / info so the alert channel is not buried. See
         // `sellSkipLogLevel` for the mapping.
         logs: [
           log(sellSkipLogLevel(triggerSkipReason), 'tt-trigger-sell-skipped', {

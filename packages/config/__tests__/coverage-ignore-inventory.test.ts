@@ -179,8 +179,8 @@ const REVIEWED_IDENTITY_DIGESTS: Record<string, string> = {
   'packages/strategy/trailing-trade/src/schema.ts': '46e2fd3326ca1e54',
   'packages/strategy/trailing-trade/src/tick.ts': 'a2a7cfe9f8b8fee7',
   'packages/strategy/trailing-trade/src/decisions.ts': 'a7edd3eb4db66c74',
-  'packages/strategy/trailing-trade/src/branches/grid-buy.ts': '2d1b05abe70d76b9',
-  'packages/strategy/trailing-trade/src/branches/first-entry.ts': '7f054f05a0b4b551',
+  'packages/strategy/trailing-trade/src/branches/grid-buy.ts': '9012a88c1e801aff',
+  'packages/strategy/trailing-trade/src/branches/first-entry.ts': '4b1e546afb25908a',
 };
 
 const sourceFiles = (root: string): string[] =>
@@ -205,6 +205,7 @@ const scanIgnores = (): Record<string, V8IgnoreDirective[]> => {
 };
 
 describe('reviewed v8 ignore inventory', () => {
+  // This walk reads every source file in every workspace, so its cost tracks CI disk and CPU contention rather than anything the assertions check. It has been observed at 7.2s on a loaded shared runner against a 394ms baseline, which the default 5s deadline turns into a red pipeline with no defect behind it. The bound stays only as a backstop against a walk that never terminates.
   it('rejects an added, removed, moved, or reworded coverage exclusion', () => {
     const inventory = scanIgnores();
     expect(
@@ -223,7 +224,7 @@ describe('reviewed v8 ignore inventory', () => {
         ]),
       ),
     ).toEqual(REVIEWED_IDENTITY_DIGESTS);
-  });
+  }, 60_000);
 
   it('captures file and conditional directive forms', () => {
     const directives = scanV8IgnoreSource(`

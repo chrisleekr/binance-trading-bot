@@ -46,6 +46,7 @@ const archiveBody = {
       grossProfit: '60',
       grossLoss: '20',
       totalFees: '2',
+      feeBasis: 'exact',
     },
   ],
   nextCursor: null,
@@ -238,6 +239,7 @@ describe('LiveVsBacktestCard', () => {
                 grossProfit: '0.5',
                 grossLoss: '0',
                 totalFees: '0.001',
+                feeBasis: 'exact',
               },
             ],
           });
@@ -262,6 +264,88 @@ describe('LiveVsBacktestCard', () => {
     await waitFor(() => expect(screen.getByText('75.00%')).toBeInTheDocument());
     expect(screen.getByText('3.00')).toBeInTheDocument();
     expect(screen.getByText(/Pin a finished backtest/)).toBeInTheDocument();
+  });
+
+  it('withholds live Net statistics and the edge verdict when fees are incomplete', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) {
+          return jsonOf({
+            ...archiveBody,
+            bySource: archiveBody.bySource.map((bucket) => ({
+              ...bucket,
+              feeBasis: 'unknown',
+            })),
+          });
+        }
+        if (url.includes('/backtests/')) return jsonOf(runDetailBody);
+        return jsonOf(profileBody(RUN_ID));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('live-scorecard-fees-incomplete')).toHaveTextContent(
+      /No edge-decay verdict is issued/,
+    );
+    expect(screen.queryByTestId('edge-decay-badge')).not.toBeInTheDocument();
+    expect(screen.queryByText('75.00%')).not.toBeInTheDocument();
+    expect(screen.queryByText(/→/)).not.toBeInTheDocument();
+  });
+
+  it('shows the statistics, marks them, and still issues a verdict on a reconstructed fee total', async () => {
+    // The middle tier is the one a withhold-everything gate and a show-everything gate get wrong in opposite directions. The figures are usable, so they render; the commission behind them was reconstructed, so the caveat is in WORDS beside them rather than a tint the operator cannot repeat back.
+    //
+    // The verdict is the half that is easy to get wrong in the safe-looking direction. Only `unknown` withholds it, because only `unknown` is missing a charge: an account Binance bills in BNB has a reconstructed commission on EVERY cycle, so gating the badge on the strongest tier would not make the alarm cautious, it would delete it. The bucket is the SAME one the edge-weakening test below uses (12 trades, gross 60 / 50 -> live PF 1.20 against a 1.80 baseline), one tier down, which is what makes the badge below attributable to the tier at all: the shared `archiveBody` carries 4 trades and `assessEdgeDecay` rejects it as insufficient-data before it ever reads the tier.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive'))
+          return jsonOf({
+            items: [],
+            byIntent: [],
+            bySource: [
+              {
+                quoteAsset: 'USDT',
+                source: 'manual',
+                tradeCount: 12,
+                wins: 7,
+                losses: 5,
+                profitSum: '10',
+                netProfit: '10',
+                grossProfit: '60',
+                grossLoss: '50',
+                totalFees: '1',
+                feeBasis: 'estimated',
+              },
+            ],
+            nextCursor: null,
+          });
+        if (url.includes('/backtests/')) return jsonOf(runDetailBody);
+        return jsonOf(profileBody(RUN_ID));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('live-scorecard-fees-estimated')).toHaveTextContent(
+      /estimates/,
+    );
+    // Withheld is the other failure: the figures themselves must still be there.
+    expect(screen.queryByTestId('live-scorecard-fees-incomplete')).not.toBeInTheDocument();
+    // 7 of 12 is 58.33, and `winPct` rounds to a whole percent before `formatPercent` pads it back to two places. Substring, not exact: with a baseline pinned the live win-rate renders inside the combined `bt -> live` cell rather than as a cell of its own.
+    expect(screen.getAllByText(/58\.00%/).length).toBeGreaterThan(0);
+    // Awaited like the edge-weakening test below: the verdict needs the pinned baseline's run detail, which settles after the fee marker does.
+    await waitFor(() => expect(screen.getByTestId('edge-decay-badge')).toBeInTheDocument());
   });
 
   it('compares live win-rate (with a delta) and profit factor (side by side) against the pinned backtest', async () => {
@@ -349,6 +433,7 @@ describe('LiveVsBacktestCard', () => {
                 grossProfit: '60',
                 grossLoss: '50',
                 totalFees: '1',
+                feeBasis: 'exact',
               },
             ],
             nextCursor: null,

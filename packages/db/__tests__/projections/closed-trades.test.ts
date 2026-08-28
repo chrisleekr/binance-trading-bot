@@ -19,11 +19,10 @@ describeIfDb('getClosedTradesForPeriod', () => {
       symbol: 'BTCUSDT',
       baseAsset: 'BTC',
       quoteAsset: 'USDT',
-      totalBuyQuote: '60000',
-      totalSellQuote: '62000',
-      breakdown: { 'grid-buy:BUY': '60000', 'grid-sell:SELL': '62000' },
-      profit: '2000',
-      profitPercent: '3.33',
+      totalBuyQuote: '1',
+      totalSellQuote: '9007199254740994.125000000000000001',
+      breakdown: { 'grid-buy:BUY': '1.0000', 'grid-sell:SELL': '9007199254740994.1250' },
+      profit: '9007199254740993.125000000000000001',
       orders: [{ side: 'BUY' as const }, { side: 'SELL' as const }],
       archivedAt: new Date('2026-05-11T00:00:00Z'),
     });
@@ -43,7 +42,7 @@ describeIfDb('getClosedTradesForPeriod', () => {
     });
     expect(out.period).toBe('m');
     expect(out.tz).toBe('UTC');
-    expect(Number(out.totalProfit)).toBe(2000);
+    expect(out.totalProfit).toBe('9007199254740993.125000000000000001');
     expect(out.tradeCount).toBe(1);
   });
 
@@ -67,8 +66,7 @@ describeIfDb('getClosedTradesForPeriod', () => {
       from: new Date('2026-05-01T00:00:00Z'),
       to: new Date('2026-05-31T00:00:00Z'),
     });
-    // profit 2000 / totalBuyQuote 60000 * 100
-    expect(Number(out.totalProfitPercent)).toBeCloseTo(3.3333, 3);
+    expect(out.totalProfitPercent).toBe('900719925474099312.5');
   });
 
   it('guards a zero cost basis — an empty window yields 0 percent, not NaN', async () => {

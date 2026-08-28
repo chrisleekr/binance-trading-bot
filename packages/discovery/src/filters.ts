@@ -175,7 +175,7 @@ export const trendConfirmed = (klines: readonly Candle[], cfg: DiscoveryConfig):
  * `resolveDiscovery`, not here.)
  *
  * The cooldown deliberately reuses `minHoldMinutes` rather than a separate dial:
- * the locked design (#423) makes one knob serve both the re-add cooldown and the
+ * the locked design makes one knob serve both the re-add cooldown and the
  * min-hold-before-reap window, split only if a backtest shows whipsaw.
  */
 export const inCooldown = (

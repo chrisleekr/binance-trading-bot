@@ -176,14 +176,9 @@ export async function upsert(
       set: {
         overrideConfig: input['overrideConfig'] ?? null,
         baseAsset,
-        // Only when the caller actually supplied one. The reserve is the operator's
-        // ringfenced base quantity and most callers (discovery re-add, config reset)
-        // never mention it — writing `?? null` here would silently clear a reserve
-        // on every ordinary re-bind. A profile disposal's handoff DOES carry it, and
-        // must, or the target would treat the ringfenced coins as tradeable.
-        ...(input['reserveBaseQuantity'] !== undefined
-          ? { reserveBaseQuantity: input['reserveBaseQuantity'] }
-          : {}),
+        // Only when the caller actually supplied one: a re-bind that says nothing about the pin must not clear one. The seams that DO mean it (the operator's add, a disposal handoff carrying the source binding's pin forward) pass both fields explicitly. Written as a pair because a pin time without its flag, or a flag without its time, is a row that cannot be read honestly.
+        ...(input['pinned'] !== undefined ? { pinned: input['pinned'] } : {}),
+        ...(input['pinnedAt'] !== undefined ? { pinnedAt: input['pinnedAt'] } : {}),
       },
     })
     .returning();
@@ -243,11 +238,12 @@ export async function remove(scope: ProfileScope, symbol: string): Promise<void>
 }
 
 /**
- * Flip a symbol's discovery source. The "Pin" operator action calls this with
- * `'manual'` so discovery stops reaping a coin it rotated in; discovery sets
- * `'auto'` when it rotates one in. Idempotent — pinning an already-
- * manual symbol is a no-op flip. Returns the updated row, or null when the
- * symbol is not attached to the profile.
+ * Record where a binding came from. Discovery calls this with `'auto'` when it rotates a coin in. It changes PROVENANCE ONLY and has no effect on whether discovery may reap the row — that is {@link setPinned}. Idempotent. Returns the updated row, or null when the symbol is not attached to the profile.
+ *
+ * @param scope - Proven (operator, account, profile) ownership chain.
+ * @param symbol - Trading pair whose provenance is being recorded.
+ * @param source - Who created this binding: the operator, discovery, or neither (a system recovery).
+ * @returns The updated row, or null when the profile has no binding for the symbol.
  */
 export async function setSource(
   scope: ProfileScope,
@@ -263,20 +259,27 @@ export async function setSource(
 }
 
 /**
- * Set (or clear with `null`) a symbol's reserve floor — the base-asset quantity
- * the bot must never sell below. Targeted UPDATE so it never disturbs the stored
- * `override_config` (the generic {@link upsert} resets that column on conflict).
- * Returns the updated row, or null when the symbol is not attached to the
- * profile, which the caller maps to a 404. Mirrors {@link setSource}.
+ * Arm or release discovery's reap protection for one symbol. This is what the operator's "Pin" / "Unpin" actions write, and it is the ONLY input to the reap guard in {@link removeUnpinnedIfFlat}.
+ *
+ * `pinned_at` moves with the flag rather than being left behind: a pin stamps the moment it was chosen, an unpin clears it. A pinned row with a null stamp therefore means exactly one thing — the pin was inferred by the rollout backfill from the old source-based model, not chosen by anyone — which the UI surfaces so an operator can confirm or drop it.
+ *
+ * `source` is deliberately untouched. Pinning a discovery-rotated coin does not make the operator its author, and the archive's provenance column would start lying if it did.
+ *
+ * @param scope - Proven (operator, account, profile) ownership chain.
+ * @param symbol - Trading pair to protect or release.
+ * @param pinned - True to bar discovery from reaping the symbol, false to let it rotate out again.
+ * @param at - The moment the pin was chosen, stamped only when `pinned` is true. Injected rather than read from the clock so the repo stays deterministic under test.
+ * @returns The updated row, or null when the profile has no binding for the symbol.
  */
-export async function setReserve(
+export async function setPinned(
   scope: ProfileScope,
   symbol: string,
-  reserveBaseQuantity: string | null,
+  pinned: boolean,
+  at: Date,
 ): Promise<ProfileSymbolRow | null> {
   const [row] = await scope.db
     .update(profileSymbols)
-    .set({ reserveBaseQuantity })
+    .set({ pinned, pinnedAt: pinned ? at : null })
     .where(and(eq(profileSymbols.profileId, scope.profileId), eq(profileSymbols.symbol, symbol)))
     .returning();
   return row ?? null;
@@ -302,19 +305,14 @@ export async function recordFlatten(
 }
 
 /**
- * Outcome of a discovery-initiated symbol removal. `removed` is the only
- * success case; the rest tell the caller WHY the row was left in place so the
- * discovery cron can log and skip without re-deriving the reason.
+ * Outcome of a discovery-initiated symbol removal. `removed` is the only success case; the rest tell the caller WHY the row was left in place so the discovery cron can log and skip without re-deriving the reason.
  */
-export type DiscoveryRemoveOutcome = 'removed' | 'not-found' | 'not-auto' | 'held';
+export type DiscoveryRemoveOutcome = 'removed' | 'not-found' | 'pinned' | 'held';
 
 /**
- * Remove an auto-discovered symbol only when it is safe to abandon: the row
- * must be discovery-owned (`source='auto'`) AND flat, meaning zero held
- * quantity and no open orders. Discovery never force-exits a position: a held
- * symbol stays subscribed until the strategy's own exit flattens it, and a
- * later cycle reaps it. A manual symbol, a missing row, or one still carrying a
- * position / resting order is left untouched.
+ * Remove a rotatable symbol only when it is safe to abandon: the row must be UNPINNED and flat, meaning zero held quantity and no open orders. Discovery never force-exits a position: a held symbol stays subscribed until the strategy's own exit flattens it, and a later cycle reaps it. A pinned symbol, a missing row, or one still carrying a position / resting order is left untouched.
+ *
+ * The guard is `pinned`, never `source`. Provenance answers where a binding came from and nothing else: a binding the system re-created to recover an untracked position has no operator behind it, so gating on `source` made every such recovery a permanent rotation exemption for a coin nobody chose.
  *
  * The flatness check rides inside the DELETE predicate, so the guard and the
  * delete are one atomic statement. There is no window for a concurrent fill or
@@ -335,8 +333,12 @@ export type DiscoveryRemoveOutcome = 'removed' | 'not-found' | 'not-auto' | 'hel
  * leaf that imports only `@app/db` types, and the Redis wipe lives in the api,
  * so pulling either of them down here reintroduces a boot-context cycle. The
  * reaped symbol's cached keys expire on their own TTL.
+ *
+ * @param scope - Proven (operator, account, profile) ownership chain; the delete is confined to this profile's bindings.
+ * @param symbol - Binance trading pair to unbind, e.g. `BTCUSDT`.
+ * @returns `removed` when the binding and its per-symbol state were deleted, `not-found` when no such binding exists, `pinned` when the operator pinned it, `held` when it still carries a position or a resting order.
  */
-export async function removeAutoIfFlat(
+export async function removeUnpinnedIfFlat(
   scope: ProfileScope,
   symbol: string,
 ): Promise<DiscoveryRemoveOutcome> {
@@ -348,7 +350,7 @@ export async function removeAutoIfFlat(
         and(
           eq(profileSymbols.profileId, scope.profileId),
           eq(profileSymbols.symbol, symbol),
-          eq(profileSymbols.source, 'auto'),
+          eq(profileSymbols.pinned, false),
           notExists(openOrderSubquery(txScope, symbol)),
           notExists(heldQuantitySubquery(txScope, symbol)),
         ),
@@ -363,7 +365,7 @@ export async function removeAutoIfFlat(
     // Nothing deleted: classify why for the caller's log.
     const row = await findForSymbol(txScope, symbol);
     if (!row) return 'not-found';
-    if (row.source !== 'auto') return 'not-auto';
+    if (row.pinned) return 'pinned';
     return 'held';
   });
 }
@@ -371,7 +373,7 @@ export async function removeAutoIfFlat(
 /**
  * Correlated subquery for a strictly-positive held quantity. Compared in SQL
  * (`quantity > 0`) so the decimal-string quantity never round-trips through a
- * JS number. Used inside the `removeAutoIfFlat` DELETE predicate.
+ * JS number. Used inside the `removeUnpinnedIfFlat` DELETE predicate.
  */
 const heldQuantitySubquery = (scope: ProfileScope, symbol: string) =>
   scope.db

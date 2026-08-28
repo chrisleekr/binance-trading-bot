@@ -5,13 +5,11 @@ import {
   ProfileSymbolResponse,
   SymbolCreate,
   SymbolPatch,
-  SymbolReservePut,
   type SymbolSource,
   isSymbolPermittedForAccount,
   parseAccountPermissions,
 } from '@app/contracts';
 import { accountPermissionsKey, projections, repo } from '@app/db';
-import { Decimal } from '@app/money';
 import { mergeConfig } from '@app/strategy-core';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
@@ -71,12 +69,14 @@ const toSymbolResponse = (row: {
   symbol: string;
   overrideConfig: unknown;
   source: SymbolSource;
-  reserveBaseQuantity: string | null;
+  pinned: boolean;
+  pinnedAt: Date | null;
 }): z.infer<typeof ProfileSymbolResponse> => ({
   symbol: row.symbol,
   overrideConfig: row.overrideConfig ?? null,
   source: row.source,
-  reserveBaseQuantity: row.reserveBaseQuantity ?? null,
+  pinned: row.pinned,
+  pinnedAt: row.pinnedAt?.toISOString() ?? null,
 });
 
 const listRoute = createRoute({
@@ -146,31 +146,6 @@ const patchSymbolRoute = createRoute({
   },
 });
 
-const putReserveRoute = createRoute({
-  method: 'put',
-  path: '/profiles/{profileId}/symbols/{symbol}/reserve',
-  tags: ['symbols'],
-  request: {
-    params: ProfileSymbolParam,
-    body: { content: { 'application/json': { schema: SymbolReservePut } } },
-  },
-  responses: {
-    200: {
-      description: 'reserve set',
-      content: { 'application/json': { schema: ProfileSymbolResponse } },
-    },
-    404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
-    422: {
-      description: 'reserve exceeds the live base-asset holding',
-      content: { 'application/json': { schema: ErrorEnvelope } },
-    },
-    502: {
-      description: 'no live balance snapshot to validate the reserve against',
-      content: { 'application/json': { schema: ErrorEnvelope } },
-    },
-  },
-});
-
 const deleteSymbolRoute = createRoute({
   method: 'delete',
   path: '/profiles/{profileId}/symbols/{symbol}',
@@ -203,7 +178,7 @@ const unpinSymbolRoute = createRoute({
   request: { params: ProfileSymbolParam },
   responses: {
     200: {
-      description: 'returned to discovery (source set to auto)',
+      description: 'returned to discovery (pin cleared; provenance unchanged)',
       content: { 'application/json': { schema: ProfileSymbolResponse } },
     },
     404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
@@ -239,7 +214,7 @@ export const symbolsRouter = (di: DI): ApiHono => {
     // Reject a pair that does not exist (or is not TRADING) on Binance: an
     // accepted dead binding can never trade and DLQs the worker tick at
     // loadSymbolInfo. Validate against the same exchangeInfo cache the symbol
-    // picker filters on, so the API enforces what the UI already does (#365).
+    // picker filters on, so the API enforces what the UI already does.
     // The LISTING check stays on `live` deliberately: the symbol picker feeding
     // it is `GET /exchange-info`, which is operator-global and live-pinned, so
     // mode-scoping only this side would 422 a testnet operator on a pair they
@@ -306,7 +281,7 @@ export const symbolsRouter = (di: DI): ApiHono => {
       // check that did not run.
       { symbols: [body.symbol], fundFromAccountValue: true, reportMissingPrice: true },
     );
-    // #496 combined "add a coin I already hold + cost basis". A cost basis only
+    // The manual-add path combines "add a coin I already hold" with a cost basis. A cost basis only
     // means something to a strategy that manages a single position per symbol,
     // so gate it the same way the dedicated avg-entry-price route does — a
     // momentum/rebalance profile 422s here instead of silently seeding a ledger
@@ -322,8 +297,12 @@ export const symbolsRouter = (di: DI): ApiHono => {
       body.avgEntryPrice !== undefined
         ? await balanceQuantityForSymbol(di, p, body.symbol)
         : undefined;
+    // The operator chose this coin, so both facts are written explicitly rather than left to a column default: `manual` provenance, and a pin so discovery cannot rotate it away. Stamped now, which distinguishes it from a pin the rollout backfilled and could not date.
     const row = await p.profileSymbols.upsert(body.symbol, listed.baseAsset, {
       overrideConfig: null,
+      source: 'manual',
+      pinned: true,
+      pinnedAt: new Date(),
     });
     if (body.avgEntryPrice !== undefined && entryQuantity !== undefined) {
       await p.avgEntryPrices.upsert(body.symbol, {
@@ -341,7 +320,7 @@ export const symbolsRouter = (di: DI): ApiHono => {
     if (profile.enabled) {
       await createReconfigureEnqueue(di.queue)({ userId: operatorId, accountId, profileId });
       // Force-set the running strategy's cost basis so the held position is
-      // managed immediately (#496). The reconfigure revive alone only converges
+      // managed immediately. The reconfigure revive alone only converges
       // a brand-new symbol; the force-set is also correct for a re-add of a
       // symbol that already carries a position.
       if (body.avgEntryPrice !== undefined) {
@@ -371,8 +350,8 @@ export const symbolsRouter = (di: DI): ApiHono => {
     // tick. A null override (reset to profile config) needs no validation.
     if (body.overrideConfig != null) {
       // Validate against the LIVE plugin's schema; a bumped strategy version
-      // must not block per-symbol overrides on an existing profile (issue
-      // #407). Only a genuinely-unregistered name fails.
+      // must not block per-symbol overrides on an existing profile. Only a
+      // genuinely-unregistered name fails.
       const resolved = di.strategies.describeForProfile(
         profile.strategyName,
         profile.strategyVersion,
@@ -394,8 +373,10 @@ export const symbolsRouter = (di: DI): ApiHono => {
       }
       baseAsset = listed.baseAsset;
     }
+    // The CREATE branch of this route is an operator authoring a binding by writing an override to a symbol they had not bound yet, so it stamps provenance and a pin exactly as the POST does. Omitting them would leave the new row rotatable, and discovery would eventually delete the operator's own override along with the symbol's condition rows and strategy state. On an EXISTING row both fields are left absent so `upsert`'s conditional spread cannot disturb provenance or a pin the operator has since released.
     const row = await p.profileSymbols.upsert(symbol, baseAsset, {
       overrideConfig: body.overrideConfig ?? null,
+      ...(existing ? {} : { source: 'manual' as const, pinned: true, pinnedAt: new Date() }),
     });
     // Resync the worker so the edited per-symbol override is visible on the
     // next tick. The worker caches the resolved tick context across ticks
@@ -408,52 +389,6 @@ export const symbolsRouter = (di: DI): ApiHono => {
     c.set('auditEvent', {
       event: body.overrideConfig == null ? 'reset-symbol-config' : 'set-symbol-config',
       payload: { profileId, symbol },
-    });
-    return c.json(toSymbolResponse(row), 200);
-  });
-
-  // Set (or clear) the per-symbol reserve floor — the base-asset quantity the
-  // bot must never sell below. Dedicated endpoint so writing the reserve never
-  // disturbs the stored override (and vice versa). A positive reserve is
-  // rejected when it exceeds the live base-asset holding: the reserve is "a
-  // slice of what you already hold", and allowing more would let the bot buy
-  // through the floor with quote cash. Holding is read from the cached wallet
-  // snapshot (ledger fallback) — never a live Binance call from the API.
-  app.openapi(putReserveRoute, async (c) => {
-    const { profileId: profileIdRaw, symbol } = c.req.valid('param');
-    const profileId = asProfileId(profileIdRaw);
-    const { reserveBaseQuantity: reserve } = c.req.valid('json');
-    const { p, profile } = await requireOwnedProfile(c, di, profileId);
-    const { operatorId, accountId } = p.scope;
-    // Resolve attachment first so an unattached symbol always 404s regardless of
-    // the amount — the holding check below would otherwise mask it with a 422 or
-    // 502 for a positive reserve on a symbol the profile never added.
-    if ((await p.profileSymbols.findForSymbol(symbol)) === null) {
-      throw new HttpError('NOT_FOUND', 'symbol');
-    }
-    if (reserve !== null && new Decimal(reserve).gt(0)) {
-      // A cold profile with neither a wallet snapshot nor a ledger row throws
-      // UPSTREAM_FAILED (502) here with a message telling the operator to enable
-      // the profile first, so the bot can read the balance.
-      const holding = await balanceQuantityForSymbol(di, p, symbol);
-      if (new Decimal(reserve).gt(new Decimal(holding))) {
-        throw new HttpError(
-          'VALIDATION_FAILED',
-          `reserve ${reserve} exceeds your ${symbol} holding of ${holding} — reserve at most what you already hold`,
-        );
-      }
-    }
-    const row = await p.profileSymbols.setReserve(symbol, reserve);
-    if (!row) throw new HttpError('NOT_FOUND', 'symbol');
-    // Resync the worker so the new reserve applies on the next tick: the tick
-    // context carries the reserve and is cached across ticks; the reconfigure
-    // job evicts that cache. A disabled profile is not ticking.
-    if (profile.enabled) {
-      await createReconfigureEnqueue(di.queue)({ userId: operatorId, accountId, profileId });
-    }
-    c.set('auditEvent', {
-      event: reserve === null ? 'clear-symbol-reserve' : 'set-symbol-reserve',
-      payload: { profileId, symbol, reserveBaseQuantity: reserve },
     });
     return c.json(toSymbolResponse(row), 200);
   });
@@ -493,30 +428,23 @@ export const symbolsRouter = (di: DI): ApiHono => {
     return new Response(null, { status: 204 });
   });
 
-  // Pin flips a discovery-rotated symbol (source='auto') to 'manual' so the
-  // discovery cron stops reaping it. A deliberate operator "keep this coin"
-  // action. Idempotent on an already-manual symbol. No worker resync needed:
-  // source is discovery metadata, not strategy config — the tick is unchanged.
+  // Pin protects a symbol from the discovery cron's reap. A deliberate operator "keep this coin" action, idempotent on an already-pinned symbol. It leaves `source` alone: pinning a coin discovery rotated in does not make the operator its author, and the archive's provenance column would start lying if it did. No worker resync needed — the pin is discovery metadata, not strategy config, so the tick is unchanged.
   app.openapi(pinSymbolRoute, async (c) => {
     const { profileId: profileIdRaw, symbol } = c.req.valid('param');
     const profileId = asProfileId(profileIdRaw);
     const p = await scopeOf(c, di, profileId);
-    const row = await p.profileSymbols.setSource(symbol, 'manual');
+    const row = await p.profileSymbols.setPinned(symbol, true, new Date());
     if (!row) throw new HttpError('NOT_FOUND', 'symbol');
     c.set('auditEvent', { event: 'pin-symbol', payload: { profileId, symbol } });
     return c.json(toSymbolResponse(row), 200);
   });
 
-  // "Return to discovery": the inverse of pin — flip a manual symbol back to
-  // `source='auto'` so the discovery cron manages it again (keeps it while it
-  // qualifies, reaps it when its move fades). Idempotent on an already-auto
-  // symbol. Like pin, source is discovery metadata, not strategy config, so no
-  // worker resync is needed.
+  // "Return to discovery": the inverse of pin — clear the protection so the discovery cron manages the symbol again (keeps it while it qualifies, reaps it when its move fades). Idempotent on an already-unpinned symbol. `source` is again untouched: the operator releasing a coin does not retroactively make discovery the one who added it.
   app.openapi(unpinSymbolRoute, async (c) => {
     const { profileId: profileIdRaw, symbol } = c.req.valid('param');
     const profileId = asProfileId(profileIdRaw);
     const p = await scopeOf(c, di, profileId);
-    const row = await p.profileSymbols.setSource(symbol, 'auto');
+    const row = await p.profileSymbols.setPinned(symbol, false, new Date());
     if (!row) throw new HttpError('NOT_FOUND', 'symbol');
     c.set('auditEvent', { event: 'unpin-symbol', payload: { profileId, symbol } });
     return c.json(toSymbolResponse(row), 200);

@@ -6,15 +6,7 @@
 # close that gap for the rules whose correctness turns on how Prometheus SAMPLES a
 # counter rather than on the threshold.
 #
-# The class they exist for: a labelled prom-client child does not exist until its
-# first write and is BORN holding that write's value. The first sample Prometheus
-# ever sees for a freshly-incremented counter is therefore a level, not a rise, and
-# `increase()` reads it as zero. Three of the four rules below cover events whose
-# first increment may be their ONLY one — a deleted position that no later pass
-# revisits, a discovery abort that recurs at most once per refresh period — so an
-# `increase()` form would be structurally unable to fire. Every positive case starts
-# its series from ABSENT to reproduce that, and rewriting those three to `increase()`
-# fails their cases here.
+# The class they exist for: a labelled prom-client child does not exist until its first write and is BORN holding that write's value. The first sample Prometheus ever sees for a freshly-incremented counter is therefore a level, not a rise, and `increase()` reads it as zero. Four of the five rules below cover events whose first increment may be their ONLY one, such as a deleted position that no later pass revisits or a discovery abort that recurs at most once per refresh period, so an `increase()` form would be structurally unable to fire. Every positive case starts its series from ABSENT to reproduce that, and rewriting those four to `increase()` fails their cases here.
 #
 # ReconcileValueBoundDisarmed is the exception and is NOT pinned that way. Its counter
 # increments on every pass, so a rising series remains and `increase()` still fires; it
@@ -22,14 +14,7 @@
 # which is why the offset form is used there — determinism of what "three passes"
 # means, not an inability to fire. Do not read that case as proving the form.
 #
-# The negative cases carry the other half: the label gates that keep these rules off
-# routine behaviour, and that all three recoverable conditions still RESOLVE rather than
-# latching — `MomentumExitBlockedByFilters`, `ReconcileValueBoundDisarmed` and
-# `DiscoveryAssetPolicyAborting` each carry a post-quiet evaluation, because a rule stuck
-# on forever is as useless as one that never fires and a 25-hour clear is not something
-# anyone checks by hand. `ReconcilePositionRemoved` is the deliberate exception: it reads a
-# raw level and latches until silenced, which is the honest shape for a delete nothing
-# undoes.
+# The negative cases carry the other half: the label gates that keep these rules off routine behaviour and proof that all four recoverable conditions still RESOLVE rather than latching. `MomentumExitBlockedByFilters`, `ReconcileValueBoundDisarmed`, `DiscoveryAssetPolicyAborting`, and `PipelineApplySeedGateStoodDown` each carry a post-quiet evaluation, because a rule stuck on forever is as useless as one that never fires and a 25-hour clear is not something anyone checks by hand. `ReconcilePositionRemoved` is the deliberate exception: it reads a raw level and latches until silenced, which is the honest shape for a delete nothing undoes.
 #
 # The reset cases cover the restart blind spot in the offset shape; see the arm they pin in
 # `alerts.yml`.
@@ -101,7 +86,7 @@ tests:
               reason: no-reference-price
             exp_annotations:
               summary: Dust value bounds inert on p1/ENAUSDT (no-reference-price)
-              description: Reconcile passes for this symbol keep reaching a dust value bound without no-reference-price, so the bound is not evaluating and the pass reporting no-op is not evidence the position is sound. no-reference-price means neither the miniTicker cache nor the REST fallback could price the symbol — check that the market stream is subscribed and that Binance still lists the pair. no-min-notional means the cached exchangeInfo carries no NOTIONAL filter, which an exchange-info-refresh run repairs. no-unreserved-total means a caller forwarded a target without the pre-reserve wallet total, which is a code fault rather than a data one.
+              description: Passes for this symbol keep reaching a dust value bound without no-reference-price, so the bound is not evaluating and the pass reporting no-op is not evidence the position is sound. no-reference-price means neither the miniTicker cache nor the REST fallback could price the symbol — check that the market stream is subscribed and that Binance still lists the pair. no-min-notional means the cached exchangeInfo carries no NOTIONAL filter, which an exchange-info-refresh run repairs. no-wallet-total means a balance leg Binance returned for this asset would not parse as a finite decimal, so the reconciler skipped the symbol outright before any bound was reached — check the raw getAccount balance for the base asset. A fourth, non-periodic emitter shares this series — an operator saving an entry price. If the count rose with no boot and no backstop pass to explain it, grep the worker log for pipeline_apply_avg_entry_price_value_bound_disarmed on the same symbol before chasing a sweep.
     # Two passes is a cold boot that has not healed yet, not a symbol that cannot be priced at all.
   - interval: 1m
     input_series:
@@ -110,6 +95,63 @@ tests:
     alert_rule_test:
       - eval_time: 90m
         alertname: ReconcileValueBoundDisarmed
+        exp_alerts: []
+    # The apply path synchronously seeds all four reason children before incrementing the fired reason, so Prometheus first observes that child at 1 while its siblings are 0. The pre-hold and post-window evaluations pin the 15-minute hold and finite two-hour observation window.
+  - interval: 1m
+    input_series:
+      - series: pipeline_apply_seed_gate_stood_down_total{profileId="p1",symbol="ENAUSDT",reason="no-client"}
+        values: _x5 1+0x200
+      - series: pipeline_apply_seed_gate_stood_down_total{profileId="p1",symbol="ENAUSDT",reason="no-symbol-info"}
+        values: _x5 0+0x200
+      - series: pipeline_apply_seed_gate_stood_down_total{profileId="p1",symbol="ENAUSDT",reason="bad-symbol-info"}
+        values: _x5 0+0x200
+      - series: pipeline_apply_seed_gate_stood_down_total{profileId="p1",symbol="ENAUSDT",reason="getaccount-failed"}
+        values: _x5 0+0x200
+    alert_rule_test:
+      - eval_time: 19m
+        alertname: PipelineApplySeedGateStoodDown
+        exp_alerts: []
+      - eval_time: 21m
+        alertname: PipelineApplySeedGateStoodDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              profileId: p1
+              symbol: ENAUSDT
+              reason: no-client
+            exp_annotations:
+              summary: Entry-price safety check unavailable on p1/ENAUSDT (no-client)
+              description: An operator entry-price apply for p1/ENAUSDT could not evaluate the position seed gate (no-client) and fell back to the recorded quantity. no-client means the Binance client resolver threw or returned no client; verify that the account and API-key rows exist, check database health, and inspect the worker warning log for pipeline_apply_avg_entry_price_gate_unavailable. no-symbol-info means the symbol-info cache was missing or unreadable; check Redis and the exchange-info-refresh job. bad-symbol-info means the cached symbol info was malformed or carried an invalid step size; refresh it and inspect the cached value. getaccount-failed means the Binance account request failed; check API-key validity, the IP allowlist, Binance reachability, and the worker log for pipeline_apply_avg_entry_price_gate_unavailable.
+      - eval_time: 120m
+        alertname: PipelineApplySeedGateStoodDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              profileId: p1
+              symbol: ENAUSDT
+              reason: no-client
+            exp_annotations:
+              summary: Entry-price safety check unavailable on p1/ENAUSDT (no-client)
+              description: An operator entry-price apply for p1/ENAUSDT could not evaluate the position seed gate (no-client) and fell back to the recorded quantity. no-client means the Binance client resolver threw or returned no client; verify that the account and API-key rows exist, check database health, and inspect the worker warning log for pipeline_apply_avg_entry_price_gate_unavailable. no-symbol-info means the symbol-info cache was missing or unreadable; check Redis and the exchange-info-refresh job. bad-symbol-info means the cached symbol info was malformed or carried an invalid step size; refresh it and inspect the cached value. getaccount-failed means the Binance account request failed; check API-key validity, the IP allowlist, Binance reachability, and the worker log for pipeline_apply_avg_entry_price_gate_unavailable.
+      - eval_time: 130m
+        alertname: PipelineApplySeedGateStoodDown
+        exp_alerts: []
+    # Zero-seeded children without a fired reason are routine and must stay silent.
+  - interval: 1m
+    input_series:
+      - series: pipeline_apply_seed_gate_stood_down_total{job="worker",instance="worker:9101",profileId="p2",symbol="BTCUSDT",reason="no-client"}
+        values: _x5 0+0x60
+      - series: pipeline_apply_seed_gate_stood_down_total{job="worker",instance="worker:9101",profileId="p2",symbol="BTCUSDT",reason="no-symbol-info"}
+        values: _x5 0+0x60
+      - series: pipeline_apply_seed_gate_stood_down_total{job="worker",instance="worker:9101",profileId="p2",symbol="BTCUSDT",reason="bad-symbol-info"}
+        values: _x5 0+0x60
+      - series: pipeline_apply_seed_gate_stood_down_total{job="worker",instance="worker:9101",profileId="p2",symbol="BTCUSDT",reason="getaccount-failed"}
+        values: _x5 0+0x60
+      - series: process_start_time_seconds{service="worker",job="worker",instance="worker:9101"}
+        values: 0+0x60
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PipelineApplySeedGateStoodDown
         exp_alerts: []
     # The split-reason case. One residual trips minQty at one price and minNotional at another, one skip each. Aggregating BEFORE the subtraction reads 2; a per-series increase() would read 0 + 0 and stay silent on exactly the split the rule claims to handle.
   - interval: 1m
@@ -232,7 +274,62 @@ tests:
               reason: no-reference-price
             exp_annotations:
               summary: Dust value bounds inert on p1/ENAUSDT (no-reference-price)
-              description: Reconcile passes for this symbol keep reaching a dust value bound without no-reference-price, so the bound is not evaluating and the pass reporting no-op is not evidence the position is sound. no-reference-price means neither the miniTicker cache nor the REST fallback could price the symbol — check that the market stream is subscribed and that Binance still lists the pair. no-min-notional means the cached exchangeInfo carries no NOTIONAL filter, which an exchange-info-refresh run repairs. no-unreserved-total means a caller forwarded a target without the pre-reserve wallet total, which is a code fault rather than a data one.
+              description: Passes for this symbol keep reaching a dust value bound without no-reference-price, so the bound is not evaluating and the pass reporting no-op is not evidence the position is sound. no-reference-price means neither the miniTicker cache nor the REST fallback could price the symbol — check that the market stream is subscribed and that Binance still lists the pair. no-min-notional means the cached exchangeInfo carries no NOTIONAL filter, which an exchange-info-refresh run repairs. no-wallet-total means a balance leg Binance returned for this asset would not parse as a finite decimal, so the reconciler skipped the symbol outright before any bound was reached — check the raw getAccount balance for the base asset. A fourth, non-periodic emitter shares this series — an operator saving an entry price. If the count rose with no boot and no backstop pass to explain it, grep the worker log for pipeline_apply_avg_entry_price_value_bound_disarmed on the same symbol before chasing a sweep.
+    # Same reset shape for a single seed-gate stand-down. Without the reset-aware arm, the pre-restart value suppresses the fresh child's birth write for the full two-hour window.
+  - interval: 1m
+    input_series:
+      - series: pipeline_apply_seed_gate_stood_down_total{job="worker",instance="worker:9101",profileId="p1",symbol="ENAUSDT",reason="no-client"}
+        values: '1+1x100 _x10 1+0x300'
+      - series: process_start_time_seconds{service="worker",job="worker",instance="worker:9101"}
+        values: '0+0x100 _x10 6660+0x300'
+    alert_rule_test:
+      - eval_time: 200m
+        alertname: PipelineApplySeedGateStoodDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              profileId: p1
+              symbol: ENAUSDT
+              reason: no-client
+            exp_annotations:
+              summary: Entry-price safety check unavailable on p1/ENAUSDT (no-client)
+              description: An operator entry-price apply for p1/ENAUSDT could not evaluate the position seed gate (no-client) and fell back to the recorded quantity. no-client means the Binance client resolver threw or returned no client; verify that the account and API-key rows exist, check database health, and inspect the worker warning log for pipeline_apply_avg_entry_price_gate_unavailable. no-symbol-info means the symbol-info cache was missing or unreadable; check Redis and the exchange-info-refresh job. bad-symbol-info means the cached symbol info was malformed or carried an invalid step size; refresh it and inspect the cached value. getaccount-failed means the Binance account request failed; check API-key validity, the IP allowlist, Binance reachability, and the worker log for pipeline_apply_avg_entry_price_gate_unavailable.
+    # Equal counter values across a restart are still distinct stand-down events. The process start series distinguishes the fresh child without relying on a strict counter decrease.
+  - interval: 1m
+    input_series:
+      - series: pipeline_apply_seed_gate_stood_down_total{job="worker",instance="worker:9101",profileId="p1",symbol="ENAUSDT",reason="no-client"}
+        values: '1+0x100 _x10 1+0x300'
+      - series: process_start_time_seconds{service="worker",job="worker",instance="worker:9101"}
+        values: '0+0x100 _x10 6660+0x300'
+    alert_rule_test:
+      - eval_time: 125m
+        alertname: PipelineApplySeedGateStoodDown
+        exp_alerts: []
+      - eval_time: 127m
+        alertname: PipelineApplySeedGateStoodDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              profileId: p1
+              symbol: ENAUSDT
+              reason: no-client
+            exp_annotations:
+              summary: Entry-price safety check unavailable on p1/ENAUSDT (no-client)
+              description: An operator entry-price apply for p1/ENAUSDT could not evaluate the position seed gate (no-client) and fell back to the recorded quantity. no-client means the Binance client resolver threw or returned no client; verify that the account and API-key rows exist, check database health, and inspect the worker warning log for pipeline_apply_avg_entry_price_gate_unavailable. no-symbol-info means the symbol-info cache was missing or unreadable; check Redis and the exchange-info-refresh job. bad-symbol-info means the cached symbol info was malformed or carried an invalid step size; refresh it and inspect the cached value. getaccount-failed means the Binance account request failed; check API-key validity, the IP allowlist, Binance reachability, and the worker log for pipeline_apply_avg_entry_price_gate_unavailable.
+      - eval_time: 220m
+        alertname: PipelineApplySeedGateStoodDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              profileId: p1
+              symbol: ENAUSDT
+              reason: no-client
+            exp_annotations:
+              summary: Entry-price safety check unavailable on p1/ENAUSDT (no-client)
+              description: An operator entry-price apply for p1/ENAUSDT could not evaluate the position seed gate (no-client) and fell back to the recorded quantity. no-client means the Binance client resolver threw or returned no client; verify that the account and API-key rows exist, check database health, and inspect the worker warning log for pipeline_apply_avg_entry_price_gate_unavailable. no-symbol-info means the symbol-info cache was missing or unreadable; check Redis and the exchange-info-refresh job. bad-symbol-info means the cached symbol info was malformed or carried an invalid step size; refresh it and inspect the cached value. getaccount-failed means the Binance account request failed; check API-key validity, the IP allowlist, Binance reachability, and the worker log for pipeline_apply_avg_entry_price_gate_unavailable.
+      - eval_time: 240m
+        alertname: PipelineApplySeedGateStoodDown
+        exp_alerts: []
     # RESOLVE, the other half of the header's claim. A rule that latches forever is as useless as one that never fires, and a 25-hour clear is not something anyone verifies by hand. One abort, then quiet: the subtraction returns to zero once the birth write ages past the offset, and the reset arm stands down with it because the historical level stops exceeding the current one.
   - interval: 4m
     input_series:

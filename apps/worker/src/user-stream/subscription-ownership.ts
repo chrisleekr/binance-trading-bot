@@ -26,7 +26,7 @@
 // account, so the first reconcile opens all streams at boot.
 //
 // Account universe: this elects over profileManager.listActive(). The
-// enabled-set reconciler (#579) converges every pod's listActive() to the
+// enabled-set reconciler converges every pod's listActive() to the
 // fleet-global enabled set on an interval, so a subscribe/unsubscribe applied
 // by a single-consumer pipeline job on one pod re-elects fleet-wide within one
 // reconcile interval (the consuming pod also kicks reconcile() immediately).

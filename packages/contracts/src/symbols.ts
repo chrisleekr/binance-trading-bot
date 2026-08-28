@@ -16,46 +16,23 @@ export const SymbolName = z
 export type SymbolName = z.infer<typeof SymbolName>;
 
 /**
- * Origin of a profile-symbol binding: `manual` (the operator added it) or
- * `auto` (the discovery cron rotated it in). Gates which rows discovery is
- * allowed to reap; will also drive the source badge in a later UI slice.
+ * PROVENANCE of a profile-symbol binding, and nothing else: `manual` (the operator added it), `auto` (the discovery cron rotated it in), or `unknown` (the system re-created the binding to recover a position nobody was tracking, so neither claim can honestly be made). Purely descriptive — it drives the source badge and the archive's origin column. Whether discovery may reap a row is the separate `pinned` flag, because conflating the two made a system-recovered binding permanently exempt from rotation.
  */
-export const SymbolSource = z.enum(['manual', 'auto']);
+export const SymbolSource = z.enum(['manual', 'auto', 'unknown']);
 /** TS type derived from {@link SymbolSource} so consumers don't re-run z.infer at every call site. */
 export type SymbolSource = z.infer<typeof SymbolSource>;
 
 /**
- * Per-symbol reserve floor in base units: the quantity the bot must never sell
- * below ("always hold N of this coin"; the bot trades only the surplus above
- * it). Null clears the reserve. A non-negative decimal-string so values like
- * `0.0001` survive the wire without IEEE-754 truncation; rejects negatives, NaN,
- * and scientific notation.
- */
-export const ReserveBaseQuantity = z
-  .string()
-  .min(1)
-  .max(40)
-  .regex(
-    /^(0|[1-9][0-9]*)(\.[0-9]+)?$/,
-    'reserveBaseQuantity must be a non-negative decimal-string',
-  )
-  .nullable();
-/** TS type derived from {@link ReserveBaseQuantity} so consumers don't re-run z.infer at every call site. */
-export type ReserveBaseQuantity = z.infer<typeof ReserveBaseQuantity>;
-
-/**
- * Per-symbol configuration row attached to a profile. `overrideConfig` is
- * `unknown` because each strategy owns the override schema; null means
- * "inherit profile defaults". `source` distinguishes operator-added from
- * discovery-rotated symbols. `reserveBaseQuantity` is the always-hold floor in
- * base units (null = none); `.default(null)` keeps responses recorded before the
- * field existed deserialising during rollout.
+ * Per-symbol configuration row attached to a profile. `overrideConfig` is `unknown` because each strategy owns the override schema; null means "inherit profile defaults". `source` records where the binding came from and `pinned` records whether discovery may rotate it out — two independent facts.
  */
 export const ProfileSymbolResponse = z.object({
   symbol: SymbolName,
   overrideConfig: z.unknown().nullable(),
   source: SymbolSource,
-  reserveBaseQuantity: ReserveBaseQuantity.default(null),
+  /** Whether discovery is barred from reaping this symbol. The operator sets it by adding or pinning a coin; discovery-rotated and system-recovered bindings stay unpinned so they keep rotating. `.default(false)` keeps payloads recorded before the flag existed decodable. */
+  pinned: z.boolean().default(false),
+  /** When the pin was set, or null. Null on a PINNED row means the pin was inferred rather than chosen — the rollout backfilled it from the old `source='manual'` rows and there is no honest timestamp to give it. The UI marks that case so an operator can confirm or clear it. */
+  pinnedAt: z.iso.datetime().nullable().default(null),
   /**
    * Present when the bind went through but its order sizing could not be
    * verified. Absent on a read. A newly bound symbol is not streaming a price
@@ -75,7 +52,7 @@ export type ProfileSymbolList = z.infer<typeof ProfileSymbolList>;
 /**
  * Body for `POST /profiles/:id/symbols`. New symbol starts with no overrides;
  * operator patches if needed. `avgEntryPrice` is the optional combined
- * "add a coin I already hold and tell the bot my cost basis" path (#496): when
+ * "add a coin I already hold and tell the bot my cost basis" path: when
  * present, the server seeds the cost-basis ledger and force-sets the strategy's
  * entry price so the bot manages the held position instead of treating it as
  * flat. Omitted for the common "add a pair to trade fresh" case.
@@ -93,19 +70,6 @@ export const SymbolPatch = z.object({
 });
 /** TS type derived from {@link SymbolPatch} so consumers don't re-run z.infer at every call site. */
 export type SymbolPatch = z.infer<typeof SymbolPatch>;
-
-/**
- * Body for `PUT /profiles/:id/symbols/:symbol/reserve`. Sets the always-hold
- * floor (base units), or `null` to clear it. A dedicated endpoint, separate from
- * the override PATCH, so writing the reserve never disturbs `overrideConfig` and
- * vice versa. The server additionally rejects a reserve greater than the live
- * base-asset holding (422); the schema only checks the shape here.
- */
-export const SymbolReservePut = z.object({
-  reserveBaseQuantity: ReserveBaseQuantity,
-});
-/** TS type derived from {@link SymbolReservePut} so consumers don't re-run z.infer at every call site. */
-export type SymbolReservePut = z.infer<typeof SymbolReservePut>;
 
 // Positive decimal-string form — `0.01`, `0.00000001`, `1`, `1.5`. Rejects
 // `NaN`, `abc`, scientific notation, signs. Shared by every Binance filter

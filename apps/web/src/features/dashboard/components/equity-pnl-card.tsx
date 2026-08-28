@@ -17,6 +17,7 @@ import { formatMoneyAmount, formatPercent } from '@/shared/lib/format';
 import { formatDate, formatInstant } from '@/shared/lib/format-time';
 import { useTimezone } from '@/shared/context/timezone-context';
 import { LoadingRows } from '@/shared/components/page-skeleton';
+import { Select } from '@/shared/components/ui/select';
 
 interface ChartPoint {
   tsMs: number;
@@ -136,17 +137,17 @@ export function EquityPnlCard({ profileId }: { profileId: string }): React.JSX.E
           </h2>
           <label className="flex items-center gap-1 text-xs text-muted-fg">
             <span className="sr-only">Benchmark</span>
-            <select
+            <Select
+              variant="sm"
               data-testid="equity-benchmark-mode"
               aria-label="Benchmark to compare against"
-              className="rounded-xs border border-border bg-surface-alt px-1.5 py-0.5 text-xs focus-visible:border-focus focus-visible:ring-1 focus-visible:ring-focus focus-visible:outline-none"
               value={mode}
               disabled={setMode.isPending}
               onChange={(e) => setMode.mutate(BenchmarkMode.parse(e.target.value))}
             >
               <option value="btc">vs BTC</option>
               <option value="basket">vs my basket</option>
-            </select>
+            </Select>
           </label>
         </div>
         {latestNetPnl !== null ? (

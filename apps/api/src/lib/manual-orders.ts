@@ -31,7 +31,7 @@ export const assertActionSupported = async (
   if (!profile) throw new HttpError('NOT_FOUND', 'profile');
   // Gate on the LIVE plugin, not the stored version. A profile whose strategy
   // has bumped since it was created still runs the live plugin in tick(); only
-  // a genuinely-unregistered name is rejected (issue #407).
+  // a genuinely-unregistered name is rejected.
   const resolved = di.strategies.describeForProfile(profile.strategyName, profile.strategyVersion);
   if (resolved.status === 'unknown') {
     throw new HttpError('STRATEGY_NOT_REGISTERED', `strategy ${resolved.name} is not registered`);
@@ -225,7 +225,7 @@ export const enqueueTick = async (di: DI, p: ProfileRepo, symbol: string): Promi
 
 /**
  * Enqueue the worker `apply-avg-entry-price` job that force-sets the running
- * strategy's cost basis from the `avg_entry_prices` ledger (#496).
+ * strategy's cost basis from the `avg_entry_prices` ledger.
  *
  * MUST use `di.queue` (the pipeline queue), not `di.tickQueue`: a plain tick
  * never converges the ledger into `state.avgEntryPrice`, and the boot/reconfigure

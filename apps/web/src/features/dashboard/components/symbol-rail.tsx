@@ -13,7 +13,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { deriveStatus } from '@/features/dashboard/components/symbol-table';
 import { useSymbolRows, type SymbolRow } from '@/features/dashboard/lib/use-symbol-rows';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
-import { isHeldPosition } from '@/features/profile/lib/unrealised-pnl';
+import { isManagedPosition } from '@/features/profile/lib/unrealised-pnl';
 import { deriveQuote } from '@/shared/lib/symbol-quote';
 import { formatPrice } from '@/shared/lib/format';
 import { LoadingRows } from '@/shared/components/page-skeleton';
@@ -126,7 +126,8 @@ function RailRow({
   onSelect: () => void;
 }): React.JSX.Element {
   const { sym } = row;
-  const held = isHeldPosition(sym);
+  // Must be the refusal-aware predicate, because `deriveStatus` below already is: its first arm answers `not-held` for a refused seed, so a dot painted from the bare cost-basis check puts a green holding dot on the same row as a NOT HELD badge.
+  const held = isManagedPosition(sym);
   const status = deriveStatus(sym);
   const dot = !sym.enabled ? 'border border-muted-fg' : held ? 'bg-success' : 'bg-muted-fg';
   const quote = deriveQuote(sym.symbol) ?? sym.symbol;
@@ -136,7 +137,7 @@ function RailRow({
       <button
         type="button"
         onClick={onSelect}
-        aria-current={selected ? 'true' : undefined}
+        aria-current={selected ? 'page' : undefined}
         data-testid={`symbol-rail-row-${row.profileId}-${sym.symbol}`}
         title={status.kind === 'blocked' ? status.title : undefined}
         className={cn(

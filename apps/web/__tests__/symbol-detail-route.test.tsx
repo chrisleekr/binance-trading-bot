@@ -217,7 +217,7 @@ describe('symbol workspace (panels integration)', () => {
     const rows = within(ladder).getAllByRole('listitem');
     expect(rows).toHaveLength(3);
     // Index 1 is the first not-yet-reached rung — that's the active one.
-    expect(rows[1]).toHaveAttribute('aria-current', 'true');
+    expect(rows[1]).toHaveAttribute('aria-current', 'page');
     expect(rows[0]).not.toHaveAttribute('aria-current');
     // The workspace carries only symbol-scoped actions — the profile-wide tab
     // bar was removed. Config is always visible in the workspace header.
@@ -241,7 +241,7 @@ describe('symbol workspace (panels integration)', () => {
 
     const ladder = await screen.findByTestId('grid-buy-ladder', undefined, { timeout: 5000 });
     const rows = within(ladder).getAllByRole('listitem');
-    expect(rows[2]).toHaveAttribute('aria-current', 'true');
+    expect(rows[2]).toHaveAttribute('aria-current', 'page');
     expect(rows[1]).not.toHaveAttribute('aria-current');
   });
 
@@ -262,7 +262,7 @@ describe('symbol workspace (panels integration)', () => {
     const ladder = await screen.findByTestId('grid-buy-ladder', undefined, { timeout: 5000 });
     const rows = within(ladder).getAllByRole('listitem');
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toHaveAttribute('aria-current', 'true');
+    expect(rows[0]).toHaveAttribute('aria-current', 'page');
     for (const row of rows) expect(within(row).getByText(/pending/)).toBeInTheDocument();
   });
 

@@ -72,7 +72,7 @@ const firstFailureReason = (results: readonly OrderResult[]): string | null => {
  * The executor's per-decision outcomes from the audit payload. The summary
  * counts what actually happened (ok results) rather than what the strategy
  * emitted, so a tick whose cancel wedged or whose place failed bookkeeping is
- * not logged as a success (#461). Defensive: an entry without a well-formed
+ * not logged as a success. Defensive: an entry without a well-formed
  * `results` array yields no counts rather than throwing.
  */
 const readOrderResults = (e: AuditEntry): OrderResult[] => {

@@ -174,6 +174,12 @@ export interface BinanceRestClient {
     limit?: number;
   }): Promise<readonly MyTradeDto[]>;
   /**
+   * Reads the commission rates Binance applies to one symbol on this account. Signed USER_DATA endpoint, weight 20.
+   *
+   * The only source of the rate behind a fill. `myTrades` reports the commission AMOUNT and the asset it was charged in but never the rate, so a commission taken in a third asset — BNB on a discounted account — carries nothing that values it in quote terms. This table does, and because it is a rate rather than a price it stays correct for a historic fill in a way no current ticker can be.
+   */
+  getCommissionRates(symbol: string): Promise<CommissionRatesDto>;
+  /**
    * Fetches the current order-book depth for a symbol — the resting bid and
    * ask levels. Unsigned public endpoint; the symbol-detail order-book panel
    * renders it. `limit` caps the level count per side (Binance accepts the
@@ -458,6 +464,32 @@ export interface MyTradeDto {
   readonly isMaker: boolean;
 }
 
+/** One commission rate table. `maker`/`taker` is selected by the fill's `isMaker`, `buyer`/`seller` by its `isBuyer`, and Binance charges the SUM of the two selected legs. */
+export interface CommissionRateSetDto {
+  readonly maker: string;
+  readonly taker: string;
+  readonly buyer: string;
+  readonly seller: string;
+}
+
+/**
+ * `GET /api/v3/account/commission` — the per-symbol commission rates this account is charged.
+ *
+ * `discount` is a MULTIPLIER applied to the standard component when the fee is paid in `discountAsset`, not an amount subtracted from it: the commission FAQ states `Standard commission (Discounted) = Standard commission x discount` and the endpoint's own example ships `0.75`. The inline prose calling it a rate the commission is "reduced by" reads the same field the opposite way, and the two differ threefold on a real fill.
+ */
+export interface CommissionRatesDto {
+  readonly symbol: string;
+  readonly standardCommission: CommissionRateSetDto;
+  readonly taxCommission: CommissionRateSetDto;
+  readonly specialCommission: CommissionRateSetDto;
+  readonly discount: {
+    readonly enabledForAccount: boolean;
+    readonly enabledForSymbol: boolean;
+    readonly discountAsset: string;
+    readonly discount: string;
+  };
+}
+
 /**
  * `GET /api/v3/depth` — the current order book. `bids`/`asks` are arrays of
  * `[price, quantity]` decimal-string tuples; `bids` descend in price, `asks`
@@ -653,6 +685,8 @@ const WEIGHT = {
   tickerAll: 80,
   recentTrades: 25,
   myTrades: 20,
+  // `/api/v3/account/commission` (Query Commission Rates). Binance weights this at 20 — heavy for a read, and the fee path can reach it once per symbol on a reconcile pass.
+  accountCommission: 20,
   depth: 5,
   openOrders: 6,
   // `/api/v3/openOrders` with NO symbol returns every open order on the account
@@ -1145,6 +1179,15 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
         ...(params.limit !== undefined && { limit: params.limit }),
       };
       return call<readonly MyTradeDto[]>('GET', '/api/v3/myTrades', qs, true, WEIGHT.myTrades);
+    },
+    async getCommissionRates(symbol) {
+      return call<CommissionRatesDto>(
+        'GET',
+        '/api/v3/account/commission',
+        { symbol },
+        true,
+        WEIGHT.accountCommission,
+      );
     },
     async getDepth(symbol, limit) {
       return call<OrderBookDto>('GET', '/api/v3/depth', { symbol, limit }, false, WEIGHT.depth);

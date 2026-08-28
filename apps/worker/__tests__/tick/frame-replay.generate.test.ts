@@ -97,7 +97,6 @@ const ttTuple: FrameTuple = {
     quoteAsset: 'USDT',
     weightLimit1m: 1200,
     needsAccountDeployedQuote: false,
-    reserveBaseQuantity: null,
     config: parsedConfig,
   },
   decisions: [],

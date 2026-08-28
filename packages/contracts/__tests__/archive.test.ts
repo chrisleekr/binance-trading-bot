@@ -6,6 +6,9 @@ import {
   ProfileArchiveListResponse,
   rollupByExitIntent,
   rollupBySource,
+  summarizeClosedTrades,
+  TradeArchiveResponse,
+  weakestFeeBasis,
 } from '../src/archive.js';
 
 /** Build a rollup input row, defaulting the fields a given assertion doesn't care about. */
@@ -13,6 +16,7 @@ function item(partial: Partial<ArchiveRollupItem> & { profit: string }): Archive
   return {
     quoteAsset: 'USDT',
     source: 'auto',
+    feeBasis: 'exact',
     orders: [{ side: 'SELL', intent: 'grid-sell' }],
     ...partial,
   };
@@ -230,6 +234,7 @@ describe('rollupByExitIntent', () => {
       grossProfit: '0',
       grossLoss: '5',
       totalFees: '0',
+      feeBasis: 'exact',
     });
     expect(rollup).toContainEqual({
       quoteAsset: 'USDT',
@@ -242,6 +247,7 @@ describe('rollupByExitIntent', () => {
       grossProfit: '0.4',
       grossLoss: '0',
       totalFees: '0',
+      feeBasis: 'exact',
     });
   });
 
@@ -264,6 +270,7 @@ describe('rollupByExitIntent', () => {
         grossProfit: '3',
         grossLoss: '0.5',
         totalFees: '0',
+        feeBasis: 'exact',
       },
     ]);
   });
@@ -282,6 +289,7 @@ describe('rollupByExitIntent', () => {
         grossProfit: '0',
         grossLoss: '0',
         totalFees: '0',
+        feeBasis: 'exact',
       },
     ]);
   });
@@ -333,6 +341,7 @@ describe('rollupBySource', () => {
         grossProfit: '3',
         grossLoss: '1',
         totalFees: '0',
+        feeBasis: 'exact',
       },
       {
         quoteAsset: 'USDT',
@@ -345,6 +354,7 @@ describe('rollupBySource', () => {
         grossProfit: '0.5',
         grossLoss: '0',
         totalFees: '0',
+        feeBasis: 'exact',
       },
     ]);
   });
@@ -370,6 +380,7 @@ describe('rollupByExitIntent net-of-fee classification', () => {
         grossProfit: '0',
         grossLoss: '0.5',
         totalFees: '1.5',
+        feeBasis: 'exact',
       },
     ]);
   });
@@ -387,6 +398,18 @@ describe('rollupByExitIntent net-of-fee classification', () => {
     expect(b?.wins).toBe(2);
     expect(b?.grossProfit).toBe('4.5');
   });
+
+  it('propagates incompleteness independently of a numeric zero subtotal', () => {
+    const completeZero = rollupByExitIntent([
+      item({ profit: '1', feesQuote: '0', feeBasis: 'exact' }),
+    ])[0];
+    const incompleteZero = rollupByExitIntent([
+      item({ profit: '1', feesQuote: '0', feeBasis: 'unknown' }),
+    ])[0];
+    expect(completeZero?.feeBasis).toBe('exact');
+    expect(incompleteZero?.feeBasis).toBe('unknown');
+    expect(completeZero?.netProfit).toBe(incompleteZero?.netProfit);
+  });
 });
 
 describe('ProfileArchiveListResponse', () => {
@@ -403,5 +426,134 @@ describe('ProfileArchiveListResponse', () => {
     // The other half of the same distinction: a producer that DID compute the set and found nothing must not be flattened into "absent" either, or the fix would trade one ambiguity for its mirror image.
     const parsed = ProfileArchiveListResponse.parse({ ...minimal, recoverableSymbols: [] });
     expect(parsed.recoverableSymbols).toEqual([]);
+  });
+});
+
+describe('TradeArchiveResponse', () => {
+  it('declares no profitPercent, so no consumer can render a percentage on the wrong basis', () => {
+    // A percentage is a view of a basis choice, not data. While the server sent one it was gross by construction, and every consumer that forgot to re-derive it under the Net/Gross toggle put a net amount beside a gross percent. Deleting the field makes that class of mistake unrepresentable rather than merely fixed at today's call sites, and a runtime shape assertion is the evidence for that: a type-only claim would not be checked in the test files or the untyped fixtures that feed this response.
+    expect(Object.keys(TradeArchiveResponse.shape)).not.toContain('profitPercent');
+    // The fields the percentage is derived FROM must still be there, or the assertion above would also pass on an empty schema.
+    expect(Object.keys(TradeArchiveResponse.shape)).toEqual(
+      expect.arrayContaining(['profit', 'netProfit', 'totalBuyQuote', 'missingCostBasis']),
+    );
+  });
+
+  it('defaults a legacy payload to incomplete instead of promoting its numeric zero', () => {
+    const parsed = TradeArchiveResponse.parse({
+      id: '11111111-1111-4111-8111-111111111111',
+      symbol: 'BTCUSDT',
+      baseAsset: 'BTC',
+      quoteAsset: 'USDT',
+      totalBuyQuote: '100',
+      totalSellQuote: '101',
+      breakdown: {},
+      fees: { BTC: '0.001' },
+      feesQuote: '0',
+      netProfit: '1',
+      profit: '1',
+      archivedAt: '2026-08-25T00:00:00.000Z',
+    });
+    expect(parsed.feeBasis).toBe('unknown');
+    expect(parsed.feesQuote).toBe('0');
+  });
+});
+
+describe('weakestFeeBasis', () => {
+  // Direction is the whole content of this function, and it is invisible on a fixture whose tiers all agree: rank-max and rank-min return the same answer there. Every unordered pair is asserted in both argument orders so a fold that happens to read its arguments the other way round is not accidentally excused.
+  it.each([
+    ['exact', 'estimated', 'estimated'],
+    ['exact', 'unknown', 'unknown'],
+    ['estimated', 'unknown', 'unknown'],
+  ])('folds %s with %s to %s, in either order', (a, b, weakest) => {
+    expect(weakestFeeBasis(a, b)).toBe(weakest);
+    expect(weakestFeeBasis(b, a)).toBe(weakest);
+  });
+
+  it('canonicalises a tier this build does not recognise instead of passing it through', () => {
+    // Returning the input verbatim is the fail-open direction: consumers gate by equality against the three known spellings, so an unrecognised string satisfies neither the withholding branch nor the estimated marker and renders as fully proven. It has to come back as the tier its rank names.
+    expect(weakestFeeBasis('partial', 'exact')).toBe('unknown');
+    expect(weakestFeeBasis('exact', 'partial')).toBe('unknown');
+    expect(weakestFeeBasis('partial', 'bogus')).toBe('unknown');
+  });
+
+  it('leaves a pair that already agrees alone', () => {
+    expect(weakestFeeBasis('exact', 'exact')).toBe('exact');
+    expect(weakestFeeBasis('estimated', 'estimated')).toBe('estimated');
+    expect(weakestFeeBasis('unknown', 'unknown')).toBe('unknown');
+  });
+});
+
+describe('rollup fee-basis fold', () => {
+  /** A rollup row at one tier. Built inline rather than through `item`, so the tier is the only thing these cases vary. */
+  const tiered = (feeBasis: string, profit = '1'): ArchiveRollupItem =>
+    ({
+      quoteAsset: 'USDT',
+      source: 'auto',
+      profit,
+      feeBasis,
+      orders: [{ side: 'SELL', intent: 'grid-sell' }],
+    }) as ArchiveRollupItem;
+
+  it('reports the WEAKEST tier present when a bucket mixes tiers', () => {
+    // A bucket is only as trustworthy as its worst row: one estimated cycle makes the bucket's profit factor an estimate, whatever the other rows proved.
+    expect(rollupByExitIntent([tiered('exact'), tiered('estimated')])[0]?.feeBasis).toBe(
+      'estimated',
+    );
+    expect(rollupByExitIntent([tiered('estimated'), tiered('unknown')])[0]?.feeBasis).toBe(
+      'unknown',
+    );
+    expect(rollupByExitIntent([tiered('exact'), tiered('unknown')])[0]?.feeBasis).toBe('unknown');
+  });
+
+  it('reports exact for a bucket whose rows are all exact', () => {
+    // The accumulate identity. Seeded at anything weaker, a bucket of fully-proven rows reports itself as an estimate and every statistic derived from it gets marked for a doubt that does not exist. The mixed-tier case above passes under that mutation, which is why both are here.
+    expect(rollupByExitIntent([tiered('exact'), tiered('exact')])[0]?.feeBasis).toBe('exact');
+    expect(rollupBySource([tiered('exact'), tiered('exact')])[0]?.feeBasis).toBe('exact');
+  });
+
+  it('reports exact for an empty rollup summary', () => {
+    // Nothing to distrust. This is the arm that preserves today's `coalesce(..., true)` reading, and it is where a rank-minimum over an empty set silently flips the meaning.
+    expect(summarizeClosedTrades([]).feeBasis).toBe('exact');
+  });
+});
+
+describe('TradeArchiveResponse fee basis', () => {
+  it("defaults an omitted tier to 'unknown', never to exact", () => {
+    // A producer that does not send the field has told us nothing about its fee evidence. Defaulting to `exact` would promote every legacy payload to a certified Net P/L on no evidence at all — the same direction the retired completeness boolean's `false` was chosen for.
+    const parsed = TradeArchiveResponse.parse({
+      id: '11111111-1111-4111-8111-111111111111',
+      symbol: 'BTCUSDT',
+      baseAsset: 'BTC',
+      quoteAsset: 'USDT',
+      totalBuyQuote: '100',
+      totalSellQuote: '101',
+      breakdown: {},
+      fees: { BTC: '0.001' },
+      feesQuote: '0',
+      netProfit: '1',
+      profit: '1',
+      archivedAt: '2026-08-25T00:00:00.000Z',
+    });
+    expect(parsed.feeBasis).toBe('unknown');
+  });
+
+  it('carries an explicitly sent tier through unchanged', () => {
+    const parsed = TradeArchiveResponse.parse({
+      id: '11111111-1111-4111-8111-111111111111',
+      symbol: 'BTCUSDT',
+      baseAsset: 'BTC',
+      quoteAsset: 'USDT',
+      totalBuyQuote: '100',
+      totalSellQuote: '101',
+      breakdown: {},
+      fees: { USDT: '0.5' },
+      feesQuote: '0.5',
+      netProfit: '0.5',
+      profit: '1',
+      feeBasis: 'estimated',
+      archivedAt: '2026-08-25T00:00:00.000Z',
+    });
+    expect(parsed.feeBasis).toBe('estimated');
   });
 });

@@ -1,10 +1,10 @@
 # Live gate
 
-![Live gate tab](../../assets/screenshots/user-guide/profile-live-gate.png)
+![Live gate section](../../assets/screenshots/user-guide/profile-live-gate.png)
 
-_The Live gate tab. An advisory quality check on the latest backtest before the profile trades live. Seeded demo data, not a real account._
+_The Live gate section. An advisory quality check on the latest backtest before the profile trades live. Seeded demo data, not a real account._
 
-The **Live gate** tab (header "Backtest quality check") is an **advisory** readiness check. It tells you whether the profile's most recent backtest on its current settings clears a set of net-of-fee quality bars.
+The **Live gate** section is an **advisory** readiness check. It tells you whether the profile's most recent backtest on its current settings clears a set of net-of-fee quality bars.
 
 !!! info "The gate never blocks going live"
 
@@ -12,7 +12,7 @@ The **Live gate** tab (header "Backtest quality check") is an **advisory** readi
     the dashboard, not a lock. You can go live with a failing or absent check — the gate
     just tells you whether the config has proven itself first.
 
-Unlike the strategy and risk tabs, this panel is hand-built, so the fields below are listed by hand rather than generated. Labels and help are quoted from the panel.
+Unlike the strategy and risk sections, this panel is hand-built, so the fields below are listed by hand rather than generated. Labels and help are quoted from the panel.
 
 ## Backtest quality check
 

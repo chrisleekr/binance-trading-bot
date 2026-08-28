@@ -143,7 +143,7 @@ export const explainDiscovery = (
 ): DiscoveryExplain => {
   const { tickers, klinesBySymbol, currentAuto, lastFlattenAtMsBySymbol, config, nowMs } = input;
   const shortlist = shortlistByTicker(tickers, config);
-  const manualMembers = input.manualMembers ?? [];
+  const pinnedMembers = input.pinnedMembers ?? [];
   const allowAdds = marketBreadthOk(tickers, config);
   // Same universe ranking `shortlistByTicker` built internally, so a candidate's
   // per-filter breakdown cannot disagree with the shortlist it produced.
@@ -161,7 +161,7 @@ export const explainDiscovery = (
     lastFlattenAtMsBySymbol,
     config,
     nowMs,
-    manualMembers,
+    pinnedMembers,
     allowAdds,
     skipReasons,
   );
@@ -182,12 +182,12 @@ export const explainDiscovery = (
   const addSet = new Set(effectiveDiff.add);
   const removeSet = new Set(effectiveDiff.remove);
   const currentSet = new Set(currentAuto.map((c) => c.symbol));
-  // Pinned (manual) symbols are operator-managed, not discovery candidates:
+  // Pinned symbols are operator-protected, not discovery candidates:
   // exclude them from the universe so they never read as "slot-capped"/"rejected".
-  const manualSet = new Set(manualMembers);
+  const pinnedSet = new Set(pinnedMembers);
 
   const symbols = [...new Set([...shortlist, ...currentAuto.map((c) => c.symbol)])].filter(
-    (s) => !manualSet.has(s),
+    (s) => !pinnedSet.has(s),
   );
   const candidates: CandidateExplain[] = symbols.map((symbol) => {
     const t = tickerBySymbol.get(symbol);

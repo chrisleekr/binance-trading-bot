@@ -190,6 +190,27 @@ describe('DiscoveryDashboardResponse', () => {
     expect(res.autoSymbols).toEqual([]);
     // Absent flag defaults to "config is valid".
     expect(res.configInvalid).toBe(false);
+    expect(res.scoreboard.feeBasis).toBe('unknown');
+    expect(res.scoreboard.feeBasis7d).toBe('unknown');
+  });
+
+  it("defaults both fee tiers to 'unknown' when the producer omits them", () => {
+    // Silence is not evidence. A default of `exact` would let a payload that never computed fee provenance light up profit factor, payoff and expectancy on a scorecard the operator reads as proven.
+    const res = DiscoveryDashboardResponse.parse({
+      config: {},
+      quoteAsset: 'USDT',
+      scoreboard: {
+        realizedProfit: '0',
+        realizedProfitPercent: '0',
+        tradeCount: 0,
+        winRate: 0,
+        realizedProfit7d: '0',
+        tradeCount7d: 0,
+      },
+      gauge: { deployedQuote: '0', maxAccountExposureQuote: null, autoSymbolCount: 0 },
+    });
+    expect(res.scoreboard.feeBasis).toBe('unknown');
+    expect(res.scoreboard.feeBasis7d).toBe('unknown');
   });
 });
 
@@ -209,6 +230,11 @@ describe('DiscoveryScoreboardResponse', () => {
     const res = DiscoveryScoreboardResponse.parse(valid);
     expect(res.tradeCount).toBe(9);
     expect(res.winRate).toBe(0.5);
+    expect(res.feeBasis).toBe('unknown');
+  });
+
+  it("defaults the ranged scoreboard's fee tier to 'unknown'", () => {
+    expect(DiscoveryScoreboardResponse.parse(valid).feeBasis).toBe('unknown');
   });
 
   it('defaults bySource to an empty array when absent', () => {

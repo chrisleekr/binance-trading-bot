@@ -19,6 +19,8 @@ import type { ActiveProfile } from 'profile-manager/profile-manager.js';
 import type { MetricsSink } from 'metrics/catalog.js';
 import { AssetPolicyAbortError, type AssetPolicy } from './asset-policy.js';
 import type { SymbolAdmission } from './symbol-admission.js';
+import { DISCOVERY_REAP_OUTCOMES } from '../discovery-reap.js';
+import type { DiscoveryCycleResult } from './run.js';
 
 /**
  * A profile's loaded discovery settings: the stored config plus the profile's
@@ -62,7 +64,7 @@ export interface DiscoveryHandlerDeps {
     nowMs: number,
     getAllTickers: () => Promise<readonly Ticker24hrDto[]>,
     ctx: ProfileWakeContext,
-  ) => Promise<{ added: number; removed: number }>;
+  ) => Promise<DiscoveryCycleResult>;
   /** All-symbols 24h ticker fetch (exchange-account-wide); shared once per wake. */
   readonly fetchAllTickers: () => Promise<readonly Ticker24hrDto[]>;
   /**
@@ -158,6 +160,13 @@ export const discoveryHandler =
             cause,
           });
         }
+        // Same reason, same place: seeded before the cycle can refuse anything, so the first refusal a fresh process sees is a rise from zero rather than the birth of a child that has "always" read 1. Seeding after the cycle would leave exactly the first refusal invisible, and on a slow refresh period that is the one an alert most needs.
+        for (const outcome of DISCOVERY_REAP_OUTCOMES) {
+          deps.metrics.record('discovery_reap_outcome_total', 0, {
+            profileId: unwrapId(p.profileId),
+            outcome,
+          });
+        }
         const accountKey = String(unwrapId(p.accountId));
         let mode = modeByAccount.get(accountKey);
         if (mode === undefined) {
@@ -194,10 +203,19 @@ export const discoveryHandler =
           accountPermissions: await cachedPermissions,
         });
         await deps.clearAssetPolicyAbort(p);
-        if (r.added > 0 || r.removed > 0) {
+        // Refusals log too, not just rotations. A cycle that only refused used to log nothing at all, so the operator whose coin list had stopped moving had a metric they never look at and a silent log. `pinned` and `not-found` have no other diagnosis surface, and the whole tally rides the payload so one line answers "what did this cycle actually do".
+        const refused = Object.entries(r.reapOutcomes).filter(
+          ([outcome, count]) => outcome !== 'removed' && count > 0,
+        );
+        if (r.added > 0 || r.removed > 0 || refused.length > 0) {
           deps.logger.info(
-            { profileId: unwrapId(p.profileId), added: r.added, removed: r.removed },
-            'cron discovery: rotated auto-set',
+            {
+              profileId: unwrapId(p.profileId),
+              added: r.added,
+              removed: r.removed,
+              reapOutcomes: r.reapOutcomes,
+            },
+            'cron discovery: auto-set cycle applied',
           );
         }
       } catch (err) {

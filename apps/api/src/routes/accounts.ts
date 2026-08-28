@@ -99,9 +99,10 @@ export const accountsRouter = (di: DI): ApiHono => {
   const app = createApiHono();
   app.use('/accounts', requireUser());
   app.use('/accounts/*', requireUser());
-  // Creating an account could add a live-mode key pair to a demo box — off in
-  // demo. Only the create verb is locked; reads stay open (the sandbox).
+  // Creating an account could add a live-mode key pair to a demo box. Rename and delete are writes too, and on a demo box they act on the one account the whole sandbox is: a rename defaces it, and a delete cascades every child profile away until the nightly restore. Reads stay open.
   app.on('POST', '/accounts', requireNotDemo(di));
+  app.on('PATCH', '/accounts/:accountId', requireNotDemo(di));
+  app.on('DELETE', '/accounts/:accountId', requireNotDemo(di));
 
   app.openapi(listRoute, async (c) => {
     const operatorId = userIdOf(c);

@@ -16,9 +16,8 @@ import {
 } from '@/features/dashboard/api/dashboard';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
 import { useTimezone } from '@/shared/context/timezone-context';
-import { PNL_TONE, PnlValue } from '@/shared/components/pnl-value';
+import { PnlPercent, PnlValue } from '@/shared/components/pnl-value';
 import { cn } from '@/shared/lib/cn';
-import { signOf } from '@/shared/lib/format';
 import { t } from '@/shared/lib/i18n';
 
 import type {
@@ -89,7 +88,6 @@ function QuotePnlRow({
 /** One held coin: base symbol, unrealised P/L amount, and percent in the same
  * green-up / red-down tone. */
 function Coin({ holding }: { holding: CoinHolding }) {
-  const pctSign = signOf(holding.pnlPercent);
   return (
     <span
       className="flex items-center gap-1.5"
@@ -98,10 +96,7 @@ function Coin({ holding }: { holding: CoinHolding }) {
       <span className={cn(VALUE, 'font-semibold text-fg')}>{holding.base}</span>
       <PnlValue value={holding.pnl} unit={holding.quote} className={VALUE} />
       {holding.pnlPercent !== '' && Number(holding.pnlPercent) !== 0 ? (
-        <span className={cn(VALUE, PNL_TONE[pctSign])}>
-          {pctSign === 'pos' ? '+' : ''}
-          {holding.pnlPercent}%
-        </span>
+        <PnlPercent value={holding.pnlPercent} className={VALUE} />
       ) : null}
     </span>
   );

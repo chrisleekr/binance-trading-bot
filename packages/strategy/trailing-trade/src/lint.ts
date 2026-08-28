@@ -117,7 +117,7 @@ export const lintTTConfig = (config: TTConfig): readonly ConfigDiagnostic[] => {
   // A technicals row that allows "Buy" but not "Strong Buy" silently blocks the
   // STRONG_BUY reading — the strongest bullish signal — and the buy gate logs it
   // as a veto (`technicals-disallowed`). Allowing a weaker bull level while
-  // rejecting the stronger one is almost never intended (this is the #534 trap
+  // rejecting the stronger one is almost never intended (this is the trap
   // where a 15m Strong-Buy was vetoed and read as a sell). The reverse — only
   // Strong Buy checked — is a coherent "be more selective" choice and is left
   // alone. Fires per offending interval row.

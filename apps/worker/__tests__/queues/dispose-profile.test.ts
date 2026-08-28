@@ -50,7 +50,9 @@ const position = (over: Record<string, unknown> = {}) => ({
   avgEntryPrice: '0.30',
   quantity: '189.87',
   overrideConfig: null,
-  reserveBaseQuantity: null,
+  source: 'auto' as const,
+  pinned: false,
+  pinnedAt: null,
   ...over,
 });
 
@@ -475,6 +477,86 @@ describe('handleDisposeProfile', () => {
     // profile, so the target's strategy could never recognise them.
     expect(target.orders.listLiveForProfile).not.toHaveBeenCalled();
     expect(source.profile.deleteById).toHaveBeenCalledOnce();
+  });
+
+  it("a handoff carries the source binding's provenance and pin verbatim", async () => {
+    // A handoff re-points a position between profiles; it does not re-author the binding. Re-stamping it `manual`/pinned (the old behaviour) both credited the operator with a coin discovery chose and silently granted a rotation exemption the source never had.
+    const at = new Date('2026-08-20T00:00:00.000Z');
+    const source = mkRepo({
+      profileSymbols: {
+        listForProfile: vi.fn(async () => [
+          {
+            symbol: 'ENAUSDT',
+            baseAsset: 'ENA',
+            overrideConfig: null,
+            source: 'auto',
+            pinned: true,
+            pinnedAt: at,
+          },
+        ]),
+        remove: vi.fn(),
+        upsert: vi.fn(),
+      },
+      avgEntryPrices: {
+        listForProfile: vi.fn(async () => [
+          { symbol: 'ENAUSDT', avgEntryPrice: '0.30', quantity: '189.87' },
+        ]),
+        remove: vi.fn(),
+        upsert: vi.fn(),
+      },
+    });
+    const target = mkRepo(
+      {
+        profileSymbols: { listForProfile: vi.fn(async () => []), remove: vi.fn(), upsert: vi.fn() },
+        avgEntryPrices: { listForProfile: vi.fn(async () => []), remove: vi.fn(), upsert: vi.fn() },
+      },
+      TARGET,
+    );
+    wire(source, target);
+
+    await handleDisposeProfile(
+      mkDeps(),
+      payload({ disposition: 'handoff', toProfileId: TARGET } as Partial<DisposePayload>),
+    );
+
+    expect(target.profileSymbols.upsert).toHaveBeenCalledWith(
+      'ENAUSDT',
+      'ENA',
+      expect.objectContaining({ source: 'auto', pinned: true, pinnedAt: at }),
+    );
+  });
+
+  it('a handoff of a position whose binding is already gone lands UNKNOWN and unpinned', async () => {
+    // No binding row means no provenance left to read and nobody to credit. Unpinned is the safe half: the target rotates the coin like any other rather than inheriting a protection nobody granted.
+    const source = mkRepo({
+      profileSymbols: { listForProfile: vi.fn(async () => []), remove: vi.fn(), upsert: vi.fn() },
+      avgEntryPrices: {
+        listForProfile: vi.fn(async () => [
+          { symbol: 'ENAUSDT', avgEntryPrice: '0.30', quantity: '189.87' },
+        ]),
+        remove: vi.fn(),
+        upsert: vi.fn(),
+      },
+    });
+    const target = mkRepo(
+      {
+        profileSymbols: { listForProfile: vi.fn(async () => []), remove: vi.fn(), upsert: vi.fn() },
+        avgEntryPrices: { listForProfile: vi.fn(async () => []), remove: vi.fn(), upsert: vi.fn() },
+      },
+      TARGET,
+    );
+    wire(source, target);
+
+    await handleDisposeProfile(
+      mkDeps(),
+      payload({ disposition: 'handoff', toProfileId: TARGET } as Partial<DisposePayload>),
+    );
+
+    expect(target.profileSymbols.upsert).toHaveBeenCalledWith(
+      'ENAUSDT',
+      'ENA',
+      expect.objectContaining({ source: 'unknown', pinned: false, pinnedAt: null }),
+    );
   });
 
   it('a handoff with no target refuses rather than delete the exposure into the void', async () => {
@@ -1589,7 +1671,7 @@ describe('handleDisposeProfile', () => {
     const source = mkRepo({
       profileSymbols: {
         listForProfile: vi.fn(async () => [
-          { symbol: 'ENAUSDT', baseAsset: 'ENA', overrideConfig: null, reserveBaseQuantity: null },
+          { symbol: 'ENAUSDT', baseAsset: 'ENA', overrideConfig: null },
         ]),
         remove: vi.fn(async () => undefined),
         upsert: vi.fn(),
@@ -1650,39 +1732,6 @@ describe('handleDisposeProfile', () => {
     expect(strippedSource.profile.deleteById).toHaveBeenCalledOnce();
   });
 
-  it("carries the operator's reserve to the target — those coins are ringfenced, not tradeable", async () => {
-    const source = mkRepo({
-      profileSymbols: {
-        listForProfile: vi.fn(async () => [
-          { symbol: 'ENAUSDT', baseAsset: 'ENA', overrideConfig: null, reserveBaseQuantity: '50' },
-        ]),
-        remove: vi.fn(async () => undefined),
-        upsert: vi.fn(),
-      },
-      avgEntryPrices: {
-        listForProfile: vi.fn(async () => [
-          { symbol: 'ENAUSDT', avgEntryPrice: '0.30', quantity: '189.87' },
-        ]),
-        findBySymbol: vi.fn(async () => null),
-        remove: vi.fn(async () => undefined),
-        upsert: vi.fn(),
-      },
-    });
-    const target = mkRepo({}, TARGET);
-    wire(source, target);
-
-    await handleDisposeProfile(
-      mkDeps(),
-      payload({ disposition: 'handoff', toProfileId: TARGET } as Partial<DisposePayload>),
-    );
-
-    expect(target.profileSymbols.upsert).toHaveBeenCalledWith(
-      'ENAUSDT',
-      'ENA',
-      expect.objectContaining({ reserveBaseQuantity: '50' }),
-    );
-  });
-
   it('hands off a HELD BUT UNPRICED symbol — a binding with no cost basis still owns coins', async () => {
     // The mirror of the missing-binding case. Cost-basis reconstruction can fail (a
     // throwing `getMyTrades`), leaving a bound symbol whose coins nothing prices.
@@ -1691,7 +1740,7 @@ describe('handleDisposeProfile', () => {
     const source = mkRepo({
       profileSymbols: {
         listForProfile: vi.fn(async () => [
-          { symbol: 'ENAUSDT', baseAsset: 'ENA', overrideConfig: null, reserveBaseQuantity: null },
+          { symbol: 'ENAUSDT', baseAsset: 'ENA', overrideConfig: null },
         ]),
         remove: vi.fn(async () => undefined),
         upsert: vi.fn(),

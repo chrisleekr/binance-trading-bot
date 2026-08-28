@@ -86,6 +86,18 @@ describe('SymbolDiscoveryStatus', () => {
     expect(screen.queryByTestId('symbol-discovery-status')).not.toBeInTheDocument();
   });
 
+  // The panel shows for every unpinned binding, including ones the operator added and ones the bot re-created after a late fill. A provenance word here would be a lie for both, so the badge must state rotation.
+  it('labels the coin by rotation, not by who added it', async () => {
+    setUp({ ...baseDashboard, autoSymbols: ['WLDUSDT'] });
+    const panel = await screen.findByTestId('symbol-discovery-status');
+    expect(panel).toHaveTextContent(/in rotation/i);
+    expect(panel).not.toHaveTextContent(/auto-discovered/i);
+    expect(screen.getByLabelText('WLDUSDT in rotation')).toHaveAttribute(
+      'title',
+      'Auto-discovery may rotate this coin out. Pin it to keep it.',
+    );
+  });
+
   it('says a held coin is never auto-removed while not flat', async () => {
     setUp({ ...baseDashboard, autoSymbols: ['WLDUSDT'] }, false);
     const panel = await screen.findByTestId('symbol-discovery-status');

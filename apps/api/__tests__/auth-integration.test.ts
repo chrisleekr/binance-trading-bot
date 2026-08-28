@@ -6,7 +6,7 @@ import { audit } from '../src/middleware/audit.js';
 import { sessionResolver } from '../src/middleware/auth.js';
 import { errorHandler } from '../src/middleware/error.js';
 import { authRouter } from '../src/routes/auth.js';
-import { createLogger } from '../src/middleware/logger.js';
+import { pino as createPino } from 'pino';
 import type { Env } from '../src/types.js';
 import { HAS_INFRA, setupApp, type ApiFixture } from './_helpers.js';
 
@@ -63,7 +63,8 @@ describeIfInfra('auth integration — sign-up → change-password → re-sign-in
     // Compose an app variant that uses the production session resolver
     // (cookie-driven), not the test header shortcut. Better Auth needs a
     // real cookie round-trip to authenticate change-password.
-    const logger = createLogger({ level: 'silent' });
+    // Bare pino, as `_helpers.ts` does: `createLogger` types its level as `pino.Level`, which has no `silent`, and nothing here asserts on log output, only that the error handler stays quiet.
+    const logger = createPino({ level: 'silent' });
     app = new OpenAPIHono<Env>();
     // onError, not the legacy `errorEnvelope` middleware: that form's
     // `instanceof HttpError` check fails under Vitest's dual module identities,

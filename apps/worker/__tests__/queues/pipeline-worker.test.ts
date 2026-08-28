@@ -5,10 +5,17 @@ import type { Logger } from 'pino';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import { BinanceApiError } from '@app/binance';
 import { GLOBAL_KEYS, profileRepo, ProfileNotOwnedError } from '@app/db';
-import { Decimal } from '@app/money';
 
-import { reconcileHeldQuantity } from '../../src/boot/reconcile-held-quantity.js';
-import { registerPipelineWorker } from '../../src/queues/pipeline-worker.js';
+import {
+  reconcileHeldQuantity,
+  resolveWalletFields,
+} from '../../src/boot/reconcile-held-quantity.js';
+import { Decimal } from '@app/money';
+import { isPhantomLedgerRow } from '../../src/boot/revive-avg-entry-price.js';
+import {
+  APPLY_SEED_GATE_STAND_DOWN_REASONS,
+  registerPipelineWorker,
+} from '../../src/queues/pipeline-worker.js';
 import { buildSymbolInfoKey } from '../../src/executor/redis-namespace.js';
 import { createChainByKey } from '../../src/lib/chain-by-key.js';
 import type { ChainByKey } from '../../src/lib/chain-by-key.js';
@@ -24,6 +31,7 @@ import type { PipelineWorkerDeps } from '../../src/queues/pipeline-worker.js';
 // `ProfileRepo` stub whose nested methods are these spies. Each test
 // resets them via buildHarness.
 const repoMocks = vi.hoisted(() => ({
+  conditionRecordCondition: vi.fn(async () => ({ changed: false, sinceMs: null })),
   ordersFindById: vi.fn(),
   ordersListLiveForSymbol: vi.fn(),
   ordersListRecoveryAttributionRows: vi.fn(),
@@ -84,6 +92,8 @@ vi.mock('@app/db', async (importOriginal) => {
         recordBackfillAttempt: repoMocks.tradeArchiveRecordBackfillAttempt,
         attemptBoundary: repoMocks.tradeArchiveAttemptBoundary,
       },
+      // The apply job opens and clears the seed-refusal condition on the exits that resolved a profile, so the scope stub carries the store even for cases that assert nothing about it.
+      conditionStates: { recordCondition: repoMocks.conditionRecordCondition },
       avgEntryPrices: {
         remove: repoMocks.avgEntryPricesRemove,
         findBySymbol: repoMocks.avgEntryPricesFindBySymbol,
@@ -140,6 +150,7 @@ interface Harness {
   chainKeys: string[];
   persistedSymbolStates: { symbol: string; state: unknown; version: string }[];
   reconcileOwnership: ReturnType<typeof vi.fn>;
+  metrics: { record: ReturnType<typeof vi.fn>; forget: ReturnType<typeof vi.fn> };
 }
 
 // Schema-agnostic stand-in for a strategy with the position capability and the
@@ -299,7 +310,7 @@ const buildHarness = (
     reconcileOwnership,
     // The reconfigure/disable notify wrapper resolves providers through this; no test here drives a notification, so an empty registry is the whole surface they need.
     notifyRegistry: {} as PipelineWorkerDeps['notifyRegistry'],
-    // Required by the dep bag because the mid-run reconcile below records position removals through it; no case here asserts a counter, so a no-op is the whole surface needed.
+    // Returned on the harness as well, so a case can assert the zero-seed and the increment a labelled counter needs in order to be readable at all.
     metrics: { record: vi.fn(), forget: vi.fn() },
   } satisfies PipelineWorkerDeps;
   registerPipelineWorker(queueSet, deps);
@@ -325,6 +336,7 @@ const buildHarness = (
     chainKeys,
     persistedSymbolStates,
     reconcileOwnership,
+    metrics: deps.metrics,
   };
 };
 
@@ -466,7 +478,6 @@ describe('pipeline-worker dispatch', () => {
       totalSellQuote: '110',
       breakdown: { 'grid-buy:BUY': '100', 'grid-sell:SELL': '110' },
       profit: '10',
-      profitPercent: '10',
       orderCount: 2,
       missingCostBasis: 0,
     });
@@ -478,9 +489,13 @@ describe('pipeline-worker dispatch', () => {
         intent: 'grid-buy',
         side: 'BUY',
         status: 'FILLED',
+        baseCommissionNetted: '0.001',
         meta: { gridTradeIndex: 0 },
         closedAt: new Date('2026-05-13T00:00:00Z'),
-        raw: { cummulativeQuoteQty: '100' },
+        raw: {
+          executedQty: '1',
+          cummulativeQuoteQty: '100',
+        },
       },
       {
         id: 'r2',
@@ -489,9 +504,10 @@ describe('pipeline-worker dispatch', () => {
         intent: 'grid-sell',
         side: 'SELL',
         status: 'FILLED',
+        baseCommissionNetted: null,
         meta: null,
         closedAt: new Date('2026-05-13T00:01:00Z'),
-        raw: { cummulativeQuoteQty: '110' },
+        raw: { executedQty: '1', cummulativeQuoteQty: '110' },
       },
     ]);
     repoMocks.tradeArchiveInsert.mockResolvedValueOnce({ id: 'archive-1' });
@@ -502,10 +518,50 @@ describe('pipeline-worker dispatch', () => {
     // myTrades carries both archived orders plus a stray older-cycle trade
     // (orderId 99) that must NOT be summed into the fees.
     repoMocks.binanceGetMyTrades.mockResolvedValueOnce([
-      { orderId: 1, commission: '0.001', commissionAsset: 'BNB' },
-      { orderId: 2, commission: '0.0015', commissionAsset: 'BNB' },
-      { orderId: 2, commission: '0.11', commissionAsset: 'USDT' },
-      { orderId: 99, commission: '5', commissionAsset: 'USDT' },
+      {
+        id: 10,
+        orderId: 1,
+        symbol: 'BTCUSDT',
+        price: '100',
+        qty: '1',
+        quoteQty: '100',
+        commission: '0.001',
+        commissionAsset: 'BTC',
+        isBuyer: true,
+      },
+      {
+        id: 20,
+        orderId: 2,
+        symbol: 'BTCUSDT',
+        price: '110',
+        qty: '0.5',
+        quoteQty: '55',
+        commission: '0.05',
+        commissionAsset: 'USDT',
+        isBuyer: false,
+      },
+      {
+        id: 21,
+        orderId: 2,
+        symbol: 'BTCUSDT',
+        price: '110',
+        qty: '0.5',
+        quoteQty: '55',
+        commission: '0.06',
+        commissionAsset: 'USDT',
+        isBuyer: false,
+      },
+      {
+        id: 990,
+        orderId: 99,
+        symbol: 'BTCUSDT',
+        price: '1',
+        qty: '1',
+        quoteQty: '1',
+        commission: '5',
+        commissionAsset: 'USDT',
+        isBuyer: false,
+      },
     ]);
     await h.invoke('archive-grid-trade', {
       userId: ids.userId,
@@ -523,18 +579,22 @@ describe('pipeline-worker dispatch', () => {
       baseAsset: 'BTC',
       quoteAsset: 'USDT',
       profit: '10',
-      profitPercent: '10',
       totalBuyQuote: '100',
       totalSellQuote: '110',
       breakdown: { 'grid-buy:BUY': '100', 'grid-sell:SELL': '110' },
       // Fees summed per asset over the archived orders only (orderId 99 excluded).
-      fees: { BNB: '0.0025', USDT: '0.11' },
+      fees: { BTC: '0.001', USDT: '0.11' },
+      feesQuote: '0.11',
+      feeBasis: 'exact',
       // Source stamped from the live profile_symbols binding.
       source: 'auto',
       // Cross-pod dedup key = the first closed order the handler read (rows[0]),
       // which production orders desc(closedAt) to the cycle's max close time.
       cycleEnd: new Date('2026-05-13T00:00:00Z'),
     });
+    expect(args[0]).not.toHaveProperty('profitPercent');
+    const success = h.info.find((entry) => entry.msg === 'pipeline_archive_grid_trade_ok');
+    expect(success?.ctx).not.toHaveProperty('profitPercent');
     // Every FILLED row is summarised into the generic `orders` jsonb.
     expect((args[0] as { orders: unknown[] }).orders).toHaveLength(2);
     // myTrades is scoped to the symbol and pulls the max page (limit 1000).
@@ -552,7 +612,6 @@ describe('pipeline-worker dispatch', () => {
       totalSellQuote: '110',
       breakdown: {},
       profit: '10',
-      profitPercent: '10',
       orderCount: 1,
       missingCostBasis: 0,
     });
@@ -602,7 +661,6 @@ describe('pipeline-worker dispatch', () => {
       totalSellQuote: '0',
       breakdown: { 'protective-stop:SELL': '29.01' },
       profit: '0',
-      profitPercent: '0',
       orderCount: 1,
       missingCostBasis: 1,
     });
@@ -650,7 +708,6 @@ describe('pipeline-worker dispatch', () => {
       totalSellQuote: '110',
       breakdown: { 'grid-buy:BUY': '100' },
       profit: '10',
-      profitPercent: '10',
       orderCount: 1,
     });
     repoMocks.tradeArchiveListClosedSince.mockResolvedValueOnce([
@@ -661,9 +718,10 @@ describe('pipeline-worker dispatch', () => {
         intent: 'grid-buy',
         side: 'BUY',
         status: 'FILLED',
+        baseCommissionNetted: null,
         meta: null,
         closedAt: new Date('2026-05-13T00:00:00Z'),
-        raw: { cummulativeQuoteQty: '100' },
+        raw: { executedQty: '1', cummulativeQuoteQty: '100' },
       },
     ]);
     repoMocks.profileSymbolsFindForSymbol.mockResolvedValueOnce({
@@ -697,7 +755,6 @@ describe('pipeline-worker dispatch', () => {
       totalSellQuote: '210',
       breakdown: { 'grid-buy:BUY': '200' },
       profit: '10',
-      profitPercent: '5',
       orderCount: 2,
     });
     repoMocks.tradeArchiveListClosedSince.mockResolvedValueOnce([
@@ -708,9 +765,10 @@ describe('pipeline-worker dispatch', () => {
         intent: 'grid-buy',
         side: 'BUY',
         status: 'FILLED',
+        baseCommissionNetted: null,
         meta: null,
         closedAt: new Date('2026-05-13T00:00:00Z'),
-        raw: { cummulativeQuoteQty: '100' },
+        raw: { executedQty: '1', cummulativeQuoteQty: '100' },
       },
       {
         id: 'r2',
@@ -719,6 +777,7 @@ describe('pipeline-worker dispatch', () => {
         intent: 'grid-buy',
         side: 'BUY',
         status: 'FILLED',
+        baseCommissionNetted: null,
         meta: null,
         closedAt: new Date('2026-05-13T00:01:00Z'),
         raw: { cummulativeQuoteQty: '100' },
@@ -726,7 +785,17 @@ describe('pipeline-worker dispatch', () => {
     ]);
     // Only order 1's trade survives on the page; order 2 fell off (truncation).
     repoMocks.binanceGetMyTrades.mockResolvedValueOnce([
-      { orderId: 1, commission: '0.001', commissionAsset: 'BNB' },
+      {
+        id: 10,
+        orderId: 1,
+        symbol: 'BTCUSDT',
+        price: '100',
+        qty: '1',
+        quoteQty: '100',
+        commission: '0.001',
+        commissionAsset: 'BNB',
+        isBuyer: true,
+      },
     ]);
     repoMocks.profileSymbolsFindForSymbol.mockResolvedValueOnce({
       symbol: 'BTCUSDT',
@@ -743,6 +812,7 @@ describe('pipeline-worker dispatch', () => {
     if (!args) throw new Error('expected tradeArchive.insert to be called');
     // The partial fees still land (order 1's commission).
     expect((args[0] as { fees: unknown }).fees).toEqual({ BNB: '0.001' });
+    expect((args[0] as { feeBasis: unknown }).feeBasis).toBe('unknown');
     const partial = h.warnings.find((w) => /fees_partial/.test(w.msg));
     expect(partial).toBeDefined();
     expect((partial?.ctx as { missingOrderIds: number }).missingOrderIds).toBe(1);
@@ -761,7 +831,6 @@ describe('pipeline-worker dispatch', () => {
       totalSellQuote: '110',
       breakdown: { 'grid-buy:BUY': '100' },
       profit: '10',
-      profitPercent: '10',
       orderCount: 1,
     });
     repoMocks.tradeArchiveListClosedSince.mockResolvedValueOnce([
@@ -787,8 +856,8 @@ describe('pipeline-worker dispatch', () => {
     const args = repoMocks.tradeArchiveInsert.mock.calls[0];
     if (!args) throw new Error('expected tradeArchive.insert to be called');
     expect((args[0] as { fees: unknown }).fees).toEqual({});
-    // No binding row -> source falls back to manual.
-    expect((args[0] as { source: unknown }).source).toBe('manual');
+    // No binding row, so nobody can now say who chose the coin. `unknown` rather than `manual`, which would file a cycle discovery may well have opened under the operator's column.
+    expect((args[0] as { source: unknown }).source).toBe('unknown');
     expect(h.warnings.some((w) => /fees_unavailable/.test(w.msg))).toBe(true);
     expect(repoMocks.binanceGetMyTrades).not.toHaveBeenCalled();
   });
@@ -804,7 +873,6 @@ describe('pipeline-worker dispatch', () => {
       totalSellQuote: '110',
       breakdown: { 'grid-buy:BUY': '100' },
       profit: '10',
-      profitPercent: '10',
       orderCount: 1,
     });
     repoMocks.tradeArchiveListClosedSince.mockResolvedValueOnce([
@@ -888,8 +956,10 @@ describe('pipeline-worker dispatch', () => {
     expect(h.redis.get).not.toHaveBeenCalledWith(buildSymbolInfoKey('BTCUSDT', 'live'));
   });
 
-  it('backfill-trade-archive: reconstructs a round-trip from myTrades and inserts a source=auto row', async () => {
+  it('backfill-trade-archive: reconstructs a round-trip from myTrades and inherits the binding provenance', async () => {
     const h = buildHarness();
+    // A manual binding proves the wiring end-to-end: a hard-coded `auto` in the handler passes any fixture whose binding happens to be auto, so the fixture states the other value.
+    repoMocks.profileSymbolsFindForSymbol.mockResolvedValueOnce({ source: 'manual' });
     h.redis.get.mockResolvedValueOnce(
       JSON.stringify({ symbol: 'WLDUSDT', baseAsset: 'WLD', quoteAsset: 'USDT' }),
     );
@@ -935,7 +1005,9 @@ describe('pipeline-worker dispatch', () => {
     expect(repoMocks.tradeArchiveInsert).toHaveBeenCalledTimes(1);
     const args = repoMocks.tradeArchiveInsert.mock.calls[0];
     if (!args) throw new Error('expected tradeArchive.insert to be called');
-    expect(args[0]).toMatchObject({ symbol: 'WLDUSDT', source: 'auto', profit: '-2' });
+    expect(args[0]).toMatchObject({ symbol: 'WLDUSDT', source: 'manual', profit: '-2' });
+    expect(repoMocks.profileSymbolsFindForSymbol).toHaveBeenCalledWith('WLDUSDT');
+    expect(args[0]).not.toHaveProperty('profitPercent');
     expect(repoMocks.binanceGetMyTrades).toHaveBeenCalledWith({
       symbol: 'WLDUSDT',
       fromId: 0,
@@ -1376,17 +1448,17 @@ describe('pipeline-worker dispatch', () => {
   });
 
   /**
-   * Wires the mid-run reconcile fixture the reserve cases share.
+   * Wires the mid-run reconcile fixture the reconfigure cases share.
    *
    * @param h - The harness whose redis + repo mocks are being programmed.
-   * @param opts - Wallet balance, per-symbol reserve, cached price, and the exchange filters the cached symbolInfo reports.
+   * @param opts - Wallet balance, cached price, and the exchange filters the cached symbolInfo reports.
    * @returns Nothing; the harness mocks are mutated in place.
    */
-  const armReserveReconcile = (
+  const armReconcile = (
     h: ReturnType<typeof buildHarness>,
     opts: {
       walletFree: string;
-      reserve: string;
+      walletLocked?: string;
       price: string;
       stepSize: string;
       minNotional: string;
@@ -1401,13 +1473,7 @@ describe('pipeline-worker dispatch', () => {
       strategyVersion: '1.0.0',
       config: {},
     });
-    // Both lookup shapes carry the reserve, so the assertion turns on the reserve being APPLIED rather than on which repo call the implementation happens to reach for.
-    repoMocks.profileSymbolsListForProfile.mockResolvedValue([
-      { symbol: 'BTCUSDT', reserveBaseQuantity: opts.reserve },
-    ]);
-    repoMocks.profileSymbolsFindForSymbol.mockResolvedValue({
-      reserveBaseQuantity: opts.reserve,
-    });
+    repoMocks.profileSymbolsListForProfile.mockResolvedValue([{ symbol: 'BTCUSDT' }]);
     h.redis.get.mockImplementation(async (key: string) => {
       if (key === buildSymbolInfoKey('BTCUSDT', 'live')) {
         return JSON.stringify({
@@ -1419,143 +1485,64 @@ describe('pipeline-worker dispatch', () => {
       return null;
     });
     repoMocks.binanceGetAccount.mockResolvedValue({
-      balances: [{ asset: 'BTC', free: opts.walletFree, locked: '0' }],
+      balances: [{ asset: 'BTC', free: opts.walletFree, locked: opts.walletLocked ?? '0' }],
     });
   };
 
-  it('reconfigure-profile: adopts only the tradeable surplus, never the operator reserve', async () => {
-    // The boot sweep drains the per-symbol reserve out of the wallet before adoption, so a reserved holding is never claimed as a position the strategy may sell. This path does not, which makes the same profile reconcile to two different held quantities depending on which door it came through — and the reconfigure door is the one an operator walks through immediately after setting the reserve.
-    const h = buildHarness();
-    armReserveReconcile(h, {
-      walletFree: '2',
-      reserve: '0.5',
-      price: '50',
-      stepSize: '0.0001',
-      minNotional: '10',
-    });
-    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue(null);
-    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
-    repoMocks.avgEntryPricesUpsert.mockResolvedValue(undefined);
-    repoMocks.binanceGetMyTrades.mockResolvedValue([
-      {
-        id: 1,
-        orderId: 1,
+  it.each([
+    ['flattens the crumb', '200', null],
+    ['keeps the holding', '10', '2'],
+  ])(
+    "reconfigure-profile: reconciles to the boot door's own verdict and %s",
+    async (_label, minNotional, expected) => {
+      // The two doors do NOT share a target builder. The boot sweep enumerates its own, and `handleReconfigure` hand-assembles one — supplying `stepSize`, `minNotional` and `referencePrice` itself — so the same profile can reconcile to two different held quantities depending on which door an operator walked through. Asserting against the boot reconciler's live verdict rather than a literal is what makes the two provably one rule: change the rule and both move together, or this fails.
+      //
+      // Both rows are needed. A 2-of-500 wallet is a 0.4% crumb share, so the dust VALUE bound decides the answer and the two floors put it on opposite sides: drop `minNotional` or `referencePrice` from the door's target and the bound stands down, which the first row catches; wire either to the wrong value and the second row catches it.
+      const h = buildHarness();
+      armReconcile(h, { walletFree: '2', price: '50', stepSize: '0.00001', minNotional });
+      const staleClaim = {
+        schemaVersion: '1.0.0',
+        avgEntryPrice: '50',
+        heldQuantity: '500',
+        highSinceBuy: null,
+      };
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+        avgEntryPrice: '50',
+        quantity: '500',
+      });
+      // A read returns the LAST write, as a database would: this pass writes state more than once and replaying the pre-reconcile body to the later read would hand it a position that no longer exists.
+      repoMocks.symbolStatesFindBySymbol.mockImplementation(async () => ({
         symbol: 'BTCUSDT',
-        price: '50',
-        qty: '2',
-        quoteQty: '100',
-        commission: '0',
-        commissionAsset: 'USDT',
-        time: 1000,
-        isBuyer: true,
-        isMaker: false,
-      },
-    ]);
+        strategyVersion: '1.0.0',
+        state: h.persistedSymbolStates.at(-1)?.state ?? staleClaim,
+      }));
 
-    await h.invoke('reconfigure-profile', {
-      userId: ids.userId,
-      accountId: ids.accountId,
-      profileId: ids.profileId,
-    });
+      await h.invoke('reconfigure-profile', {
+        userId: ids.userId,
+        accountId: ids.accountId,
+        profileId: ids.profileId,
+      });
 
-    const upserted = repoMocks.avgEntryPricesUpsert.mock.calls[0]?.[1] as { quantity: string };
-    expect(new Decimal(upserted.quantity).eq('1.5')).toBe(true);
-    const held = (h.persistedSymbolStates.at(-1)?.state as { heldQuantity: string }).heldQuantity;
-    expect(new Decimal(held).eq('1.5')).toBe(true);
-  });
-
-  it('reconfigure-profile: a fully-reserved wallet reconciles flat instead of holding the reserve', async () => {
-    // Same rule from the other side. Every coin is reserved, so the tradeable surplus is zero and the strategy must read FLAT and trade on top — not carry a position made entirely of coins the operator told it never to sell.
-    const h = buildHarness();
-    armReserveReconcile(h, {
-      walletFree: '2',
-      reserve: '2',
-      price: '50',
-      stepSize: '0.0001',
-      minNotional: '10',
-    });
-    const pricedBody = {
-      schemaVersion: '1.0.0',
-      avgEntryPrice: '50',
-      heldQuantity: '2',
-      highSinceBuy: null,
-    };
-    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
-      avgEntryPrice: '50',
-      quantity: '2',
-    });
-    // A read returns the LAST write, as a database would. The pass makes two writes here — the reconciler converges the quantity, then the phantom prune clears the cost basis over it — and a mock that replays the pre-reconcile body to the second one hands it a position that no longer exists.
-    repoMocks.symbolStatesFindBySymbol.mockImplementation(async () => ({
-      symbol: 'BTCUSDT',
-      strategyVersion: '1.0.0',
-      state: h.persistedSymbolStates.at(-1)?.state ?? pricedBody,
-    }));
-
-    await h.invoke('reconfigure-profile', {
-      userId: ids.userId,
-      accountId: ids.accountId,
-      profileId: ids.profileId,
-    });
-
-    expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({ heldQuantity: null });
-  });
-
-  it('reconfigure-profile: values the dust bounds at the operator holding, not the surplus', async () => {
-    // Where the two numbers genuinely disagree, and the case a single forwarded wallet figure cannot get right. A deep reserve leaves a surplus worth a fraction of one minimum order while the operator's own holding is worth twenty times it. The dust VALUE bounds ask "is this residue?", which is a question about the coins the operator owns; asked of the surplus instead they answer yes, refuse to adopt, and the reconfigure leaves a real position invisible. Sizing keeps reading the surplus — only the value bounds read the raw total.
-    const h = buildHarness();
-    armReserveReconcile(h, {
-      walletFree: '2',
-      reserve: '1.9999',
-      price: '50',
-      stepSize: '0.00001',
-      minNotional: '10',
-    });
-    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue(null);
-    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
-    repoMocks.avgEntryPricesUpsert.mockResolvedValue(undefined);
-    repoMocks.binanceGetMyTrades.mockResolvedValue([
-      {
-        id: 1,
-        orderId: 1,
-        symbol: 'BTCUSDT',
-        price: '50',
-        qty: '2',
-        quoteQty: '100',
-        commission: '0',
-        commissionAsset: 'USDT',
-        time: 1000,
-        isBuyer: true,
-        isMaker: false,
-      },
-    ]);
-
-    await h.invoke('reconfigure-profile', {
-      userId: ids.userId,
-      accountId: ids.accountId,
-      profileId: ids.profileId,
-    });
-
-    // The boot sweep's own verdict for the identical inputs. Asserting against it rather than a literal is what makes the two doors provably one rule: change the rule and both move together, or this fails.
-    const bootVerdict = reconcileHeldQuantity({
-      heldQuantity: null,
-      walletFree: '0.0001',
-      walletLocked: '0',
-      stepSize: '0.00001',
-      minNotional: '10',
-      referencePrice: '50',
-      unreservedWalletTotal: '2',
-    });
-    expect(bootVerdict.action).toBe('seed-from-wallet');
-    const held = (h.persistedSymbolStates.at(-1)?.state as { heldQuantity: string }).heldQuantity;
-    expect(new Decimal(held).eq(bootVerdict.nextHeldQuantity ?? '0')).toBe(true);
-  });
+      const bootVerdict = reconcileHeldQuantity({
+        ...resolveWalletFields({ free: '2', locked: '0' }),
+        heldQuantity: '500',
+        stepSize: '0.00001',
+        minNotional,
+        referencePrice: '50',
+      });
+      // Anchor the verdict itself, so a rule change that makes both doors no-op cannot satisfy the equality below by leaving nothing to compare.
+      expect(bootVerdict.action).toBe('adopt-wallet-smaller');
+      expect(bootVerdict.nextHeldQuantity).toBe(expected);
+      const persisted = h.persistedSymbolStates.at(-1)?.state as { heldQuantity: string | null };
+      expect(persisted.heldQuantity).toBe(bootVerdict.nextHeldQuantity);
+    },
+  );
 
   it('reconfigure-profile: prices a symbol the ticker cache has never held, via the batched REST fallback', async () => {
     // Not a cold-start race — a guaranteed miss. `handleReconfigure` runs this reconcile BEFORE `setSymbols`, so a newly added symbol has never had a miniTicker subscription and its `ticker:` key cannot exist. Without the fallback every dust value bound stands down on exactly the pass that re-adopts a symbol, and an operator re-adding one that still carries sub-notional residue has the seed gate rebuild the unsellable strand this whole change exists to prevent.
     const h = buildHarness();
-    armReserveReconcile(h, {
+    armReconcile(h, {
       walletFree: '0.5',
-      reserve: '0',
       price: '50',
       stepSize: '0.0001',
       minNotional: '10',
@@ -1673,7 +1660,7 @@ describe('pipeline-worker dispatch', () => {
     expect(h.persistedSymbolStates).toHaveLength(0);
   });
 
-  it('apply-avg-entry-price: force-sets avgEntryPrice + reserve-adjusted held qty from the ledger (#496)', async () => {
+  it('apply-avg-entry-price: force-sets avgEntryPrice + wallet-sized held qty from the ledger (#496)', async () => {
     // The operator wrote the ledger via the api (PUT or combined add); the
     // worker must force the running strategy's cost basis onto the symbol_states
     // body so the bot manages and sells the held position. The worker NEVER
@@ -1692,8 +1679,6 @@ describe('pipeline-worker dispatch', () => {
       avgEntryPrice: '50',
       quantity: '2',
     });
-    // Reserve 0.5 BTC -> the bot manages only 1.5 of the 2 held (#498).
-    repoMocks.profileSymbolsFindForSymbol.mockResolvedValue({ reserveBaseQuantity: '0.5' });
     h.redis.get.mockImplementation(async (key: string) =>
       key.includes('symbol-info')
         ? JSON.stringify({ baseAsset: 'BTC', filters: { stepSize: '0.0001' } })
@@ -1714,7 +1699,7 @@ describe('pipeline-worker dispatch', () => {
     expect(repoMocks.avgEntryPricesUpsert).not.toHaveBeenCalled();
     const finalWrite = h.persistedSymbolStates.at(-1);
     expect(finalWrite?.symbol).toBe('BTCUSDT');
-    expect(finalWrite?.state).toMatchObject({ avgEntryPrice: '50', heldQuantity: '1.5' });
+    expect(finalWrite?.state).toMatchObject({ avgEntryPrice: '50', heldQuantity: '2' });
     expect(h.chainKeys).toContain(`${ids.profileId}:BTCUSDT`);
   });
 
@@ -1824,6 +1809,624 @@ describe('pipeline-worker dispatch', () => {
       }),
     ).rejects.toThrow('pipeline_invalid_payload');
     expect(h.persistedSymbolStates).toHaveLength(0);
+  });
+
+  it.each([
+    ['declines a wallet no sell could round up to', '10', true],
+    ['writes the wallet the prune vouched for', '0.00001', false],
+  ])(
+    "apply-avg-entry-price: reconciles to the boot door's own verdict and %s",
+    async (_label, stepSize, expectedPhantom) => {
+      // The third door onto the same decision. Boot adoption and the reconfigure reconcile both ask `reconcileHeldQuantity` whether a wallet balance is worth tracking; this one sized the position straight off `free + locked` and wrote it, so the same profile ends up with a different held quantity depending on which door the operator walked through. Asserting against that function's live verdict rather than a literal is what makes the three provably one rule: change the rule and all three move together, or this fails.
+      //
+      // The ledger quantity is passed as the CLAIM, not as `null`. That is what keeps the existing in-code defence intact: a real recorded quantity over a dust wallet routes to `adopt-wallet-smaller`, so the refusal converges the quantity instead of letting `flatten-sub-notional-dust` delete a cost basis the operator submitted seconds ago.
+      //
+      // Both rows are needed, and they straddle the one bound that may refuse. A 2-of-500 wallet is a 0.4% crumb share, so `isUnsellableDust` returns null on BOTH rows and the reconciler alone cannot tell them apart. What separates them is the increment arm the prune judges absolutely: under a step of 10 the wallet cannot be rounded up to a sellable order and the prune deletes the row, so refusing is right; under a step of 0.00001 the same wallet is a real holding the prune keeps, and refusing there would leave a priced row no later pass can reach.
+      const h = buildHarness();
+      const minNotional = '200';
+      armReconcile(h, { walletFree: '2', price: '50', stepSize, minNotional });
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+        symbol: 'BTCUSDT',
+        avgEntryPrice: '50',
+        quantity: '500',
+      });
+      repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+      await h.invoke('apply-avg-entry-price', {
+        userId: ids.userId,
+        accountId: ids.accountId,
+        profileId: ids.profileId,
+        symbol: 'BTCUSDT',
+      });
+
+      const bootVerdict = reconcileHeldQuantity({
+        ...resolveWalletFields({ free: '2', locked: '0' }),
+        heldQuantity: '500',
+        stepSize,
+        minNotional,
+        referencePrice: '50',
+      });
+      const phantom = isPhantomLedgerRow({
+        ledgerAvgEntryPrice: '50',
+        stateAvgEntryPrice: null,
+        walletQuantity: '2',
+        stepSize,
+        minNotional,
+        referencePrice: '50',
+        preReconcileHeldQuantity: '500',
+      });
+      // Anchored, so a rule change that makes every door no-op cannot satisfy the equalities below by leaving nothing to compare. The reconciler names no quantity on either row, which is exactly why it cannot be the thing that decides.
+      expect(bootVerdict.nextHeldQuantity).toBeNull();
+      expect(phantom).toBe(expectedPhantom);
+
+      const write = h.persistedSymbolStates.find((w) => w.symbol === 'BTCUSDT');
+      if (phantom) {
+        // No write at all, not a cleared body. The operator's correction is the PRICE; declining to apply it must leave the symbol exactly as it was found, and the ledger row it came from is the api's to own — the prune is what removes it.
+        expect(write).toBeUndefined();
+        expect(repoMocks.avgEntryPricesRemove).not.toHaveBeenCalled();
+      } else {
+        expect((write?.state as { heldQuantity: string | null }).heldQuantity).toBe('2');
+      }
+    },
+  );
+
+  it.each([
+    ['below one lot-size increment', '5', '5', '1', '10', '1', 'no-op', true],
+    ['valueless residue', '0.05', '0.05', '1', '0.00001', '10', 'flatten-sub-notional-dust', true],
+    ['worth part of one minimum order', '5', '5', '1', '0.0001', '10', 'no-op', false],
+    // The wallet is valueless residue while the recorded claim still prices, so only the value arm can decide, and it decides on the quantity this door is about to WRITE. Ask it under the ledger's 5 instead and the arm disarms, the wallet is written, and the very next reconcile pass flattens it — deleting the operator's row and paging a latching critical.
+    [
+      'a residue wallet under a claim that still prices',
+      '0.09',
+      '5',
+      '1',
+      '0.00001',
+      '10',
+      'adopt-wallet-smaller',
+      true,
+    ],
+    // A real holding worth half a minimum order under a stale hundred-fold claim. `isUnsellableDust` reads it as a crumb and `adopt-wallet-smaller` names no quantity, but the prune keeps the row, so refusing here would strand a priced row no later pass can reach. The wallet is what gets written.
+    // Split across both legs on purpose. Coins in a resting sell report as `locked`, the ordinary shape for a position this bot is trying to exit, and this is the one row where the total is what gets WRITTEN rather than merely judged — the reconciler computes its own `free + locked`, so anywhere it names the quantity a dropped leg is invisible.
+    [
+      'a crumb-share of a stale claim, held partly in a resting sell',
+      '1',
+      '1000',
+      '1',
+      '0.0001',
+      '10',
+      'adopt-wallet-smaller',
+      false,
+      '4',
+    ],
+    [
+      'larger than the recorded quantity',
+      '10',
+      '2',
+      '50',
+      '0.00001',
+      '10',
+      'adopt-state-smaller',
+      false,
+    ],
+  ])(
+    'apply-avg-entry-price: refuses exactly what the prune deletes when the wallet is %s',
+    async (
+      _label,
+      walletFree,
+      ledgerQuantity,
+      price,
+      stepSize,
+      minNotional,
+      expectedClaimAction,
+      expectedPhantom,
+      walletLocked = '0',
+    ) => {
+      // The ordinary path, which the divergent stale-ledger rows above cannot reach. The api sizes `avg_entry_prices.quantity` as `free + locked` off the live wallet snapshot and enqueues this job seconds later, so the claim this door receives is the SAME number as the wallet it re-reads. `diff.lte(step)` then short-circuits to `no-op` with a non-null quantity, which is why the reconciler alone cannot decide whether a position may exist here: row 1 is below one LOT_SIZE step and would still be adopted as a position no sell can round up to.
+      //
+      // The bar that does decide is the boot prune's own predicate, and the two directions of getting it wrong are what the last two rows pin. Refuse MORE than the prune and row 3 is rejected while its ledger row survives every later pass, so the next boot revives the cost basis onto a position with no quantity — a strand strictly worse than the one this door was fixed to prevent. Refuse LESS and rows 1 and 2 are written as positions the next boot deletes the basis out from under. Only the same predicate gives both directions at once.
+      const h = buildHarness();
+      armReconcile(h, { walletFree, walletLocked, price, stepSize, minNotional });
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+        symbol: 'BTCUSDT',
+        avgEntryPrice: '50',
+        quantity: ledgerQuantity,
+      });
+      repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+      await h.invoke('apply-avg-entry-price', {
+        userId: ids.userId,
+        accountId: ids.accountId,
+        profileId: ids.profileId,
+        symbol: 'BTCUSDT',
+      });
+
+      const gateInput = {
+        ...resolveWalletFields({ free: walletFree, locked: walletLocked }),
+        stepSize,
+        minNotional,
+        referencePrice: price,
+      };
+      const walletTotal = new Decimal(walletFree).plus(walletLocked).toFixed();
+      const claimVerdict = reconcileHeldQuantity({ ...gateInput, heldQuantity: ledgerQuantity });
+      const phantom = isPhantomLedgerRow({
+        ledgerAvgEntryPrice: '50',
+        stateAvgEntryPrice: null,
+        walletQuantity: walletTotal,
+        stepSize,
+        minNotional,
+        referencePrice: price,
+        // The claim the NEXT pass judges is what this door is about to write, not what it read. Asking under the ledger quantity disarms the prune's value arm for a wallet the very next reconcile flattens, and flatten DELETES the row and pages.
+        preReconcileHeldQuantity: claimVerdict.nextHeldQuantity ?? walletTotal,
+      });
+      // Both anchored to the row's literals, so a rule change that collapsed either question into a permanent pass cannot satisfy the equalities below vacuously.
+      expect(claimVerdict.action).toBe(expectedClaimAction);
+      expect(phantom).toBe(expectedPhantom);
+
+      const write = h.persistedSymbolStates.find((w) => w.symbol === 'BTCUSDT');
+      if (phantom) {
+        expect(write).toBeUndefined();
+        expect(repoMocks.avgEntryPricesRemove).not.toHaveBeenCalled();
+        return;
+      }
+      // The reconciler only SIZES; where it names no quantity the wallet the prune vouched for is written instead.
+      const expectedHeld = claimVerdict.nextHeldQuantity ?? walletTotal;
+      expect((write?.state as { heldQuantity: string | null }).heldQuantity).toBe(expectedHeld);
+      // The applied line carries which arm sized it. Unpinned, the field is free to go null or stale and nothing downstream would notice that "the rule judged this" had quietly become "the rule never ran".
+      expect(h.info.find((i) => i.msg === 'pipeline_apply_avg_entry_price_set')?.ctx).toMatchObject(
+        {
+          action: claimVerdict.action,
+          heldQuantity: expectedHeld,
+        },
+      );
+    },
+  );
+
+  it('apply-avg-entry-price: seeds every disarm reason at zero even when no bound stands down', async () => {
+    // The seeds are what the `offset 2h` arm of the disarm alert compares against, and only a HEALTHY pass creates them: on a pass that fires, the reason that fired is born at its own increment whether or not the loop ran. So this is the only shape that can catch the loop being folded inside `if (gate.disarmed !== null)`, which every other test in this file would still pass.
+    const h = buildHarness();
+    armReconcile(h, { walletFree: '5', price: '10', stepSize: '0.0001', minNotional: '10' });
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '50',
+      quantity: '5',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await h.invoke('apply-avg-entry-price', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    const disarmCalls = h.metrics.record.mock.calls.filter(
+      (c) => c[0] === 'reconcile_value_bound_disarmed_total',
+    );
+    expect(
+      disarmCalls.filter((c) => c[1] === 0).map((c) => (c[2] as { reason: string }).reason),
+    ).toEqual(['no-reference-price', 'no-min-notional', 'no-wallet-total']);
+    // The seeds being the ONLY writes is what makes them load-bearing rather than incidental.
+    expect(disarmCalls.filter((c) => c[1] !== 0)).toEqual([]);
+  });
+
+  /** The stand-down counter's writes on the pass just invoked, in the order they were recorded. */
+  const seedGateCalls = (
+    h: ReturnType<typeof buildHarness>,
+  ): { value: number; reason: string; labels: Record<string, unknown>; index: number }[] =>
+    h.metrics.record.mock.calls
+      .map((call, index) => ({ call, index }))
+      .filter(({ call }) => call[0] === 'pipeline_apply_seed_gate_stood_down_total')
+      .map(({ call, index }) => ({
+        value: call[1] as number,
+        reason: (call[2] as { reason: string }).reason,
+        labels: call[2] as Record<string, unknown>,
+        index,
+      }));
+
+  it('apply-avg-entry-price: seeds every stand-down reason at zero on the APPLIED arm', async () => {
+    // The one shape that catches the seed being left inside the `stood-down` branch. This counter is incremented on the OTHER arm from its sibling disarm counter, so a profile whose gate always resolves cleanly would never have its children created — and its first real stand-down would export a series that has always read 1, which `increase()` reads as no change. Every other test in this file passes with the seed misplaced.
+    const h = buildHarness();
+    armReconcile(h, { walletFree: '5', price: '10', stepSize: '0.0001', minNotional: '10' });
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '50',
+      quantity: '5',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await h.invoke('apply-avg-entry-price', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    const calls = seedGateCalls(h);
+    // Order-sensitive against the tuple the production loop iterates, so a reason added to the gate but not to the tuple is visible here as well as at the compiler.
+    expect(calls.map((c) => c.reason)).toEqual([...APPLY_SEED_GATE_STAND_DOWN_REASONS]);
+    expect(calls.every((c) => c.value === 0)).toBe(true);
+    // The gate did resolve, so the pass really is the applied arm and not a stand-down that happened to seed.
+    expect(
+      h.warnings.some((w) => w.msg === 'pipeline_apply_avg_entry_price_gate_unavailable'),
+    ).toBe(false);
+  });
+
+  it('apply-avg-entry-price: counts the stand-down reason that fired, labelled by profile and symbol', async () => {
+    // The signal itself. Without it the only trace of a gate that could not run is one `warn` line in a worker the operator has no reason to be reading, and the fallback it takes writes the recorded quantity as though the rule had judged it.
+    const h = buildHarness();
+    armReconcile(h, { walletFree: '2', price: '50', stepSize: '0.00001', minNotional: '200' });
+    h.resolveBinanceClient.mockResolvedValue(null);
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '50',
+      quantity: '500',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await h.invoke('apply-avg-entry-price', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    const calls = seedGateCalls(h);
+    expect(calls.filter((c) => c.value === 0).map((c) => c.reason)).toEqual([
+      ...APPLY_SEED_GATE_STAND_DOWN_REASONS,
+    ]);
+    const fired = calls.filter((c) => c.value === 1);
+    expect(fired).toHaveLength(1);
+    expect(fired[0]?.labels).toMatchObject({
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+      reason: 'no-client',
+    });
+  });
+
+  it('apply-avg-entry-price: records the zero-seed BEFORE the stand-down increment', async () => {
+    // Order is the property, not presence. A seed written after the increment leaves the child born at 1 and then reset to 0 — strictly worse than no seed at all, and a test that only checks both calls exist cannot tell the two arrangements apart.
+    const h = buildHarness();
+    armReconcile(h, { walletFree: '2', price: '50', stepSize: '0.00001', minNotional: '200' });
+    h.resolveBinanceClient.mockResolvedValue(null);
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '50',
+      quantity: '500',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await h.invoke('apply-avg-entry-price', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    const calls = seedGateCalls(h);
+    const seedIndexes = calls.filter((c) => c.value === 0).map((c) => c.index);
+    const firedIndexes = calls.filter((c) => c.value === 1).map((c) => c.index);
+    expect(seedIndexes).toHaveLength(APPLY_SEED_GATE_STAND_DOWN_REASONS.length);
+    expect(firedIndexes).toHaveLength(1);
+    // Every seed, including the one for the reason that fired: the increment must land on a child that already exists at 0.
+    expect(Math.max(...seedIndexes)).toBeLessThan(Math.min(...firedIndexes));
+  });
+
+  it.each([['-1']])(
+    'apply-avg-entry-price: reads a recorded quantity of %s as no claim at all',
+    async (quantity) => {
+      // Zero is not the only way a row states no position. A negative quantity is the one other value that changes the outcome if it is let through as a claim: `adopt-state-smaller` writes it back verbatim, so the strategy ends up holding minus one coin. `NaN`, `Infinity` and an unparseable body are deliberately NOT tested here, because they cannot change the result — the reconciler's own parse rejects each of them and routes to a seed that the wallet fallback converges to the same quantity.
+      const h = buildHarness();
+      armReconcile(h, { walletFree: '5', price: '10', stepSize: '0.0001', minNotional: '10' });
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+        symbol: 'BTCUSDT',
+        avgEntryPrice: '50',
+        quantity,
+      });
+      repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+      await h.invoke('apply-avg-entry-price', {
+        userId: ids.userId,
+        accountId: ids.accountId,
+        profileId: ids.profileId,
+        symbol: 'BTCUSDT',
+      });
+
+      expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({
+        avgEntryPrice: '50',
+        heldQuantity: '5',
+      });
+    },
+  );
+
+  it('apply-avg-entry-price: stands every wallet bound down and keeps the recorded quantity when a balance leg will not parse', async () => {
+    // The one input that makes `sumWalletLegs` return null, which is a different answer from an empty wallet: null means the question was never answered, and `isPhantomLedgerRow` would read a null total as "the operator holds none of this coin" and refuse. This is the only path that reaches the third rung of the sizing ladder, and the only one that produces `no-wallet-total` at this door.
+    const h = buildHarness();
+    armReconcile(h, { walletFree: '5', price: '10', stepSize: '0.0001', minNotional: '10' });
+    repoMocks.binanceGetAccount.mockResolvedValue({
+      balances: [{ asset: 'BTC', free: 'not-a-number', locked: '0' }],
+    });
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '50',
+      quantity: '7',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await h.invoke('apply-avg-entry-price', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    // Written, not refused: an unevaluable bound must never be the thing that rejects an operator's write.
+    expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({
+      avgEntryPrice: '50',
+      heldQuantity: '7',
+    });
+    // `rule`, not `ledger`: the reconciler's parse guard answers first and hands the claim straight back, so the ladder's third rung is reached only when the recorded quantity states no position either.
+    expect(h.info.find((i) => i.msg === 'pipeline_apply_avg_entry_price_set')?.ctx).toMatchObject({
+      sizedFrom: 'rule',
+    });
+    const disarms = h.metrics.record.mock.calls.filter(
+      (c) => c[0] === 'reconcile_value_bound_disarmed_total' && c[1] === 1,
+    );
+    expect(disarms.map((c) => (c[2] as { reason: string }).reason)).toEqual(['no-wallet-total']);
+  });
+
+  it('apply-avg-entry-price: treats a recorded quantity of zero as no claim rather than as a claim of nothing', async () => {
+    // Zero is how the rest of the module spells "no position", and handing it to the reconciler as a CLAIM inverts it into one: the flatten arm is guarded by `held.gt(0)` so it declines, and `adopt-state-smaller` then writes the zero back as the position's size, permanently. Normalising it to no claim sends the wallet down the cold-seed branch instead, which is the reading a row that prices nothing actually deserves.
+    const h = buildHarness();
+    armReconcile(h, { walletFree: '5', price: '10', stepSize: '0.0001', minNotional: '10' });
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '50',
+      quantity: '0',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await h.invoke('apply-avg-entry-price', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({
+      avgEntryPrice: '50',
+      heldQuantity: '5',
+    });
+  });
+
+  it("apply-avg-entry-price: refuses with a named reason and leaves the operator's ledger row alone", async () => {
+    // The refusal has to be legible from the outside. A door that silently declines an operator's write is the same class of defect as the one it replaced: the symbol simply never picks the basis up, and nothing says why.
+    const h = buildHarness();
+    armReconcile(h, { walletFree: '2', price: '50', stepSize: '10', minNotional: '200' });
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '50',
+      quantity: '500',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await h.invoke('apply-avg-entry-price', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    const refusal = h.warnings.find(
+      (w) => w.msg === 'pipeline_apply_avg_entry_price_no_sellable_position',
+    );
+    expect(refusal?.ctx).toMatchObject({ action: 'adopt-wallet-smaller', ledgerQuantity: '500' });
+    // The api owns that row. Deleting a record it accepted seconds ago would leave the two surfaces contradicting each other.
+    expect(repoMocks.avgEntryPricesRemove).not.toHaveBeenCalled();
+    // And no "applied" line, so a log reader cannot conclude the basis reached the strategy.
+    expect(h.info.some((i) => i.msg === 'pipeline_apply_avg_entry_price_set')).toBe(false);
+  });
+
+  it.each([
+    ['no client resolves', 'no-client'],
+    ['the symbol-info cache is empty', 'no-symbol-info'],
+    ['the cached symbol-info does not parse', 'bad-symbol-info'],
+    // Distinct from the null return above: that path never enters the catch. Without the catch an unreachable Redis escapes the handler and dead-letters an operator's write, and every other assertion in this table still passes.
+    ['the symbol-info cache read throws', 'no-symbol-info-throws'],
+    ['getAccount throws', 'getaccount-failed'],
+  ])(
+    'apply-avg-entry-price: stands the gate down and applies the ledger quantity when %s',
+    async (_label, reason) => {
+      // Standing down keeps the OLD behaviour rather than refusing. A bound that could not be evaluated must never be the thing that rejects an operator's write — the hazard is a position fabricated out of an untradeable wallet, and applying what the operator actually recorded fabricates nothing. Each arm is named, because a missing price is a cache problem and a missing symbol-info blob is an exchange-info refresh problem.
+      const h = buildHarness();
+      armReconcile(h, { walletFree: '2', price: '50', stepSize: '0.00001', minNotional: '200' });
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+        symbol: 'BTCUSDT',
+        avgEntryPrice: '50',
+        quantity: '500',
+      });
+      repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+      if (reason === 'no-client') h.resolveBinanceClient.mockResolvedValue(null);
+      if (reason === 'no-symbol-info') h.redis.get.mockImplementation(async () => null);
+      if (reason === 'no-symbol-info-throws') {
+        // Scoped to the symbol-info key on purpose: a blanket rejection also takes down readers outside this door, and the fault being modelled is the gate's own cache read failing.
+        h.redis.get.mockImplementation(async (key: string) => {
+          if (key === buildSymbolInfoKey('BTCUSDT', 'live')) throw new Error('redis down');
+          return null;
+        });
+      }
+      if (reason === 'bad-symbol-info') h.redis.get.mockImplementation(async () => 'not json');
+      if (reason === 'getaccount-failed') {
+        repoMocks.binanceGetAccount.mockRejectedValue(new Error('binance down'));
+      }
+
+      await h.invoke('apply-avg-entry-price', {
+        userId: ids.userId,
+        accountId: ids.accountId,
+        profileId: ids.profileId,
+        symbol: 'BTCUSDT',
+      });
+
+      expect(
+        h.warnings.find((w) => w.msg === 'pipeline_apply_avg_entry_price_gate_unavailable')?.ctx,
+      ).toMatchObject({ reason: reason === 'no-symbol-info-throws' ? 'no-symbol-info' : reason });
+      // The recorded quantity, NOT the 2-coin dust wallet: a gate that never ran cannot be the thing that sized the position either.
+      expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({
+        avgEntryPrice: '50',
+        heldQuantity: '500',
+      });
+      // Null action, and pinned. It is the only thing separating "the rule judged this quantity" from "the rule never ran", and both lines otherwise read identically.
+      expect(h.info.find((i) => i.msg === 'pipeline_apply_avg_entry_price_set')?.ctx).toMatchObject(
+        {
+          action: null,
+        },
+      );
+    },
+  );
+
+  it.each([
+    ['null'],
+    ['123'],
+    ['{}'],
+    ['{"baseAsset":"BTC"}'],
+    ['{"baseAsset":1,"filters":{}}'],
+    // A well-formed blob carrying a zeroed increment, which the exchange-info refresh really caches for a pair with an incomplete filter set. A `typeof` check passes it, and then BOTH the reconciler and the prune take their own `step.lte(0)` stand-downs, so the door writes the recorded quantity as though the rule had judged it and nothing reports that it did not.
+    ['{"baseAsset":"BTC","filters":{"stepSize":"0","minNotional":"10"}}'],
+  ])(
+    'apply-avg-entry-price: degrades to the ledger quantity on a symbol-info blob of %s rather than dead-lettering the job',
+    async (blob) => {
+      // `null`, `123` and `{}` are all VALID JSON, so a shape-wrong blob parses cleanly and only fails on the field read. A field read outside the parse guard throws a TypeError past it, out of the handler, and BullMQ retries then dead-letters a write the operator made — for a cache blob problem the gate is supposed to shrug at. The last row is the other half: a blob whose fields are merely the wrong TYPE never throws at all, and an unparseable `stepSize` would put the reconciler back on the silent no-op this gate exists to close.
+      const h = buildHarness();
+      armReconcile(h, { walletFree: '2', price: '50', stepSize: '0.00001', minNotional: '200' });
+      h.redis.get.mockImplementation(async (key: string) =>
+        key === buildSymbolInfoKey('BTCUSDT', 'live') ? blob : null,
+      );
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+        symbol: 'BTCUSDT',
+        avgEntryPrice: '50',
+        quantity: '500',
+      });
+      repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+      await expect(
+        h.invoke('apply-avg-entry-price', {
+          userId: ids.userId,
+          accountId: ids.accountId,
+          profileId: ids.profileId,
+          symbol: 'BTCUSDT',
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(
+        h.warnings.find((w) => w.msg === 'pipeline_apply_avg_entry_price_gate_unavailable')?.ctx,
+      ).toMatchObject({ reason: 'bad-symbol-info' });
+      expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({ heldQuantity: '500' });
+    },
+  );
+
+  it('apply-avg-entry-price: treats a getAccount response with no balances as the call having failed', async () => {
+    // `getAccount` is a cast over the REST payload with no runtime validation, so `balances` can simply be absent. Reading it outside the try turns that into a TypeError that dead-letters the job; inside, it is what it is — the call did not produce an account.
+    const h = buildHarness();
+    armReconcile(h, { walletFree: '2', price: '50', stepSize: '0.00001', minNotional: '200' });
+    repoMocks.binanceGetAccount.mockResolvedValue({});
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '50',
+      quantity: '500',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await expect(
+      h.invoke('apply-avg-entry-price', {
+        userId: ids.userId,
+        accountId: ids.accountId,
+        profileId: ids.profileId,
+        symbol: 'BTCUSDT',
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(
+      h.warnings.find((w) => w.msg === 'pipeline_apply_avg_entry_price_gate_unavailable')?.ctx,
+    ).toMatchObject({ reason: 'getaccount-failed' });
+    expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({ heldQuantity: '500' });
+  });
+
+  it.each([
+    ['the Binance client factory throws', 'no-client'],
+    ['getAccount throws', 'getaccount-failed'],
+  ])('apply-avg-entry-price: carries the cause when %s', async (_label, reason) => {
+    // Without the cause an expired key, an IP-allowlist rejection and a socket timeout are one indistinguishable line. They have three different remedies and the operator has to pick one.
+    const h = buildHarness();
+    armReconcile(h, { walletFree: '2', price: '50', stepSize: '0.00001', minNotional: '200' });
+    const cause = new Error('binance down');
+    if (reason === 'no-client') h.resolveBinanceClient.mockRejectedValue(cause);
+    else repoMocks.binanceGetAccount.mockRejectedValue(cause);
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '50',
+      quantity: '500',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await h.invoke('apply-avg-entry-price', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    const ctx = h.warnings.find((w) => w.msg === 'pipeline_apply_avg_entry_price_gate_unavailable')
+      ?.ctx as { reason?: string; err?: unknown } | undefined;
+    expect(ctx?.reason).toBe(reason);
+    expect(ctx?.err).toBe(cause);
+  });
+
+  it('apply-avg-entry-price: seeds every disarm reason at zero before counting the one that fired', async () => {
+    // The zero-seed is the whole signal. A prom-client child does not exist until its first write and is born holding that write's value, so an unseeded counter's first incident reads as a series that has always been 1, which `increase()` sees as no change — and this door reaches the disarm arm exactly when nobody is watching it.
+    const h = buildHarness();
+    armReconcile(h, { walletFree: '2', price: '50', stepSize: '0.00001', minNotional: '200' });
+    // Neither the ticker cache nor the batched REST fallback can price the symbol, which is what disarms the value bound.
+    h.redis.get.mockImplementation(async (key: string) =>
+      key === buildSymbolInfoKey('BTCUSDT', 'live')
+        ? JSON.stringify({
+            baseAsset: 'BTC',
+            filters: { stepSize: '0.00001', minNotional: '200' },
+          })
+        : null,
+    );
+    repoMocks.binanceGetPriceTickers.mockResolvedValue([]);
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '50',
+      quantity: '500',
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await h.invoke('apply-avg-entry-price', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    const disarmCalls = h.metrics.record.mock.calls.filter(
+      (c) => c[0] === 'reconcile_value_bound_disarmed_total',
+    );
+    // Every reason seeded, not only the one that fired: the next incident may be a different reason on the same symbol, and that child has to exist at zero before its own first increment.
+    expect(
+      disarmCalls.filter((c) => c[1] === 0).map((c) => (c[2] as { reason: string }).reason),
+    ).toEqual(['no-reference-price', 'no-min-notional', 'no-wallet-total']);
+    const fired = disarmCalls.filter((c) => c[1] === 1);
+    expect(fired).toHaveLength(1);
+    expect(fired[0]?.[2]).toMatchObject({ symbol: 'BTCUSDT', reason: 'no-reference-price' });
+    expect(
+      h.warnings.some((w) => w.msg === 'pipeline_apply_avg_entry_price_value_bound_disarmed'),
+    ).toBe(true);
+    // A disarmed bound reports; it does not veto. Folding `disarmed !== null` into the refusal would reject an operator's write every time the ticker cache is cold, and every other assertion here would still pass. The quantity is the WALLET's 2, not the recorded 500: only the VALUE bounds stood down, and "adopt the smaller" is an increment comparison that needs no price at all.
+    expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({
+      avgEntryPrice: '50',
+      heldQuantity: '2',
+    });
+    expect(h.info.some((i) => i.msg === 'pipeline_apply_avg_entry_price_set')).toBe(true);
   });
 
   it('reconfigure-profile: throws on an invalid payload so BullMQ retries + DLQs', async () => {

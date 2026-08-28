@@ -14,7 +14,7 @@
 
 import { randomBytes } from 'node:crypto';
 
-import { type UserId } from '@app/contracts';
+import { asUserId, type UserId } from '@app/contracts';
 import { createDb, createPool, repo, type Database } from '@app/db';
 import { sql } from 'drizzle-orm';
 
@@ -73,6 +73,9 @@ export const runReset = async (deps: ResetDeps, email: string): Promise<ResetRes
     throw new ResetPasswordError('no-user', `no user with email ${email}`);
   }
 
+  // `repo.users.findByEmail` returns the drizzle row, whose `id` is an unbranded `string`; the brand is applied once here so both the audit write and the result carry it.
+  const userId = asUserId(domainUser.id);
+
   const ctx = await deps.auth.$context;
   const newPassword = generatePassword();
   const hash = await ctx.password.hash(newPassword);
@@ -100,7 +103,7 @@ export const runReset = async (deps: ResetDeps, email: string): Promise<ResetRes
     // tx is structurally a Database at runtime; drizzle's PgTransaction
     // generic is invariant against NodePgDatabase so an explicit cast is
     // needed to feed it to repo helpers typed on Database.
-    await repo.auditLogs.append(tx as unknown as Database, domainUser.id, {
+    await repo.auditLogs.append(tx as unknown as Database, userId, {
       actor: 'cli',
       event: 'reset-password-cli',
       ip: null,
@@ -109,7 +112,7 @@ export const runReset = async (deps: ResetDeps, email: string): Promise<ResetRes
     });
   });
 
-  return { email, newPassword, userId: domainUser.id };
+  return { email, newPassword, userId };
 };
 
 interface RunDeps {

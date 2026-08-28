@@ -2,7 +2,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { asProfileId, TriggerResponse } from '@app/contracts';
 import { profileKey } from '@app/db';
 import { buildStrategyRegistry } from '@app/strategy-registry';
-import { createApiStrategyRegistry } from '../../src/strategies/registry.js';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
 /**
@@ -20,6 +19,18 @@ const headers = (userId: string): Record<string, string> => ({
   'x-test-user-id': userId,
   'content-type': 'application/json',
 });
+
+// `Response#json()` is `unknown`, so the wire shape is named once here rather than re-asserted at every read below.
+interface ErrorBody {
+  error: { code: string; message: string };
+}
+const errorBody = async (res: Response): Promise<ErrorBody> => (await res.json()) as ErrorBody;
+
+interface SymbolStateBody {
+  strategy: { operatorActions: string[] };
+}
+const stateBody = async (res: Response): Promise<SymbolStateBody> =>
+  (await res.json()) as SymbolStateBody;
 
 // Owned by Alice; carries the momentum strategy, which declares ONLY
 // `trigger-sell` (force-sell). Every other operator route — trigger-buy,
@@ -78,7 +89,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
       { method: 'POST', headers: headers(fx.alice.userId) },
     );
     expect(res.status).toBe(422);
-    expect((await res.json()).error.code).toBe('ACTION_UNSUPPORTED');
+    expect((await errorBody(res)).error.code).toBe('ACTION_UNSUPPORTED');
     // The previous behaviour wrote an override_actions row and returned 202;
     // the gate fires before record(), so the table must be untouched.
     const { rows } = await fx.di.pool.query(
@@ -121,7 +132,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
         headers: headers(fx.alice.userId),
       });
       expect(res.status).toBe(409);
-      expect((await res.json()).error.code).toBe('CONFLICT');
+      expect((await errorBody(res)).error.code).toBe('CONFLICT');
 
       const { rows } = await fx.di.pool.query(
         `select count(*)::int as n from override_actions where profile_id = $1`,
@@ -186,7 +197,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
         body: JSON.stringify({ side: 'buy', quote: 'USDT', quoteAmount: '20' }),
       });
       expect(res.status).toBe(409);
-      expect((await res.json()).error.code).toBe('CONFLICT');
+      expect((await errorBody(res)).error.code).toBe('CONFLICT');
 
       // The gate fires before the fan-out's first record(), so not one row may exist.
       const { rows } = await fx.di.pool.query(
@@ -217,7 +228,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
       { method: 'POST', headers: headers(fx.alice.userId) },
     );
     expect(res.status).toBe(422);
-    expect((await res.json()).error.code).toBe('ACTION_UNSUPPORTED');
+    expect((await errorBody(res)).error.code).toBe('ACTION_UNSUPPORTED');
     expect(addSpy).not.toHaveBeenCalled();
     addSpy.mockRestore();
   });
@@ -358,7 +369,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
       { headers: headers(fx.alice.userId) },
     );
     expect(ttRes.status).toBe(200);
-    expect((await ttRes.json()).strategy.operatorActions).toEqual(ttActions);
+    expect((await stateBody(ttRes)).strategy.operatorActions).toEqual(ttActions);
 
     const momRes = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${MOMENTUM_PROFILE}/symbols/BTCUSDT/state`,
@@ -367,7 +378,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
       },
     );
     expect(momRes.status).toBe(200);
-    expect((await momRes.json()).strategy.operatorActions).toEqual(['trigger-sell']);
+    expect((await stateBody(momRes)).strategy.operatorActions).toEqual(['trigger-sell']);
   });
 
   it('resolves a version-drifted profile to the live plugin (issue #407 regression)', async () => {
@@ -408,7 +419,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
       },
     );
     expect(res.status).toBe(422);
-    const msg = (await res.json()).error.message as string;
+    const msg = (await errorBody(res)).error.message;
     expect(msg).toContain('invalid strategy config'); // live-schema validation ran
     expect(msg).not.toContain('not registered'); // drift did NOT short-circuit
   });
@@ -423,7 +434,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
       },
     );
     expect(res.status).toBe(422);
-    const msg = (await res.json()).error.message as string;
+    const msg = (await errorBody(res)).error.message;
     expect(msg).toContain('invalid symbol override'); // live override schema ran
     expect(msg).not.toContain('not registered');
   });
@@ -442,7 +453,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
       }),
     });
     expect(res.status).toBe(422);
-    expect((await res.json()).error.code).toBe('VALIDATION_FAILED');
+    expect((await errorBody(res)).error.code).toBe('VALIDATION_FAILED');
   });
 
   it('switch-strategy rejects a known strategy at a non-current version (#407)', async () => {
@@ -459,7 +470,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
       },
     );
     expect(res.status).toBe(422);
-    expect((await res.json()).error.code).toBe('VALIDATION_FAILED');
+    expect((await errorBody(res)).error.code).toBe('VALIDATION_FAILED');
   });
 });
 
@@ -472,9 +483,7 @@ describeIfInfra('avg-entry-price PUT — ledger-quantity fallback (no live walle
 
   beforeAll(async () => {
     fx = await setupApp();
-    // The bare test DI boots an empty strategy registry; the route's capability
-    // gate needs the real registry so trailing-trade resolves `avg-entry-price`.
-    fx.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
+    // Nothing to stub: the route's capability gate needs trailing-trade registered so it resolves `avg-entry-price`, and the fixture DI already boots the real registry.
   });
 
   afterAll(async () => {

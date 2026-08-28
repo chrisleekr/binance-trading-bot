@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { GLOBAL_KEYS, profileRepo } from '@app/db';
+import { GLOBAL_KEYS, profileRepo, schema } from '@app/db';
 import { asProfileId, asUserId, DEFAULT_PROFILE_NOTIFY_EVENTS } from '@app/contracts';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { HAS_INFRA, setupApp, TRAILING_TRADE_VERSION, type ApiFixture } from '../_helpers.js';
@@ -152,9 +152,23 @@ describeIfInfra('profiles router — quoteAsset', () => {
       positionCostQuote: '100',
       benchmarkAsset: 'BTC',
       benchmarkPriceQuote: '50000',
+      feeBasis: 'exact' as const,
     };
     await repo.equitySnapshots.record({ ...base, benchmarkPrices: { ETHUSDT: '2000' } });
     await repo.equitySnapshots.record(base); // old-style row, no benchmarkPrices
+    await fx.di.db.insert(schema.equitySnapshots).values({
+      profileId: fx.alice.profileId,
+      ...base,
+      netPnlQuote: '999',
+      feeBasis: 'unknown',
+    });
+    // The middle tier, seeded because it is the arm a two-state fixture cannot see. It IS plotted: the boolean this column replaced admitted every accounted-for snapshot, and narrowing to the strongest tier would empty the chart outright for an account Binance bills in BNB, whose every cycle carries a commission reconstructed from the rate table. Only `unknown` is a point with a charge missing.
+    await fx.di.db.insert(schema.equitySnapshots).values({
+      profileId: fx.alice.profileId,
+      ...base,
+      netPnlQuote: '888',
+      feeBasis: 'estimated',
+    });
 
     const res = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/equity-snapshots?limit=500`,
@@ -163,11 +177,17 @@ describeIfInfra('profiles router — quoteAsset', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       benchmarkMode: string;
-      points: { benchmarkPrices?: Record<string, string> }[];
+      points: { netPnlQuote: string; benchmarkPrices?: Record<string, string> }[];
     };
     expect(body.benchmarkMode).toBe('basket');
     expect(body.points.length).toBeGreaterThanOrEqual(2);
     expect(body.points.some((p) => p.benchmarkPrices?.['ETHUSDT'] === '2000')).toBe(true);
+    // Compared numerically, not by string identity: the column is `numeric(38,18)` and the wire carries its full scale, so `=== '999'` is false for a row that IS present and both of these negatives pass with the eligibility filter deleted outright.
+    const plotted = body.points.map((p) => Number(p.netPnlQuote));
+    expect(plotted).not.toContain(999);
+    // And both eligible tiers must actually be there, or the negative above is satisfied by an empty series.
+    expect(plotted).toContain(10);
+    expect(plotted).toContain(888);
   });
 
   it('pins a finished backtest run as the baseline, then clears it', async () => {

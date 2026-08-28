@@ -231,7 +231,7 @@ const autoTriggerBuyBranch: BranchHandler = (ctx) => {
     // A `lowest-price` basis has not reached the window low yet: keep the timer
     // armed (return the original `state`, not `consumed`) so the forced
     // re-entry re-checks next tick instead of being discarded and falling back
-    // to the normal TV-gated entry the operator opted to bypass (#369).
+    // to the normal TV-gated entry the operator opted to bypass.
     return {
       kind: 'terminal',
       output: {
@@ -849,7 +849,7 @@ const buyAndSnapshotBranch: BranchHandler = (ctx) => {
     readonly reason: 'discovery-no-stop';
     readonly context: Readonly<Record<string, unknown>>;
   } | null = null;
-  // Discovery anti-chase vetoes (#473). Entry-only and default-off; carried out
+  // Discovery anti-chase vetoes. Entry-only and default-off; carried out
   // of evaluateGridBuy so the snapshot terminal surfaces chase-guard / knife-guard.
   let chaseGuardVeto: ChaseGuardVeto | null = null;
   let knifeGuardVeto: KnifeGuardVeto | null = null;

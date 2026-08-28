@@ -27,14 +27,17 @@ import { generalRoute } from '@/features/profile/routes/profiles.$profileId.gene
 import { bulkOrderRoute } from '@/features/profile/routes/profiles.$profileId.bulk-order';
 import { historyRoute } from '@/features/profile/routes/profiles.$profileId.history';
 import { backtestRoute } from '@/features/backtest/routes/profiles.$profileId.backtest';
-import { symbolDetailRoute } from '@/features/symbol/routes/profiles.$profileId.symbols.$symbol';
+import {
+  symbolDetailIndexRoute,
+  symbolDetailRoute,
+} from '@/features/symbol/routes/profiles.$profileId.symbols.$symbol';
 import { symbolConfigRoute } from '@/features/symbol/routes/profiles.$profileId.symbols.$symbol.config';
 import { symbolsNewRoute } from '@/features/symbol/routes/profiles.$profileId.symbols.new';
 import { profileNewRoute } from '@/features/profile/routes/profiles.new';
 import { notificationsRoute } from '@/features/notifications/routes/profiles.notifications';
 import { rootRoute } from '@/app/__root';
 import { RoutePending } from '@/app/route-pending';
-import { settingsRoute } from '@/features/account/routes/settings';
+import { settingsIndexRoute, settingsRoute } from '@/features/account/routes/settings';
 
 const routeTree = rootRoute.addChildren([
   homeRedirectRoute,
@@ -61,14 +64,12 @@ const routeTree = rootRoute.addChildren([
       historyRoute,
       backtestRoute,
       notificationsRoute,
-      symbolDetailRoute,
-      symbolConfigRoute,
+      symbolDetailRoute.addChildren([symbolDetailIndexRoute, symbolConfigRoute]),
       symbolsNewRoute,
     ]),
   ]),
   accountRoute,
-  backupRestoreRoute,
-  settingsRoute,
+  settingsRoute.addChildren([settingsIndexRoute, backupRestoreRoute]),
 ]);
 
 // Context's queryClient is wired in main.tsx via router.update; the placeholder

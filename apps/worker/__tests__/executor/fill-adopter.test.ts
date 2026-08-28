@@ -29,6 +29,7 @@ import { buildSymbolStateKey } from '../../src/executor/redis-namespace.js';
 const repoMocks = vi.hoisted(() => ({
   avgEntryPricesFindBySymbol: vi.fn(),
   avgEntryPricesUpsert: vi.fn(),
+  conditionRecordCondition: vi.fn(async () => ({ changed: false, sinceMs: null })),
   avgEntryPricesRemove: vi.fn(),
   appliedFillsTryRecord: vi.fn(),
   profileFindById: vi.fn(),
@@ -38,6 +39,7 @@ const repoMocks = vi.hoisted(() => ({
   profileSymbolsUpsert: vi.fn(),
   actionLogsAppend: vi.fn(),
   ordersMarkFilled: vi.fn(),
+  ordersStampBaseCommissionNetted: vi.fn(),
   ordersStampRealizedPnl: vi.fn(),
   ordersFindByBinanceOrderId: vi.fn(),
   manualOrdersFindByBinanceOrderId: vi.fn(),
@@ -55,6 +57,8 @@ const testRepo = {
     upsert: repoMocks.avgEntryPricesUpsert,
     remove: repoMocks.avgEntryPricesRemove,
   },
+  // A buy fill proves the coin is really held, so the adopter closes any open seed refusal on it.
+  conditionStates: { recordCondition: repoMocks.conditionRecordCondition },
   appliedFills: {
     tryRecord: repoMocks.appliedFillsTryRecord,
   },
@@ -73,6 +77,7 @@ const testRepo = {
   },
   orders: {
     markFilledByBinanceOrderId: repoMocks.ordersMarkFilled,
+    stampBaseCommissionNetted: repoMocks.ordersStampBaseCommissionNetted,
     stampRealizedPnl: repoMocks.ordersStampRealizedPnl,
     findByBinanceOrderId: repoMocks.ordersFindByBinanceOrderId,
   },
@@ -269,6 +274,8 @@ const reset = (): void => {
   repoMocks.ordersMarkFilled.mockReset();
   // Default: one orders row reconciled to FILLED per fill.
   repoMocks.ordersMarkFilled.mockResolvedValue(1);
+  repoMocks.ordersStampBaseCommissionNetted.mockReset();
+  repoMocks.ordersStampBaseCommissionNetted.mockResolvedValue(1);
   repoMocks.ordersStampRealizedPnl.mockReset();
   repoMocks.ordersStampRealizedPnl.mockResolvedValue(1);
   // Origin gate default: the fill matches a local strategy order (`orders`
@@ -334,6 +341,27 @@ describe('createFillAdopter', () => {
       expect(updated['avgEntryPrice']).toBe('76660');
       expect(updated['highSinceBuy']).toBeNull();
       expect(updated['heldQuantity']).toBe('0.001');
+    });
+
+    it('closes a standing seed refusal, because a real fill is what falsifies it', async () => {
+      // The other half of the recovery: the operator's cost basis was refused when nothing sellable backed it, then the strategy bought in. No delete happens on that path, so the refusal has no other way to close and would sit over a genuine holding for good.
+      reset();
+      const { adopter } = makeAdopter();
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue(null);
+      repoMocks.avgEntryPricesUpsert.mockResolvedValue({});
+      repoMocks.symbolStatesFindBySymbol.mockResolvedValue(
+        defaultSymbolRow({ schemaVersion: '2.0.0', avgEntryPrice: null }),
+      );
+
+      await adopter.adopt(mkFill());
+
+      expect(repoMocks.conditionRecordCondition).toHaveBeenCalledWith(
+        expect.objectContaining({
+          condition: 'position-seed-refused',
+          symbol: SYMBOL,
+          code: null,
+        }),
+      );
     });
 
     it('weighted-averages LBP with asymmetric quantities (proves the weighting, not just the mean)', async () => {
@@ -965,7 +993,7 @@ describe('createFillAdopter', () => {
   });
 
   describe('orphan recovery + activity logging', () => {
-    it('re-subscribes (as manual) a symbol whose buy fill lands while unsubscribed', async () => {
+    it('re-subscribes a symbol whose buy fill lands while unsubscribed, UNPINNED and provenance unknown', async () => {
       reset();
       const { adopter } = makeAdopter();
       repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue(null);
@@ -976,13 +1004,15 @@ describe('createFillAdopter', () => {
 
       await adopter.adopt(mkFill({ side: 'BUY', cumQty: '0.001', cumQuoteQty: '50' }));
 
+      // `unknown`, not `manual`: nobody chose this coin, the bot rescued a position on it. And UNPINNED, so discovery reaps it once the position closes instead of it holding a rotation slot forever.
       expect(repoMocks.profileSymbolsUpsert).toHaveBeenCalledWith(SYMBOL, 'BTC', {
-        source: 'manual',
+        source: 'unknown',
+        pinned: false,
       });
-      // Operator-visible recovery line on the activity feed.
+      // Operator-visible recovery line on the activity feed, which has to say the coin is not pinned or the operator reads the recovery as a decision the bot made to keep it.
       const msgs = repoMocks.actionLogsAppend.mock.calls.map((c) => (c[0] as { msg: string }).msg);
       expect(msgs).toContain(
-        `Re-subscribed ${SYMBOL} (recovered a position the bot was not tracking)`,
+        `Re-subscribed ${SYMBOL}: the bot found a position it was not tracking and is managing it again. It did not pin the coin, so once the position is closed auto-discovery may rotate it out.`,
       );
     });
 
@@ -1162,7 +1192,10 @@ describe('createFillAdopter', () => {
       expect(repoMocks.ordersMarkFilled).toHaveBeenCalledTimes(1);
       const [id, fill] = repoMocks.ordersMarkFilled.mock.calls[0] ?? [];
       expect(id).toBe(925411723n);
-      expect(fill).toEqual({ executedQty: '163.2', cummulativeQuoteQty: '15.14496' });
+      expect(fill).toEqual({
+        executedQty: '163.2',
+        cummulativeQuoteQty: '15.14496',
+      });
     });
 
     it('reconciles a SELL fill and stamps cost-basis-matched realised P/L separately', async () => {

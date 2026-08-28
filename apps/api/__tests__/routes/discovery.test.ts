@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { StoredDiscoveryConfig } from '@app/contracts';
+import { asProfileId, type StoredDiscoveryConfig } from '@app/contracts';
 import { GLOBAL_KEYS, profileKey, profileRepo } from '@app/db';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
@@ -64,6 +64,7 @@ describeIfInfra('discovery router', () => {
       gauge: { autoSymbolCount: number };
       universe: unknown;
       activity: unknown[];
+      holdings: unknown[];
     };
     expect(body.config.enabled).toBe(false);
     expect(body.scoreboard.tradeCount).toBe(0);
@@ -73,7 +74,7 @@ describeIfInfra('discovery router', () => {
     expect(body.universe).toBeNull();
     expect(body.activity).toEqual([]);
     // No auto symbol holds a position on a fresh profile.
-    expect((body as { holdings: unknown[] }).holdings).toEqual([]);
+    expect(body.holdings).toEqual([]);
   });
 
   it('GET /discovery-scoreboard windows the auto trade-archive by period (#504)', async () => {
@@ -91,7 +92,6 @@ describeIfInfra('discovery router', () => {
       ...base,
       totalSellQuote: '105',
       profit: '5',
-      profitPercent: '5',
       orders: [{ side: 'BUY' }],
       archivedAt: new Date('2026-05-10T00:00:00Z'),
     });
@@ -99,7 +99,6 @@ describeIfInfra('discovery router', () => {
       ...base,
       totalSellQuote: '97',
       profit: '-3',
-      profitPercent: '-3',
       orders: [{ side: 'SELL' }],
       archivedAt: new Date('2026-05-11T00:00:00Z'),
     });
@@ -110,7 +109,6 @@ describeIfInfra('discovery router', () => {
       source: 'manual' as const,
       totalSellQuote: '110',
       profit: '10',
-      profitPercent: '10',
       orders: [{ side: 'SELL' }],
       archivedAt: new Date('2026-05-12T00:00:00Z'),
     });
@@ -122,7 +120,6 @@ describeIfInfra('discovery router', () => {
       quoteAsset: 'BTC',
       totalSellQuote: '999',
       profit: '999',
-      profitPercent: '999',
       orders: [{ side: 'SELL' }],
       archivedAt: new Date('2026-05-13T00:00:00Z'),
     });
@@ -133,6 +130,7 @@ describeIfInfra('discovery router', () => {
     interface SourceSlice {
       source: string;
       realizedProfit: string;
+      feeBasis: string;
       tradeCount: number;
       wins: number;
       losses: number;
@@ -148,18 +146,21 @@ describeIfInfra('discovery router', () => {
       tradeCount: number;
       winRate: number;
       realizedProfit: string;
+      feeBasis: string;
       bySource: SourceSlice[];
     };
     expect(allBody.period).toBe('a');
     expect(allBody.tradeCount).toBe(2);
     expect(allBody.winRate).toBe(0.5);
     expect(Number(allBody.realizedProfit)).toBe(2);
+    expect(allBody.feeBasis).toBe('unknown');
 
     // bySource carries both sources, ordered auto then manual, each with its
     // own win/loss split and gross magnitudes for the band's win% + PF.
     expect(allBody.bySource.map((s) => s.source)).toEqual(['auto', 'manual']);
     const auto = allBody.bySource.find((s) => s.source === 'auto');
     expect(auto).toMatchObject({ tradeCount: 2, wins: 1, losses: 1 });
+    expect(auto?.feeBasis).toBe('unknown');
     expect(Number(auto?.grossProfit)).toBe(5);
     expect(Number(auto?.grossLoss)).toBe(3);
     const manual = allBody.bySource.find((s) => s.source === 'manual');
@@ -167,26 +168,46 @@ describeIfInfra('discovery router', () => {
     expect(Number(manual?.realizedProfit)).toBe(10);
     expect(Number(manual?.grossLoss)).toBe(0);
 
-    // Today's window excludes the May rows → empty top-level and empty bySource.
+    // A current complete row proves a non-empty window can propagate true rather than defaulting every populated result to false.
+    await p.tradeArchive.insert({
+      ...base,
+      totalSellQuote: '102',
+      profit: '2',
+      orders: [{ side: 'SELL' }],
+      fees: { USDT: '0.5' },
+      feesQuote: '0.5',
+      feeBasis: 'exact',
+      archivedAt: new Date(),
+    });
     const day = await fx.app.request(url('d'), { headers: headers(fx.alice.userId) });
     const dayBody = (await day.json()) as {
       tradeCount: number;
       winRate: number;
+      feeBasis: string;
       bySource: SourceSlice[];
     };
-    expect(dayBody.tradeCount).toBe(0);
-    expect(dayBody.winRate).toBe(0);
-    expect(dayBody.bySource).toEqual([]);
+    expect(dayBody.tradeCount).toBe(1);
+    expect(dayBody.winRate).toBe(1);
+    expect(dayBody.feeBasis).toBe('exact');
+    expect(dayBody.bySource).toHaveLength(1);
+    expect(dayBody.bySource[0]).toMatchObject({ source: 'auto', feeBasis: 'exact' });
   });
 
-  it('reports only auto symbols that hold a position in `holdings`, with cost basis', async () => {
-    // Seed two auto symbols: one with a real position, one subscribed-but-flat.
+  it('reports only rotatable symbols that hold a position in `holdings`, with cost basis', async () => {
+    // Seed two unpinned symbols: one with a real position, one subscribed-but-flat.
     const p = await profileRepo(fx.di.db, fx.bob.userId, fx.bob.accountId, fx.bob.profileId);
     await p.profileSymbols.upsert('HOLDUSDT', 'HOLD', { overrideConfig: null });
     await p.profileSymbols.setSource('HOLDUSDT', 'auto');
     await p.avgEntryPrices.upsert('HOLDUSDT', { avgEntryPrice: '2', quantity: '3' });
     await p.profileSymbols.upsert('WAITUSDT', 'WAIT', { overrideConfig: null });
     await p.profileSymbols.setSource('WAITUSDT', 'auto');
+    // Operator provenance with the pin RELEASED. Discovery may rotate it, so the live set has to carry it — and it is the row that discriminates the pin-keyed projection from the provenance-keyed one it replaced. `upsert` leaves a fresh row unpinned, and `setSource` records the origin without touching the pin.
+    await p.profileSymbols.upsert('RELEASEDUSDT', 'RELEASED', { overrideConfig: null });
+    await p.profileSymbols.setSource('RELEASEDUSDT', 'manual');
+    // Pinned, so discovery may NOT rotate it and it stays out of the live set whatever created it.
+    await p.profileSymbols.upsert('KEPTUSDT', 'KEPT', { overrideConfig: null });
+    await p.profileSymbols.setSource('KEPTUSDT', 'auto');
+    await p.profileSymbols.setPinned('KEPTUSDT', true, new Date());
 
     const res = await fx.app.request(
       `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/discovery`,
@@ -197,14 +218,18 @@ describeIfInfra('discovery router', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       gauge: { autoSymbolCount: number };
-      holdings: { symbol: string; quantity: string; quoteCostBasis: string }[];
+      holdings: {
+        symbol: string;
+        quantity: string;
+        avgEntryPrice: string;
+        quoteCostBasis: string;
+      }[];
       autoSymbols: string[];
     };
-    // Both are auto; only the one with quantity > 0 appears in holdings.
-    expect(body.gauge.autoSymbolCount).toBe(2);
-    // The live auto-set carries both, including the flat one (for reconciling
-    // a stale universe row against current membership).
-    expect([...body.autoSymbols].sort()).toEqual(['HOLDUSDT', 'WAITUSDT']);
+    // Three rotatable rows; only the one with quantity > 0 appears in holdings.
+    expect(body.gauge.autoSymbolCount).toBe(3);
+    // The live rotatable set carries every UNPINNED row, including the flat one (for reconciling a stale universe row against current membership) and the operator-added one whose pin was released — keying this on `source` would drop the latter and the dashboard would offer no controls for a coin discovery is about to reap. The pinned row is excluded even though discovery found it.
+    expect([...body.autoSymbols].sort()).toEqual(['HOLDUSDT', 'RELEASEDUSDT', 'WAITUSDT']);
     expect(body.holdings).toHaveLength(1);
     const h = body.holdings[0];
     expect(h?.symbol).toBe('HOLDUSDT');
@@ -226,14 +251,14 @@ describeIfInfra('discovery router', () => {
       state: {
         entryBlocker: { reason: 'awaiting-trigger-price', detail: { windowLow: '95' } },
       },
-      strategyVersion: 1,
+      strategyVersion: '1',
     });
-    // A non-auto symbol carrying a blocker must NOT be surfaced (entryBlocker
-    // stays null — discovery does not manage non-auto entry).
+    // A PINNED symbol carrying a blocker must NOT be surfaced (entryBlocker stays null — discovery does not manage a coin it may not rotate). Keyed on the pin, not on provenance: an unpinned `manual` row is still discovery's to rotate and does surface.
     await p.profileSymbols.upsert('MANUALUSDT', 'MANUAL', { overrideConfig: null });
+    await p.profileSymbols.setPinned('MANUALUSDT', true, new Date());
     await p.symbolStates.upsert('MANUALUSDT', {
       state: { entryBlocker: { reason: 'technicals-sell' } },
-      strategyVersion: 1,
+      strategyVersion: '1',
     });
 
     await fx.di.redis.raw().set(
@@ -293,7 +318,7 @@ describeIfInfra('discovery router', () => {
     const blocked = candidates.find((c) => c.symbol === 'BLOCKUSDT');
     const manual = candidates.find((c) => c.symbol === 'MANUALUSDT');
     expect(blocked?.entryBlocker?.reason).toBe('awaiting-trigger-price');
-    // Non-auto candidate's blocker is not surfaced.
+    // The pinned candidate's blocker is not surfaced.
     expect(manual?.entryBlocker).toBeNull();
   });
 
@@ -307,7 +332,8 @@ describeIfInfra('discovery router', () => {
       },
     );
     expect(res.status).toBe(200);
-    expect((await res.json()).config.enabled).toBe(true);
+    const patched = (await res.json()) as { config: { enabled: boolean } };
+    expect(patched.config.enabled).toBe(true);
 
     const after = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/discovery`,
@@ -367,7 +393,7 @@ describeIfInfra('discovery router', () => {
   it('reports the account cap for a momentum profile whose cap lives at the config root', async () => {
     const momentum = buildStrategyRegistry().get('momentum');
     if (!momentum) throw new Error('expected momentum to be registered');
-    const MOMENTUM_PROFILE = '00000000-0000-4000-8000-00000000a501';
+    const MOMENTUM_PROFILE = asProfileId('00000000-0000-4000-8000-00000000a501');
     await fx.di.pool.query(
       `insert into profiles (id, account_id, name, strategy_name, strategy_version, config, state)
        values ($1, $2, 'momentum cap demo', 'momentum', $3, $4, '{}')`,
@@ -394,6 +420,66 @@ describeIfInfra('discovery router', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { gauge: { maxAccountExposureQuote: string | null } };
     expect(body.gauge.maxAccountExposureQuote).toBe('500');
+  });
+
+  // The gauge cap is the ONE value in this MR's three `.toString() as DecimalString` sites that is not backstopped by a schema: this route returns `c.json(await buildDashboard(...))` with no `DiscoveryDashboardResponse.parse`, so whatever `resolveGaugeCap` produces is literally the byte on the wire. Its two siblings in account-health.ts go out through `AccountHealthResponse.parse` and would be re-spelled even if their cast came back.
+  it('spells a sub-1e-6 gauge cap plainly on the wire, where no response schema can re-spell it', async () => {
+    const momentum = buildStrategyRegistry().get('momentum');
+    if (!momentum) throw new Error('expected momentum to be registered');
+    const TINY_CAP_PROFILE = asProfileId('00000000-0000-4000-8000-00000000a502');
+    await fx.di.pool.query(
+      `insert into profiles (id, account_id, name, strategy_name, strategy_version, config, state)
+       values ($1, $2, 'tiny cap demo', 'momentum', $3, $4, '{}')`,
+      [
+        TINY_CAP_PROFILE,
+        fx.alice.accountId,
+        momentum.version,
+        JSON.stringify({ accountCap: { mode: 'percentOfAccount', percent: '0.00000004' } }),
+      ],
+    );
+    // 0.00000004 × 9 = 0.00000036, whose decimal exponent is -7 — one past decimal.js's `toExpNeg`, so `toString()` renders it `3.6e-7`.
+    await fx.di.redis
+      .raw()
+      .set(
+        profileKey({ accountId: fx.alice.accountId, profileId: TINY_CAP_PROFILE }, 'accountInfo'),
+        JSON.stringify({ balances: { USDT: { free: '9', locked: '0' } } }),
+      );
+
+    const res = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${TINY_CAP_PROFILE}/discovery`,
+      { headers: headers(fx.alice.userId) },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { gauge: { maxAccountExposureQuote: string | null } };
+    expect(body.gauge.maxAccountExposureQuote).toBe('0.00000036');
+    // Asserted separately from the equality: a regression to the exponential spelling still reads as "a number", and the gauge interpolates this into a quote-currency ceiling beside a column of fixed-decimal figures.
+    expect(body.gauge.maxAccountExposureQuote).not.toMatch(/e[+-]/i);
+  });
+
+  // The sibling arm. `amount` reads like a passthrough — the operator typed a number, the gauge shows it — but the value arrives from untyped profile-config JSONB, and the config field that writes it validates with `decimalString(...)`, whose grammar admits scientific notation. So the stored string can already BE an exponent, with no arithmetic anywhere to blame. Pinning only the `percent` arm above would leave this one free to regress: the CI gate matches `.toString() as` and `String(...) as`, never a bare `as DecimalString`.
+  it('spells a sub-1e-6 amount-mode gauge cap plainly, from a config string that is already exponential', async () => {
+    const momentum = buildStrategyRegistry().get('momentum');
+    if (!momentum) throw new Error('expected momentum to be registered');
+    const AMOUNT_CAP_PROFILE = '00000000-0000-4000-8000-00000000a503';
+    await fx.di.pool.query(
+      `insert into profiles (id, account_id, name, strategy_name, strategy_version, config, state)
+       values ($1, $2, 'exponential amount cap demo', 'momentum', $3, $4, '{}')`,
+      [
+        AMOUNT_CAP_PROFILE,
+        fx.alice.accountId,
+        momentum.version,
+        JSON.stringify({ accountCap: { mode: 'amount', amount: '3.6e-7' } }),
+      ],
+    );
+
+    const res = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${AMOUNT_CAP_PROFILE}/discovery`,
+      { headers: headers(fx.alice.userId) },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { gauge: { maxAccountExposureQuote: string | null } };
+    expect(body.gauge.maxAccountExposureQuote).toBe('0.00000036');
+    expect(body.gauge.maxAccountExposureQuote).not.toMatch(/e[+-]/i);
   });
 
   it('serves the dashboard on one pooled connection', async () => {

@@ -280,7 +280,7 @@ describe('explainDiscovery', () => {
       klinesBySymbol: { MANUSDT: eligibleKlines, WINUSDT: eligibleKlines },
       currentAuto: [],
       lastFlattenAtMsBySymbol: {},
-      manualMembers: ['MANUSDT'],
+      pinnedMembers: ['MANUSDT'],
       config: cfg({ maxAutoSymbols: 1 }),
       nowMs: NOW,
     };

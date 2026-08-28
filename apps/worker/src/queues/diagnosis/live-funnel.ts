@@ -57,10 +57,10 @@ export interface LiveFunnelDeps {
    * permission cut disabled, matching what the cron would have done.
    */
   readonly accountPermissions: () => Promise<readonly string[]>;
-  /** Symbols discovery currently holds for this profile. */
-  readonly autoSymbols: readonly string[];
+  /** The profile's rotatable (unpinned) bindings — what discovery counts against the cap. */
+  readonly rotatableSymbols: readonly string[];
   /** Symbols the operator pinned; discovery never re-adopts these. */
-  readonly manualSymbols: readonly string[];
+  readonly pinnedSymbols: readonly string[];
   readonly logger: Logger;
   readonly nowMs: number;
 }
@@ -111,7 +111,7 @@ export const probeLiveFunnel = async (
     });
     const shortlist = shortlistByTicker(tickers, cfg);
     const limit = Math.min(1000, cfg.minAgeDays * 24 + 50);
-    const targets = selectKlineTargets(shortlist, deps.autoSymbols, cfg.maxAutoSymbols);
+    const targets = selectKlineTargets(shortlist, deps.rotatableSymbols, cfg.maxAutoSymbols);
     // `collect`, not `fail-fast`: the cron refuses partial klines because a
     // symbol missing its window would read as faded and be REAPED. This probe
     // reaps nothing, so a few missing windows cost accuracy in the candidate
@@ -157,9 +157,9 @@ export const probeLiveFunnel = async (
       // are the diff-derived ones (`added`/`kept`/`removed`), and the diagnosis
       // builds its history strip from stored scans, never from a probe. The
       // ladder it reports is untouched by them.
-      currentAuto: deps.autoSymbols.map((symbol) => ({ symbol, addedAtMs: 0 })),
+      currentAuto: deps.rotatableSymbols.map((symbol) => ({ symbol, addedAtMs: 0 })),
       lastFlattenAtMsBySymbol: {},
-      manualMembers: deps.manualSymbols,
+      pinnedMembers: deps.pinnedSymbols,
       config: cfg,
       nowMs: deps.nowMs,
     });

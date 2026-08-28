@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { asProfileId } from '@app/contracts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -217,7 +218,7 @@ describeIfDb('backtest_runs account-scoped lifecycle', () => {
 
       // A SECOND profile under the SAME user, with a done standalone run carrying
       // the SAME signature, must not leak across the per-row profile_id filter.
-      const otherProfileId = randomUUID();
+      const otherProfileId = asProfileId(randomUUID());
       await localFx.db.insert(profiles).values({
         id: otherProfileId,
         accountId: localFx.alice.accountId as unknown as string,
@@ -430,7 +431,9 @@ describeIfDb('backtest_runs account-scoped lifecycle', () => {
       const page1 = await localAlice.backtestRuns.list({ limit: 2 });
       expect(page1.length).toBe(2);
 
-      const cursor = { createdAt: page1[1].cursorToken, id: page1[1].id };
+      const boundary = page1[1];
+      if (!boundary) throw new Error('expected a second backtest row');
+      const cursor = { createdAt: boundary.cursorToken, id: boundary.id };
       const page2 = await localAlice.backtestRuns.list({ limit: 2, cursor });
       expect(page2.length).toBe(1);
 
@@ -486,7 +489,9 @@ describeIfDb('backtest_runs account-scoped lifecycle', () => {
 
       // The µs-precision `cursorToken` carries full microsecond resolution, so
       // a same-millisecond boundary no longer collapses to one cursor value.
-      const cursor = { createdAt: page1[1].cursorToken, id: page1[1].id };
+      const boundary = page1[1];
+      if (!boundary) throw new Error('expected a second backtest row');
+      const cursor = { createdAt: boundary.cursorToken, id: boundary.id };
       const page2 = await localAlice.backtestRuns.list({ limit: 2, cursor });
 
       const seen = new Set([...page1.map((r) => r.id), ...page2.map((r) => r.id)]);

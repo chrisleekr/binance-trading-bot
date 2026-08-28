@@ -136,7 +136,7 @@ describe('runDiscovery', () => {
       klinesBySymbol: { AUTOUSDT: good, PINUSDT: good },
       currentAuto: [],
       lastFlattenAtMsBySymbol: {},
-      manualMembers: ['PINUSDT'],
+      pinnedMembers: ['PINUSDT'],
       config: cfg({ maxAutoSymbols: 5 }),
       nowMs: NOW,
     });

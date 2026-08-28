@@ -1,4 +1,4 @@
-import type { DecimalString, ProfileDashboardResponse } from '@app/contracts';
+import { DecimalString, type ProfileDashboardResponse } from '@app/contracts';
 import { eq } from 'drizzle-orm';
 
 import { accounts } from '../../schema/accounts.js';
@@ -116,23 +116,22 @@ export const getProfileDashboard = async (
       symbol: s.symbol,
       enabled: disableRaw == null,
       source: s.source,
-      avgEntryPrice: (lbp?.avgEntryPrice ?? null) as DecimalString | null,
+      avgEntryPrice: lbp ? DecimalString.parse(lbp.avgEntryPrice) : null,
       currentPrice: (ticker.price ?? null) as DecimalString | null,
       // Held base quantity; the display layer derives unrealised P/L from
       // (currentPrice - avgEntryPrice) * quantity. The projection ships the
       // fact, not the money math — decimal.js is barred in this package.
-      quantity: (lbp?.quantity ?? null) as DecimalString | null,
+      quantity: lbp ? DecimalString.parse(lbp.quantity) : null,
       openOrderCount: openOrders.length,
       // Ship the rows themselves so the profile dashboard can render a
       // profile-wide open-orders table without an extra per-symbol fetch.
       // Map repo `Date`/`bigint` fields to the wire shape via the same
       // `orderToResponse` pattern the symbol-detail orders-view uses.
       openOrders: openOrders.map(orderToResponse),
-      // The dashboard route enriches both blockers from live symbol state after
-      // the cache read; the cached snapshot carries null so it never serves a
-      // stale blocker, and the route's value wins.
+      // The dashboard route enriches both blockers from live symbol state, and the seed refusal from live condition state, after the cache read; the cached snapshot carries null for all three so it never serves a stale one, and the route's value wins.
       entryBlocker: null,
       protectiveStopBlocker: null,
+      positionSeedRefusal: null,
     };
   });
 
@@ -152,7 +151,7 @@ export const getProfileDashboard = async (
         (asset === profile.quoteAsset ? '1' : null)) as DecimalString | null,
     })),
     totalProfit: '0' as DecimalString,
-    deployedQuote: deployedQuote as DecimalString,
+    deployedQuote: DecimalString.parse(deployedQuote),
     symbols: symbolStates,
     cachedAt: new Date().toISOString(),
   };

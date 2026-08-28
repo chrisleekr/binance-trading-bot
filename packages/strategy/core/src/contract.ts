@@ -324,7 +324,7 @@ export interface Capabilities {
   readonly needsUserDataStream: boolean;
   readonly needsMiniTicker: boolean;
   /**
-   * Whether the strategy reads the cross-symbol KV store (tracker #267). When
+   * Whether the strategy reads the cross-symbol KV store. When
    * true the worker loads the profile's KV snapshot and passes it as
    * `TickInput.profileKv`; when false/absent it skips that per-tick read, so the
    * per-symbol strategies that need no cross-symbol coupling pay nothing.
@@ -375,7 +375,7 @@ export type StrategyEventMap = Readonly<Record<string, StrategyEvent>>;
  * Per-tick input. `state` is scoped to `(profile, market.symbol)` — a
  * different symbol's tick on the same profile sees a different `state`
  * object. There is no profile-wide STATE object; cross-symbol coupling goes
- * through the per-profile KV store (tracker #267): a tick writes via `set-kv` /
+ * through the per-profile KV store: a tick writes via `set-kv` /
  * `delete-kv` decisions and reads the merged snapshot via {@link TickInput.profileKv}.
  */
 export interface TickInput<
@@ -400,7 +400,7 @@ export interface TickInput<
   readonly bundle: Bundle;
   readonly limits: ApiLimits;
   /**
-   * Read-only snapshot of this profile's cross-symbol KV store (tracker #267):
+   * Read-only snapshot of this profile's cross-symbol KV store:
    * the merge of every `set-kv` / `delete-kv` decision emitted under a
    * strategy-owned namespaced key. Present only when the strategy opts in via
    * `capabilities.needsProfileKv` — absent (and the worker skips the load) for

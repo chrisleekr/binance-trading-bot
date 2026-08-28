@@ -9,15 +9,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Logger } from 'pino';
 
-const { profileRepoSpy, runProfileBacktestSpy, getRun, findProfile, findForSymbol } = vi.hoisted(
-  () => ({
-    profileRepoSpy: vi.fn(),
-    runProfileBacktestSpy: vi.fn(),
-    getRun: vi.fn(),
-    findProfile: vi.fn(),
-    findForSymbol: vi.fn(),
-  }),
-);
+const { profileRepoSpy, runProfileBacktestSpy, getRun, findProfile } = vi.hoisted(() => ({
+  profileRepoSpy: vi.fn(),
+  runProfileBacktestSpy: vi.fn(),
+  getRun: vi.fn(),
+  findProfile: vi.fn(),
+}));
 
 vi.mock('@app/db', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@app/db')>();
@@ -77,12 +74,10 @@ const invoke = (deps = buildDeps()) =>
 beforeEach(() => {
   getRun.mockReset();
   findProfile.mockReset();
-  findForSymbol.mockReset().mockResolvedValue(null);
   runProfileBacktestSpy.mockReset();
   profileRepoSpy.mockReset().mockResolvedValue({
     backtestRuns: { get: getRun },
     profile: { findById: findProfile },
-    profileSymbols: { findForSymbol },
   });
 });
 
@@ -128,7 +123,6 @@ describe('createRunBacktestJob', () => {
   it('builds the ledger entry from the run window and the engine metrics', async () => {
     getRun.mockResolvedValue({ params: VALID_PARAMS });
     findProfile.mockResolvedValue(aProfile());
-    findForSymbol.mockResolvedValue({ reserveBaseQuantity: '0.5' });
     runProfileBacktestSpy.mockResolvedValue({
       result: { metrics: { netProfit: '12.5' } },
       configFingerprint: 'fp-1',
@@ -145,12 +139,5 @@ describe('createRunBacktestJob', () => {
       outcome: { netProfit: '12.5' },
     });
     expect(out.ledgerEntry.backtestSignature).toEqual(expect.any(String));
-
-    // The per-symbol reserve overlay reaches the engine, so backtest sell-sizing
-    // mirrors the live per-tick reserve.
-    const args = runProfileBacktestSpy.mock.calls[0]?.[1] as {
-      reserveBySymbol: Map<string, string | null>;
-    };
-    expect(args.reserveBySymbol.get('BTCUSDT')).toBe('0.5');
   });
 });

@@ -31,7 +31,7 @@ import { QUEUE_NAMES } from 'queues/queue-names.js';
 import { createReconfigureEnqueue } from 'queues/reconfigure-enqueue.js';
 import type { ActiveProfile } from 'profile-manager/profile-manager.js';
 import { defineCron, type CronDef } from './define.js';
-import type { DiscoveryStorageKeys } from './discovery-reap.js';
+import { reapOutcomeRecorder, type DiscoveryStorageKeys } from './discovery-reap.js';
 import { computeSiblingConflict, siblingQuoteAssets } from './sibling-conflict.js';
 import { discoveryResyncRequest, parseDiscoveryConfig } from './discovery/config.js';
 import { baseAssetHeld } from './discovery/held.js';
@@ -39,8 +39,13 @@ import { shouldRunProfile } from './discovery/gate.js';
 import { createAssetPolicyAbortRecordStore } from './discovery/abort-record.js';
 import { persistSnapshotBestEffort } from './discovery/snapshot.js';
 import { applyDiscoveryAdd, applyDiscoveryReap } from './discovery/apply.js';
+import { partitionByPin } from './discovery/pin-partition.js';
 import { discoveryMessage, notifyDiscovery, type ResolvedNotifiers } from './discovery/notify.js';
-import { runDiscoveryForProfile, type DiscoveryProfilePort } from './discovery/run.js';
+import {
+  runDiscoveryForProfile,
+  type DiscoveryCycleResult,
+  type DiscoveryProfilePort,
+} from './discovery/run.js';
 import {
   discoveryHandler,
   withTestModeFallback,
@@ -138,7 +143,7 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
     nowMs: number,
     getAllTickers: () => Promise<readonly Ticker24hrDto[]>,
     wake: ProfileWakeContext,
-  ): Promise<{ added: number; removed: number }> => {
+  ): Promise<DiscoveryCycleResult> => {
     const repo = await profileRepo(ctx.db, p.operatorId, p.accountId, p.profileId);
     const pid = unwrapId(p.profileId);
     const addedKey = GLOBAL_KEYS.discoveryAdded(pid);
@@ -150,7 +155,7 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
       enterOnAddKey: GLOBAL_KEYS.discoveryEnterOnAdd(pid),
     };
 
-    // One profile_symbols read per cycle, reused for the auto list, manual
+    // One profile_symbols read per cycle, reused for the rotatable list, pinned
     // list, and DB last-flatten map (was three identical reads).
     let symbolRows: Awaited<ReturnType<typeof repo.profileSymbols.listForProfile>> | null = null;
     const listSymbolRows = async (): Promise<
@@ -224,10 +229,9 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
       getAllTickers,
       getKlines: async (symbol, limit) =>
         (await rest.getKlines({ symbol, interval: '1h', limit })).map(klineToCandle),
-      listAutoSymbols: async () =>
-        (await listSymbolRows()).filter((r) => r.source === 'auto').map((r) => r.symbol),
-      listManualSymbols: async () =>
-        (await listSymbolRows()).filter((r) => r.source === 'manual').map((r) => r.symbol),
+      // Both lists come from ONE predicate so the two can never disagree about a row; see `partitionByPin`.
+      listRotatableSymbols: async () => partitionByPin(await listSymbolRows()).rotatable,
+      listPinnedSymbols: async () => partitionByPin(await listSymbolRows()).pinned,
       addedAtBySymbol: async () => numericHash(await ctx.redis.hgetall(addedKey)),
       lastFlattenBySymbol: async () => {
         const redisFlat = numericHash(await ctx.redis.hgetall(flatKey));
@@ -288,6 +292,8 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
       },
       reapSymbol: (symbol, at) =>
         applyDiscoveryReap(repo.profileSymbols, ctx.redis, storageKeys, symbol, at),
+      // Written per decision rather than once per cycle: the loop that produces these can reject partway through (a DB error inside the reap transaction, a Binance client that fails to resolve), and the handler's per-profile catch would take the whole tally down with it — losing the count of rows this cycle had already deleted and committed.
+      recordReapOutcome: reapOutcomeRecorder(ctx.metrics, pid),
       emit: async (symbol, action) => {
         await repo.actionLogs.append({
           time: new Date(nowMs),

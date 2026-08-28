@@ -9,7 +9,7 @@
 // back-to-back batches against the same IP don't land in the same
 // Binance rate-limit bucket. The cron is self-rescheduling (its next run is
 // enqueued only after the current one finishes) so a slow run delays the next
-// rather than overlapping it (#361).
+// rather than overlapping it.
 
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';
@@ -111,7 +111,7 @@ export const buildTechnicalsComputeCron = (ctx: BootContext): CronDef => {
     // Self-rescheduling, not a fixed 30s scheduler: the handler serially fetches
     // klines for every (interval, symbol) and its worst-case runtime can approach
     // the cadence, so a fixed scheduler minted overlapping iterations that
-    // backlogged and wedged the queue (#361). The 30s start-to-start period holds
+    // backlogged and wedged the queue. The 30s start-to-start period holds
     // when runs are fast and collapses to back-to-back when a run overruns.
     selfReschedulePeriodMs: 30_000,
     handler: technicalsComputeHandler({

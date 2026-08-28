@@ -41,6 +41,7 @@ export type {
   DiscoveryFilterName,
   SiblingConflictDisposition,
 } from './explain.js';
+export { demoScanFunnel } from './demo-funnel.js';
 export { projectFunnel } from './funnel.js';
 export type { DiscoveryFunnel } from './funnel.js';
 export { backtestDiscovery } from './backtest.js';

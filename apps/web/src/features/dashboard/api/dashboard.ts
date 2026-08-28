@@ -32,11 +32,10 @@ const fetchClosedTrades = (
   period: ClosedTradesPeriod,
   tz: string,
 ): Promise<ClosedTradesResponse> => {
-  const search = new URLSearchParams({ period, tz });
-  return apiFetch(
-    accountPath(`/profiles/${profileId}/closed-trades?${search.toString()}`),
-    ClosedTradesResponse,
-  );
+  return apiFetch(accountPath(`/profiles/${profileId}/closed-trades`), ClosedTradesResponse, {
+    method: 'GET',
+    query: { period, tz },
+  });
 };
 
 /** Query options for the realised-P/L card; period and tz drive the cache key. */

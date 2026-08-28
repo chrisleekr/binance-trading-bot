@@ -205,11 +205,7 @@ describe('realizedPnlOnSell', () => {
 });
 
 describe('isValuelessResidue', () => {
-  // The delete-side bound. `isBelowMinNotional` asks whether a balance clears the
-  // exchange's floor; this asks whether it is a rounding error AGAINST that floor,
-  // which is a different question with a factor of 100 between the answers. The gap
-  // is where a `rebalance` target weight and a mostly-reserved holding live, and
-  // both are real positions whose cost basis a delete-side caller must not destroy.
+  // The delete-side bound. `isBelowMinNotional` asks whether a balance clears the exchange's floor; this asks whether it is a rounding error AGAINST that floor, which is a different question with a factor of 100 between the answers. The gap is where a `rebalance` target weight lives, and that is a real position whose cost basis a delete-side caller must not destroy.
   const price = new Decimal('1');
   const floor = new Decimal('5');
 

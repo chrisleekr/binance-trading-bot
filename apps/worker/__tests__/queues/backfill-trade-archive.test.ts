@@ -1,7 +1,6 @@
-// backfill-trade-archive handler: paginates myTrades, reconstructs round-trips,
-// dedupes against already-backfilled trade ids, and inserts source='auto' rows
-// pinned to the closing-fill time. Postgres is mocked via profileRepo; the
-// Binance client and the Redis symbol-info snapshot are spies.
+// backfill-trade-archive handler: paginates myTrades, reconstructs round-trips, dedupes against already-backfilled trade ids, and inserts rows pinned to the closing-fill time carrying the binding's own provenance.
+//
+// Postgres is mocked via profileRepo; the Binance client and the Redis symbol-info snapshot are spies.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
@@ -52,17 +51,20 @@ const trade = (o: {
   id?: number;
   /** Defaults to the trade id; set explicitly to span several fills over one order. */
   orderId?: number;
+  commission?: string;
+  commissionAsset?: string;
+  price?: string;
 }): MyTradeDto => {
   const id = o.id ?? ++seq;
   return {
     id,
     orderId: o.orderId ?? id,
     symbol: 'WLDUSDT',
-    price: '0',
+    price: o.price ?? '1',
     qty: o.qty,
     quoteQty: o.quoteQty,
-    commission: '0',
-    commissionAsset: 'USDT',
+    commission: o.commission ?? '0',
+    commissionAsset: o.commissionAsset ?? 'USDT',
     time: o.time,
     isBuyer: o.isBuyer,
     isMaker: false,
@@ -97,6 +99,15 @@ const recordBackfillAttempt = vi.fn<ProfileRepo['tradeArchive']['recordBackfillA
 // pass saw. Fixed here to keep the recorded value assertable.
 const BOUNDARY = new Date('2026-08-01T00:00:00Z');
 const attemptBoundary = vi.fn<ProfileRepo['tradeArchive']['attemptBoundary']>(async () => BOUNDARY);
+// The binding whose provenance the archive row inherits. Null models the binding already being gone — a late backfill after an unsubscribe, where nobody can now say who chose the coin.
+//
+// Parameters derived from the production repo type, return narrowed to the one column under test, matching the sibling mocks above. A hand-written signature cannot fail when the real one changes, and a `source: string` would accept a value the column's own enum forbids.
+type FindForSymbol = ProfileRepo['profileSymbols']['findForSymbol'];
+const profileSymbolsFindForSymbol = vi.fn<
+  (
+    ...args: Parameters<FindForSymbol>
+  ) => Promise<Pick<NonNullable<Awaited<ReturnType<FindForSymbol>>>, 'source'> | null>
+>(async () => ({ source: 'auto' }));
 const getMyTrades = vi.fn<BinanceRestClient['getMyTrades']>();
 
 const makeDeps = (over?: {
@@ -166,18 +177,37 @@ beforeEach(() => {
   listRecoveryAttributionRows.mockClear();
   recordBackfillAttempt.mockClear();
   attemptBoundary.mockClear();
+  profileSymbolsFindForSymbol.mockReset();
+  profileSymbolsFindForSymbol.mockResolvedValue({ source: 'auto' });
   getMyTrades.mockReset();
   profileRepoSpy.mockReset();
   profileRepoSpy.mockResolvedValue({
     orders: { listRecoveryAttributionRows },
     tradeArchive: { insert, listForSymbol, recordBackfillAttempt, attemptBoundary },
+    profileSymbols: { findForSymbol: profileSymbolsFindForSymbol },
   });
   binanceModeByIdSpy.mockReset();
   binanceModeByIdSpy.mockResolvedValue('live');
 });
 
 describe('handleBackfillTradeArchive', () => {
-  it('inserts a source=auto row pinned to the closing-fill time', async () => {
+  // Provenance is a fact about the binding, and only the binding knows it. Hard-coding `auto` here credited discovery with every reconstructed cycle, including coins the operator picked by hand — which is precisely the column the discovery net-edge scoreboard filters on, so the scoreboard was measuring the operator's own trades as its own.
+  it.each([
+    ['auto', { source: 'auto' }],
+    ['manual', { source: 'manual' }],
+    ['unknown', null],
+  ] as const)('stamps source=%s from the symbol binding', async (expected, binding) => {
+    profileSymbolsFindForSymbol.mockResolvedValue(binding);
+    getMyTrades.mockResolvedValueOnce([
+      trade({ id: 1, qty: '100', quoteQty: '50', isBuyer: true, time: 1000 }),
+      trade({ id: 2, qty: '100', quoteQty: '60', isBuyer: false, time: 2000 }),
+    ]);
+    await handleBackfillTradeArchive(makeDeps(), payload);
+    expect(profileSymbolsFindForSymbol).toHaveBeenCalledWith('WLDUSDT');
+    expect(must(insert.mock.calls[0])[0].source).toBe(expected);
+  });
+
+  it('inserts a row pinned to the closing-fill time', async () => {
     getMyTrades.mockResolvedValueOnce([
       trade({ id: 1, qty: '100', quoteQty: '50', isBuyer: true, time: 1000 }),
       trade({ id: 2, qty: '100', quoteQty: '60', isBuyer: false, time: 2000 }),
@@ -185,7 +215,6 @@ describe('handleBackfillTradeArchive', () => {
     await handleBackfillTradeArchive(makeDeps(), payload);
     expect(insert).toHaveBeenCalledTimes(1);
     const row = must(insert.mock.calls[0])[0];
-    expect(row.source).toBe('auto');
     expect(row.baseAsset).toBe('WLD');
     expect(row.quoteAsset).toBe('USDT');
     expect(row.profit).toBe('10');
@@ -201,6 +230,128 @@ describe('handleBackfillTradeArchive', () => {
     expect(must(attemptBoundary.mock.invocationCallOrder[0])).toBeLessThan(
       must(getMyTrades.mock.invocationCallOrder[0]),
     );
+  });
+
+  it('persists a fully evidenced base-asset BUY zero adjustment as complete', async () => {
+    getMyTrades.mockResolvedValueOnce([
+      trade({
+        id: 1,
+        qty: '100',
+        quoteQty: '50',
+        isBuyer: true,
+        time: 1000,
+        commission: '1',
+        commissionAsset: 'WLD',
+      }),
+      trade({ id: 2, qty: '99', quoteQty: '60', isBuyer: false, time: 2000 }),
+    ]);
+    await handleBackfillTradeArchive(makeDeps(), payload);
+    const row = must(insert.mock.calls[0])[0];
+    expect(row).toMatchObject({
+      fees: { WLD: '1', USDT: '0' },
+      feesQuote: '0',
+      feeBasis: 'exact',
+    });
+  });
+
+  /** The BNB-commissioned round trip both fee cases below reconstruct. */
+  const bnbFeeTrades = (): MyTradeDto[] => [
+    trade({ id: 1, qty: '100', quoteQty: '50', isBuyer: true, time: 1000 }),
+    trade({
+      id: 2,
+      qty: '100',
+      quoteQty: '60',
+      isBuyer: false,
+      time: 2000,
+      commission: '0.2',
+      commissionAsset: 'BNB',
+    }),
+  ];
+
+  /** `GET /api/v3/account/commission` in Binance's own shape: 0.1% taker, 25% off when the charge lands in BNB. */
+  const commissionPayload = () => ({
+    symbol: 'WLDUSDT',
+    standardCommission: { maker: '0', taker: '0.001', buyer: '0', seller: '0' },
+    taxCommission: { maker: '0', taker: '0', buyer: '0', seller: '0' },
+    specialCommission: { maker: '0', taker: '0', buyer: '0', seller: '0' },
+    discount: {
+      enabledForAccount: true,
+      enabledForSymbol: true,
+      discountAsset: 'BNB',
+      discount: '0.75',
+    },
+  });
+
+  it('preserves an unpriceable backfill fee and marks its adjustment incomplete', async () => {
+    // Unchanged behaviour on the one route that still reaches it: the per-symbol rate lookup failed, so the BNB charge cannot be reconstructed and the row declines to claim a quote adjustment.
+    const trades = bnbFeeTrades();
+    const client = {
+      getMyTrades: vi.fn(async () => trades),
+      getCommissionRates: vi.fn(async () => {
+        throw new Error('-1121 Invalid symbol');
+      }),
+      getTicker24hr: vi.fn(async () => {
+        throw new Error('no BNBUSDT ticker');
+      }),
+    } as unknown as BinanceRestClient;
+    await handleBackfillTradeArchive(makeDeps({ client }), payload);
+    const row = must(insert.mock.calls[0])[0];
+    expect(row).toMatchObject({
+      fees: { USDT: '0', BNB: '0.2' },
+      feesQuote: '0',
+      feeBasis: 'unknown',
+    });
+    expect(client.getTicker24hr).not.toHaveBeenCalled();
+  });
+
+  it('values a backfilled BNB fee from the rates Binance charged, never from a ticker', async () => {
+    // A backfilled cycle is by definition historical, so a current ticker is the worst possible source: it prices a months-old fill at this moment's market and then certifies the row on it. The commission endpoint is a per-symbol rate table rather than a price, which makes the reconstruction usable, but the table is still read at today's clock for a fill of unknown age, so the row earns the middle tier and not the top one.
+    const trades = bnbFeeTrades();
+    const client = {
+      getMyTrades: vi.fn(async () => trades),
+      getCommissionRates: vi.fn(async () => commissionPayload()),
+      getTicker24hr: vi.fn(async () => ({ lastPrice: '600' })),
+    } as unknown as BinanceRestClient;
+    await handleBackfillTradeArchive(makeDeps({ client }), payload);
+    const row = must(insert.mock.calls[0])[0];
+    // 60 quote notional x 0.001 taker+seller x 0.75 discount.
+    expect(row).toMatchObject({
+      fees: { USDT: '0', BNB: '0.2' },
+      feesQuote: '0.045',
+      feeBasis: 'estimated',
+    });
+    expect(client.getTicker24hr).not.toHaveBeenCalled();
+  });
+
+  it("declares a rate-table valuation 'estimated', never exact", async () => {
+    // The rate table is fetched NOW and applied to a fill of any age. It reconstructs the charge Binance would make under today's schedule, which is a good reconstruction and still a reconstruction: the account's fee tier, its BNB discount and the symbol's rates all move, and none of them is dated. The fixture must carry the BNB commission, because with no third-asset leg the rate table is never fetched at all and the assertion would hold for reasons unrelated to it.
+    const trades = bnbFeeTrades();
+    const client = {
+      getMyTrades: vi.fn(async () => trades),
+      getCommissionRates: vi.fn(async () => commissionPayload()),
+      getTicker24hr: vi.fn(async () => ({ lastPrice: '600' })),
+    } as unknown as BinanceRestClient;
+    await handleBackfillTradeArchive(makeDeps({ client }), payload);
+    expect(client.getCommissionRates).toHaveBeenCalled();
+    const row = must(insert.mock.calls[0])[0] as { feesQuote: string; feeBasis: string };
+    expect(row.feesQuote).toBe('0.045');
+    expect(row.feeBasis).toBe('estimated');
+  });
+
+  it("declares an unpriceable backfill fee 'unknown'", async () => {
+    const trades = bnbFeeTrades();
+    const client = {
+      getMyTrades: vi.fn(async () => trades),
+      getCommissionRates: vi.fn(async () => {
+        throw new Error('-1121 Invalid symbol');
+      }),
+      getTicker24hr: vi.fn(async () => {
+        throw new Error('no BNBUSDT ticker');
+      }),
+    } as unknown as BinanceRestClient;
+    await handleBackfillTradeArchive(makeDeps({ client }), payload);
+    const row = must(insert.mock.calls[0])[0] as { feeBasis: string };
+    expect(row.feeBasis).toBe('unknown');
   });
 
   it('restores a closing SELL intent from one exact local terminal order', async () => {
@@ -341,6 +492,22 @@ describe('handleBackfillTradeArchive', () => {
     expect(listRecoveryAttributionRows).toHaveBeenCalledOnce();
     expect(listRecoveryAttributionRows).toHaveBeenCalledWith('WLDUSDT', [2n, 4n]);
     expect(insert).toHaveBeenCalledTimes(2);
+  });
+
+  it('reads the symbol binding once for the whole pass, not once per round-trip', async () => {
+    // Two round-trips off one fill history. The provenance is a property of the symbol, so it is constant across every row this pass writes; reading it inside the loop would turn one DB round-trip into one per reconstructed cycle, and a full-history backfill reconstructs hundreds.
+    getMyTrades.mockResolvedValueOnce([
+      trade({ id: 1, qty: '100', quoteQty: '50', isBuyer: true, time: 1000 }),
+      trade({ id: 2, qty: '100', quoteQty: '60', isBuyer: false, time: 2000 }),
+      trade({ id: 3, qty: '50', quoteQty: '25', isBuyer: true, time: 3000 }),
+      trade({ id: 4, qty: '50', quoteQty: '30', isBuyer: false, time: 4000 }),
+    ]);
+
+    await handleBackfillTradeArchive(makeDeps(), payload);
+
+    // The call count is only meaningful against more than one row: with a single round-trip a per-iteration read and a hoisted one are indistinguishable.
+    expect(insert).toHaveBeenCalledTimes(2);
+    expect(profileSymbolsFindForSymbol).toHaveBeenCalledTimes(1);
   });
 
   it('the restored intent survives deriveExitIntent when the closing order sits mid-array', async () => {

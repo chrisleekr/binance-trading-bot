@@ -37,7 +37,6 @@ const tuple = (over: Partial<FrameTuple> = {}): FrameTuple => ({
     quoteAsset: 'USDT',
     weightLimit1m: 1200,
     needsAccountDeployedQuote: false,
-    reserveBaseQuantity: null,
     config: {},
   },
   decisions: [{ type: 'noop' }] as readonly Decision[],

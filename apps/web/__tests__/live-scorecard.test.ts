@@ -41,6 +41,7 @@ describe('mergeRollupBuckets', () => {
     grossProfit: '0',
     grossLoss: '0',
     totalFees: '0',
+    feeBasis: 'exact' as const,
     ...over,
   });
 
@@ -52,6 +53,7 @@ describe('mergeRollupBuckets', () => {
       grossProfit: '0',
       grossLoss: '0',
       totalFees: '0',
+      feeBasis: 'exact',
     });
   });
 
@@ -114,6 +116,67 @@ describe('mergeRollupBuckets', () => {
     expect(Number(out.grossProfit)).toBe(500);
     expect(Number(out.grossLoss)).toBe(100);
     expect(Number(out.totalFees)).toBe(2);
+  });
+
+  it('merges to the weakest fee tier across the buckets it counts', () => {
+    // The fifth AND-fold site, and the one the issue misses. The scorecard headline is one number built from several buckets, so it inherits the worst evidence any of them carries; a rank maximum reads a set holding one estimated bucket as fully proven.
+    const out = mergeRollupBuckets(
+      [
+        b({ tradeCount: 2, feeBasis: 'exact' } as Parameters<typeof b>[0]),
+        b({ tradeCount: 3, feeBasis: 'estimated' } as Parameters<typeof b>[0]),
+      ],
+      'USDT',
+    );
+    expect(out.tradeCount).toBe(5);
+    expect(out.feeBasis).toBe('estimated');
+  });
+
+  it('merges an all-exact set to exact', () => {
+    // The identity. Seeded weaker, every proven scorecard marks itself as a guess and the case above still passes.
+    const out = mergeRollupBuckets(
+      [
+        b({ tradeCount: 2, feeBasis: 'exact' } as Parameters<typeof b>[0]),
+        b({ tradeCount: 3, feeBasis: 'exact' } as Parameters<typeof b>[0]),
+      ],
+      'USDT',
+    );
+    expect(out.feeBasis).toBe('exact');
+  });
+
+  it('ignores the tier of a bucket in another currency', () => {
+    // The currency filter runs before the fold, or a BTC-denominated bucket the scorecard is not counting still drags the tier of the one it is.
+    const out = mergeRollupBuckets(
+      [
+        b({ tradeCount: 2, feeBasis: 'exact' } as Parameters<typeof b>[0]),
+        b({ quoteAsset: 'BTC', tradeCount: 9, feeBasis: 'unknown' } as Parameters<typeof b>[0]),
+      ],
+      'USDT',
+    );
+    expect(out.tradeCount).toBe(2);
+    expect(out.feeBasis).toBe('exact');
+  });
+
+  it('sums money fields as plain decimal strings, never exponential text', () => {
+    // The merged sums are re-stringified and handed to PnlValue, which renders whatever string it is given. `String(1e-7)` is the literal `1e-7`, and it reaches the operator's screen in a column of ordinary decimals. The DOM gate cannot catch this one: it flags a raw decimal, not one laundered through Number first.
+    const out = mergeRollupBuckets(
+      [
+        b({ grossProfit: '0.00000005', grossLoss: '0.00000003', totalFees: '0.00000001' }),
+        b({ grossProfit: '0.00000005', grossLoss: '0.00000003', totalFees: '0.00000001' }),
+      ],
+      'USDT',
+    );
+    expect(out.grossProfit).toBe('0.0000001');
+    expect(out.grossLoss).toBe('0.00000006');
+    expect(out.totalFees).toBe('0.00000002');
+    for (const value of [out.grossProfit, out.grossLoss, out.totalFees]) {
+      expect(value).not.toMatch(/[eE]/);
+    }
+  });
+
+  it('sums money fields without IEEE-754 drift', () => {
+    // 0.1 + 0.2 is the canonical binary-floating-point failure, and the sum is a money field the scorecard prints verbatim.
+    const out = mergeRollupBuckets([b({ grossProfit: '0.1' }), b({ grossProfit: '0.2' })], 'USDT');
+    expect(out.grossProfit).toBe('0.3');
   });
 
   it('case-folds the currency it is asked to count', () => {

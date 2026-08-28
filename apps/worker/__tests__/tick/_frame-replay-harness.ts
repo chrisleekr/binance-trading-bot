@@ -174,10 +174,6 @@ export const makeProfileContext = (
     candleInterval: tuple.profile.candleInterval,
     technicalsConfig: {} as unknown as TechnicalsBundleConfig,
     needsAccountDeployedQuote: tuple.profile.needsAccountDeployedQuote,
-    // `?? null` tolerates a golden tuple recorded before the reserve field
-    // existed: an absent reserve replays inert (no overlay), so the committed
-    // sample.jsonl stays drift-free without regeneration.
-    reserveBaseQuantity: tuple.profile.reserveBaseQuantity ?? null,
   };
 };
 

@@ -115,6 +115,20 @@ export const SymbolStateResponse = z.object({
    * keeps payloads written before the field existed decodable.
    */
   exitBlocker: EntryBlockerResponse.default(null),
+  /**
+   * Why the operator's recorded cost basis was NOT handed to the strategy, or null when it was.
+   *
+   * Distinct from the three blockers above in where it comes from and what it contradicts: those are written by the strategy into its own state and explain a decision it made, while this one is written by the worker job that runs OUTSIDE `tick()` and explains a decision it declined to make. It has to travel beside `avgEntryPrice`, because that field is the record the refusal is about — the row survives the refusal by design, so a client holding only the row renders a position the strategy does not have.
+   *
+   * `since` is when the refusal opened, not when it was last re-observed, so "this has been true for nine days" survives log pruning. `.default(null)` keeps a payload decoded before the field shipped parsing.
+   */
+  positionSeedRefusal: z
+    .object({
+      code: z.string(),
+      since: z.iso.datetime(),
+    })
+    .nullable()
+    .default(null),
 });
 /** TS type derived from {@link SymbolStateResponse} so consumers don't re-run z.infer at every call site. */
 export type SymbolStateResponse = z.infer<typeof SymbolStateResponse>;

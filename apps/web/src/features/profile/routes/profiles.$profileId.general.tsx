@@ -1,7 +1,4 @@
-// /profiles/$profileId/general — the profile's General settings: identity (name,
-// quote), lifecycle (enable/disable + per-profile stop), API key, and
-// the destructive delete. A real page reached from the Manage menu; consolidates
-// what used to be scattered lifecycle/admin tiles in the slide-over.
+// /profiles/$profileId/general — the profile's General settings: identity (name, quote), lifecycle (enable/disable + per-profile stop), API key, and the destructive delete. A real page reached from the sidebar's expanded profile or the phone's Profiles sheet; consolidates what used to be scattered lifecycle/admin tiles in the slide-over.
 
 import { createRoute } from '@tanstack/react-router';
 

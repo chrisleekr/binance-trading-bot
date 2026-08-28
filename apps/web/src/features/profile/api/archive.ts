@@ -35,7 +35,7 @@ export const fetchProfileArchive = (
       period,
       tz,
       view,
-      ...(cursor !== null ? { cursor } : {}),
+      cursor,
     },
   });
 };

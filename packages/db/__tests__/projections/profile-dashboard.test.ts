@@ -1,7 +1,11 @@
+import { asAccountId, asProfileId, asUserId } from '@app/contracts';
+import { Pool, type QueryResult } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { createDb } from '../../src/db.js';
 import type { ProfileScope } from '../../src/repo/_scoped.js';
-import { profileRepo } from '../../src/repo/index.js';
+import { profileRepo, scopeProfile } from '../../src/repo/index.js';
+import { profileKey } from '../../src/redis.js';
 import {
   getProfileDashboard,
   invalidateProfileDashboard,
@@ -11,6 +15,34 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from '../isolation/_
 import { makeRedisStub } from './_redis-stub.js';
 
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
+const UNIT_OPERATOR_ID = asUserId('00000000-0000-4000-8000-000000000001');
+const UNIT_ACCOUNT_ID = asAccountId('00000000-0000-4000-8000-000000000002');
+const UNIT_PROFILE_ID = asProfileId('00000000-0000-4000-8000-000000000003');
+
+/**
+ * Mints the production scope brand without making cache-only tests depend on a Postgres server.
+ * @returns A branded profile scope and cleanup callback for its inert pool.
+ */
+const unitScope = async (): Promise<{ close: () => Promise<void>; scope: ProfileScope }> => {
+  const pool = new Pool();
+  const ownershipResult: QueryResult = {
+    command: 'SELECT',
+    rowCount: 1,
+    oid: 0,
+    fields: [],
+    rows: [[UNIT_PROFILE_ID]],
+  };
+  Object.defineProperty(pool, 'query', {
+    value: async (): Promise<QueryResult> => ownershipResult,
+  });
+  const scope = await scopeProfile(
+    createDb(pool),
+    UNIT_OPERATOR_ID,
+    UNIT_ACCOUNT_ID,
+    UNIT_PROFILE_ID,
+  );
+  return { scope, close: () => pool.end() };
+};
 
 // Issue #649 C2/E9: the per-profile dashboard cache TTL must strictly exceed
 // the SPA's 10s poll (Phase B), mirroring DASHBOARD_AGGREGATE_TTL_S. RED until
@@ -23,52 +55,54 @@ describe('PROFILE_DASHBOARD_TTL_S decouples cache lifetime from the poll cadence
 
 describe('getProfileDashboard — cache hit (no DB)', () => {
   it('returns the cached payload verbatim and never touches Postgres', async () => {
-    const cached = {
-      profileId: '00000000-0000-0000-0000-0000000a1001',
-      enabled: true,
-      binanceMode: 'test',
-      balances: [],
-      totalProfit: '0',
-      symbols: [],
-      cachedAt: '2026-05-17T00:00:00.000Z',
-    };
-    const scope = {
-      db: {} as ProfileScope['db'],
-      operatorId: 'u1' as ProfileScope['operatorId'],
-      accountId: 'a1' as ProfileScope['accountId'],
-      profileId: 'p1' as ProfileScope['profileId'],
-    };
-    const { redis } = makeRedisStub({
-      'tenant:a1:profile:p1:dashboard:cache': JSON.stringify(cached),
-    });
-    const out = await getProfileDashboard(scope, redis);
-    expect(out).toEqual(cached);
+    const { scope, close } = await unitScope();
+    try {
+      const cached = {
+        profileId: UNIT_PROFILE_ID,
+        enabled: true,
+        binanceMode: 'test',
+        balances: [],
+        totalProfit: '0',
+        symbols: [],
+        cachedAt: '2026-05-17T00:00:00.000Z',
+      };
+      const { redis } = makeRedisStub({
+        [profileKey(scope, 'dashboardCache')]: JSON.stringify(cached),
+      });
+      const out = await getProfileDashboard(scope, redis);
+      expect(out).toEqual(cached);
+    } finally {
+      await close();
+    }
   });
 });
 
 describe('invalidateProfileDashboard (no DB)', () => {
-  const scope = {
-    db: {} as ProfileScope['db'],
-    operatorId: 'u1' as ProfileScope['operatorId'],
-    accountId: 'a1' as ProfileScope['accountId'],
-    profileId: 'p1' as ProfileScope['profileId'],
-  };
-  const CACHE_KEY = 'tenant:a1:profile:p1:dashboard:cache';
-
   it('deletes the dashboard cache key for the scope', async () => {
-    const store = new Map<string, string>([[CACHE_KEY, '{}']]);
-    const redis = { del: async (k: string): Promise<number> => (store.delete(k) ? 1 : 0) };
-    await invalidateProfileDashboard(scope, redis);
-    expect(store.has(CACHE_KEY)).toBe(false);
+    const { scope, close } = await unitScope();
+    try {
+      const cacheKey = profileKey(scope, 'dashboardCache');
+      const store = new Map<string, string>([[cacheKey, '{}']]);
+      const redis = { del: async (key: string): Promise<number> => (store.delete(key) ? 1 : 0) };
+      await invalidateProfileDashboard(scope, redis);
+      expect(store.has(cacheKey)).toBe(false);
+    } finally {
+      await close();
+    }
   });
 
   it('swallows a redis failure — busting the cache is best-effort', async () => {
-    const redis = {
-      del: async (): Promise<number> => {
-        throw new Error('redis down');
-      },
-    };
-    await expect(invalidateProfileDashboard(scope, redis)).resolves.toBeUndefined();
+    const { scope, close } = await unitScope();
+    try {
+      const redis = {
+        del: async (): Promise<number> => {
+          throw new Error('redis down');
+        },
+      };
+      await expect(invalidateProfileDashboard(scope, redis)).resolves.toBeUndefined();
+    } finally {
+      await close();
+    }
   });
 });
 
@@ -84,8 +118,8 @@ describeIfDb('getProfileDashboard — cache miss fan-in', () => {
       overrideConfig: null,
     });
     await ap.avgEntryPrices.upsert('BTCUSDT', {
-      avgEntryPrice: '60000',
-      quantity: '0.001',
+      avgEntryPrice: '9007199254740993.125000000000000001',
+      quantity: '0.123456789012345678',
     });
     await ap.orders.insert({
       symbol: 'BTCUSDT',
@@ -107,9 +141,9 @@ describeIfDb('getProfileDashboard — cache miss fan-in', () => {
     const cacheKey = `tenant:${fx.alice.accountId}:profile:${fx.alice.profileId}:dashboard:cache`;
     const { redis, ttls } = makeRedisStub({
       [accountInfoKey]: JSON.stringify({
-        balances: { USDT: { free: '100', locked: '0' } },
+        balances: { USDT: { free: '100.0000', locked: '0.0000' } },
       }),
-      'ticker:BTCUSDT': JSON.stringify({ price: '61000' }),
+      'ticker:BTCUSDT': JSON.stringify({ price: '61000.0000' }),
     });
 
     const out = await getProfileDashboard(scope, redis);
@@ -117,27 +151,23 @@ describeIfDb('getProfileDashboard — cache miss fan-in', () => {
     expect(out.binanceMode).toBe('test');
     // USDT is the profile's quote asset, so it prices 1:1 even with no
     // price-map key seeded in this stub.
-    expect(out.balances).toEqual([{ asset: 'USDT', free: '100', locked: '0', usdPrice: '1' }]);
+    expect(out.balances).toEqual([
+      { asset: 'USDT', free: '100.0000', locked: '0.0000', usdPrice: '1' },
+    ]);
     expect(out.symbols).toHaveLength(1);
     expect(out.symbols[0]).toMatchObject({
       symbol: 'BTCUSDT',
-      currentPrice: '61000',
+      avgEntryPrice: '9007199254740993.125000000000000001',
+      currentPrice: '61000.0000',
+      quantity: '0.123456789012345678',
       openOrderCount: 1,
       // No `disable-action` key for BTCUSDT in the stub ⇒ enabled.
       enabled: true,
     });
-    // Decimal columns round-trip through Postgres `numeric` with full
-    // scale (`60000.000000000000000000`); compare numerically.
-    expect(Number(out.symbols[0]?.avgEntryPrice)).toBe(60000);
-    // Account-wide deployed cost-basis = 60000 × 0.001 (the only seeded
-    // position at this point) = 60; the percent-of-equity config preview adds
-    // this to quote cash. Proves the field is wired through the projection;
-    // cross-profile aggregation + account isolation are covered separately in
-    // isolation/avg-entry-prices-sum.test.ts.
-    expect(Number(out.deployedQuote)).toBe(60);
-    // Held quantity is shipped straight from the avg-entry-price row; the
-    // display layer derives unrealised P/L from it.
-    expect(Number(out.symbols[0]?.quantity)).toBe(0.001);
+    // The exact product retains digits that an IEEE-754 Number hop would lose.
+    expect(out.deployedQuote).toBe('1111999897984716.019564447899521463873456789012345678');
+    // totalProfit is a literal zero in this projection and does not originate in PostgreSQL.
+    expect(out.totalProfit).toBe('0');
     expect(ttls.get(cacheKey)).toBe(PROFILE_DASHBOARD_TTL_S);
   });
 
@@ -153,7 +183,7 @@ describeIfDb('getProfileDashboard — cache miss fan-in', () => {
     // No `ticker:BTCUSDT` key in this stub ⇒ currentPrice null.
     expect(out.symbols[0]?.currentPrice).toBeNull();
     // quantity still resolves from the seeded avg-entry-price row.
-    expect(Number(out.symbols[0]?.quantity)).toBe(0.001);
+    expect(out.symbols[0]?.quantity).toBe('0.123456789012345678');
   });
 
   it('marks a symbol disabled when its disable-action key is present', async () => {

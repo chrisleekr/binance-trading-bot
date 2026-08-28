@@ -1,9 +1,9 @@
 // Profile General settings — the per-profile identity, execution mode, lifecycle
 // (enable/disable + per-profile stop), API key, and the destructive delete, all
-// on one page (/profiles/:id/general) reached from the Manage menu. These were
-// the lifecycle/admin tiles that used to live in the Manage slide-over; they
-// moved here so the menu is pure navigation and every profile-level setting has
-// one home. Name and quote edit inline; the consequential actions (enable/disable,
+// on one page (/profiles/:id/general) reached from the sidebar's expanded profile
+// or the phone's Profiles sheet. These were the lifecycle/admin tiles that used to
+// live in the Manage slide-over; they moved here so every profile-level setting has
+// one home and the slide-over is left with only the two actions that have no page. Name and quote edit inline; the consequential actions (enable/disable,
 // stop, delete) each open a confirm dialog so a stray click never
 // executes. A delete refused for live exposure escalates the same dialog to a
 // DISPOSAL step (it needs the open-order counts and a second button that asks the
@@ -45,6 +45,7 @@ import { Label } from '@/shared/components/ui/label';
 import { ApiError } from '@/shared/lib/api';
 import { t } from '@/shared/lib/i18n';
 import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
+import { Select } from '@/shared/components/ui/select';
 
 type ProfileRow = DashboardAggregateResponse['profiles'][number];
 
@@ -415,12 +416,12 @@ function GeneralPanelBody({
                     <span>{t('profile.controls.delete_disposition_handoff')}</span>
                   </label>
                   {disposition === 'handoff' && (
-                    <select
+                    <Select
                       value={handoffTargetId}
                       onChange={(e) => setHandoffTargetId(e.target.value)}
                       data-testid="profile-general-delete-handoff-target"
                       aria-label={t('profile.controls.delete_handoff_label')}
-                      className="bg-background ml-6 rounded-md border border-border px-2 py-1"
+                      className="ml-6"
                     >
                       <option value="">{t('profile.controls.delete_handoff_placeholder')}</option>
                       {handoffTargets.map((p) => (
@@ -428,7 +429,7 @@ function GeneralPanelBody({
                           {p.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   )}
                 </fieldset>
               )}

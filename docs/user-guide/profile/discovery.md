@@ -1,10 +1,6 @@
 # Discovery
 
-![Discovery tab](../../assets/screenshots/user-guide/profile-discovery.png)
-
-_The Discovery tab. Rotation settings, the live scoreboard, and the pinned roster. Seeded demo data — not a real account._
-
-The **Discovery** tab turns on optional **auto-rotation**: the profile automatically adds coins that are entering a bullish move, trades them, and drops them when the move fades — without you hand-picking symbols. It is **off by default** and entirely per-profile.
+The **Discovery** section turns on optional **auto-rotation**: the profile automatically adds coins that are entering a bullish move, trades them, and drops them when the move fades — without you hand-picking symbols. It is **off by default** and entirely per-profile.
 
 The master **on/off** switch at the top of the tab owns the enabled state; the fields below are the tuning.
 
@@ -25,4 +21,12 @@ Below them, a strip charts eligible and added coins over recent scans. One bad s
 
 ## What the rest of the tab shows
 
+![Discovery tab dashboard](../../assets/screenshots/user-guide/profile-discovery.png)
+
+_The Discovery tab: the funnel ladders, the auto-rotation scoreboard, and the live universe. Seeded demo data, not a real account._
+
 Below the config editor the tab is a live dashboard, not settings: a scoreboard of candidate coins, the current universe, recent add/drop activity, and controls to **pin** a coin (keep it regardless of score) or **eject** one. Those are actions, not stored config, so they are not in the reference table.
+
+Every money figure on the dashboard is shown with the coin it is counted in beside it — your **quote coin**, the coin the profile buys and sells with. One account can run a USDT-quoted profile alongside a BTC-quoted one, where the same bare number would mean two wildly different amounts. **Win rate** carries the other kind of supporting note: the number of closed trades it was worked out from, because 100% of one trade and 100% of two hundred are not the same claim.
+
+Net P/L and win rate show **Unavailable** while contributing fee evidence is incomplete, and win rate shows a dash when the profile has closed no trades at all — "nothing to measure yet" and "measured, but a fee is missing" are different answers. Use **Reconcile fees** from **Manage profile**; Recorded P/L and raw fees remain in [History → Archive](history.md).

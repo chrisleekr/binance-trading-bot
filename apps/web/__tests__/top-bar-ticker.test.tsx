@@ -163,9 +163,9 @@ describe('<TopBarTicker>', () => {
     const strip = await screen.findByTestId('topbar-ticker');
     const coins = await within(strip).findAllByTestId('topbar-ticker-coin-BTCUSDT');
     expect(coins.length).toBeGreaterThanOrEqual(1);
-    // The chip carries the base symbol and the +10% move.
+    // The chip carries the base symbol and the +10.00% move. Two decimals because the chip now shares the one PnlPercent readout with every other P/L percent in the app; a ratio rendered at a different precision here than in the panel below it reads as two different numbers.
     expect(coins[0]?.textContent).toContain('BTC');
-    expect(coins[0]?.textContent).toContain('10%');
+    expect(coins[0]?.textContent).toContain('+10.00%');
   });
 
   it('groups realised P/L per quote across two live profiles with different quote assets', async () => {

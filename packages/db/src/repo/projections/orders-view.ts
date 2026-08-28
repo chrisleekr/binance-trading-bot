@@ -1,8 +1,8 @@
 import {
   coerceArchivedOrders,
   decimalSub,
+  DecimalString,
   deriveExitIntent,
-  type DecimalString,
   type OrderList,
   type OrderResponse,
   type SymbolStateResponse,
@@ -14,6 +14,7 @@ import type { OrderRow } from '../../schema/index.js';
 import { ProfileNotOwnedError } from '../_scoped.js';
 import type { ProfileScope } from '../_scoped.js';
 import * as avgEntryPrices from '../avg-entry-prices.js';
+import { findOne as findCondition, POSITION_SEED_REFUSED } from '../condition-states.js';
 import * as orders from '../orders.js';
 import * as profilesMod from '../profiles.js';
 import * as symbolStatesMod from '../symbol-states.js';
@@ -53,12 +54,14 @@ export const getSymbolState = async (
   if (!profile) throw new ProfileNotOwnedError(operatorId, accountId, profileId);
 
   const disableKey = profileKey(scope, 'disableAction', symbol);
-  const [lbp, openOrders, disableRaw, disableTtl, symbolState] = await Promise.all([
+  const [lbp, openOrders, disableRaw, disableTtl, symbolState, seedRefusal] = await Promise.all([
     avgEntryPrices.findBySymbol(scope, symbol),
     orders.listLiveForSymbol(scope, symbol),
     redis.get(disableKey),
     redis.ttl(disableKey),
     symbolStatesMod.findBySymbol(scope, symbol),
+    // Read by condition name, not "any open condition for this symbol": the profile's other conditions are about decisions the strategy made, and surfacing one of those here would tell the operator a healthy position is not held.
+    findCondition(scope, POSITION_SEED_REFUSED, symbol),
   ]);
 
   let disable: { ttlSeconds: number; since: string; reason: string } | null = null;
@@ -109,13 +112,18 @@ export const getSymbolState = async (
     },
     avgEntryPrice: lbp
       ? {
-          avgEntryPrice: lbp.avgEntryPrice as DecimalString,
-          quantity: lbp.quantity as DecimalString,
+          avgEntryPrice: DecimalString.parse(lbp.avgEntryPrice),
+          quantity: DecimalString.parse(lbp.quantity),
           updatedAt: lbp.updatedAt.toISOString(),
         }
       : null,
     openOrders: openOrders.map(orderToResponse),
     disable,
+    // The ledger row above and this refusal are two halves of one answer: the row alone reads as a held position, and the refusal is what makes it readable as a record the strategy declined to act on.
+    positionSeedRefusal:
+      seedRefusal === undefined
+        ? null
+        : { code: seedRefusal.code, since: seedRefusal.since.toISOString() },
     entryBlocker: readEntryBlocker(symbolState?.state),
     protectiveStopBlocker: readProtectiveStopBlocker(symbolState?.state),
     exitBlocker: readExitBlocker(symbolState?.state),
@@ -188,14 +196,14 @@ export const getSymbolArchive = async (
       symbol: r.symbol,
       baseAsset: r.baseAsset,
       quoteAsset: r.quoteAsset,
-      totalBuyQuote: r.totalBuyQuote as DecimalString,
-      totalSellQuote: r.totalSellQuote as DecimalString,
+      totalBuyQuote: DecimalString.parse(r.totalBuyQuote),
+      totalSellQuote: DecimalString.parse(r.totalSellQuote),
       breakdown: r.breakdown as Record<string, DecimalString>,
       fees: r.fees as Record<string, DecimalString>,
-      feesQuote: r.feesQuote as DecimalString,
+      feesQuote: DecimalString.parse(r.feesQuote),
+      feeBasis: r.feeBasis,
       netProfit: decimalSub(r.profit, r.feesQuote),
-      profit: r.profit as DecimalString,
-      profitPercent: r.profitPercent as DecimalString,
+      profit: DecimalString.parse(r.profit),
       exitIntent: deriveExitIntent(coerceArchivedOrders(r.orders)),
       // Carried so the UI can say "P/L unavailable" instead of rendering an
       // under-counted `profit` of 0 as a measured break-even.

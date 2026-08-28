@@ -185,7 +185,7 @@ export async function list(
 }
 
 /**
- * Total runs for the scoped profile matching the same `filter`/`kind` as
+ * Total runs for the scoped profile matching the same `filter` as
  * {@link list} (ignoring the page cursor), so the past-runs UI can show an exact
  * count and derive a page count over cursor-based paging.
  */
@@ -354,7 +354,7 @@ export async function fail(scope: ProfileScope, runId: string, error: string): P
  * already enqueued post-ownership-check, so re-proving ownership here is
  * unnecessary. Guards `status != 'done'` so a completed run is never clobbered.
  * Returns whether a row transitioned. Without this a pre-scope failure strands
- * the row `queued` forever (#363).
+ * the row `queued` forever.
  */
 export async function failById(db: Database, runId: string, error: string): Promise<boolean> {
   const rows = await db

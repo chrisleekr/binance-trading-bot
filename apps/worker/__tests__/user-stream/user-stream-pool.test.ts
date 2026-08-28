@@ -26,6 +26,7 @@ const stubRest = (overrides: Partial<BinanceRestClient> = {}): BinanceRestClient
     getPriceTickers: vi.fn(async () => []),
     getRecentTrades: vi.fn(async () => []),
     getMyTrades: vi.fn(async () => []),
+    getCommissionRates: vi.fn(async () => ({}) as never),
     getDepth: vi.fn(async () => ({}) as never),
     getDustBtc: vi.fn(async () => ({}) as never),
     convertDust: vi.fn(async () => ({}) as never),

@@ -178,8 +178,8 @@ export function registerDiagnosisWorker(queueSet: QueueSet, deps: DiagnosisWorke
                       parseAccountPermissions(
                         await deps.redis.get(buildAccountPermissionsKey(accountId)),
                       ),
-                    autoSymbols: gathered.discovery.autoSymbols,
-                    manualSymbols: gathered.discovery.manualSymbols,
+                    rotatableSymbols: gathered.discovery.rotatableSymbols,
+                    pinnedSymbols: gathered.discovery.pinnedSymbols,
                     logger: deps.logger,
                     nowMs,
                   },

@@ -20,6 +20,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
 import { compositeCursor, splitCompositeCursor } from 'lib/cursor.js';
 import { periodWindow } from 'lib/period-window.js';
+import { requireNotDemo } from 'middleware/require-not-demo.js';
 import { requireUser } from 'middleware/require-user.js';
 import { accountIdOf, scopeOf, userIdOf } from 'route-helpers.js';
 import { createApiHono, type ApiHono } from 'types.js';
@@ -168,6 +169,8 @@ export const archiveRouter = (di: DI): ApiHono => {
   app.use('/profiles/*/trade-archive', requireUser());
   app.use('/profiles/*/symbols/*/trade-archive-backfill', requireUser());
   app.use('/profiles/*/symbols/*/unreconstructable-dismiss', requireUser());
+  // Same hazard as reconcile-fees: one weighted Binance `myTrades` pull per click, and the jobId carries a timestamp so repeats never dedup. Worse here, because "Recover all" fires one of these per recoverable symbol in a single uncapped fan-out.
+  app.on('POST', '/profiles/:profileId/symbols/:symbol/trade-archive-backfill', requireNotDemo(di));
 
   app.openapi(route, async (c) => {
     const profileId = asProfileId(c.req.valid('param').profileId);
@@ -214,12 +217,13 @@ export const archiveRouter = (di: DI): ApiHono => {
       dismissed: u.dismissed,
     }));
     // One projection feeds both rollups: by exit intent (why each trade closed)
-    // and by source (auto = discovery vs manual = pinned).
+    // and by where the binding came from (auto = discovery, manual = operator-added, unknown = bot-recovered).
     const rollupItems = periodRows.map((r) => ({
       quoteAsset: r.quoteAsset,
       source: r.source,
       profit: asDecimalString(r.profit),
       feesQuote: asDecimalString(r.feesQuote),
+      feeBasis: r.feeBasis,
       orders: coerceArchivedOrders(r.orders),
     }));
     const byIntent = rollupByExitIntent(rollupItems);
@@ -255,9 +259,9 @@ export const archiveRouter = (di: DI): ApiHono => {
             ]),
           ),
           feesQuote: asDecimalString(r.feesQuote),
+          feeBasis: r.feeBasis,
           netProfit: decimalSub(asDecimalString(r.profit), asDecimalString(r.feesQuote)),
           profit: asDecimalString(r.profit),
-          profitPercent: asDecimalString(r.profitPercent),
           exitIntent: deriveExitIntent(coerceArchivedOrders(r.orders)),
           // Carried so the UI can say "P/L unavailable" instead of rendering an
           // under-counted `profit` of 0 as a measured break-even.

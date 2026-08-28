@@ -76,7 +76,7 @@ export interface GridBuySkipGuardrail {
   readonly context: Readonly<Record<string, unknown>>;
 }
 /**
- * Discovery anti-chase deferral (#473): the entry-hint carried a 24h high and an
+ * Discovery anti-chase deferral: the entry-hint carried a 24h high and an
  * armed guard, and the entry was vetoed for chasing a coin near its high
  * (`chase`) or buying into a still-falling window (`knife`). Like the other skip
  * results the entry places no order; the hint stays armed so the next tick
@@ -259,7 +259,7 @@ export const evaluateGridBuy = (
     // resting stop-limit order should be trailed DOWN as price falls ("buy
     // the lowest"). Neither the entry branch (needs cgti===null) nor the
     // promotion branch (needs lbp!==null) reaches the re-pricing block in this
-    // state, so without this the resting order is never trailed (#368). Target
+    // state, so without this the resting order is never trailed. Target
     // the level ONLY when an order is actually resting on it; the resting-order
     // block below then re-prices that order and never places a second, so a
     // level is never re-fired before its fill is adopted.

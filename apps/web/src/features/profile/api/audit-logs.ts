@@ -13,15 +13,10 @@ export const fetchProfileAuditLogs = (
   cursor: string | null,
   events: readonly string[] = [],
 ): Promise<AuditLogListResponse> => {
-  const query: Record<string, string | readonly string[] | undefined> = {};
-  if (cursor !== null) query['cursor'] = cursor;
-  // The API uses repeatable `?event=...`. Sending the array directly lets
-  // apiFetch's buildUrl emit one parameter per element rather than a CSV
-  // string the backend would reject as a single unknown event name.
-  if (events.length > 0) query['event'] = events;
   return apiFetch(accountPath(`/profiles/${profileId}/audit-logs`), AuditLogListResponse, {
     method: 'GET',
-    ...(Object.keys(query).length > 0 ? { query } : {}),
+    // The API reads repeatable `event` parameters, so the shared serializer receives the array rather than a comma-joined value the backend would treat as one unknown event.
+    query: { cursor, event: events },
   });
 };
 

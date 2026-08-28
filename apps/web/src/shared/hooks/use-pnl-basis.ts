@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-// Whether P/L readouts show GROSS profit or NET of Binance commissions. Net is
-// the honest default — gross overstates what was actually kept. Persisted in
-// localStorage and synced across tabs (mirrors use-theme) so the operator's
-// choice sticks across the History and Home P/L surfaces.
+// Whether P/L readouts show the deployed Recorded cost-basis result or Net after every additional Binance commission adjustment. The stored `gross` token remains for cached-client compatibility; the UI labels that basis Recorded. Persisted across tabs so the choice sticks across History and Home.
 
 export type PnlBasis = 'net' | 'gross';
 

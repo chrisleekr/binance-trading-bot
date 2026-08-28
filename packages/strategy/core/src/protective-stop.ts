@@ -157,10 +157,7 @@ export const classifyProtectiveStopRefusal = (params: {
       },
     };
   }
-  // Nobody to blame: the wallet holds less base than the bot thinks it does
-  // (reconciliation drift, an operator withdrawal, or an operator base reserve
-  // the worker subtracts before the strategy sees `free`). Split the two so the
-  // gloss can tell "there is nothing there" from "there is too little to trade".
+  // Nobody to blame: the wallet holds less base than the bot thinks it does (reconciliation drift, an operator withdrawal, or coins locked by an order this profile did not place and cannot see). Split the two so the gloss can tell "there is nothing there" from "there is too little to trade".
   return available.lte(0)
     ? { reason: 'base-short-of-tracked-position', detail: base }
     : { reason: 'base-below-exchange-minimum', detail: base };

@@ -17,7 +17,7 @@ From top to bottom:
 
 - **Top bar** — the account selector, the profile selector, and the theme toggle.
 - **Account health bar** — worker liveness, any trading halt, and today's realised profit or loss (P/L). It stays visible on every screen; see [Account health](../concepts/account-health.md).
-- **Overview → At a glance** — combined unrealised P/L (open-position profit not yet sold), open positions, and open orders across the whole account.
+- **Home → At a glance** — combined unrealised P/L (open-position profit not yet sold), open positions, and open orders across the whole account.
 - **Market trend** — where BTC and ETH sit against their 50-day average, plus a breadth reading of how many coins are rising.
 - **Profiles** — one row per profile with its status and P/L. Tap a row to focus it.
 
@@ -25,10 +25,10 @@ From top to bottom:
 
 Focusing a profile adds:
 
-- **Status, "Investigate", and "Manage profile"** — enable/disable the profile, run the read-only ["why isn't it trading?" check](profile/index.md#investigate-why-isnt-it-trading), and open the tab sheet (see [Profile](profile/index.md)).
+- **Status, "Investigate", and "Manage profile"** — enable/disable the profile, run the read-only ["why isn't it trading?" check](profile/index.md#investigate-why-isnt-it-trading), and open the actions sheet, which holds Investigate and Reconcile fees (see [Profile](profile/index.md)). The profile's pages are reached from the sidebar — or, on a phone, from **Profiles** in the bottom bar — not from this sheet.
 - **Health strip** — a one-line gate and edge summary; tap "Details" to expand the scorecards.
-- **KPI strip** — deployed capital, exposure cap, auto-discovered symbols, holdings, and realised P/L over the last 7 days.
-- **Equity curve** — the profile's value over time against a buy-and-hold benchmark. Changing the profile's quote asset restarts this curve; see [Changing a profile's quote asset](#changing-a-profiles-quote-asset).
+- **KPI strip** — deployed capital, exposure cap, coins in rotation, holdings, and realised P/L over the last 7 days. "In rotation" counts every coin auto-discovery may rotate out, which means every coin that is not pinned — including one you added yourself and later unpinned, and one the bot re-created to recover a position it found untracked. It is not a count of coins discovery found; where each coin came from is a separate fact, shown in **P/L by source**. Net values read **Unavailable** while fee evidence is incomplete. Tap a tile to open the page behind the number: deployed capital and exposure cap open [Risk](profile/risk.md), coins in rotation opens [Discovery](profile/discovery.md), and the realised, win-rate, and trade tiles open the [History](profile/history.md) archive. The archive applies its own date window, so the D/W/M period you picked on the strip does not carry over. Holdings is not a link, because that list is already further down this page.
+- **Equity curve** — the profile's Net P/L over time against a buy-and-hold benchmark. Points whose fee basis cannot be proven are not shown. Changing the profile's quote asset restarts this curve; see [Changing a profile's quote asset](#changing-a-profiles-quote-asset).
 - **Symbols** — every symbol the profile trades. Tap one to open its [Symbol workspace](symbol-workspace.md).
 
 ## Changing a profile's quote asset

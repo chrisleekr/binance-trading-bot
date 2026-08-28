@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { accountPermissionsKey, GLOBAL_KEYS, profileKey } from '@app/db';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
+import { OPENAPI_DOC } from '../../src/routes/docs.js';
 
 /**
  * Integration coverage for the per-symbol config-override surface: an
@@ -17,6 +18,12 @@ const headers = (userId: string): Record<string, string> => ({
   'x-test-user-id': userId,
   'content-type': 'application/json',
 });
+
+// `Response#json()` is `unknown`, so the error wire shape is named once here rather than re-asserted at every read below.
+interface ErrorBody {
+  error: { code: string; message: string };
+}
+const errorBody = async (res: Response): Promise<ErrorBody> => (await res.json()) as ErrorBody;
 
 describeIfInfra('symbols router — per-symbol config override', () => {
   let fx: ApiFixture;
@@ -165,10 +172,7 @@ describeIfInfra('symbols router — per-symbol config override', () => {
     const redis = fx.di.redis.raw();
     const cachedExchangeInfo = await redis.get('exchange-info:cache');
     const permissionsKey = accountPermissionsKey(fx.alice.accountId);
-    // The route takes its client from `raw()`, which hands out a fresh
-    // connection per call, so the fault has to be injected at that seam. Only
-    // the permission key faults: the exchangeInfo read runs through the same
-    // client, and breaking it too would prove nothing about this guard.
+    // The route and this test borrow the fixture-owned client through `raw()`, so inject the fault at that accessor seam. Only the permission key faults; exchangeInfo uses the same client, and breaking it too would prove nothing about this guard.
     const faulty = new Proxy(redis, {
       get(target, prop, receiver) {
         if (prop === 'get') {
@@ -237,7 +241,9 @@ describeIfInfra('symbols router — per-symbol config override', () => {
       symbol: 'BTCUSDT',
       overrideConfig: null,
       source: 'manual',
-      reserveBaseQuantity: null,
+      // The operator's own add, so both facts are set and the pin carries a real timestamp.
+      pinned: true,
+      pinnedAt: expect.any(String),
     });
   });
 
@@ -271,17 +277,17 @@ describeIfInfra('symbols router — per-symbol config override', () => {
       {
         method: 'PATCH',
         headers: headers(fx.alice.userId),
-        // Must target a field the live schema still declares. `buy.maxPurchaseAmount`
-        // was removed in trailing-trade v2 and the `buy` sub-object is deliberately
-        // non-strict (a stale v1 override must still parse), so a bad value there is
-        // stripped rather than rejected — this assertion only ever passed because the
-        // harness's empty registry made the route 422 on "strategy not registered".
+        // Must target a field the live schema still declares. `buy.maxPurchaseAmount` was removed in trailing-trade v2 and the `buy` sub-object is deliberately non-strict (a stale v1 override must still parse), so a bad value there is stripped rather than rejected. The 422 is schema-driven: `validateOverride` parses the override against `overrideConfigSchema`, then the override merged onto the profile config against `configSchema`, and raises VALIDATION_FAILED on either failure.
         body: JSON.stringify({
           overrideConfig: { buy: { avgEntryPriceRemoveThreshold: 'nope' } },
         }),
       },
     );
     expect(res.status).toBe(422);
+    // A bare 422 does not say which refusal fired: this handler also raises VALIDATION_FAILED for a strategy it cannot resolve and for a symbol Binance does not list, and either would satisfy a status-only assertion while proving nothing about the schema. Naming the rejected field is what separates the three.
+    const { error } = await errorBody(res);
+    expect(error.code).toBe('VALIDATION_FAILED');
+    expect(error.message).toContain('avgEntryPriceRemoveThreshold');
   });
 
   it('PATCH rejects an override carrying candleInterval with 422', async () => {
@@ -294,6 +300,10 @@ describeIfInfra('symbols router — per-symbol config override', () => {
       },
     );
     expect(res.status).toBe(422);
+    // Same reasoning as above: the field name is what proves the override schema refused a profile-level key, rather than one of the handler's other two VALIDATION_FAILED branches answering for it.
+    const { error } = await errorBody(res);
+    expect(error.code).toBe('VALIDATION_FAILED');
+    expect(error.message).toContain('candleInterval');
   });
 
   it('PATCH rejects a shape-valid override whose merged config fails a cross-field rule', async () => {
@@ -332,15 +342,57 @@ describeIfInfra('symbols router — per-symbol config override', () => {
       },
     );
     expect(res.status).toBe(200);
+    // An override edit says nothing about provenance or the pin, so neither moves.
     expect((await res.json()) as { overrideConfig: unknown }).toEqual({
       symbol: 'BTCUSDT',
       overrideConfig: null,
       source: 'manual',
-      reserveBaseQuantity: null,
+      pinned: true,
+      pinnedAt: expect.any(String),
     });
   });
 
-  it('POST attaches a symbol as source=manual by default', async () => {
+  it('PATCH that CREATES a binding pins it, and PATCH on an existing unpinned row leaves it rotatable', async () => {
+    const url = `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/ETHUSDT`;
+    // The CREATE branch is the operator authoring a coin by writing an override to a symbol they had not bound. Left rotatable, discovery reaps the row and cascades the override, condition rows and strategy state away with it.
+    const created = await fx.app.request(url, {
+      method: 'PATCH',
+      headers: headers(fx.alice.userId),
+      body: JSON.stringify({ overrideConfig: { buy: { maxPurchaseAmount: '25' } } }),
+    });
+    expect(created.status).toBe(200);
+    expect((await created.json()) as { pinned: boolean }).toMatchObject({
+      source: 'manual',
+      pinned: true,
+    });
+
+    // Now the same row as discovery would have left it: rotated in, never pinned.
+    await fx.di.pool.query(
+      `update profile_symbols set source = 'auto', pinned = false, pinned_at = null
+         where profile_id = $1 and symbol = $2`,
+      [fx.alice.profileId, 'ETHUSDT'],
+    );
+    // Editing an override is not a pin and not an add, so neither fact may move — a re-pin here would silently exempt a discovery coin from rotation forever.
+    const edited = await fx.app.request(url, {
+      method: 'PATCH',
+      headers: headers(fx.alice.userId),
+      body: JSON.stringify({ overrideConfig: { buy: { maxPurchaseAmount: '30' } } }),
+    });
+    expect(edited.status).toBe(200);
+    expect((await edited.json()) as { pinned: boolean }).toMatchObject({
+      source: 'auto',
+      pinned: false,
+      pinnedAt: null,
+    });
+
+    // Later cases in this file assert ETHUSDT is unbound for Alice; the suite has no per-test reset for her own bindings.
+    await fx.di.pool.query(`delete from profile_symbols where profile_id = $1 and symbol = $2`, [
+      fx.alice.profileId,
+      'ETHUSDT',
+    ]);
+  });
+
+  it('POST attaches a symbol as source=manual AND pinned, with a real stamp', async () => {
     const res = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols`,
       {
@@ -350,14 +402,17 @@ describeIfInfra('symbols router — per-symbol config override', () => {
       },
     );
     expect(res.status).toBe(201);
-    expect((await res.json()) as { source: string }).toMatchObject({ source: 'manual' });
+    // Written explicitly rather than left to the column default: the operator chose this coin, so it is both attributed to them and protected from the rotation, and the stamp records that the pin was deliberate.
+    const created = (await res.json()) as { source: string; pinned: boolean; pinnedAt: string };
+    expect(created).toMatchObject({ source: 'manual', pinned: true });
+    expect(created.pinnedAt).toEqual(expect.any(String));
   });
 
-  it('Pin flips a discovery-rotated (auto) symbol back to manual', async () => {
-    // Simulate discovery having rotated BTCUSDT in. Slice 1 has no cron yet, so
-    // set source directly; the Pin route is the operator's "keep this" action.
+  it('Pin protects a discovery-rotated symbol WITHOUT claiming the operator added it', async () => {
+    // Simulate discovery having rotated BTCUSDT in, unpinned.
     await fx.di.pool.query(
-      `update profile_symbols set source = 'auto' where profile_id = $1 and symbol = $2`,
+      `update profile_symbols set source = 'auto', pinned = false, pinned_at = null
+         where profile_id = $1 and symbol = $2`,
       [fx.alice.profileId, 'BTCUSDT'],
     );
     const res = await fx.app.request(
@@ -368,15 +423,20 @@ describeIfInfra('symbols router — per-symbol config override', () => {
       },
     );
     expect(res.status).toBe(200);
-    expect((await res.json()) as { source: string }).toMatchObject({ source: 'manual' });
-    // Durable: a subsequent GET still reports manual.
+    const pinned = (await res.json()) as { source: string; pinned: boolean; pinnedAt: string };
+    expect(pinned).toMatchObject({ pinned: true, source: 'auto' });
+    expect(pinned.pinnedAt).toEqual(expect.any(String));
+    // Durable, and provenance still says discovery — the P/L-by-source band must keep crediting the trade to the scan that found the coin.
     const after = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT`,
       {
         headers: headers(fx.alice.userId),
       },
     );
-    expect((await after.json()) as { source: string }).toMatchObject({ source: 'manual' });
+    expect((await after.json()) as { source: string }).toMatchObject({
+      pinned: true,
+      source: 'auto',
+    });
   });
 
   it('Pin 404s for a symbol not attached to the profile', async () => {
@@ -390,8 +450,13 @@ describeIfInfra('symbols router — per-symbol config override', () => {
     expect(res.status).toBe(404);
   });
 
-  it('Unpin returns a manual symbol to discovery (source=auto), inverse of pin', async () => {
-    // BTCUSDT was added manual by the create test; unpin flips it to auto.
+  it('Unpin releases the symbol to discovery and clears the stamp, leaving provenance alone', async () => {
+    // Start from an operator-added, pinned row so the assertion below can only be satisfied by the unpin itself.
+    await fx.di.pool.query(
+      `update profile_symbols set source = 'manual', pinned = true, pinned_at = now()
+         where profile_id = $1 and symbol = $2`,
+      [fx.alice.profileId, 'BTCUSDT'],
+    );
     const res = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT/unpin`,
       {
@@ -400,16 +465,23 @@ describeIfInfra('symbols router — per-symbol config override', () => {
       },
     );
     expect(res.status).toBe(200);
-    expect((await res.json()) as { source: string }).toMatchObject({ source: 'auto' });
-    // Durable: a subsequent GET still reports auto.
+    // The stamp goes with the pin so a later re-pin cannot inherit a stale date; `source` stays `manual` because the operator releasing a coin does not make discovery its author.
+    expect((await res.json()) as { source: string }).toMatchObject({
+      pinned: false,
+      pinnedAt: null,
+      source: 'manual',
+    });
     const after = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT`,
       {
         headers: headers(fx.alice.userId),
       },
     );
-    expect((await after.json()) as { source: string }).toMatchObject({ source: 'auto' });
-    // Restore manual so later cases in this suite see the original source.
+    expect((await after.json()) as { source: string }).toMatchObject({
+      pinned: false,
+      source: 'manual',
+    });
+    // Restore the pin so later cases in this suite see the original row.
     await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT/pin`,
       {
@@ -430,96 +502,45 @@ describeIfInfra('symbols router — per-symbol config override', () => {
     expect(res.status).toBe(404);
   });
 
-  it('502s a positive reserve on a cold profile with no balance snapshot to validate against', async () => {
-    // BTCUSDT is attached, but no account-info snapshot or ledger row exists yet
-    // (runs before the seeding case below), so the holding check cannot resolve a
-    // balance and the route surfaces the documented "enable the profile first" 502.
-    const res = await fx.app.request(
-      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT/reserve`,
-      {
-        method: 'PUT',
-        headers: headers(fx.alice.userId),
-        body: JSON.stringify({ reserveBaseQuantity: '1' }),
-      },
-    );
-    expect(res.status).toBe(502);
+  it('no longer exposes the always-hold reserve route', async () => {
+    const base = `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT`;
+    // Anchor the fixture first: the sibling GET on the same account/profile/symbol
+    // must be reachable, so a 404 below can only mean the route itself is gone and
+    // never a mistyped id or an unbound symbol.
+    const anchor = await fx.app.request(base, { headers: headers(fx.alice.userId) });
+    expect(anchor.status).toBe(200);
+
+    const res = await fx.app.request(`${base}/reserve`, {
+      method: 'PUT',
+      headers: headers(fx.alice.userId),
+      body: JSON.stringify({ reserveBaseQuantity: '1' }),
+    });
+    expect(res.status).toBe(404);
   });
 
-  it('sets a per-symbol reserve within the live holding and round-trips it', async () => {
-    // Seed the wallet snapshot the holding check reads (BTC free 5) plus the
-    // global symbol-info the balance read joins on.
-    await fx.di.redis
-      .raw()
-      .set(
-        profileKey({ accountId: fx.alice.accountId, profileId: fx.alice.profileId }, 'accountInfo'),
-        JSON.stringify({ balances: { BTC: { free: '5', locked: '0' } } }),
-      );
-    await fx.di.redis
-      .raw()
-      .set(GLOBAL_KEYS.symbolInfo('BTCUSDT'), JSON.stringify({ baseAsset: 'BTC' }));
+  it('no longer publishes the reserve path in the OpenAPI document', async () => {
+    // The route tests above prove the handler is gone; this pins the CONTRACT the generated client and the docs page are built from, which is a separate artifact and can outlive the handler.
+    //
+    // Generated from the fixture's own app rather than fetched over `/openapi.json`: `setupApp` mounts the routers but not the docs, and Hono refuses to add a route once its matcher is built, so a `mountDocs` call here throws. `app.doc()` is a `get` handler that returns exactly `getOpenAPIDocument(OPENAPI_DOC)`, so this is the same document the served path emits, from the same config object production passes.
+    const doc = fx.app.getOpenAPIDocument(OPENAPI_DOC) as { paths?: Record<string, unknown> };
+    const paths = Object.keys(doc.paths ?? {});
+    // Anchor first: a sibling symbols path must still be published, so an empty or
+    // renamed document cannot satisfy the assertion below vacuously.
+    expect(paths).toContain('/api/accounts/{accountId}/profiles/{profileId}/symbols/{symbol}/pin');
+    expect(paths.filter((path) => path.endsWith('/reserve'))).toEqual([]);
+  });
+
+  it('omits reserveBaseQuantity from the symbol response', async () => {
     const res = await fx.app.request(
-      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT/reserve`,
-      {
-        method: 'PUT',
-        headers: headers(fx.alice.userId),
-        body: JSON.stringify({ reserveBaseQuantity: '2' }),
-      },
-    );
-    expect(res.status).toBe(200);
-    expect((await res.json()) as { reserveBaseQuantity: string }).toMatchObject({
-      symbol: 'BTCUSDT',
-      reserveBaseQuantity: '2',
-    });
-    const after = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT`,
       {
         headers: headers(fx.alice.userId),
       },
     );
-    expect((await after.json()) as { reserveBaseQuantity: string }).toMatchObject({
-      reserveBaseQuantity: '2',
-    });
-  });
-
-  it('rejects a reserve larger than the live holding with 422', async () => {
-    const res = await fx.app.request(
-      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT/reserve`,
-      {
-        method: 'PUT',
-        headers: headers(fx.alice.userId),
-        body: JSON.stringify({ reserveBaseQuantity: '10' }),
-      },
-    );
-    expect(res.status).toBe(422);
-  });
-
-  it('clears the reserve with null and skips the holding check', async () => {
-    const res = await fx.app.request(
-      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT/reserve`,
-      {
-        method: 'PUT',
-        headers: headers(fx.alice.userId),
-        body: JSON.stringify({ reserveBaseQuantity: null }),
-      },
-    );
     expect(res.status).toBe(200);
-    expect((await res.json()) as { reserveBaseQuantity: null }).toMatchObject({
-      reserveBaseQuantity: null,
-    });
-  });
-
-  it('404s a reserve on a symbol not attached to the profile, even a positive amount', async () => {
-    // Attachment is resolved before the holding check, so a positive reserve on an
-    // unattached symbol returns 404 (not the 422/502 the holding check would give).
-    const res = await fx.app.request(
-      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/ETHUSDT/reserve`,
-      {
-        method: 'PUT',
-        headers: headers(fx.alice.userId),
-        body: JSON.stringify({ reserveBaseQuantity: '5' }),
-      },
-    );
-    expect(res.status).toBe(404);
+    const body = (await res.json()) as Record<string, unknown>;
+    // Key presence, not value: a null-valued key still ships the removed field.
+    expect(Object.keys(body)).not.toContain('reserveBaseQuantity');
   });
 
   it('denies cross-account access to another user profile', async () => {
@@ -905,7 +926,7 @@ describeIfInfra('symbols router — per-symbol config override', () => {
         );
       await fx.di.redis
         .raw()
-        .set(GLOBAL_KEYS.symbolInfo('ETHUSDT'), JSON.stringify({ baseAsset: 'ETH' }));
+        .set(GLOBAL_KEYS.symbolInfo('ETHUSDT', 'live'), JSON.stringify({ baseAsset: 'ETH' }));
 
       const res = await fx.app.request(
         `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols`,

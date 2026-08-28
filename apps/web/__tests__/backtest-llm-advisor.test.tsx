@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdvisorResult } from '@app/contracts';
 
+import { ONBOARDING_STATUS_QUERY_KEY } from '@/features/auth/api/auth';
 import { BacktestLlmAdvisor } from '@/features/backtest/components/backtest-llm-advisor';
 
 // This suite drives the real api client + poll hook against a stubbed `fetch`
@@ -96,16 +97,19 @@ const install = (responder: Responder): ReturnType<typeof vi.fn> => {
 const renderAdvisor = (
   onApply: ReturnType<typeof vi.fn> = vi.fn(),
   config: Record<string, unknown> = { buy: { indicatorGate: { rsiMaxBuy: '30' } } },
-): { onApply: ReturnType<typeof vi.fn> } => {
+  demoMode = false,
+): { onApply: ReturnType<typeof vi.fn>; client: QueryClient } => {
   const client = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
   });
+  // Seeded on every render, not only the demo ones: `useDemoMode` reads this query, and leaving it unseeded would put an onboarding-status fetch through the stubbed responder in all the cases below, where a 404 would then be the answer to a question they never asked.
+  client.setQueryData(ONBOARDING_STATUS_QUERY_KEY, { masterExists: true, demoMode });
   render(
     <QueryClientProvider client={client}>
       <BacktestLlmAdvisor profileId="p1" runId="r1" config={config} onApply={onApply} />
     </QueryClientProvider>,
   );
-  return { onApply };
+  return { onApply, client };
 };
 
 const postCalls = (fetchMock: ReturnType<typeof vi.fn>): unknown[] =>
@@ -387,5 +391,114 @@ describe('BacktestLlmAdvisor', () => {
     expect(await screen.findByTestId('backtest-llm-parse-error')).toHaveTextContent(
       'could not find JSON',
     );
+  });
+
+  // The advisor's two POSTs are refused server-side under LIVE_DEMO because they spend the operator's own AI credit, so the demo hides every control that fires one. The reads stay open, which is the whole reason the panel still renders at all.
+  //
+  // Two rows, the NEWER one an error: that is the case the read-only switcher exists for. Auto-select lands on the newest terminal row, so without a way to switch slots a demo visitor would see the error and never reach the good `safe` suggestions the note promises are readable.
+  const demoRows = (): unknown[] => [
+    doneRow('safe'),
+    doneRow('manual', { summary: 'pasted read of the run' }),
+    { ...errorRow('aggressive', null), updatedAt: '2026-07-05T00:00:00.000Z' },
+  ];
+
+  it('demo mode hides every control that would post, and says why', async () => {
+    const fetchMock = install((url, init) => {
+      if (isGetList(url, init)) return json({ results: demoRows() });
+      return new Response('not found', { status: 404 });
+    });
+    renderAdvisor(vi.fn(), { buy: { indicatorGate: { rsiMaxBuy: '30' } } }, true);
+    const user = userEvent.setup();
+
+    expect(await screen.findByTestId('backtest-llm-demo-unavailable')).toHaveTextContent(
+      'turned off in the live demo',
+    );
+    // The newest row is the error one, and its demo copy must not name Regenerate — a control this visitor cannot see.
+    expect(await screen.findByTestId('backtest-llm-error')).not.toHaveTextContent('Regenerate');
+
+    // Switching slots is local state and posts nothing; reaching the older saved row is what makes the note's "stay readable" promise true.
+    await user.click(screen.getByTestId('backtest-llm-show-safe'));
+    expect(await screen.findByTestId('backtest-llm-summary')).toHaveTextContent('safe read');
+
+    // The switcher must never carry an ACTION caption: SLOT_LABEL's `manual` entry is the caption of the paste-a-reply opener this visitor cannot see.
+    expect(screen.getByTestId('backtest-llm-show-manual')).not.toHaveTextContent('Run it myself');
+
+    // Clicking the ERROR slot is what makes the postCalls assertion below load-bearing. Selecting `safe` could never post even wired to the real handler — `pickVariant` returns early on a `done` row — so an error slot, whose row is neither done nor busy, is the only reachable click that would enqueue if this switcher were ever pointed at the posting handler.
+    await user.click(screen.getByTestId('backtest-llm-show-aggressive'));
+    // Asserted HERE, immediately after that click and before anything else can fail first, so this is the line a wrongly-wired switcher breaks rather than a later one masking it.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(postCalls(fetchMock)).toHaveLength(0);
+    await screen.findByTestId('backtest-llm-error');
+
+    // Asserted only AFTER a saved row is on screen: Regenerate lives on the saved-row header, so checking it missing on the first paint would pass with the demo branch removed.
+    for (const v of ['safe', 'ride-trend', 'trade-more', 'aggressive', 'defensive']) {
+      expect(screen.queryByTestId(`backtest-llm-ask-${v}`)).not.toBeInTheDocument();
+    }
+    expect(screen.queryByTestId('backtest-llm-manual-open')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('backtest-llm-regenerate-safe')).not.toBeInTheDocument();
+    // Dominated, and kept only as a shape check: `manualOpen` is never set here, so this passes with or without the panel's own demo gate. The gate is proven by the transition test below, which opens the panel first — do not delete that one on the strength of this line.
+    expect(screen.queryByTestId('backtest-llm-manual')).not.toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(postCalls(fetchMock)).toHaveLength(0);
+  });
+
+  // `manualOpen` can only be set by an opener the demo hides, so asserting the panel absent on a demo first paint passes whether or not the panel declares its own gate — the assertion is dominated. Opening it first and THEN turning demo mode on is the one transition that asks the gate its own question, and it is a real one: `demoMode` is query state, not a mount-time constant. Without the gate the panel would stay open with a button that POSTs to a route the server now refuses.
+  it('closes the manual panel if demo mode turns on while it is open', async () => {
+    install((url, init) => {
+      if (isManualPromptGet(url, init)) return json({ prompt: 'P' });
+      if (isGetList(url, init)) return json({ results: [doneRow('safe')] });
+      return new Response('not found', { status: 404 });
+    });
+    const { client } = renderAdvisor();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId('backtest-llm-manual-open'));
+    expect(await screen.findByTestId('backtest-llm-manual')).toBeInTheDocument();
+
+    act(() => {
+      client.setQueryData(ONBOARDING_STATUS_QUERY_KEY, { masterExists: true, demoMode: true });
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId('backtest-llm-manual')).not.toBeInTheDocument(),
+    );
+    // Nothing resets `manualOpen`, so a saved-result gate spelled `!manualOpen` would leave the visitor with the note, a switcher, and no suggestions at all — the one state where the note's promise is false.
+    expect(await screen.findByTestId('backtest-llm-summary')).toHaveTextContent('safe read');
+  });
+
+  it('demo mode still shows a saved suggestion and loads it into Setup', async () => {
+    install((url, init) => {
+      if (isGetList(url, init)) return json({ results: [doneRow('safe')] });
+      return new Response('not found', { status: 404 });
+    });
+    const { onApply } = renderAdvisor(
+      vi.fn(),
+      { buy: { indicatorGate: { rsiMaxBuy: '30' } } },
+      true,
+    );
+    const user = userEvent.setup();
+
+    expect(await screen.findByTestId('backtest-llm-summary')).toHaveTextContent('safe read');
+    // One saved slot is already the slot on screen, so a switcher here would be a single button that changes nothing.
+    expect(screen.queryByTestId('backtest-llm-show-safe')).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('backtest-llm-toggle-rsi'));
+    await user.click(screen.getByTestId('backtest-llm-load-selected'));
+    expect(onApply).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the controls when demo mode is off', async () => {
+    install((url, init) => {
+      if (isGetList(url, init)) return json({ results: demoRows() });
+      return new Response('not found', { status: 404 });
+    });
+    renderAdvisor();
+
+    await screen.findByTestId('backtest-llm-error');
+    expect(screen.getByTestId('backtest-llm-ask-safe')).toBeInTheDocument();
+    expect(screen.getByTestId('backtest-llm-manual-open')).toBeInTheDocument();
+    expect(screen.getByTestId('backtest-llm-regenerate-aggressive')).toBeInTheDocument();
+    // The real grid already switches slots, so the read-only switcher is demo-only rather than a second control living alongside it.
+    expect(screen.queryByTestId('backtest-llm-show-safe')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('backtest-llm-demo-unavailable')).not.toBeInTheDocument();
+    expect(screen.getByTestId('backtest-llm-error')).toHaveTextContent('Try Regenerate');
   });
 });

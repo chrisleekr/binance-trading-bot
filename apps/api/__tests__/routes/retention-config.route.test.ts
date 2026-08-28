@@ -40,7 +40,7 @@ describeIfInfra('/api/retention-config', () => {
     return (await res.json()) as RetentionBody;
   };
 
-  const patch = (body: unknown): Promise<Response> =>
+  const patch = async (body: unknown): Promise<Response> =>
     fx.app.request('/api/retention-config', {
       method: 'PATCH',
       headers: { 'x-test-user-id': fx.alice.userId, 'content-type': 'application/json' },

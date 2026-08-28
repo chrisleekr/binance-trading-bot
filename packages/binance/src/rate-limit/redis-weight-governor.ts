@@ -6,7 +6,7 @@
 // This governor moves the admission counter into one Redis key so every pod
 // contends for the same budget.
 //
-// Ratified design (epic #561, WS6 ADR — non-negotiable):
+// Ratified design (WS6 ADR — non-negotiable):
 //   1. Consume-and-decay. A monotonic `used` counter that decays as a pure
 //      function of wall-clock time (refill = elapsed × rate). No per-caller
 //      ownership, no release, NO REFUND. A mid-op crash only over-counts weight

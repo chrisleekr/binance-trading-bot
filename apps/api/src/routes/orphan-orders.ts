@@ -399,11 +399,16 @@ export const orphanOrdersRouter = (di: DI): ApiHono => {
       );
     }
 
-    // Subscribe so the strategy manages the symbol from now on (mirrors the
-    // fill-adopter's orphan recovery). Only when not already bound, so an
-    // existing source='auto' binding is left intact.
+    // Subscribe so the strategy manages the symbol from now on (mirrors the fill-adopter's orphan recovery). Only when not already bound, so an existing binding keeps its own provenance and pin.
+    //
+    // `unknown` and UNPINNED: adopting an orphan is the system rescuing a position, not the operator choosing a coin. Stamping it `manual` (which used to be the only way to keep it) would both misattribute the trade and exempt it from rotation forever.
     const bound = await p.profileSymbols.findForSymbol(orphan.symbol);
-    if (!bound) await p.profileSymbols.upsert(orphan.symbol, baseAsset, { source: 'manual' });
+    if (!bound) {
+      await p.profileSymbols.upsert(orphan.symbol, baseAsset, {
+        source: 'unknown',
+        pinned: false,
+      });
+    }
 
     // Signal the worker to pick up the new subscription without a reboot
     // (matches add-symbol). A disabled profile re-reads symbols on next enable.

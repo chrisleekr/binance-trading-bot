@@ -59,8 +59,8 @@ export type { Registry } from 'prom-client';
  * Public handle returned by `createMetricsRegistry`. Apps hold one of
  * these for the process lifetime; the admin /metrics route calls
  * `metrics()` to serve the exposition body. Helpers like `incOtelDrop`
- * are exposed so the OTel exporter (#34) and the logger transport
- * (#33) can bump the counters without re-importing prom-client.
+ * are exposed so the OTel exporter and the logger transport
+ * can bump the counters without re-importing prom-client.
  */
 export interface MetricsRegistry {
   /** The underlying prom-client registry. Subsystem code that needs to register its own metrics imports this. */

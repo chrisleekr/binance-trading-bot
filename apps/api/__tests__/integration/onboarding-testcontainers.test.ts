@@ -9,7 +9,16 @@ import {
   type ProfileId,
   type UserId,
 } from '@app/contracts';
-import { createBullMQConnection, createDb, createPool, migrate, repo, scopeAccount } from '@app/db';
+import {
+  createBullMQConnection,
+  createDb,
+  createPool,
+  migrate,
+  repo,
+  scopeAccount,
+  type ScopedRedis,
+} from '@app/db';
+import { createMetricsRegistry } from '@app/observability';
 import {
   withPostgres,
   withRedis,
@@ -78,7 +87,7 @@ class CaptureStream extends Writable implements DestinationStream {
     this.buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     cb();
   }
-  write(chunk: Buffer | string): boolean {
+  override write(chunk: Buffer | string): boolean {
     this.buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     return true;
   }
@@ -104,6 +113,10 @@ interface Harness {
   pubServer: TimedPublisher;
 }
 
+const unwiredMarketData = (): never => {
+  throw new Error('di.marketData is not wired in the onboarding fixture');
+};
+
 const buildHarness = async (): Promise<Harness> => {
   const pg = await withPostgres();
   const redis = await withRedis();
@@ -114,10 +127,14 @@ const buildHarness = async (): Promise<Harness> => {
 
   const pool = createPool({ kind: 'api', connectionString: pg.databaseUrl });
   const db = createDb(pool);
-  const queue = new Queue('pipeline-tc-133', {
-    connection: createBullMQConnection({ url: redis.redisUrl }),
-  });
-  const scopedRedis = {
+  const connection = createBullMQConnection({ url: redis.redisUrl });
+  const queue = new Queue('pipeline-tc-133', { connection });
+  // The onboarding journey enqueues nothing on these four, but `DI` requires them and a missing one is an `undefined.add` 500 the moment a route this harness mounts starts enqueuing.
+  const tickQueue = new Queue('tick-tc-133', { connection });
+  const backtestQueue = new Queue('backtest-tc-133', { connection });
+  const advisorQueue = new Queue('advisor-tc-133', { connection });
+  const diagnosisQueue = new Queue('profile-diagnosis-tc-133', { connection });
+  const scopedRedis: ScopedRedis = {
     raw: () => new Redis(redis.redisUrl),
     forProfile: () => {
       throw new Error('forProfile unused in onboarding fixture');
@@ -126,7 +143,7 @@ const buildHarness = async (): Promise<Harness> => {
       throw new Error('forGlobal unused in onboarding fixture');
     },
     quit: async () => 'OK' as const,
-  } as unknown as DI['redis'];
+  };
 
   const auth = createAuth({
     db,
@@ -141,22 +158,50 @@ const buildHarness = async (): Promise<Harness> => {
       NODE_ENV: 'test',
       PORT: 0,
       ADMIN_PORT: 9101,
+      ADMIN_HOST: '127.0.0.1',
+      WEB_DIST_DIR: 'apps/web/dist',
       WEB_ORIGIN: ['http://localhost:5173'],
       DATABASE_URL: pg.databaseUrl,
       REDIS_URL: redis.redisUrl,
       AUTH_SECRET: 'x'.repeat(32),
       PGSSLMODE: 'prefer',
+      BACKUP_DIR: '/backups',
+      GIT_SHA: 'testsha',
+      LIVE_DEMO: false,
     },
     pool,
     db,
     redis: scopedRedis,
     queue,
+    tickQueue,
+    backtestQueue,
+    advisorQueue,
+    diagnosisQueue,
     logger,
     auth,
     strategies,
     notifyProviders,
+    metrics: createMetricsRegistry({ service: 'api-onboarding-test' }),
+    // Deliberately unwired, like `_helpers.ts`: nothing in the onboarding journey reads market data, and a real REST client would let this suite reach Binance over the network.
+    marketData: {
+      getKlines: unwiredMarketData,
+      getTicker24hr: unwiredMarketData,
+      getRecentTrades: unwiredMarketData,
+      getDepth: unwiredMarketData,
+    },
+    resolveLlm: async () => ({
+      available: true,
+      improveConfig: async () => ({ summary: '', suggestions: [] }),
+    }),
+    gitSha: 'testsha',
+    bootedAt: '2026-01-01T00:00:00.000Z',
+    demoOperatorId: null,
     shutdown: async () => {
       await queue.close();
+      await tickQueue.close();
+      await backtestQueue.close();
+      await advisorQueue.close();
+      await diagnosisQueue.close();
       await pool.end();
     },
   };

@@ -31,7 +31,7 @@ export const AUDIT_DRAINER_GROUP = 'audit-drainers';
 export const AUDIT_DRAINER_CONSUMER = 'drainer';
 // Alert on the drainer group's backlog (entries not yet delivered), NOT on
 // stream length: XACK never removes entries, only MAXLEN trim on XADD does, so a
-// healthy fully-drained stream permanently sits near MAXLEN (issue #510).
+// healthy fully-drained stream permanently sits near MAXLEN.
 export const AUDIT_CONSUMER_LAG_ALERT = 10_000;
 
 /**
@@ -1198,7 +1198,7 @@ export const createAuditDrainer = (deps: AuditDrainerDeps): AuditDrainer => {
         const lenReply = replies?.[i * 2];
         const groupsReply = replies?.[i * 2 + 1];
         if (lenReply && !lenReply[0] && typeof lenReply[1] === 'number') {
-          // Record raw length as a gauge but never alert on it (issue #510): a
+          // Record raw length as a gauge but never alert on it: a
           // caught-up stream sits near MAXLEN forever, so an XLEN threshold fires
           // on every pass. Alert on the consumer group's undelivered backlog.
           deps.metrics?.record('audit_stream_length', lenReply[1], { stream });

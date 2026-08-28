@@ -16,6 +16,7 @@
 import { createRoute } from '@tanstack/react-router';
 
 import { Page } from '@/shared/components/page';
+import { t } from '@/shared/lib/i18n';
 import { ProfilePageHeader } from '@/features/profile/components/profile-page-header';
 import { ActionBanner } from '@/shared/components/action-banner';
 import { FormActions } from '@/shared/components/form-actions';
@@ -60,7 +61,7 @@ function BacktestPage(): React.JSX.Element {
             Results
           </TabsTrigger>
           <TabsTrigger value="history" className="flex-1" data-testid="bt-tab-history">
-            History
+            {t('nav.past_runs')}
           </TabsTrigger>
         </TabsList>
 

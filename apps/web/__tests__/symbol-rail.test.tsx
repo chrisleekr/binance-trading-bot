@@ -152,6 +152,42 @@ describe('<SymbolRail>', () => {
     expect(heldChip?.className).toMatch(/tint-up/);
   });
 
+  it('does not lead with a refused seed, nor paint it as held', async () => {
+    // Three things this pins at once, all of which read the SAME fact from different code. The badge comes from `deriveStatus`, which was already refusal-aware; the dot and the sort comparator were not, so before the shared predicate a refused coin sorted above a real position and wore a green holding dot beside a NOT HELD badge. A row cannot be held on one half of itself and flat on the other.
+    renderRail([row(PA, 'alpha'), row(PB, 'bravo')], (url) =>
+      url.includes(`/profiles/${PA}/dashboard`)
+        ? json(
+            dashboard([
+              sym({
+                symbol: 'AAVEUSDT',
+                avgEntryPrice: '40',
+                currentPrice: '45',
+                quantity: '2',
+                positionSeedRefusal: {
+                  code: 'no-sellable-position',
+                  since: '2026-08-27T00:00:00Z',
+                },
+              }),
+            ]),
+          )
+        : json(
+            dashboard([
+              sym({ symbol: 'ZECUSDT', avgEntryPrice: '40', currentPrice: '45', quantity: '2' }),
+            ]),
+          ),
+    );
+
+    const rows = await screen.findAllByTestId(/^symbol-rail-row-/);
+    // The genuinely held coin leads, even though the refused one is alphabetically first and carries an identical cost-basis row.
+    expect(rows[0]).toHaveAttribute('data-testid', `symbol-rail-row-${PB}-ZECUSDT`);
+    const refused = rows[1] as HTMLElement;
+    expect(refused).toHaveAttribute('data-testid', `symbol-rail-row-${PA}-AAVEUSDT`);
+    expect(refused.querySelector('[data-status="not-held"]')).not.toBeNull();
+    expect(refused.querySelector('[data-status="holding"]')).toBeNull();
+    // The dot is `aria-hidden` with no text, so it can only be asserted as an element.
+    expect(refused.querySelector('span.rounded-full')?.className).not.toMatch(/bg-success/);
+  });
+
   it('marks the row matching ?sym as current, and no other', async () => {
     renderRail(
       [row(PA, 'alpha')],
@@ -166,7 +202,7 @@ describe('<SymbolRail>', () => {
     );
 
     const selected = await screen.findByTestId(`symbol-rail-row-${PA}-BTCUSDT`);
-    expect(selected).toHaveAttribute('aria-current', 'true');
+    expect(selected).toHaveAttribute('aria-current', 'page');
     expect(screen.getByTestId(`symbol-rail-row-${PA}-SOLUSDT`)).not.toHaveAttribute('aria-current');
   });
 
@@ -190,7 +226,7 @@ describe('<SymbolRail>', () => {
     await waitFor(() =>
       expect(screen.getByTestId(`symbol-rail-row-${PA}-SOLUSDT`)).toHaveAttribute(
         'aria-current',
-        'true',
+        'page',
       ),
     );
     expect(screen.getByTestId(`symbol-rail-row-${PA}-BTCUSDT`)).not.toHaveAttribute('aria-current');

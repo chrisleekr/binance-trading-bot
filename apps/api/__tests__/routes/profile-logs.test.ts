@@ -66,7 +66,7 @@ describeIfInfra('profile log surfaces', () => {
     );
   };
 
-  const get = (path: string, userId?: string): Promise<Response> =>
+  const get = async (path: string, userId?: string): Promise<Response> =>
     fx.app.request(path, { headers: { 'x-test-user-id': userId ?? fx.alice.userId } });
 
   describe('GET /logs', () => {

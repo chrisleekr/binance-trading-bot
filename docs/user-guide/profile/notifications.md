@@ -1,10 +1,10 @@
 # Notifications
 
-![Notifications tab](../../assets/screenshots/user-guide/profile-notifications.png)
+![Notifications section](../../assets/screenshots/user-guide/profile-notifications.png)
 
-_The Notifications tab. Which events alert, and where they are delivered. Seeded demo data, not a real account._
+_The Notifications section. Which events alert, and where they are delivered. Seeded demo data, not a real account._
 
-The **Notifications** tab decides **where** a profile's alerts are sent and **which** events fire one. Notifications are optional; with no provider configured the profile still trades, it just stays quiet.
+The **Notifications** section decides **where** a profile's alerts are sent and **which** events fire one. Notifications are optional; with no provider configured the profile still trades, it just stays quiet.
 
 For the operator walkthrough of setting up a provider end to end, see [Notifiers under Concepts](../../concepts/notifiers.md). This page is the field reference for each provider's config.
 

@@ -31,7 +31,7 @@ export type DecisionFailure = Extract<DecisionResult, { ok: false }>;
  * db repo's `DiscoveryRemoveOutcome`; kept as a local alias so the handler stays
  * decoupled from the repo module.
  */
-export type ReapOutcome = 'removed' | 'not-found' | 'not-auto' | 'held';
+export type ReapOutcome = 'removed' | 'not-found' | 'pinned' | 'held';
 
 export interface TickHandlerDeps {
   readonly redis: Redis;
@@ -225,13 +225,13 @@ export interface TickHandlerDeps {
   /**
    * Reap a (profile, symbol) binding that can never trade again — Binance no
    * longer lists the symbol, or the account holds no permission for it — but
-   * ONLY when it is safe to abandon: discovery-owned (`source=auto`) AND flat.
+   * ONLY when it is safe to abandon: UNPINNED and flat.
    * Returns why it did or didn't: `removed` (reaped), `held` (still carries a
-   * position/order), `not-auto` (operator-pinned), `not-found` (already gone).
+   * position/order), `pinned` (the operator protected it), `not-found` (already gone).
    * Optional so a stub that never exercises either self-heal can omit it; a
    * missing function is a no-op (the tick still self-heals to a skip).
    */
-  readonly reapAutoIfFlat?: (scope: ProfileScope, symbol: string) => Promise<ReapOutcome>;
+  readonly reapUnpinnedIfFlat?: (scope: ProfileScope, symbol: string) => Promise<ReapOutcome>;
   /**
    * Append one operator-visible action_log row. Used by both tick-boundary
    * self-heals to record the reap (or why it couldn't). Optional / no-op when

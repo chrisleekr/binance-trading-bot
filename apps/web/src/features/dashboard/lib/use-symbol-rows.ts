@@ -10,7 +10,7 @@ import {
   fetchProfileDashboard,
   profileDashboardQueryKey,
 } from '@/features/profile/api/profile-dashboard';
-import { isHeldPosition } from '@/features/profile/lib/unrealised-pnl';
+import { isManagedPosition } from '@/features/profile/lib/unrealised-pnl';
 
 import type { DashboardAggregateRow, ProfileDashboardSymbol } from '@app/contracts';
 
@@ -64,7 +64,7 @@ export function useSymbolRows(rows: readonly DashboardAggregateRow[]): MergedSym
       // Within each group, alphabetical by symbol then profile for a stable order.
       items.sort(
         (a, b) =>
-          Number(isHeldPosition(b.sym)) - Number(isHeldPosition(a.sym)) ||
+          Number(isManagedPosition(b.sym)) - Number(isManagedPosition(a.sym)) ||
           a.sym.symbol.localeCompare(b.sym.symbol) ||
           a.profileName.localeCompare(b.profileName),
       );

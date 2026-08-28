@@ -3,7 +3,7 @@ import { profileKv, type ProfileKvRow } from '../schema/profile-kv.js';
 import type { ProfileScope } from './_scoped.js';
 
 /**
- * Write a cross-symbol KV entry (tracker #267). Upsert on `(profileId, key)`:
+ * Write a cross-symbol KV entry. Upsert on `(profileId, key)`:
  * the value is stored straight into jsonb, opaque to this layer. Concurrent
  * sibling ticks writing the same key are last-writer-wins.
  */

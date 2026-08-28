@@ -133,7 +133,6 @@ const drive = async (
     candleInterval: '1h',
     technicalsConfig: { useOnlyWithinMin: 2, ifExpires: 'do-not-buy', intervals: [] },
     needsAccountDeployedQuote: false,
-    reserveBaseQuantity: null,
   } as unknown as ProfileTickContext;
 
   // The REAL executor: `applyAll` throws MultiPlacementError on the two-placement

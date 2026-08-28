@@ -6,7 +6,7 @@
 // display-only `Number` calculation, safe in apps/web.
 
 import { deriveQuote } from '@/shared/lib/symbol-quote';
-import { unrealisedPnlOf } from '@/features/profile/lib/unrealised-pnl';
+import { managedUnrealisedPnlOf } from '@/features/profile/lib/unrealised-pnl';
 
 /** One quote asset's summed unrealised P/L, as a decimal-string for {@link PnlValue}. */
 export interface QuotePnl {
@@ -31,11 +31,13 @@ export function aggregatePositionPnl(
     avgEntryPrice: string | null;
     currentPrice: string | null;
     quantity: string | null;
+    positionSeedRefusal?: { readonly code: string; readonly since: string } | null | undefined;
   }[],
 ): QuotePnl[] {
   const byQuote = new Map<string, number>();
   for (const p of positions) {
-    const pnl = unrealisedPnlOf(p);
+    // A refused seed contributes nothing. This is the headline sum in the top bar, so unlike a wrong table row the operator can discount, a P/L on a position nothing sellable backs silently moves the figure they read as their live money.
+    const pnl = managedUnrealisedPnlOf(p);
     if (pnl == null) continue;
     const quote = deriveQuote(p.symbol) ?? p.symbol;
     byQuote.set(quote, (byQuote.get(quote) ?? 0) + pnl);

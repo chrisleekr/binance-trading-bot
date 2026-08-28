@@ -1,6 +1,7 @@
 import { useController, useFormContext } from 'react-hook-form';
 
 import { Input } from '@/shared/components/ui/input';
+import { useQuoteAsset } from '@/shared/forms/quote-asset-context';
 
 import type { Widget } from './types';
 
@@ -24,7 +25,8 @@ export function decimalStringWidget(placeholder?: string): Widget {
   return function DecimalStringInput({ name }) {
     const { control } = useFormContext();
     const { field, fieldState } = useController({ name, control });
-    return (
+    const quoteAsset = useQuoteAsset();
+    const input = (
       <Input
         id={name}
         type="text"
@@ -37,7 +39,18 @@ export function decimalStringWidget(placeholder?: string): Widget {
         ref={field.ref}
         aria-invalid={fieldState.invalid || undefined}
         placeholder={placeholder}
+        className={quoteAsset ? 'pr-16' : undefined}
       />
+    );
+    // No provider means no known unit, so the control renders exactly as it did before rather than inventing one. The suffix decoration mirrors the percentage widget's, which is the established affordance for "this input has a unit".
+    if (!quoteAsset) return input;
+    return (
+      <div className="relative flex items-center">
+        {input}
+        <span className="pointer-events-none absolute right-3 text-sm text-muted-fg">
+          {quoteAsset}
+        </span>
+      </div>
     );
   };
 }

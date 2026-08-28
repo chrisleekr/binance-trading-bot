@@ -62,6 +62,7 @@ import {
   profileRepoFromScope,
   toAccountScope,
   withTx,
+  POSITION_SEED_REFUSED,
   ProfileNotOwnedError,
   SiblingQuoteConflictError,
   SymbolOwnershipConflictError,
@@ -353,10 +354,10 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
       // The quantity the wallet was actually credited. Everything downstream
       // (cost basis, held quantity, the flat test on the eventual exit) is
       // measured against the wallet, so the fold has to start there.
-      const buyQty =
+      const buy =
         event.side === 'BUY'
           ? netBuyQuantity(deps, event, commissions, baseAsset)
-          : new Decimal(event.cumQty);
+          : { quantity: new Decimal(event.cumQty), baseCommissionNetted: null };
 
       // PG-side dedupe gate. Wrap the `applied_fills` insert and the
       // `avg_entry_prices` write in a single transaction so they
@@ -382,7 +383,18 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
         });
         firstApply = isFirstApply;
         if (event.side === 'BUY') {
-          return resolveBuy(txScope, event, isFirstApply, buyQty);
+          const buyResolution = await resolveBuy(txScope, event, isFirstApply, buy.quantity);
+          if (isFirstApply && buy.baseCommissionNetted !== null) {
+            const stamped = await txScope.orders.stampBaseCommissionNetted(
+              event.symbol,
+              BigInt(event.orderId),
+              buy.baseCommissionNetted,
+            );
+            if (stamped !== 1) {
+              throw new Error('fill-adopter: base-commission proof did not match one order');
+            }
+          }
+          return buyResolution;
         }
         return resolveSell(txScope, event, isFirstApply, sellStepSize, sellMinNotional);
       });
@@ -401,8 +413,7 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
       //      guard, so it stamps BOTH the resting fill AND the synchronous
       //      MARKET sell (the dominant exit) that markFilled cannot touch.
       //      Write-once (realized_pnl IS NULL), so a replay never overwrites.
-      // Both best-effort: the orders row is tracking-only, so a failure must
-      // never fail the already-committed position.
+      // Both best-effort: these tracking updates do not change the committed position. The BUY base-commission proof is different and was written in the transaction above.
       const realized = 'realized' in resolution ? resolution.realized : undefined;
       try {
         const orders = accountRepoFromScope(toAccountScope(ownedScope)).orders;
@@ -582,31 +593,27 @@ const parseCommissions = (
 };
 
 /**
- * Quantity a BUY actually credited to the wallet. Binance charges the BUY fee
- * in the BASE asset unless a discount asset (BNB) is enabled, so folding the
- * gross `executedQty` tracks a position permanently larger than the balance.
- * The protective exit is sized from the real balance, so it can never bring
- * the tracked number to zero: the exit resolves as a partial, the cycle never
- * closes, and the completed trade never reaches the archive.
+ * Derive the quantity a BUY credited to the wallet. When Binance charges commission in the base asset, folding gross `executedQty` would leave the tracked position larger than the balance and prevent the protective exit from closing the cycle. Missing or invalid commission evidence falls back to gross rather than guessing.
  *
- * Falls back to gross when there is no positive base-asset subtotal, the base
- * asset cannot be resolved, or the commission record is absent or invalid. An
- * unmeasured fee must not be guessed at.
+ * @param deps - Fill-adopter dependencies used to surface an impossible non-positive result.
+ * @param event - Cumulative BUY fill being adopted.
+ * @param commissions - Validated cumulative commission totals keyed by asset, or null when unavailable.
+ * @param baseAsset - The symbol's base asset when it can be resolved.
+ * @returns Wallet quantity plus the exact base commission netted, or null when none is proven.
  */
 const netBuyQuantity = (
   deps: FillAdopterDeps,
   event: FillEvent,
   commissions: ReadonlyMap<string, Decimal> | null,
   baseAsset: string | undefined,
-): Decimal => {
+): { quantity: Decimal; baseCommissionNetted: string | null } => {
   const gross = new Decimal(event.cumQty);
-  if (commissions === null || !baseAsset) return gross;
+  if (commissions === null || !baseAsset) return { quantity: gross, baseCommissionNetted: null };
   const charged = commissions.get(baseAsset);
-  if (!charged || charged.lte(0)) return gross;
+  if (!charged || charged.lte(0)) return { quantity: gross, baseCommissionNetted: null };
   const net = gross.minus(charged);
   if (net.lte(0)) {
-    // A fee at or above the whole fill is not a fee; trust the fill instead of
-    // writing a zero/negative position that would divide-by-zero on the VWAP.
+    // A fee at or above the whole fill is invalid; trust the fill instead of writing a non-positive position that would break the VWAP.
     deps.logger.error(
       {
         profileId: event.profileId,
@@ -617,9 +624,9 @@ const netBuyQuantity = (
       },
       'fill-adopter: base-asset commission >= filled quantity; folding gross quantity',
     );
-    return gross;
+    return { quantity: gross, baseCommissionNetted: null };
   }
-  return net;
+  return { quantity: net, baseCommissionNetted: charged.toString() };
 };
 
 const resolveBuy = async (
@@ -646,6 +653,18 @@ const resolveBuy = async (
     await scope.avgEntryPrices.upsert(event.symbol, {
       avgEntryPrice: adopted.avgEntryPrice,
       quantity: adopted.heldQuantity,
+    });
+    // An exchange fill is proof the coin is really held, which is precisely what an open seed refusal denies. Deleting the row clears it elsewhere; buying back into a symbol clears nothing, so without this the warning survives the position it was wrong about.
+    //
+    // Unconditional here, unlike the boot pass, because nothing stands down: the quantity is the exchange's own report of a fill it accepted, not a wallet snapshot judged against a cached price, and Binance enforces LOT_SIZE and MIN_NOTIONAL before the order rests. There is no disarmed shape that reaches this line.
+    //
+    // This runs per TRADE — `appliedFills` keys on `tradeId`, so each leg of a partial fill is its own first apply and can be smaller than one `stepSize` on its own. Accepted deliberately: the row written above carries the CUMULATIVE folded quantity, so the position the refusal denied demonstrably exists, and erring toward showing the operator a real P/L is the benign direction.
+    await scope.conditionStates.recordCondition({
+      condition: POSITION_SEED_REFUSED,
+      symbol: event.symbol,
+      code: null,
+      now: new Date(),
+      msg: `${event.symbol}: a buy fill now backs the cost basis`,
     });
     return { kind: 'set', side: 'BUY', lbp: adopted.avgEntryPrice, qty: adopted.heldQuantity };
   }
@@ -776,13 +795,11 @@ const appendFillActionLog = async (
 };
 
 /**
- * Re-create the `profile_symbols` binding when a fill leaves a live position on
- * a symbol the profile is no longer subscribed to. This is the orphan-recovery
- * safety net: discovery (or a manual delete) can drop a symbol whose buy fill
- * had not yet been adopted, and the late adoption would otherwise write a
- * position nothing manages. Re-subscribing as `manual` guarantees the next
- * reconfigure/boot resumes managing it AND keeps discovery from reaping it
- * again. No-op when the binding already exists.
+ * Re-create the `profile_symbols` binding when a fill leaves a live position on a symbol the profile is no longer subscribed to. This is the orphan-recovery safety net: discovery (or a manual delete) can drop a symbol whose buy fill had not yet been adopted, and the late adoption would otherwise write a position nothing manages. No-op when the binding already exists.
+ *
+ * The binding is stamped `unknown` and UNPINNED. Recovering a position is not a pin and not an authorship claim: nobody chose this coin at this moment, so the row says so, and discovery reaps it on a later cycle once the position is closed and the symbol is flat. Under the previous model the only way to keep the recovered symbol bound was to claim the operator had added it, which also exempted it from rotation permanently — a coin the operator never picked holding a discovery slot forever.
+ *
+ * The reap can only fire once the position is gone, because its flat guard already refuses a symbol with held quantity or a resting order. So there is no window where this recovery is undone while it is still needed.
  */
 const ensureSubscribedForPosition = async (
   deps: FillAdopterDeps,
@@ -805,7 +822,10 @@ const ensureSubscribedForPosition = async (
     return;
   }
   try {
-    await scope.profileSymbols.upsert(event.symbol, baseAsset, { source: 'manual' });
+    await scope.profileSymbols.upsert(event.symbol, baseAsset, {
+      source: 'unknown',
+      pinned: false,
+    });
   } catch (err) {
     if (err instanceof SymbolOwnershipConflictError || err instanceof SiblingQuoteConflictError) {
       // A sibling profile on this Binance account conflicts with the symbol's base
@@ -842,7 +862,7 @@ const ensureSubscribedForPosition = async (
     deps,
     scope,
     event,
-    `Re-subscribed ${event.symbol} (recovered a position the bot was not tracking)`,
+    `Re-subscribed ${event.symbol}: the bot found a position it was not tracking and is managing it again. It did not pin the coin, so once the position is closed auto-discovery may rotate it out.`,
     { action: 'orphan-resubscribe' },
   );
 };

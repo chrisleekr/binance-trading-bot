@@ -402,6 +402,11 @@ groups:
         # symbol set. Requiring three is what keeps a burst of edits from reading as a
         # persistent fault while still catching a symbol that cannot be priced at all.
         #
+        # A fourth emitter shares this series and is NOT periodic: the apply-avg-entry-price
+        # job, which runs whenever an operator saves an entry price. The pass-count rationale
+        # above does not bound it — three saves against a cold ticker cache trip this rule with
+        # no sweep involved — so check the worker log before reading a firing as a sweep fault.
+        #
         # `for: 15m` is scrape-gap tolerance on top of that, not the anti-transient guard.
         #
         # THE SECOND ARM IS RESET AWARENESS, and it is load-bearing on every rule built from
@@ -432,7 +437,32 @@ groups:
           severity: warning
         annotations:
           summary: 'Dust value bounds inert on {{ $labels.profileId }}/{{ $labels.symbol }} ({{ $labels.reason }})'
-          description: 'Reconcile passes for this symbol keep reaching a dust value bound without {{ $labels.reason }}, so the bound is not evaluating and the pass reporting no-op is not evidence the position is sound. no-reference-price means neither the miniTicker cache nor the REST fallback could price the symbol — check that the market stream is subscribed and that Binance still lists the pair. no-min-notional means the cached exchangeInfo carries no NOTIONAL filter, which an exchange-info-refresh run repairs. no-unreserved-total means a caller forwarded a target without the pre-reserve wallet total, which is a code fault rather than a data one.'
+          description: 'Passes for this symbol keep reaching a dust value bound without {{ $labels.reason }}, so the bound is not evaluating and the pass reporting no-op is not evidence the position is sound. no-reference-price means neither the miniTicker cache nor the REST fallback could price the symbol — check that the market stream is subscribed and that Binance still lists the pair. no-min-notional means the cached exchangeInfo carries no NOTIONAL filter, which an exchange-info-refresh run repairs. no-wallet-total means a balance leg Binance returned for this asset would not parse as a finite decimal, so the reconciler skipped the symbol outright before any bound was reached — check the raw getAccount balance for the base asset. A fourth, non-periodic emitter shares this series — an operator saving an entry price. If the count rose with no boot and no backstop pass to explain it, grep the worker log for pipeline_apply_avg_entry_price_value_bound_disarmed on the same symbol before chasing a sweep.'
+
+      - alert: PipelineApplySeedGateStoodDown
+        # An operator entry-price apply falls back to the recorded quantity when the position seed gate cannot be evaluated. Without this rule, that safety downgrade exists only in worker logs.
+        #
+        # The apply path zero-seeds all four reason children synchronously before incrementing the fired reason, so no scrape can observe that child at zero. Subtracting the aggregate's own value two hours ago counts its birth write where `increase()` cannot, and returns to zero once the event leaves the window.
+        #
+        # The restart arm joins each positive counter child to the existing process start series on the scrape-added job and instance labels before aggregation. Counter values alone cannot distinguish 1 before a restart from a fresh child born at 1, while the process timestamp identifies the new worker and expires after the same two-hour window.
+        #
+        # The join requires the worker scrape job to be named `worker`, matching WorkerDown and the documented scrape config. The process metric already comes from the worker registry, so closing the equal-value ambiguity needs no new metric.
+        expr: |
+          sum by (profileId, symbol, reason) (pipeline_apply_seed_gate_stood_down_total)
+            - (sum by (profileId, symbol, reason) (pipeline_apply_seed_gate_stood_down_total offset 2h)
+               or sum by (profileId, symbol, reason) (pipeline_apply_seed_gate_stood_down_total) * 0)
+            > 0
+          or sum by (profileId, symbol, reason) (
+            (pipeline_apply_seed_gate_stood_down_total > 0)
+              and on (job, instance)
+            (process_start_time_seconds{job="worker"} > time() - 7200)
+          ) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Entry-price safety check unavailable on {{ $labels.profileId }}/{{ $labels.symbol }} ({{ $labels.reason }})'
+          description: 'An operator entry-price apply for {{ $labels.profileId }}/{{ $labels.symbol }} could not evaluate the position seed gate ({{ $labels.reason }}) and fell back to the recorded quantity. no-client means the Binance client resolver threw or returned no client; verify that the account and API-key rows exist, check database health, and inspect the worker warning log for pipeline_apply_avg_entry_price_gate_unavailable. no-symbol-info means the symbol-info cache was missing or unreadable; check Redis and the exchange-info-refresh job. bad-symbol-info means the cached symbol info was malformed or carried an invalid step size; refresh it and inspect the cached value. getaccount-failed means the Binance account request failed; check API-key validity, the IP allowlist, Binance reachability, and the worker log for pipeline_apply_avg_entry_price_gate_unavailable.'
 
       - alert: MomentumExitBlockedByFilters
         # A position the strategy has decided to sell and CANNOT. `computeExitQuantity`

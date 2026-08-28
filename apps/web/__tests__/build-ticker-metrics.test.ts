@@ -141,4 +141,27 @@ describe('buildTickerMetrics', () => {
       { symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT', pnl: '20', pnlPercent: '10' },
     ]);
   });
+
+  it('excludes a refused position seed from the unrealised total and the holdings', () => {
+    // The row survives the refusal by design and carries both an entry price and a quantity, so the arithmetic happily produces a P/L for a position nothing sellable backs. This is a SUM in the top bar: unlike a wrong table row the operator can discount, it moves the headline figure they read as their live money, and the second coin here is chosen to push that figure the WRONG WAY so an unfiltered rollup cannot land on the right total by luck.
+    const result = buildTickerMetrics(
+      [row({ profileId: PA, name: 'Live', quoteAsset: 'USDT' })],
+      [],
+      [
+        sym({ symbol: 'BTCUSDT', avgEntryPrice: '100', currentPrice: '110', quantity: '2' }),
+        sym({
+          symbol: 'ETHUSDT',
+          avgEntryPrice: '200',
+          currentPrice: '190',
+          quantity: '1',
+          positionSeedRefusal: { code: 'insufficient-free-balance', since: '2026-08-27T00:00:00Z' },
+        }),
+      ],
+    );
+
+    expect(result.unrealised).toEqual([{ quote: 'USDT', pnl: '20' }]);
+    expect(result.holdings).toEqual([
+      { symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT', pnl: '20', pnlPercent: '10' },
+    ]);
+  });
 });

@@ -1,4 +1,4 @@
-import { asAccountId, asProfileId, asUserId, DiscoveryConfigSchema } from '@app/contracts';
+import { asAccountId, asProfileId, DiscoveryConfigSchema } from '@app/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   accountPermissionsKey,
@@ -17,7 +17,7 @@ import {
   profilePrefix,
   type GlobalScope,
   type ProfileKeyParts,
-  type ProfileScope,
+  type RedisProfileScope,
 } from '../src/redis.js';
 
 describe('createBullMQConnection', () => {
@@ -38,7 +38,7 @@ describe('createBullMQConnection', () => {
   });
 });
 
-const aliceScope: ProfileScope = {
+const aliceScope: RedisProfileScope = {
   kind: 'profile',
   accountId: asAccountId('00000000-0000-0000-0000-0000000a0001'),
   profileId: asProfileId('00000000-0000-0000-0000-0000000a1001'),
@@ -85,7 +85,7 @@ describe('profileKey / profilePrefix composition', () => {
     );
   });
 
-  it('accepts a bare ProfileKeyParts literal, not only a kind-tagged ProfileScope', () => {
+  it('accepts a bare ProfileKeyParts literal, not only a kind-tagged RedisProfileScope', () => {
     // No `kind` field — pins the structural-subset contract at compile time,
     // matching the per-row `{accountId, profileId}` callsite in profile-aggregate.
     const parts: ProfileKeyParts = {
@@ -138,16 +138,16 @@ describe('GLOBAL_KEYS catalogue', () => {
 });
 
 describe('events / audit stream keys (cross-process worker↔api contract)', () => {
-  const u = asUserId('00000000-0000-0000-0000-0000000a0001');
+  const a = asAccountId('00000000-0000-0000-0000-0000000a0001');
   const p = asProfileId('00000000-0000-0000-0000-0000000a1001');
 
   it('pins the byte-exact grammar both processes depend on', () => {
-    expect(eventsChannelKey(u, p)).toBe(
+    expect(eventsChannelKey(a, p)).toBe(
       'events:00000000-0000-0000-0000-0000000a0001:00000000-0000-0000-0000-0000000a1001',
     );
-    expect(eventsStreamKey(u, p)).toBe(`${eventsChannelKey(u, p)}:stream`);
-    expect(eventsSeqKey(u, p)).toBe(`${eventsChannelKey(u, p)}:seq`);
-    expect(auditStreamKey(u, p)).toBe(
+    expect(eventsStreamKey(a, p)).toBe(`${eventsChannelKey(a, p)}:stream`);
+    expect(eventsSeqKey(a, p)).toBe(`${eventsChannelKey(a, p)}:seq`);
+    expect(auditStreamKey(a, p)).toBe(
       'audit:00000000-0000-0000-0000-0000000a0001:00000000-0000-0000-0000-0000000a1001:stream',
     );
   });
@@ -157,12 +157,14 @@ describe('events / audit stream keys (cross-process worker↔api contract)', () 
     // The api PSUBSCRIBEs the pattern; the worker PUBLISHes the channel. Pin
     // that the channel's literal prefix is the pattern's prefix so they cannot
     // drift independently.
-    const patternPrefix = EVENTS_CHANNEL_PATTERN.split('*')[0];
-    expect(eventsChannelKey(u, p).startsWith(patternPrefix)).toBe(true);
+    const wildcard = EVENTS_CHANNEL_PATTERN.indexOf('*');
+    expect(wildcard).toBeGreaterThan(0);
+    const patternPrefix = EVENTS_CHANNEL_PATTERN.slice(0, wildcard);
+    expect(eventsChannelKey(a, p).startsWith(patternPrefix)).toBe(true);
   });
 
-  it('dashboardAggregateCacheKey is user-scoped without a profile segment', () => {
-    expect(dashboardAggregateCacheKey(u)).toBe(
+  it('dashboardAggregateCacheKey is account-scoped without a profile segment', () => {
+    expect(dashboardAggregateCacheKey(a)).toBe(
       'tenant:00000000-0000-0000-0000-0000000a0001:dashboard-aggregate:cache',
     );
   });
@@ -181,7 +183,7 @@ describe('events / audit stream keys (cross-process worker↔api contract)', () 
 });
 
 describe('scope construction', () => {
-  it('a ProfileScope carries accountId and profileId verbatim', () => {
+  it('a RedisProfileScope carries accountId and profileId verbatim', () => {
     expect(aliceScope.kind).toBe('profile');
     expect(aliceScope.accountId).toBe('00000000-0000-0000-0000-0000000a0001');
     expect(aliceScope.profileId).toBe('00000000-0000-0000-0000-0000000a1001');

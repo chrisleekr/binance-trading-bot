@@ -6,6 +6,7 @@ import {
   RateLimitedError,
   UnauthenticatedError,
   ValidationFailedError,
+  apiDownloadUrl,
   apiFetch,
   serverValidationErrors,
   setApiBaseUrl,
@@ -144,6 +145,32 @@ describe('apiFetch', () => {
     expect(init.body).toBe(JSON.stringify({ name: 'demo' }));
     expect((init.headers as Headers).get('content-type')).toBe('application/json');
     expect((init.headers as Headers).get('accept')).toBe('application/json');
+  });
+});
+
+describe('apiDownloadUrl', () => {
+  beforeEach(() => {
+    setApiBaseUrl('/api');
+  });
+
+  it('uses the JSON-request encoding for optional, repeated, comma-joined, and scalar values', () => {
+    expect(
+      apiDownloadUrl('/accounts/a/profiles/p/logs/export', {
+        levels: 'warn,error',
+        event: ['started', 'stopped'],
+        cursor: undefined,
+        empty: '',
+        enabled: false,
+      }),
+    ).toBe(
+      '/api/accounts/a/profiles/p/logs/export?levels=warn%2Cerror&event=started&event=stopped&empty=&enabled=false',
+    );
+  });
+
+  it('keeps absolute download paths absolute while applying the same query encoding', () => {
+    expect(apiDownloadUrl('https://download.example/export', { from: '2026-01-01 00:00' })).toBe(
+      'https://download.example/export?from=2026-01-01+00%3A00',
+    );
   });
 });
 

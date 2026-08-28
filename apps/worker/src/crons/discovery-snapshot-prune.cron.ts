@@ -1,6 +1,6 @@
 // discovery-snapshot-prune cron.
 //
-// Daily retention sweep over `discovery_universe_snapshots` (#436). The series
+// Daily retention sweep over `discovery_universe_snapshots`. The series
 // is MEANT to accumulate for a net-edge discovery backtest window, so retention
 // is deliberately generous (DISCOVERY_SNAPSHOT_RETENTION_DAYS, default 180).
 // Single-statement delete; the row delete is the only side effect, and errors

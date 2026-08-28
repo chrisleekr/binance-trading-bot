@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ProfileSymbolResponse, projectSymbolFilters } from '../src/symbols.js';
+import { ProfileSymbolResponse, projectSymbolFilters, TrailingDelta } from '../src/symbols.js';
 
 const price = {
   filterType: 'PRICE_FILTER',
@@ -136,17 +136,24 @@ describe('projectSymbolFilters — TRAILING_DELTA', () => {
   });
 
   it('degrades a garbled row to "unknown" rather than voiding the whole set', () => {
-    // Same all-or-nothing reasoning as the band: an unreadable optional filter
-    // must never take a symbol's sizing thresholds down with it.
+    // Same all-or-nothing reasoning as the band: an unreadable optional filter must never take a symbol's sizing thresholds down with it. A fractional basis point is the garble, because the row type declares these four as numbers — the value has to be one the schema rejects rather than one the compiler does.
     const projected = projectSymbolFilters([
       price,
       lot,
       notional,
-      { ...trailing, maxTrailingBelowDelta: '2000' },
+      { ...trailing, maxTrailingBelowDelta: 2000.5 },
     ]);
     expect(projected).not.toBeNull();
     expect(projected).not.toHaveProperty('trailingDelta');
     expect(projected?.minNotional).toBe('10');
+  });
+
+  it('rejects a delta bound that arrives as a string rather than a number', () => {
+    // The projector's row type declares these as numbers, so the wrong-TYPE garble can only be posed one level down, at the schema that actually reads the wire. Binance types a delta as a LONG and the interface is right to say number, but nothing upstream of this parse enforces that, so the string case needs somewhere to be stated.
+    expect(TrailingDelta.safeParse({ ...trailing, maxTrailingBelowDelta: '2000' }).success).toBe(
+      false,
+    );
+    expect(TrailingDelta.safeParse(trailing).success).toBe(true);
   });
 
   it('degrades a row missing a bound the same way', () => {

@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createQueryClient } from '@/shared/lib/query-client';
 import { rootRoute } from '@/app/__root';
-import { settingsRoute } from '@/features/account/routes/settings';
+import { settingsIndexRoute, settingsRoute } from '@/features/account/routes/settings';
 
 type Json = Record<string, unknown>;
 
@@ -40,14 +40,20 @@ const setUp = (responder: (url: string, init?: RequestInit) => Response | Promis
   const queryClient = createQueryClient();
   // Sidestep the onboarding redirect — pretend the master exists so /settings renders.
   queryClient.setQueryData(['auth', 'onboarding-status'], { masterExists: true });
+  const backupRestoreStub = createRoute({
+    getParentRoute: () => settingsRoute,
+    path: 'backup-restore',
+    component: () => null,
+  });
   const router = createRouter({
     routeTree: rootRoute.addChildren([
       stub('/'),
       stub('/onboarding'),
       stub('/login'),
-      // The hub's remaining NavCard <Link>s must resolve against the tree.
-      stub('/settings/backup-restore'),
-      settingsRoute,
+      // /settings is a LAYOUT now, so the page under test is its index child
+      // and backup-restore nests under it — which is what gives that page a
+      // breadcrumb ancestor to name.
+      settingsRoute.addChildren([settingsIndexRoute, backupRestoreStub]),
     ]),
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: ['/settings'] }),

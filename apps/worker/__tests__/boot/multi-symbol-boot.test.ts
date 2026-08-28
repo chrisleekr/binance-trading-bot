@@ -12,6 +12,7 @@ import type { Redis } from 'ioredis';
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
 
 const repoMocks = vi.hoisted(() => ({
+  conditionRecordCondition: vi.fn(async () => ({ changed: false, sinceMs: null })),
   profileFindById: vi.fn(),
   avgEntryPricesFindBySymbol: vi.fn(),
   avgEntryPricesRemove: vi.fn(),
@@ -28,6 +29,8 @@ vi.mock('@app/db', async (importOriginal) => {
       async (_db: unknown, operatorId: UserId, accountId: AccountId, profileId: ProfileId) => ({
         scope: { userId: operatorId, accountId, profileId },
         profile: { findById: repoMocks.profileFindById },
+        // The recurring reconcile pass closes a seed refusal that a top-up or a buy has falsified; the destructive paths close theirs inside `avgEntryPrices.remove` itself.
+        conditionStates: { recordCondition: repoMocks.conditionRecordCondition },
         avgEntryPrices: {
           findBySymbol: repoMocks.avgEntryPricesFindBySymbol,
           remove: repoMocks.avgEntryPricesRemove,

@@ -1,5 +1,5 @@
 import { and, desc, eq, getTableColumns, gt, gte, isNotNull, lt, lte, sql } from 'drizzle-orm';
-import type { SymbolSource } from '@app/contracts';
+import type { FeeBasis, SymbolSource } from '@app/contracts';
 import { appliedFills } from '../schema/applied-fills.js';
 import { backfillAttempts } from '../schema/backfill-attempts.js';
 import { orders, type OrderRow } from '../schema/orders.js';
@@ -93,6 +93,7 @@ export async function listForProfileInRange(
     source: SymbolSource;
     profit: string;
     feesQuote: string;
+    feeBasis: FeeBasis;
     orders: unknown;
   }[]
 > {
@@ -104,6 +105,7 @@ export async function listForProfileInRange(
       source: tradeArchive.source,
       profit: tradeArchive.profit,
       feesQuote: tradeArchive.feesQuote,
+      feeBasis: tradeArchive.feeBasis,
       orders: tradeArchive.orders,
     })
     .from(tradeArchive)
@@ -121,6 +123,26 @@ export async function listForProfileInRange(
 const canonicalQuote = (quoteAsset: string): string => quoteAsset.toUpperCase();
 
 /**
+ * The weakest `fee_basis` in the grouped set, as one aggregate expression.
+ *
+ * A rollup is a single claim about a set of cycles, so it inherits the worst evidence any member carries; taking the strongest would let one proven cycle certify a bucket whose other rows were never valued. This is the SQL half of `weakestFeeBasis` from `@app/contracts` and must move with it — five call sites read a folded tier, and a disagreement between them is invisible because each returns one row.
+ *
+ * Typed as {@link FeeBasis} rather than `string`, which is a narrowing this expression actually earns: the value is read out of a three-element literal array and defaulted from a literal, so no column value can reach the caller unmapped — unlike a raw column read, where the cast would be a wish.
+ *
+ * Ranked inline rather than through a helper function: a per-row function call inside an aggregate is not something Postgres can plan around, and the ranking is three literals. An unrecognised value ranks lowest, matching the TS fold, so a tier this build does not know about is reported as the weakest rather than silently trusted. The empty set yields NULL from `min`, which the coalesce turns into `exact` — nothing was read, so there is nothing to distrust, and that is the reading `coalesce(bool_and(...), true)` already had.
+ */
+const weakestFeeBasisAgg = sql<FeeBasis>`coalesce(
+    (array['unknown', 'estimated', 'exact'])[
+      min(case ${tradeArchive.feeBasis}
+            when 'unknown' then 1
+            when 'estimated' then 2
+            when 'exact' then 3
+            else 1 end)
+    ],
+    'exact'
+  )`;
+
+/**
  * Every money figure a realised-P/L aggregate returns, tagged with the currency it is counted in.
  *
  * `quoteAsset` is echoed back from the filter that produced the totals, in canonical casing, so a consumer that stores or buckets them names the denomination the sum was actually taken in rather than re-deriving it. The archive spans whatever quotes the profile has ever traded, so an untagged decimal string is a number with no unit — which is exactly how a USDT total came to be added to a BTC one.
@@ -128,24 +150,22 @@ const canonicalQuote = (quoteAsset: string): string => quoteAsset.toUpperCase();
 export interface RealizedTotals {
   /** The quote asset every figure below is counted in; rows in any other quote were excluded. */
   readonly quoteAsset: string;
-  /** GROSS realised profit — fees NOT subtracted. Backs the gross half of the UI's gross↔net toggle. */
+  /** Deployed cost-basis result before the additional quote adjustment. The UI labels it Recorded because a base-asset BUY fee can already be embedded. */
   readonly totalProfit: string;
   /** `totalProfit` over the summed `total_buy_quote` cost basis, as a percent. A window with no cost basis yields `'0'`, never a divide-by-zero. */
   readonly totalProfitPercent: string;
-  /** Commissions for the window, valued in `quoteAsset`. */
+  /** Known additional fee adjustment for the window, valued in `quoteAsset`; trustworthy as far as `feeBasis` says. */
   readonly totalFees: string;
-  /** `totalProfit - totalFees` — what was actually kept, and the figure win/loss classification uses. */
+  /** `totalProfit - totalFees`; an exact Net P/L only when `feeBasis` is `exact`. */
   readonly netProfit: string;
+  /** The WEAKEST fee tier any matched row carried, so the window is reported as its worst evidence. `exact` when nothing matched. */
+  readonly feeBasis: FeeBasis;
   /** Archived CYCLES matched, not orders and not symbols. */
   readonly tradeCount: number;
 }
 
 /**
- * Period totals for the closed-trades widget. `totalProfitPercent` is the
- * summed profit over the summed buy-quote cost basis; it is computed in SQL
- * (numeric, arbitrary-precision) to keep money math out of JS, matching
- * {@link summarizeArchiveSince}. A zero cost basis (no rows in range) yields
- * a `'0'` percent rather than a divide-by-zero.
+ * Period totals for the closed-trades widget. `totalProfitPercent` is the summed profit over the summed buy-quote cost basis; PostgreSQL numeric arithmetic keeps money math out of JavaScript. A zero cost basis (no rows in range) yields a `'0'` percent rather than a divide-by-zero.
  *
  * `quoteAsset` is REQUIRED, not optional: a profile's quote can be changed after it has closed cycles, so its archive holds rows denominated in more than one currency and summing the column outright produces a figure in no currency at all. Making the caller name the denomination is the fix — there is no defensible default, and an omitted filter is silently wrong rather than loudly missing.
  *
@@ -153,7 +173,7 @@ export interface RealizedTotals {
  * @param quoteAsset - The currency to count in. Archive rows in any other quote are excluded, so history from before a quote change does not leak into the current-quote total.
  * @param from - Inclusive lower bound on `archived_at`.
  * @param to - Exclusive upper bound on `archived_at`.
- * @returns The window's gross/net/fee totals and trade count, tagged with `quoteAsset`. All-zero (and `tradeCount: 0`) when nothing matches.
+ * @returns The window's Recorded result, known Net subtotal, weakest fee tier, and trade count, tagged with `quoteAsset`. All-zero (and `tradeCount: 0`) when nothing matches.
  */
 export async function sumProfitInRange(
   scope: ProfileScope,
@@ -171,6 +191,7 @@ export async function sumProfitInRange(
               / sum(${tradeArchive.totalBuyQuote}) * 100, 8)::text end`,
       totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}), 0)::text`,
       netProfit: sql<string>`coalesce(sum(${tradeArchive.profit} - ${tradeArchive.feesQuote}), 0)::text`,
+      feeBasis: weakestFeeBasisAgg,
       tradeCount: sql<number>`count(*)::int`,
     })
     .from(tradeArchive)
@@ -188,6 +209,7 @@ export async function sumProfitInRange(
     totalProfitPercent: rows[0]?.totalProfitPercent ?? '0',
     totalFees: rows[0]?.totalFees ?? '0',
     netProfit: rows[0]?.netProfit ?? '0',
+    feeBasis: rows[0]?.feeBasis ?? 'exact',
     tradeCount: rows[0]?.tradeCount ?? 0,
   };
 }
@@ -195,9 +217,7 @@ export async function sumProfitInRange(
 /**
  * Same aggregate as {@link sumProfitInRange}, narrowed to one symbol-source.
  * The discovery net-edge scoreboard sums realized PnL + win rate over
- * `source='auto'` archives so the operator sees discovery-attributed results
- * isolated from manual trading. `wins` counts archives with positive NET-of-fee
- * profit; `totalFees`/`netProfit` carry the fee-adjusted totals.
+ * `source='auto'` archives so the operator sees discovery-attributed results isolated from manual trading. `wins` classifies the positive known Net subtotal; how far that is trustworthy is what `feeBasis` says.
  *
  * `quoteAsset` is required for the same reason as in {@link sumProfitInRange}: narrowing to one source does not narrow to one currency, so the scoreboard would still mix quotes the moment the profile's own quote changes.
  *
@@ -206,7 +226,7 @@ export async function sumProfitInRange(
  * @param from - Inclusive lower bound on `archived_at`.
  * @param to - Exclusive upper bound on `archived_at`.
  * @param source - How the symbol entered the profile ('auto' = discovery-admitted, 'manual' = operator-added).
- * @returns The window's totals for that source, tagged with `quoteAsset`, plus `wins` — archives whose net-of-fee profit is strictly positive.
+ * @returns The window's totals and completeness for that source, tagged with `quoteAsset`, plus the known-subtotal win count.
  */
 export async function sumProfitInRangeForSource(
   scope: ProfileScope,
@@ -225,9 +245,9 @@ export async function sumProfitInRangeForSource(
               / sum(${tradeArchive.totalBuyQuote}) * 100, 8)::text end`,
       totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}), 0)::text`,
       netProfit: sql<string>`coalesce(sum(${tradeArchive.profit} - ${tradeArchive.feesQuote}), 0)::text`,
+      feeBasis: weakestFeeBasisAgg,
       tradeCount: sql<number>`count(*)::int`,
-      // Win = net-of-fee profit > 0. A trade that cleared a gross profit but not
-      // its fees is a net loss, so it must not count as a win.
+      // Classification uses the known Net subtotal; consumers read `feeBasis` before presenting it as exact.
       wins: sql<number>`count(*) filter (where ${tradeArchive.profit} - ${tradeArchive.feesQuote} > 0)::int`,
     })
     .from(tradeArchive)
@@ -246,6 +266,7 @@ export async function sumProfitInRangeForSource(
     totalProfitPercent: rows[0]?.totalProfitPercent ?? '0',
     totalFees: rows[0]?.totalFees ?? '0',
     netProfit: rows[0]?.netProfit ?? '0',
+    feeBasis: rows[0]?.feeBasis ?? 'exact',
     tradeCount: rows[0]?.tradeCount ?? 0,
     wins: rows[0]?.wins ?? 0,
   };
@@ -255,12 +276,7 @@ export async function sumProfitInRangeForSource(
  * Same period aggregate as {@link sumProfitInRange}, split per symbol-source in
  * one `GROUP BY source` pass. Backs the Home scoreboard's by-source band: the
  * operator sees discovery (auto) vs manual side by side, each with the win/loss
- * counts and gross win/loss magnitudes the UI turns into win% and profit factor.
- * `wins`/`losses` count strictly-positive/strictly-negative NET-of-fee archives
- * (breakeven counts toward `tradeCount` only); `grossProfit`/`grossLoss` are the
- * summed net winners and the absolute summed net losers, both kept as decimal
- * strings so no money value crosses into JS floats. `totalProfit` is gross (for
- * the UI's gross↔net toggle); `netProfit`/`totalFees` are the fee-adjusted view.
+ * counts and gross win/loss magnitudes the UI turns into win% and profit factor. Those fields classify the known Net subtotal, and `feeBasis` says how far that classification can be trusted. `totalProfit` is the Recorded cost-basis result; `netProfit` and `totalFees` carry the additional fee adjustment.
  * Ordered by source for a deterministic band.
  *
  * Grouped by source but NOT by quote: the band compares discovery against manual inside one currency, and a second grouping key would split every source into per-currency rows the UI has nowhere to put. So the currency is a filter here, required for the reason given on {@link sumProfitInRange}.
@@ -285,10 +301,7 @@ export async function sumProfitInRangeBySource(
     grossLoss: string;
   })[]
 > {
-  // Win/loss split and the gross winner/loser magnitudes are computed on
-  // net-of-fee profit (`profit - fees_quote`) so win% and profit factor reflect
-  // what was actually kept. `totalProfit` stays gross (the UI offers a
-  // gross↔net toggle); `netProfit`/`totalFees` carry the fee-adjusted view.
+  // Win/loss split and winner/loser magnitudes use the known Net subtotal. Consumers read `feeBasis` to decide whether to present those statistics at all, and whether to mark them.
   const quote = canonicalQuote(quoteAsset);
   const net = sql`(${tradeArchive.profit} - ${tradeArchive.feesQuote})`;
   const rows = await scope.db
@@ -301,6 +314,7 @@ export async function sumProfitInRangeBySource(
               / sum(${tradeArchive.totalBuyQuote}) * 100, 8)::text end`,
       totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}), 0)::text`,
       netProfit: sql<string>`coalesce(sum(${net}), 0)::text`,
+      feeBasis: weakestFeeBasisAgg,
       tradeCount: sql<number>`count(*)::int`,
       // Classified on ${net} (= profit − fees_quote), NOT raw profit: a gross win
       // that did not clear its fees is a net loss. Do not revert these to `profit`.
@@ -341,10 +355,11 @@ export interface UnvaluedFeeRow {
 }
 
 /**
- * Archive rows whose fees were never valued (`fees_quote = 0`), newest first.
- * The fee-reconcile job re-derives commission for these from Binance. A genuinely
- * zero-fee row is harmless to revisit (it re-derives to 0); rows that predate the
- * fee column, or whose forward fee lookup degraded, are the real targets.
+ * Archive rows whose fee treatment is incomplete, newest first. Numeric zero is not a sentinel: it can be a fully evidenced base-asset BUY adjustment.
+ *
+ * @param scope - Ownership-proven profile scope that bounds every selected row.
+ * @param limit - Maximum candidates in one reconciliation or completeness probe.
+ * @returns Archive rows with a charge still missing, ready to be matched against Binance account trades.
  */
 export async function listWithUnvaluedFees(
   scope: ProfileScope,
@@ -359,21 +374,34 @@ export async function listWithUnvaluedFees(
       orders: tradeArchive.orders,
     })
     .from(tradeArchive)
-    .where(and(eq(tradeArchive.profileId, scope.profileId), eq(tradeArchive.feesQuote, '0')))
+    .where(
+      // `unknown` only, not "anything short of exact". Reconciliation values a third-asset charge from a rate table fetched now and therefore produces `estimated`, so a predicate of "not exact" would hand the same rows back on every pass forever. `unknown` is the set with a charge genuinely missing, and it is the set a pass can move out of.
+      and(eq(tradeArchive.profileId, scope.profileId), eq(tradeArchive.feeBasis, 'unknown')),
+    )
     .orderBy(desc(tradeArchive.archivedAt))
     .limit(limit);
 }
 
-/** Overwrite an archive row's fee record with reconciled Binance commission. */
+/**
+ * Atomically replace one archive row's raw fee facts, known quote subtotal, and fee tier so readers cannot observe mismatched accounting state.
+ *
+ * @param scope - Ownership-proven profile scope used in the update predicate.
+ * @param archiveId - Candidate archive row within that profile.
+ * @param fees - Per-asset Binance commission totals retained for audit and display.
+ * @param feesQuote - Known additional adjustment denominated in the row's quote asset.
+ * @param feeBasis - How well that adjustment is now known, from the evidence this pass actually used.
+ * @returns True when the scoped row existed and was updated.
+ */
 export async function updateFees(
   scope: ProfileScope,
   archiveId: string,
   fees: Record<string, string>,
   feesQuote: string,
+  feeBasis: FeeBasis,
 ): Promise<boolean> {
   const rows = await scope.db
     .update(tradeArchive)
-    .set({ fees, feesQuote })
+    .set({ fees, feesQuote, feeBasis })
     .where(and(eq(tradeArchive.id, archiveId), eq(tradeArchive.profileId, scope.profileId)))
     .returning({ id: tradeArchive.id });
   return rows.length > 0;
@@ -408,7 +436,6 @@ export interface ArchiveSummary {
   /** Quote summed per `"<intent>:<side>"` pair; strategy-specific keys. */
   readonly breakdown: Record<string, string>;
   readonly profit: string;
-  readonly profitPercent: string;
   readonly orderCount: number;
   /**
    * SELL rows in the window with no cost basis (`realized_pnl IS NULL`). They
@@ -464,7 +491,6 @@ export async function summarizeArchiveSince(
     total_buy_quote: string;
     total_sell_quote: string;
     profit: string;
-    profit_percent: string;
     order_count: string;
     missing_cost_basis: string;
     breakdown: Record<string, string>;
@@ -509,10 +535,6 @@ export async function summarizeArchiveSince(
       -- exactly and an overshoot's un-costed proceeds are excluded.
       (total_buy_quote + profit)::text as total_sell_quote,
       profit::text as profit,
-      case
-        when total_buy_quote = 0 then '0'
-        else (profit / total_buy_quote * 100)::text
-      end as profit_percent,
       order_count::text as order_count,
       missing_cost_basis::text as missing_cost_basis,
       bd.breakdown as breakdown
@@ -530,7 +552,6 @@ export async function summarizeArchiveSince(
     totalSellQuote: (row['total_sell_quote'] as string) ?? '0',
     breakdown: (row['breakdown'] as Record<string, string> | null) ?? {},
     profit: (row['profit'] as string) ?? '0',
-    profitPercent: (row['profit_percent'] as string) ?? '0',
     orderCount,
     missingCostBasis: Number(row['missing_cost_basis']) || 0,
   };

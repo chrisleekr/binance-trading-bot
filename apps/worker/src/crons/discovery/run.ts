@@ -20,6 +20,11 @@ import type { Candle } from '@app/strategy-core';
 import type { StoredDiscoveryConfig } from '@app/contracts';
 import type { Logger } from 'pino';
 import type { SiblingConflict } from '../sibling-conflict.js';
+import {
+  DISCOVERY_REAP_OUTCOMES,
+  type DiscoveryReapOutcome,
+  type ReapOutcome,
+} from '../discovery-reap.js';
 import { toPureConfig } from './config.js';
 import { validateAssetPolicy, type AssetPolicy } from './asset-policy.js';
 import { resolveQuoteUsdPrice, toDiscoveryTickers, USD_REFERENCE_QUOTE } from './quote-price.js';
@@ -61,8 +66,8 @@ export const dropFormingCandle = (window: readonly Candle[], nowMs: number): rea
   window.filter((c) => c.closeTimeMs < nowMs);
 
 /**
- * Build the discovery entry-hint payload (#473; refreshed for every managed
- * symbol each cycle in #486). Carries the `enterOnAdd` flag (whether the buy
+ * Build the discovery entry-hint payload, refreshed for every managed
+ * symbol each cycle. Carries the `enterOnAdd` flag (whether the buy
  * gate is relaxed on a discovery add) plus the current 24h high and the
  * anti-chase guard params, so the strategy's guards read a per-cycle-fresh
  * reference rather than an add-time snapshot. A symbol missing from the ticker
@@ -100,7 +105,7 @@ const buildEntryHintValue = (
  * the whole point of re-deriving it live is that the two agree.
  *
  * @param shortlist - Symbols that passed the ticker stage, already in rank order. Rank order is load-bearing: the cap keeps a prefix of it.
- * @param autoSymbols - Symbols currently held by auto-discovery. Only those also present in `shortlist` are force-kept; membership alone does not exempt a symbol from the cap.
+ * @param autoSymbols - The profile's rotatable (unpinned) bindings. Only those also present in `shortlist` are force-kept; membership alone does not exempt a symbol from the cap.
  * @param maxAutoSymbols - The admit cap. The kline cap is `3 ×` this, not this.
  * @returns The symbols to fetch windows for: held-first, then candidates in rank order, deduplicated, capped.
  */
@@ -143,9 +148,10 @@ export interface DiscoveryProfilePort {
   readonly logger: Pick<Logger, 'warn'>;
   getAllTickers(): Promise<readonly Ticker24hrDto[]>;
   getKlines(symbol: string, limit: number): Promise<readonly Candle[]>;
-  listAutoSymbols(): Promise<readonly string[]>;
-  /** Symbols the operator pinned to `source='manual'`; discovery never re-adopts these. */
-  listManualSymbols(): Promise<readonly string[]>;
+  /** The profile's UNPINNED bindings: everything discovery is allowed to count against the cap and rotate out, whatever created it. */
+  listRotatableSymbols(): Promise<readonly string[]>;
+  /** Symbols the operator pinned; discovery never re-adopts or reaps these. */
+  listPinnedSymbols(): Promise<readonly string[]>;
   /** Effective last-flatten ms per symbol (Redis reaps + DB manual ejects, max). */
   lastFlattenBySymbol(symbols: readonly string[]): Promise<Record<string, number>>;
   addedAtBySymbol(): Promise<Record<string, number>>;
@@ -165,7 +171,7 @@ export interface DiscoveryProfilePort {
    */
   siblingConflict(symbol: string): Promise<SiblingConflict>;
   /**
-   * Re-stamp the discovery entry-hint for a desired symbol this cycle (#486):
+   * Re-stamp the discovery entry-hint for a desired symbol this cycle:
    * the JSON payload from `buildEntryHintValue` (enterOnAdd flag + fresh 24h
    * high + anti-chase guard params). The strategy reads it via the entry-hint
    * bundle; arming it for every desired symbol keeps the 24h high current and
@@ -177,34 +183,54 @@ export interface DiscoveryProfilePort {
    * base asset (free + locked >= the symbol's `minQty` lot floor). The local
    * `avg_entry_prices` ledger is NOT authoritative: a real buy whose fill has
    * not yet been adopted leaves the ledger empty while the wallet holds coins,
-   * and reaping then orphans a live position (#423 Decision 3, "never
+   * and reaping then orphans a live position ("never
    * unsubscribe a held symbol"). Returns `null` when the balance cannot be read
    * (missing credentials / API error); the caller then refuses to reap rather
    * than abandon a possibly-held position.
    */
   heldOnExchange(symbol: string): Promise<boolean | null>;
-  /** Reap if flat + auto; returns true only when the row was actually removed. */
-  reapSymbol(symbol: string, nowMs: number): Promise<boolean>;
+  /** Reap if unpinned + flat. Returns the repo's verdict verbatim: `removed` is the only success, and the other three name why the row stayed. */
+  reapSymbol(symbol: string, nowMs: number): Promise<ReapOutcome>;
+  /**
+   * Report one rotation attempt's verdict the instant it is decided, rather than letting the cycle's tally travel home in the return value.
+   *
+   * The reap loop can die halfway: `reapSymbol` runs a Postgres transaction that rejects on any DB error, and the wallet read resolves a Binance client that can reject on its own. The caller's per-profile catch then discards the whole cycle, so a profile failing persistently mid-loop would report an all-zero series — indistinguishable from a profile with nothing to rotate, which is the exact blind spot this counting exists to close. Recording per decision keeps the attempts that already happened, including rows already deleted and committed earlier in the same loop.
+   *
+   * Synchronous and must not throw: it sits on the hot path of a loop whose failure mode is the thing being measured.
+   */
+  recordReapOutcome(outcome: DiscoveryReapOutcome): void;
   emit(symbol: string, action: 'add' | 'remove'): Promise<void>;
-  /** Append the WARN re-add audit line carrying the prior added-at ms (#454). */
+  /** Append the WARN re-add audit line carrying the prior added-at ms. */
   emitReadd(symbol: string, prevAddedAt: number): Promise<void>;
   /**
    * Append the WARN membership-loss audit line for a symbol that left the auto
-   * set without a flatten stamp (vanished without a reap, #454).
+   * set without a flatten stamp (vanished without a reap).
    */
   emitMembershipLost(symbol: string, prevAddedAt: number): Promise<void>;
-  /** Drop the orphaned added-at + enter-on-add hash entries for a lost symbol (#454). */
+  /** Drop the orphaned added-at + enter-on-add hash entries for a lost symbol. */
   cleanupOrphanedAdded(symbol: string): Promise<void>;
   notify(action: DiscoveryNotifyAction, symbol: string): Promise<void>;
   enqueueResync(): Promise<void>;
   /** Persist the latest per-candidate universe breakdown for the operator dashboard. */
   persistExplain(candidates: readonly CandidateExplain[], nowMs: number): Promise<void>;
   /**
-   * Durably append this cycle's point-in-time universe snapshot (#436). Pure
+   * Durably append this cycle's point-in-time universe snapshot. Pure
    * observability for a later net-edge backtest; a write failure must not churn
    * or abort the cycle (the implementation logs and swallows).
    */
   persistSnapshot(snapshot: DiscoveryUniverseSnapshotPayload): Promise<void>;
+}
+
+/**
+ * What one profile's cycle did: the rotation counts for the operator's log line, plus why every rotation attempt ended.
+ *
+ * Named rather than written inline at each of the three sites that carry it (this module, the cron's port adapter, the handler's dep) because a hand-copied shape is how a field added at the producer reaches a consumer that silently ignores it.
+ */
+export interface DiscoveryCycleResult {
+  readonly added: number;
+  readonly removed: number;
+  /** Total over the union rather than sparse, so a consumer can name every outcome without knowing the union and an outcome that was never tried is distinguishable from one nothing tracks. Independent of the counter: that is fed per decision through `recordReapOutcome`, and its zero-seed runs before the cycle from the module-level outcome list, so neither reads this. What survives here is a completed cycle's summary for the caller's log line. */
+  readonly reapOutcomes: Record<DiscoveryReapOutcome, number>;
 }
 
 /** The exchange-wide facts a cycle needs but does not fetch itself, resolved once per wake and shared by every due profile. */
@@ -227,7 +253,7 @@ export interface DiscoveryProfileContext {
  * @param quoteAsset - The profile's settlement asset, its own first-class column rather than part of the config.
  * @param nowMs - The wake's timestamp, shared by every profile so one wake reads as one moment.
  * @param ctx - The per-wake exchange facts: admission map, asset classification, live cross-check reference, and account permissions.
- * @returns How many symbols were added and removed, for the caller's rotation log line.
+ * @returns How many symbols were added and removed for the caller's rotation log line, plus the per-reason tally of every rotation attempt so a refusal-only cycle is still visible in the log. The tally is total over `DiscoveryReapOutcome` — a cycle that attempted nothing returns all zeros rather than an empty object, so that log line can never confuse "never happened" with "not tracked". The counter is a separate path, written per decision inside the loop.
  */
 export const runDiscoveryForProfile = async (
   port: DiscoveryProfilePort,
@@ -235,7 +261,7 @@ export const runDiscoveryForProfile = async (
   quoteAsset: string,
   nowMs: number,
   ctx: DiscoveryProfileContext,
-): Promise<{ added: number; removed: number }> => {
+): Promise<DiscoveryCycleResult> => {
   const cfg = toPureConfig(stored, quoteAsset);
   const rawTickers = await port.getAllTickers();
   // Throw rather than degrade: with no USD reference the volume floors would
@@ -258,17 +284,17 @@ export const runDiscoveryForProfile = async (
     // explicit `undefined` on an optional property.
     ...(ctx.accountPermissions === undefined ? {} : { accountPermissions: ctx.accountPermissions }),
   });
-  // 24h high per symbol, captured for the enter-on-add anti-chase guard (#473).
+  // 24h high per symbol, captured for the enter-on-add anti-chase guard.
   const highBySymbol: Record<string, string> = {};
   for (const t of rawTickers) highBySymbol[t.symbol] = t.highPrice;
   const shortlist = shortlistByTicker(tickers, cfg);
-  const autoSymbols = await port.listAutoSymbols();
-  const manualSymbols = await port.listManualSymbols();
+  const rotatableSymbols = await port.listRotatableSymbols();
+  const pinnedSymbols = await port.listPinnedSymbols();
   // Enough history to clear the age floor + feed ADX/EMA, capped at Binance's
   // 1000-candle limit. getKlines reserves the flat klines weight (2).
   const limit = Math.min(1000, cfg.minAgeDays * 24 + 50);
   // Bound the expensive per-symbol kline walk to held symbols + top candidates.
-  const klineTargets = selectKlineTargets(shortlist, autoSymbols, cfg.maxAutoSymbols);
+  const klineTargets = selectKlineTargets(shortlist, rotatableSymbols, cfg.maxAutoSymbols);
   // Fetch klines concurrently, bounded. `fail-fast` preserves the serial loop's
   // exact failure semantics: any fetch error rejects here and the caller's
   // per-profile catch leaves the symbol set untouched (no churn on bad data). A
@@ -286,19 +312,19 @@ export const runDiscoveryForProfile = async (
   // Include the added-at-hash symbols in the flatten lookup so the membership-loss
   // sweep can tell a legit reap (flatten stamp >= added-at) from a silent vanish.
   const lastFlatten = await port.lastFlattenBySymbol([
-    ...new Set([...shortlist, ...autoSymbols, ...Object.keys(addedAt)]),
+    ...new Set([...shortlist, ...rotatableSymbols, ...Object.keys(addedAt)]),
   ]);
   // A symbol with no recorded added-at (added before this cron, or Redis evicted)
   // falls back to epoch 0 = past any min-hold = immediately reapable. Conservative:
   // the repo flat-guard still refuses to drop a held/open-order symbol, so this only
   // skips the anti-churn delay for an already-flat, faded auto symbol.
-  const currentAuto = autoSymbols.map((s) => ({ symbol: s, addedAtMs: addedAt[s] ?? 0 }));
+  const currentAuto = rotatableSymbols.map((s) => ({ symbol: s, addedAtMs: addedAt[s] ?? 0 }));
   const explainInput = {
     tickers,
     klinesBySymbol,
     currentAuto,
     lastFlattenAtMsBySymbol: lastFlatten,
-    manualMembers: manualSymbols,
+    pinnedMembers: pinnedSymbols,
     config: cfg,
     nowMs,
   };
@@ -321,7 +347,7 @@ export const runDiscoveryForProfile = async (
   // dashboard always shows the latest scan, not just cycles that rotated.
   await port.persistExplain(candidates, nowMs);
 
-  // Durably append this cycle's point-in-time universe snapshot (#436) so a
+  // Durably append this cycle's point-in-time universe snapshot so a
   // backtest window accumulates. Assembled from what the cycle already computed;
   // observability only — it never feeds the diff above.
   await port.persistSnapshot({
@@ -334,7 +360,7 @@ export const runDiscoveryForProfile = async (
     add: diff.add,
     remove: diff.remove,
     desired: diff.desired,
-    // Per-cycle filter funnel (#629, #636): the ticker segment counts survivors
+    // Per-cycle filter funnel: the ticker segment counts survivors
     // over the FULL quote-matched set; the candidate segment (age/trend/eligible)
     // counts the kline candidates. Drives the discovery-health monitor.
     funnel: projectFunnel(
@@ -361,7 +387,7 @@ export const runDiscoveryForProfile = async (
     },
   });
 
-  // Membership-loss audit sweep (#454): a symbol still in the added-at hash that
+  // Membership-loss audit sweep: a symbol still in the added-at hash that
   // is no longer a current auto member and never recorded a flatten stamp left
   // the set without a reap (orphaned / lost). Warn once and clean the orphaned
   // hash entry; the hdel makes it exactly-once across cycles.
@@ -371,10 +397,10 @@ export const runDiscoveryForProfile = async (
   // hash entry and reports `readded`. Skip it here so the lost-then-re-added case
   // surfaces as a single `re-added`, not a contradictory `membership lost` (the
   // sweep would hdel the hash, then the add loop would misclassify it `created`).
-  const autoSet = new Set(autoSymbols);
+  const rotatableSet = new Set(rotatableSymbols);
   const addSet = new Set(diff.add); // re-added this cycle -> heals as 'readded' in the add loop
   for (const [symbol, addedAtMs] of Object.entries(addedAt)) {
-    if (autoSet.has(symbol)) continue;
+    if (rotatableSet.has(symbol)) continue;
     if (addSet.has(symbol)) continue; // let the add loop report 'readded'
     const flattenMs = lastFlatten[symbol];
     if (flattenMs !== undefined && flattenMs >= addedAtMs) continue; // legit reap
@@ -384,6 +410,10 @@ export const runDiscoveryForProfile = async (
 
   let added = 0;
   let removed = 0;
+  // Every outcome present at zero, so a cycle that refused nothing still says so explicitly. The caller logs this map whole, and a sparse one would make "never happened" and "not tracked" the same absent key.
+  const reapOutcomes: Record<DiscoveryReapOutcome, number> = Object.fromEntries(
+    DISCOVERY_REAP_OUTCOMES.map((outcome) => [outcome, 0]),
+  ) as Record<DiscoveryReapOutcome, number>;
   for (const symbol of diff.add) {
     // `diff.add` already excludes sibling-conflicted symbols (subtracted in the
     // explain above), so every symbol here is free to bind to this profile.
@@ -406,15 +436,24 @@ export const runDiscoveryForProfile = async (
     // live, unmanaged position. `null` (balance unreadable) is treated as held:
     // refuse to abandon when we cannot prove the symbol is flat.
     const held = await port.heldOnExchange(symbol);
-    if (held !== false) continue;
-    if (await port.reapSymbol(symbol, nowMs)) {
+    if (held !== false) {
+      // Counted, not silently skipped. This guard refuses more rotations than the repo's does, and its two cases are opposite facts: `true` is a position held on evidence, `null` is a position nothing could establish either way. Left as a bare `continue`, a profile whose credentials had stopped working simply stopped rotating, indistinguishably from one with nothing to rotate.
+      const walletOutcome = held === true ? 'wallet-held' : 'hold-unproven';
+      reapOutcomes[walletOutcome] += 1;
+      port.recordReapOutcome(walletOutcome);
+      continue;
+    }
+    const outcome = await port.reapSymbol(symbol, nowMs);
+    reapOutcomes[outcome] += 1;
+    port.recordReapOutcome(outcome);
+    if (outcome === 'removed') {
       await port.emit(symbol, 'remove');
       await port.notify('removed', symbol);
       removed += 1;
     }
   }
-  // Refresh the entry-hint for every desired symbol each cycle, not just on add
-  // (#486). This re-stamps a FRESH 24h high so a long-held discovery symbol's
+  // Refresh the entry-hint for every desired symbol each cycle, not just on add.
+  // This re-stamps a FRESH 24h high so a long-held discovery symbol's
   // anti-chase reference does not freeze at its add time, and carries the
   // current `enterOnAdd` flag so the guards apply whether or not the profile
   // enters on add. Reaped symbols are excluded (not in `desired`) and keep their
@@ -433,5 +472,5 @@ export const runDiscoveryForProfile = async (
     ),
   );
   if (added > 0 || removed > 0) await port.enqueueResync();
-  return { added, removed };
+  return { added, removed, reapOutcomes };
 };

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lt, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, lte, ne, sql } from 'drizzle-orm';
 import {
   equitySnapshots,
   type EquitySnapshotPayload,
@@ -33,7 +33,7 @@ export async function record(
  * @param from - Inclusive lower bound on `captured_at`.
  * @param to - Inclusive upper bound on `captured_at`.
  * @param limit - Maximum rows; the NEWEST are kept when the range holds more.
- * @returns The matching rows, oldest-first for direct plotting. Empty when the profile has no series in this quote.
+ * @returns Complete matching rows, oldest-first for direct plotting. Empty when the profile has no trusted series in this quote.
  */
 export async function listForProfileInRange(
   scope: ProfileScope,
@@ -48,6 +48,8 @@ export async function listForProfileInRange(
     .where(
       and(
         eq(equitySnapshots.profileId, scope.profileId),
+        // Every tier that HAS a basis, which is the set the boolean this column replaced admitted. Only `unknown` is a point with a charge missing, and excluding `estimated` too would empty the chart for any account Binance bills in BNB: a third-asset commission is reconstructed from the rate table on the forward path as much as on the backfill, so `exact` is not a bar the live path clears often enough to draw a line from.
+        ne(equitySnapshots.feeBasis, 'unknown'),
         // Case-insensitive on BOTH sides, unlike the trade-archive filter: this column is stamped from the profile's own quote, which may be stored lower or mixed case, so neither the stored value nor the argument is guaranteed canonical.
         eq(sql`upper(${equitySnapshots.quoteAsset})`, quoteAsset.toUpperCase()),
         gte(equitySnapshots.capturedAt, from),

@@ -59,11 +59,10 @@ export const findEnvFile = (startDir: string, stopDir?: string): string | undefi
  * and value; surrounding single or double quotes are stripped; a
  * trailing `\r` is removed so Windows-edited files parse cleanly.
  *
- * Why: Bun 1.3.x does not expose `process.loadEnvFile`, so this ships
- * its own minimal parser instead of pulling in a dependency for one
- * consumer. The repo's `.env.example` uses the basic `KEY=value`
- * form this parser supports; anything richer (multi-line values,
- * variable expansion) is intentionally out of scope.
+ * Why: a minimal parser rather than a dependency for a single consumer. The
+ * repo's `.env.example` uses the basic `KEY=value` form this parser supports;
+ * anything richer (multi-line values, variable expansion) is intentionally out
+ * of scope.
  */
 export const parseEnvFile = (content: string): Record<string, string> => {
   const out: Record<string, string> = {};

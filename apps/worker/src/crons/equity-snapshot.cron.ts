@@ -13,7 +13,7 @@ import type { Logger } from 'pino';
 import type { EquitySnapshotPayload } from '@app/db';
 import { profileRepo, GLOBAL_KEYS } from '@app/db';
 import { fanOutBounded } from '@app/core/fan-out';
-import type { AccountId, ProfileId, UserId } from '@app/contracts';
+import type { AccountId, FeeBasis, ProfileId, UserId } from '@app/contracts';
 import type { BootContext } from 'boot/boot-context.js';
 import { defineCron, type CronDef } from './define.js';
 import { QUEUE_NAMES } from 'queues/queue-names.js';
@@ -40,6 +40,7 @@ export interface EquitySnapshotDeps {
     readonly quoteAsset: string;
     readonly positions: readonly SnapshotPosition[];
     readonly realizedNetQuote: string;
+    readonly feeBasis: FeeBasis;
   } | null>;
   /** Current price in quote terms for each given symbol, null when uncached. */
   readonly pricesOf: (symbols: readonly string[]) => Promise<ReadonlyMap<string, string>>;
@@ -51,6 +52,12 @@ export interface EquitySnapshotDeps {
   ) => Promise<void>;
 }
 
+/**
+ * Build the snapshot handler that records a comparison point, stamped with how well the realised input's fees were known.
+ *
+ * @param deps - Active-profile, archive, ticker, persistence, and logging dependencies.
+ * @returns A bounded BullMQ handler that skips unavailable profiles, and profiles whose realised input is missing a charge, independently of each other.
+ */
 export const equitySnapshotHandler = (deps: EquitySnapshotDeps) => {
   return async (_job: Job): Promise<void> => {
     const { errors } = await fanOutBounded<ActiveProfile, 'recorded' | 'skipped'>(
@@ -58,6 +65,14 @@ export const equitySnapshotHandler = (deps: EquitySnapshotDeps) => {
       async (profile) => {
         const loaded = await deps.load(profile.operatorId, profile.accountId, profile.profileId);
         if (!loaded) return 'skipped';
+        // `unknown` only. A realised subtotal with a charge missing is a point with no basis, which is the case this skip has always covered. An `estimated` subtotal DOES have a basis, so it is recorded and stamped as such; the chart's own eligibility filter is what keeps it off the line, and that decision belongs where the line is drawn rather than here, where refusing to record would destroy the evidence instead of declining to plot it.
+        if (loaded.feeBasis === 'unknown') {
+          deps.logger.warn(
+            { profileId: profile.profileId },
+            'equity-snapshot: skipped because a realised fee charge is unaccounted for',
+          );
+          return 'skipped';
+        }
         // Canonical before the symbol is built. Ticker keys carry Binance's upper casing while `profiles.quote_asset` may be stored lower or mixed case, so a raw concat yields `BTCusdt`, misses the cache, and flatlines the "vs holding" comparator at zero while every other leg of the same row is computed correctly.
         const quoteAsset = loaded.quoteAsset.toUpperCase();
         const benchmarkSymbol = `${BENCHMARK_ASSET}${quoteAsset}`;
@@ -68,6 +83,7 @@ export const equitySnapshotHandler = (deps: EquitySnapshotDeps) => {
           positions: loaded.positions,
           priceOf: (symbol) => prices.get(symbol) ?? null,
           realizedNetQuote: loaded.realizedNetQuote,
+          feeBasis: loaded.feeBasis,
           benchmarkAsset: BENCHMARK_ASSET,
           benchmarkPriceQuote: prices.get(benchmarkSymbol) ?? null,
         });
@@ -121,6 +137,7 @@ export const buildEquitySnapshotCron = (ctx: BootContext): CronDef =>
             quantity: p.quantity,
           })),
           realizedNetQuote: realized.netProfit,
+          feeBasis: realized.feeBasis,
         };
       },
       pricesOf: async (symbols) => {

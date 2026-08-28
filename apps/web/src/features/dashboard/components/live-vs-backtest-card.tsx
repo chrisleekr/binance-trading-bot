@@ -55,6 +55,9 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
   const livePf = bucket.tradeCount > 0 ? profitFactor(bucket) : null;
   const liveExp = expectancy(bucket);
   const liveDd = maxDrawdownQuote(equity.data?.points);
+  // `unknown` only. This card compares live results against a backtest, so a total with a charge missing would move the comparison in a known direction on evidence that is not there. An `estimated` total still supports the comparison and is marked below the figures; the edge-decay verdict is held to the stronger bar separately, inside `useEdgeVerdict`.
+  const feesIncomplete = bucket.tradeCount > 0 && bucket.feeBasis === 'unknown';
+  const feesEstimated = bucket.tradeCount > 0 && bucket.feeBasis === 'estimated';
 
   const btMetrics = baseline.data?.result?.metrics;
   const btWin = btMetrics?.winRate ?? null;
@@ -93,7 +96,12 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
         </p>
       ) : null}
 
-      {bucket.tradeCount === 0 ? (
+      {feesIncomplete ? (
+        <p className="text-sm text-muted-fg" data-testid="live-scorecard-fees-incomplete">
+          Live Net statistics are unavailable because a commission is unaccounted for. No edge-decay
+          verdict is issued from a total that is missing a charge.
+        </p>
+      ) : bucket.tradeCount === 0 ? (
         <p className="text-sm text-muted-fg">
           No closed trades yet. Win rate, profit factor, and drawdown appear once the bot has
           completed a few round-trips.
@@ -119,7 +127,15 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
         </div>
       )}
 
-      {baselineId === null ? (
+      {/* In words, not a tint: the caveat has to be something the operator can repeat back, and a colour cannot survive being read aloud or screenshotted. Win rate and expectancy are net of the same reconstructed commission, so the note covers the grid rather than one figure. */}
+      {feesEstimated ? (
+        <p className="text-[11px] text-muted-fg" data-testid="live-scorecard-fees-estimated">
+          A commission here was reconstructed from Binance's rate table rather than the charge it
+          reported, so these figures are estimates.
+        </p>
+      ) : null}
+
+      {feesIncomplete ? null : baselineId === null ? (
         <p className="text-xs text-muted-fg">
           Pin a finished backtest as this profile's baseline (from the Backtest screen) to check
           whether your live edge still matches it.

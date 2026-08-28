@@ -57,6 +57,11 @@ export const SHOTS = [
   { name: 'profile-overview', route: '{prof}', dest: ['user-guide/profile-overview.png'] },
   { name: 'profile-general', route: '{prof}/general', dest: ['user-guide/profile-general.png'] },
   {
+    name: 'profile-discovery',
+    route: '{prof}/discovery',
+    dest: ['user-guide/profile-discovery.png'],
+  },
+  {
     // The Trailing Trade profile's config form. It doubles as the User Guide's
     // Strategy-tab shot, since that tab IS this form.
     name: 'profile-strategy',
@@ -78,11 +83,6 @@ export const SHOTS = [
   },
   { name: 'profile-risk', route: '{prof}/risk', dest: ['user-guide/profile-risk.png'] },
   {
-    name: 'profile-discovery',
-    route: '{prof}/discovery',
-    dest: ['user-guide/profile-discovery.png'],
-  },
-  {
     name: 'profile-notifications',
     route: '{prof}/notifications',
     dest: ['user-guide/profile-notifications.png'],
@@ -101,11 +101,6 @@ export const SHOTS = [
     name: 'profile-history-audit',
     route: '{prof}/history?section=audit',
     dest: ['user-guide/profile-history-audit.png'],
-  },
-  {
-    name: 'profile-history-archive',
-    route: '{prof}/history?section=archive',
-    dest: ['user-guide/profile-history-archive.png'],
   },
   {
     name: 'profile-bulk-order',

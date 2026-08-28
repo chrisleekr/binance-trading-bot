@@ -46,7 +46,7 @@ describeIfRedis('login rate limit — sliding window', () => {
     await r.flushdb();
     const app = buildApp(wrapRedis(r), () => 200);
 
-    const fire = (): Promise<Response> =>
+    const fire = async (): Promise<Response> =>
       app.fetch(
         new Request('http://test.local/api/auth/sign-in', {
           method: 'POST',
@@ -75,7 +75,7 @@ describeIfRedis('login lockout — 15-min after 10 failures within 1h', () => {
 
     // Spread attempts across 10 different IPs to avoid the per-IP layer
     // (5/min/IP) firing before the lockout layer arms.
-    const attempt = (n: number): Promise<Response> =>
+    const attempt = async (n: number): Promise<Response> =>
       app.fetch(
         new Request('http://test.local/api/auth/sign-in', {
           method: 'POST',
@@ -139,7 +139,7 @@ describeIfRedis('login throttle — body-parse fallback', () => {
     await r.flushdb();
     const app = buildApp(wrapRedis(r), () => 401);
 
-    const fire = (): Promise<Response> =>
+    const fire = async (): Promise<Response> =>
       app.fetch(
         new Request('http://test.local/api/auth/sign-in', {
           method: 'POST',
@@ -181,7 +181,7 @@ describeIfRedis('login throttle — body-parse fallback', () => {
     await r.flushdb();
     const app = buildApp(wrapRedis(r), () => 401);
 
-    const fire = (ip: string): Promise<Response> =>
+    const fire = async (ip: string): Promise<Response> =>
       app.fetch(
         new Request('http://test.local/api/auth/sign-in', {
           method: 'POST',

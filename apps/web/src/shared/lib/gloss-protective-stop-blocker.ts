@@ -61,7 +61,7 @@ export function glossProtectiveStopBlocker(blocker: ProtectiveStopBlocker): stri
       const detail = required
         ? ` The stop needs ${required} coins but none are free to sell.`
         : ' None of the coins are free to sell.';
-      return `The bot thinks it holds this position, but the coins are not free in your Binance wallet — they were moved, withdrawn, or are being held back by a base reserve — so it cannot place its protective stop (the automatic sell that caps a loss).${detail} Move the coins back (or lower the reserve) and the stop arms itself on the next check. Until then this position has no safety net.`;
+      return `The bot thinks it holds this position, but the coins are not free in your Binance wallet — they were moved, withdrawn, or are locked in another order — so it cannot place its protective stop (the automatic sell that caps a loss).${detail} Move the coins back (or cancel whatever is holding them) and the stop arms itself on the next check. Until then this position has no safety net.`;
     }
     case 'price-outside-exchange-band': {
       const price = str(d, 'price');
@@ -89,7 +89,7 @@ export function glossProtectiveStopBlocker(blocker: ProtectiveStopBlocker): stri
     case 'base-below-exchange-minimum': {
       const free = str(d, 'free');
       const detail = free ? ` Only ${free} coins are free.` : '';
-      return `Too few coins are free to sell: what is left is below Binance's minimum order size, so the bot cannot place a protective stop (the automatic sell that caps a loss) against it.${detail} Free up more of the position — cancel other sell orders on this pair, or lower any base reserve — and the stop arms itself on the next check. Until then this position has no safety net.`;
+      return `Too few coins are free to sell: what is left is below Binance's minimum order size, so the bot cannot place a protective stop (the automatic sell that caps a loss) against it.${detail} Free up more of the position — cancel other sell orders on this pair — and the stop arms itself on the next check. Until then this position has no safety net.`;
     }
     default:
       return 'The protective stop (the automatic sell that caps a loss) is not in place on this position right now.';

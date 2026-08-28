@@ -18,6 +18,7 @@ import type { DI } from 'di.js';
 import { HttpError } from 'middleware/error.js';
 import { requireUser } from 'middleware/require-user.js';
 import { requireNotDemo } from 'middleware/require-not-demo.js';
+import { restoreBodyLimit } from 'middleware/body-limit.js';
 import { createApiHono, type ApiHono } from 'types.js';
 
 const HOUR_MS = 3_600_000;
@@ -181,6 +182,8 @@ export const backupRouter = (di: DI): ApiHono => {
   app.use('/backup', requireNotDemo(di));
   app.use('/backup/config', requireNotDemo(di));
   app.use('/restore', requireNotDemo(di));
+  // THIRD, and the order is the whole point. The global cap in `app.ts` stands aside for this path, so the archive-sized ceiling is imposed here instead — after both guards. `bodyLimit` READS a chunked body to count it, so a cap mounted ahead of `requireUser` would let an anonymous caller make the process buffer gigabytes; mounted here, that caller is answered 401 before anything touches `c.req.raw.body`.
+  app.use('/restore', restoreBodyLimit());
 
   app.openapi(getConfigRoute, async (c) => {
     c.set('auditEvent', { event: 'get-backup-config' });

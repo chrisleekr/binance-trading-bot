@@ -21,6 +21,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
 import { assertLiveEnablementAllowed } from 'enablement-gate.js';
 import { HttpError } from 'middleware/error.js';
+import { requireNotDemo } from 'middleware/require-not-demo.js';
 import { requireUser } from 'middleware/require-user.js';
 import {
   accountScopeOf,
@@ -271,6 +272,8 @@ export const profilesRouter = (di: DI): ApiHono => {
   const app = createApiHono();
   app.use('/profiles', requireUser());
   app.use('/profiles/*', requireUser());
+  // Each click enqueues a weighted Binance `myTrades` pull, and RECONCILE_FEES_JOB_OPTS carries no jobId by design, so nothing dedups a repeat. Same reasoning as the diagnosis start: an anonymous demo visitor could otherwise spend the operator's request budget from a button.
+  app.on('POST', '/profiles/:profileId/reconcile-fees', requireNotDemo(di));
 
   app.openapi(listRoute, async (c) => {
     const a = await accountScopeOf(c, di);
@@ -390,7 +393,7 @@ export const profilesRouter = (di: DI): ApiHono => {
     }
     if (body.config !== undefined) {
       // Validate against the LIVE plugin's schema. A profile whose strategy
-      // has bumped since creation must still accept config edits (issue #407);
+      // has bumped since creation must still accept config edits;
       // only a genuinely-unregistered name fails.
       const resolved = di.strategies.describeForProfile(
         existing.strategyName,

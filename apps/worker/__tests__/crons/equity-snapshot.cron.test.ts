@@ -27,6 +27,7 @@ describe('computeEquitySnapshot', () => {
       realizedNetQuote: '30',
       benchmarkAsset: 'BTC',
       benchmarkPriceQuote: '120',
+      feeBasis: 'exact' as const,
     });
     // cost = 100*2 + 50*4 = 400; value = 120*2 + 40*4 = 400; unrealised = 0.
     expect(out.positionCostQuote).toBe('400');
@@ -51,6 +52,7 @@ describe('computeEquitySnapshot', () => {
       realizedNetQuote: '0',
       benchmarkAsset: 'BTC',
       benchmarkPriceQuote: '0',
+      feeBasis: 'exact' as const,
     });
     // Only the BTC leg counts: cost 0.03*2 = 0.06, value 0.04*2 = 0.08.
     expect(out.positionCostQuote).toBe('0.06');
@@ -69,6 +71,7 @@ describe('computeEquitySnapshot', () => {
       realizedNetQuote: '0',
       benchmarkAsset: 'BTC',
       benchmarkPriceQuote: null,
+      feeBasis: 'exact' as const,
     });
     expect(out.positionValueQuote).toBe('200');
     expect(out.positionCostQuote).toBe('200');
@@ -93,6 +96,7 @@ describe('computeEquitySnapshot', () => {
       realizedNetQuote: '0',
       benchmarkAsset: 'BTC',
       benchmarkPriceQuote: '1',
+      feeBasis: 'exact' as const,
     });
     // Only DUSDT contributes: cost 50, value 60, unrealised 10.
     expect(out.positionCostQuote).toBe('50');
@@ -110,6 +114,7 @@ const deps = (over: Partial<EquitySnapshotDeps> = {}): EquitySnapshotDeps => ({
     quoteAsset: 'USDT',
     positions: [{ symbol: 'BTCUSDT', avgEntryPrice: '100', quantity: '1' }],
     realizedNetQuote: '5',
+    feeBasis: 'exact' as const,
   })),
   pricesOf: vi.fn(async () => new Map([['BTCUSDT', '110']])),
   record: vi.fn(async () => undefined),
@@ -146,6 +151,7 @@ describe('equitySnapshotHandler', () => {
           quoteAsset: 'usdt',
           positions: [{ symbol: 'BTCUSDT', avgEntryPrice: '100', quantity: '1' }],
           realizedNetQuote: '5',
+          feeBasis: 'exact' as const,
         }),
       }),
     )(job);
@@ -159,6 +165,79 @@ describe('equitySnapshotHandler', () => {
   it('skips a profile that has gone (load returns null) without recording', async () => {
     const record = vi.fn(async () => undefined);
     await equitySnapshotHandler(deps({ load: async () => null, record }))(job);
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it('skips a snapshot when realised fee accounting is incomplete', async () => {
+    const record = vi.fn(async () => undefined);
+    await equitySnapshotHandler(
+      deps({
+        load: async () => ({
+          quoteAsset: 'USDT',
+          positions: [],
+          realizedNetQuote: '5',
+          feeBasis: 'unknown' as const,
+        }),
+        record,
+      }),
+    )(job);
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it('stamps the snapshot with the realised fee tier it was handed', async () => {
+    // The insert hardcodes a complete marker today, which makes the column a constant: it says `true` on rows whose realised input was reconstructed rather than valued, and the equity chart then plots a curve it describes as exact. An estimated input has to reach the row as an estimate, or nothing downstream can ever tell the two apart.
+    const record = vi.fn<EquitySnapshotDeps['record']>(async () => undefined);
+    await equitySnapshotHandler(
+      deps({
+        record,
+        load: async () =>
+          ({
+            quoteAsset: 'USDT',
+            positions: [],
+            realizedNetQuote: '5',
+            feeBasis: 'estimated',
+          }) as unknown as Awaited<ReturnType<EquitySnapshotDeps['load']>>,
+      }),
+    )(job);
+    expect(record).toHaveBeenCalledTimes(1);
+    const payload = record.mock.calls[0]?.[3] as unknown as { feeBasis: string };
+    expect(payload.feeBasis).toBe('estimated');
+  });
+
+  it('stamps an exact realised input as exact', async () => {
+    // The other half: without it, a stamp hardwired to `estimated` would satisfy the case above and mark every proven curve as a guess.
+    const record = vi.fn<EquitySnapshotDeps['record']>(async () => undefined);
+    await equitySnapshotHandler(
+      deps({
+        record,
+        load: async () =>
+          ({
+            quoteAsset: 'USDT',
+            positions: [],
+            realizedNetQuote: '5',
+            feeBasis: 'exact' as const,
+          }) as unknown as Awaited<ReturnType<EquitySnapshotDeps['load']>>,
+      }),
+    )(job);
+    const payload = record.mock.calls[0]?.[3] as unknown as { feeBasis: string };
+    expect(payload.feeBasis).toBe('exact');
+  });
+
+  it('records nothing when the realised fee tier is unknown', async () => {
+    // Preserves today's skip. `unknown` is the tri-state spelling of the boolean's false, and a snapshot built on a realised subtotal nobody could account for is a point on a chart with no basis.
+    const record = vi.fn<EquitySnapshotDeps['record']>(async () => undefined);
+    await equitySnapshotHandler(
+      deps({
+        record,
+        load: async () =>
+          ({
+            quoteAsset: 'USDT',
+            positions: [],
+            realizedNetQuote: '5',
+            feeBasis: 'unknown' as const,
+          }) as unknown as Awaited<ReturnType<EquitySnapshotDeps['load']>>,
+      }),
+    )(job);
     expect(record).not.toHaveBeenCalled();
   });
 

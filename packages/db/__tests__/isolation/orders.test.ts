@@ -441,6 +441,30 @@ describeIfDb('orders account-scoped reads and writes', () => {
       cummulativeQuoteQty: '15.14496',
     });
     expect(again).toBe(0);
+
+    await ap.orders.insert({
+      ...o,
+      symbol: 'ENAUSDC',
+      clientOrderId: 'cli-same-id-other-symbol',
+      status: 'FILLED',
+      raw: { tag: 'same-id-other-symbol', status: 'FILLED' },
+    });
+    const proofOnly = await ap.orders.stampBaseCommissionNetted(
+      o.symbol,
+      o.binanceOrderId,
+      '0.1632',
+    );
+    expect(proofOnly).toBe(1);
+    const proved = await fx.db
+      .select({ symbol: orders.symbol, baseCommissionNetted: orders.baseCommissionNetted })
+      .from(orders)
+      .where(eq(orders.binanceOrderId, o.binanceOrderId));
+    expect(proved.find((candidate) => candidate.symbol === o.symbol)?.baseCommissionNetted).toBe(
+      '0.163200000000000000',
+    );
+    expect(
+      proved.find((candidate) => candidate.symbol === 'ENAUSDC')?.baseCommissionNetted,
+    ).toBeNull();
   });
 
   it('markFilledByBinanceOrderId fills the common NEW row (no race), and no-ops an untracked id', async () => {
@@ -486,8 +510,7 @@ describeIfDb('orders account-scoped reads and writes', () => {
     expect(liveIds).toContain(aliceLive.binanceOrderId);
     expect(liveIds).toContain(bobLive.binanceOrderId);
     expect(liveIds).not.toContain(toClose.binanceOrderId);
-    // Each id is tagged with its OWNING ACCOUNT (the scan key) and that account's
-    // mode (fixture = testnet).
+    // Each id carries its owning account, the scan key, and that account's fixture test mode.
     const alice = rows.find((r) => r.binanceOrderId === aliceLive.binanceOrderId);
     expect(alice?.accountId).toBe(fx.alice.accountId);
     expect(alice?.mode).toBe('test');
@@ -496,19 +519,9 @@ describeIfDb('orders account-scoped reads and writes', () => {
     );
   });
 
-  it('table-level invariant: every orders row resolves to its owning profile (immune to a parallel fixture teardown)', async () => {
-    // The FK to profiles is ON DELETE CASCADE so orphans should be structurally
-    // impossible, but a future schema change could weaken the FK without
-    // realising it — the scan still catches that.
-    //
-    // Regression for #487: the isolation files share one `binance_test` DB and
-    // run in parallel (see _helpers.ts), so an unscoped `SELECT * FROM orders`
-    // captures rows owned by OTHER files' fixtures. When such a file's afterAll
-    // cleanup() CASCADE-deletes its profile between the scan and the per-row
-    // owner lookup, the captured foreign row resolves to zero profiles
-    // ('expected [] to have length 1'). The interleaved foreign teardown below
-    // reproduces that timing; scoping the scan to THIS fixture's profiles (only
-    // this file deletes them, in afterAll) makes it deterministic.
+  it('keeps scoped live-profile orders attached to their owners during unrelated teardown', async () => {
+    // A deleted profile intentionally detaches live orders, but rows selected through this fixture's live profile ids must still resolve to owners.
+    // Isolation files share one database and run in parallel, so an unscoped orders scan can capture another fixture's row immediately before that fixture deletes its profile. Scoping the scan to this fixture's profile ids makes the invariant deterministic.
     const foreignUser = randomUUID();
     const foreignAccount = randomUUID();
     const foreignProfile = randomUUID();
@@ -536,16 +549,16 @@ describeIfDb('orders account-scoped reads and writes', () => {
     const ownIds = [fx.alice.profileId, fx.bob.profileId];
     const rows = await fx.db.select().from(orders).where(inArray(orders.profileId, ownIds));
 
-    // A parallel file's afterAll cleanup lands here, mid-invariant: deleting the
-    // foreign user CASCADE-drops its profile and order. A scoped scan never read
-    // the foreign row, so the owner lookups below still all resolve.
+    // Delete the foreign fixture mid-invariant to prove the scoped scan never depends on rows another fixture can remove.
     await fx.db.delete(users).where(eq(users.id, foreignUser));
 
     expect(rows.length).toBeGreaterThan(0);
     for (const row of rows) {
-      const owners = await fx.db.query.profiles.findMany({
-        where: (p, { eq }) => eq(p.id, row.profileId),
-      });
+      if (!row.profileId) throw new Error('expected a scoped order to retain its profile');
+      const owners = await fx.db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.id, row.profileId));
       expect(owners).toHaveLength(1);
     }
   });

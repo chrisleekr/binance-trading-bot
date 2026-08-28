@@ -44,7 +44,7 @@ export { momentumScore, momentumTargetWeight, type MomentumEntry } from './momen
  * equal-weights the top-K symbols by trailing return, rotating as the
  * cross-sectional ranking shifts — the strong form of momentum the single-symbol
  * EMA cross lacks. The first CROSS-SYMBOL strategy: each tick publishes to the
- * per-profile KV store (tracker #267) and reads the siblings back, so it needs
+ * per-profile KV store and reads the siblings back, so it needs
  * `needsProfileKv`. Disabled by default — the operator backtests it before turning
  * it on.
  */

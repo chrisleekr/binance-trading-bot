@@ -2,10 +2,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import type { PnlBasis } from '@/shared/hooks/use-pnl-basis';
 
 /**
- * Net ↔ Gross switch for P/L readouts. "Net" subtracts Binance commissions
- * (what was actually kept); "Gross" is before fees. Net is the honest default.
- * Shared by the History P/L bands and the Home scoreboard so the choice reads
- * consistently across surfaces.
+ * Net and recorded-basis switch shared by History and the Home scoreboard. Net subtracts the additional commission adjustment when evidence is complete; Recorded preserves the stored cost-basis figure, which can already include a base-asset BUY fee.
+ *
+ * @param props - Current basis and callback that persists the operator's next choice.
+ * @returns The two-option P/L basis control.
  */
 export function PnlBasisToggle({
   basis,
@@ -22,8 +22,12 @@ export function PnlBasisToggle({
           <TabsTrigger value="net" data-testid="pnl-basis-net" title="Profit after Binance fees">
             Net of fees
           </TabsTrigger>
-          <TabsTrigger value="gross" data-testid="pnl-basis-gross" title="Profit before fees">
-            Gross
+          <TabsTrigger
+            value="gross"
+            data-testid="pnl-basis-gross"
+            title="Stored cost-basis profit before additional fee adjustments"
+          >
+            Recorded
           </TabsTrigger>
         </TabsList>
       </Tabs>

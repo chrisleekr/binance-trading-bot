@@ -36,6 +36,38 @@ export function isHeldPosition(symbol: UnrealisedInputs): boolean {
 }
 
 /**
+ * The one extra field that separates "there is a quantity on this row" from "the strategy manages this position". Optional and structurally typed so a caller holding a row that predates the field, or a fixture that omits it, still type-checks and reads as unrefused.
+ */
+interface SeedRefusalInput {
+  readonly positionSeedRefusal?:
+    { readonly code: string; readonly since: string } | null | undefined;
+}
+
+/**
+ * True when the strategy actually manages this position: held, AND the worker did not refuse to seed it from this cost basis.
+ *
+ * {@link isHeldPosition} answers from the cost-basis row alone, and a refusal is precisely the statement that that row is not backed by anything sellable — so every surface that prices a holding, counts one, or sorts by one needs this predicate rather than that one. It exists as a shared function for the same reason `isHeldPosition` does: the badge, the positions list, the ticker rollup and the sort comparator each decided it separately once, and a row can only be held on one screen and flat on the next if they are allowed to.
+ *
+ * @param symbol - A row carrying the cost-basis fields and, where the payload has it, the seed refusal.
+ * @returns True when the row is a position the strategy is actually running.
+ */
+export function isManagedPosition(symbol: UnrealisedInputs & SeedRefusalInput): boolean {
+  return (symbol.positionSeedRefusal ?? null) === null && isHeldPosition(symbol);
+}
+
+/**
+ * Unrealised P/L for a position the strategy manages, or `null` when it refused the seed.
+ *
+ * The arithmetic still produces a number for a refused row — entry price and quantity are both right there — and that number is the whole problem: it is a gain or loss on a position that will never be sold, and summed into a rollup it moves a total the operator reads as money.
+ *
+ * @param symbol - A row carrying the cost-basis and live-price fields and, where the payload has it, the seed refusal.
+ * @returns The P/L, or null when the position is refused, flat, or has no usable live price yet.
+ */
+export function managedUnrealisedPnlOf(symbol: UnrealisedInputs & SeedRefusalInput): number | null {
+  return (symbol.positionSeedRefusal ?? null) === null ? unrealisedPnlOf(symbol) : null;
+}
+
+/**
  * Unrealised P/L for one position, or `null` when it is flat (no last-buy
  * price / quantity) or has no usable live price yet. Rounded to 8dp so a
  * float-multiplication artifact never leaks into the readout.

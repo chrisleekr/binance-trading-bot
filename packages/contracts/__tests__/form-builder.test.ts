@@ -93,6 +93,7 @@ describe('@app/contracts/form-builder', () => {
     const schema = z.object({ momentum: z.object({ trailingStopPct: z.string() }) });
     const [group] = buildFromZod(schema);
     expect(group).toMatchObject({ path: 'momentum', kind: 'object' });
+    if (!group) throw new Error('buildFromZod returned no fields');
     const nested = group.kind === 'object' ? group.fields[0] : undefined;
     expect(nested).toMatchObject({
       path: 'momentum.trailingStopPct',
@@ -306,7 +307,7 @@ describe('applyJsonSchemaDefaults', () => {
   });
 
   it('keeps a supplied value over the schema default', () => {
-    expect(applyJsonSchemaDefaults(schema, { candleInterval: '5m' }).candleInterval).toBe('5m');
+    expect(applyJsonSchemaDefaults(schema, { candleInterval: '5m' })['candleInterval']).toBe('5m');
   });
 
   it('returns the bare defaults when values is empty or not an object', () => {

@@ -40,7 +40,7 @@ export interface ResetGridTradeHandlerDeps {
   /**
    * The per-(profile, symbol) state boundary the tick reads and commits. The
    * grid reset routes through it so the cleared body lands in `symbol_states`
-   * (what the next tick loads), not the dead pre-#267 `profiles.state` store.
+   * (what the next tick loads), not the dead `profiles.state` store.
    */
   readonly statePort: StatePort;
 }
@@ -145,7 +145,7 @@ export const handleResetGridTrade = async (
   // body before applying the reset, so `clearPosition` runs on a
   // current-schema body and returns the cleared body (idempotent on BullMQ
   // retry); `mutate` then writes it two-column and refreshes the cache. The
-  // dead pre-#267 profiles.state store the tick never read is gone.
+  // dead profiles.state store the tick never read is gone.
   await deps.statePort.mutate(p, payload.symbol, (state) =>
     position.clearPosition(state, { resetGridIndex: true }),
   );

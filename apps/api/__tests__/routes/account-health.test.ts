@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { profileKey, profileRepo } from '@app/db';
-import type { AccountHealthResponse } from '@app/contracts';
+import { asProfileId, type AccountHealthResponse } from '@app/contracts';
 import { HAS_INFRA, setupApp, TRAILING_TRADE_VERSION, type ApiFixture } from '../_helpers.js';
 import { recordPoolCheckouts } from '../_pool-checkouts.js';
 
@@ -46,7 +46,6 @@ describeIfInfra('account-health router', () => {
       totalSellQuote: '92',
       breakdown: {},
       profit,
-      profitPercent: '-8',
       source: 'manual' as const,
       orders: [{ side: 'SELL' as const }],
       archivedAt: now,
@@ -127,20 +126,48 @@ describeIfInfra('account-health router', () => {
         ],
       );
     }
-    // The seed has to be visible to the route, or the second measurement would silently repeat the first and the whole gate would pass vacuously the moment anything narrowed `listForAccount`. A 200 alone does not prove that — the body has to enumerate all five.
+    // The seed has to be visible to the route, or the second measurement would silently repeat the first and the whole gate would pass vacuously the moment anything narrowed `listForAccount`. A 200 alone does not prove that — the body has to enumerate every quote this test seeded.
+    // Containment rather than set equality: a sibling case may legitimately seed a sixth profile with its own quote, and exact equality would make THIS assertion fail for a change made somewhere else, at a distance, with nothing but declaration order holding it together. Each of the five is still named individually, so a dropped profile is still caught.
     const listed = await get();
-    expect(listed.todayRealized.map((r) => r.quoteAsset).sort()).toEqual([
-      'BNB',
-      'BTC',
-      'ETH',
-      'SOL',
-      'USDT',
-    ]);
+    const quotes = listed.todayRealized.map((r) => r.quoteAsset);
+    for (const quoteAsset of ['BNB', 'BTC', 'ETH', 'SOL', 'USDT']) {
+      expect(quotes).toContain(quoteAsset);
+    }
 
     const atFiveProfiles = await peakAt();
 
     // Not "at most one query" — the reads may be as many as they like, as long as one request cannot occupy more than one connection at a time, and adding a profile cannot widen it.
     expect(atFiveProfiles).toBe(atOneProfile);
     expect(atOneProfile).toBe(1);
+  });
+
+  it('normalises a sub-1e-6 realised sum end to end, through a real route and its response schema', async () => {
+    // What this pins is the SCHEMA transform, driven through a real route rather than in isolation: `account-health.ts` ends in `AccountHealthResponse.parse(body)`, so reverting the route's own `asDecimalString` call would leave this green — the schema re-spells the value either way. That is worth knowing, not a weakness: this route is backstopped, and the case proves the backstop actually runs on a live response rather than only in a unit test. The unbackstopped cast is `resolveGaugeCap` in discovery.ts, which reaches `c.json` with no parse; discovery.test.ts covers that one.
+    // The value: decimal.js switches `toString()` to exponential once the decimal exponent reaches -7, so a realised sum of 0.00000036 leaves the route as `3.6e-7`. The bar interpolates the field verbatim into a currency column, where an exponent reads as a corrupted number rather than a very small one — and this is the same figure the daily-loss limit is measured against.
+    const profileId = asProfileId('00000000-0000-4000-8000-0000000000fa');
+    await fx.di.pool.query(
+      `insert into profiles (id, account_id, name, strategy_name, strategy_version, config, state, quote_asset)
+       values ($1, $2, 'health-tiny-realised', 'trailing-trade', $3, '{}'::jsonb, '{}'::jsonb, 'XRP')`,
+      [profileId, fx.alice.accountId, TRAILING_TRADE_VERSION],
+    );
+    const p = await profileRepo(fx.di.db, fx.alice.userId, fx.alice.accountId, profileId);
+    await p.tradeArchive.insert({
+      symbol: 'ETHXRP',
+      baseAsset: 'ETH',
+      quoteAsset: 'XRP',
+      totalBuyQuote: '100',
+      totalSellQuote: '100.00000036',
+      breakdown: {},
+      profit: '0.00000036',
+      source: 'manual' as const,
+      orders: [{ side: 'SELL' as const }],
+      archivedAt: new Date(),
+    });
+
+    const body = await get();
+    const xrp = body.todayRealized.find((r) => r.quoteAsset === 'XRP');
+    expect(xrp?.realizedQuote).toBe('0.00000036');
+    // Spelled twice on purpose: an equality that regressed to the exponential form would still read as "a number", so the grammar is asserted separately.
+    expect(xrp?.realizedQuote).not.toMatch(/e-/i);
   });
 });

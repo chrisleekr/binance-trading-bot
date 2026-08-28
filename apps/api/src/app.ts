@@ -8,6 +8,7 @@ import { requestLogger } from './middleware/logger.js';
 import { httpMetrics } from './middleware/metrics.js';
 import { loginRateLimit } from './middleware/login-rate-limit.js';
 import { securityHeaders } from './middleware/security-headers.js';
+import { requestBodyLimit } from './middleware/body-limit.js';
 import { healthRouter, type HealthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { mountApiRouters, ACCOUNT_BASE } from './routes/mount.js';
@@ -44,6 +45,8 @@ export const createApp = (di: DI): AppHandle => {
   app.use('*', requestLogger(di.logger));
   app.use('*', corsAllowlist(di.env.WEB_ORIGIN));
   app.use('*', securityHeaders());
+  // Ahead of sessionResolver, audit and the dashboard-cache bust, so an oversized body is refused before it can buy a Better Auth session lookup, an audit write or a Redis round trip. Behind httpMetrics and requestLogger, so the 413 still lands in the latency series and the access log rather than disappearing.
+  app.use('*', requestBodyLimit());
   // High-volume hashed bundles are served here, BEFORE sessionResolver, so an
   // asset fetch never pays a Better Auth session lookup. Security headers (above)
   // still wrap the response; /api and SPA routes don't match this prefix.

@@ -18,11 +18,11 @@ Before you enable a live profile, confirm:
 
 ## Check the Live gate
 
-Each profile has an advisory **Live gate** — a readiness check that grades the config against your quality bars before you commit real money. It never blocks you; it just tells you whether the setup clears your own thresholds. Review it on the profile's [Live gate tab](../user-guide/profile/live-gate.md), optionally after a [backtest](../user-guide/profile/backtest.md).
+Each profile has an advisory **Live gate** — a readiness check that grades the config against your quality bars before you commit real money. It never blocks you; it just tells you whether the setup clears your own thresholds. Review it on the profile's [Live gate](../user-guide/profile/live-gate.md) section, optionally after a [backtest](../user-guide/profile/backtest.md).
 
 ## Enable the profile
 
-A new profile starts **disabled** and holds no positions. When the pre-flight looks good, enable it from the profile's [General tab](../user-guide/profile/general.md). From then on the worker ticks the profile's coins and places orders per the strategy, starting on each coin's next price update from Binance.
+A new profile starts **disabled** and holds no positions. When the pre-flight looks good, enable it from the profile's [Profile settings](../user-guide/profile/general.md) section. From then on the worker ticks the profile's coins and places orders per the strategy, starting on each coin's next price update from Binance.
 
 Watch the first live trade land, then read what the bot did and **why** on the [Dashboard](../user-guide/dashboard.md) and the symbol's Logs tab.
 

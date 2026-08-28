@@ -24,6 +24,7 @@ import { cn } from '@/shared/lib/cn';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
 import { formatClock, formatInstant } from '@/shared/lib/format-time';
 import { useTimezone } from '@/shared/context/timezone-context';
+import { Select } from '@/shared/components/ui/select';
 import {
   emptyLogFilter,
   fetchProfileLogSymbols,
@@ -226,18 +227,18 @@ function DeepCaptureControl({ profileId }: { readonly profileId: string }): Reac
       {armedElsewhere ? (
         <span className="text-xs text-muted-fg">Another profile is being captured.</span>
       ) : null}
-      <select
+      <Select
+        variant="sm"
         value={minutes}
         onChange={(e) => setMinutes(Number(e.target.value))}
         aria-label="Capture duration"
-        className="rounded border border-border bg-bg-elevated px-2 py-1 text-xs text-fg"
       >
         {CAPTURE_MINUTES.map((m) => (
           <option key={m} value={m}>
             {captureLabel(m)}
           </option>
         ))}
-      </select>
+      </Select>
       <Button
         type="button"
         variant="outline"
@@ -334,12 +335,12 @@ export function LogViewerPanel({ profileId }: { readonly profileId: string }): R
           );
         })}
 
-        <select
+        <Select
+          variant="sm"
           value={filter.symbols[0] ?? ''}
           onChange={(e) => apply({ ...filter, symbols: e.target.value ? [e.target.value] : [] })}
           aria-label="Symbol"
           data-testid="log-symbol-filter"
-          className="rounded border border-border bg-bg-elevated px-2 py-1 text-xs text-fg"
         >
           <option value="">All symbols</option>
           {(symbols.data?.symbols ?? []).map((s) => (
@@ -347,21 +348,21 @@ export function LogViewerPanel({ profileId }: { readonly profileId: string }): R
               {s}
             </option>
           ))}
-        </select>
+        </Select>
 
-        <select
+        <Select
+          variant="sm"
           value={rangeHours === null ? '' : String(rangeHours)}
           onChange={(e) => setRange(e.target.value === '' ? null : Number(e.target.value))}
           aria-label="Time range"
           data-testid="log-range-filter"
-          className="rounded border border-border bg-bg-elevated px-2 py-1 text-xs text-fg"
         >
           {RANGES.map((r) => (
             <option key={r.label} value={r.hours === null ? '' : String(r.hours)}>
               {r.label}
             </option>
           ))}
-        </select>
+        </Select>
 
         {/* Search is applied on submit, not per keystroke: each apply resets to
             page one and re-queries, and doing that per character would hammer

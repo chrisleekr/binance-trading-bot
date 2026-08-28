@@ -2,11 +2,11 @@
 
 ![Rebalance strategy config](../../assets/screenshots/concepts/strategy-rebalance.png)
 
-_The Rebalance configuration form, as the profile's Strategy tab renders it. Every field is documented in the table below. Seeded demo data, not a real account._
+_The Rebalance configuration form, as the profile's Strategy section renders it. Every field is documented in the table below. Seeded demo data, not a real account._
 
 !!! note "Configuration form"
 
-    Rebalance is configured on the same profile **Strategy** tab shown for
+    Rebalance is configured on the same profile **Strategy** section shown for
     [Momentum](momentum.md) and [Trailing Trade](trailing-trade.md); the form
     renders the fields documented below. (No live Rebalance profile existed on
     the demo account when these screenshots were taken.)
@@ -61,7 +61,7 @@ All orders are `MARKET` orders — Rebalance never rests an order on the book. T
 
 ## Configuration
 
-The in-app form and the table below are generated from the same schema, so the fields, labels, and help below are exactly what you see in the profile's **Strategy** tab. The `momentum.*` fields apply only when `weightMode` is `momentum`. The default config is inert (`enabled: false`, empty basket) — turn it on only after backtesting a target basket.
+The in-app form and the table below are generated from the same schema, so the fields, labels, and help below are exactly what you see in the profile's **Strategy** section. The `momentum.*` fields apply only when `weightMode` is `momentum`. The default config is inert (`enabled: false`, empty basket) — turn it on only after backtesting a target basket.
 
 --8<-- "docs/\_generated/config/rebalance.md"
 

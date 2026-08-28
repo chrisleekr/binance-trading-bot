@@ -542,11 +542,7 @@ describe('protective stop — a foreign resting SELL holding the base (#613)', (
   });
 });
 
-// No foreign order to blame: the wallet holds less base than the tracked position
-// (drift, a withdrawal, or the operator's base reserve, which the worker subtracts
-// from `free` before the strategy sees it). Silence here is the same defect as the
-// foreign-lock silence, so it gets its own blocker — and the resting stop is LEFT
-// alone: cancelling a live stop we merely cannot resize strips real protection.
+// No foreign order to blame: the wallet holds less base than the tracked position (drift, a withdrawal, or coins locked by an order this profile cannot see). Silence here is the same defect as the foreign-lock silence, so it gets its own blocker — and the resting stop is LEFT alone: cancelling a live stop we merely cannot resize strips real protection.
 describe('protective stop — nothing armable and no foreign order to name', () => {
   it('blocks (and keeps the resting stop) when the free base is below the exchange minimum', () => {
     // The wallet holds only what our own dust stop locks: 0.05 at stop 96 = 4.8,

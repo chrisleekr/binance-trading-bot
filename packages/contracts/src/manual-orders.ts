@@ -12,7 +12,7 @@ import { OrderSide } from './orders.js';
  * Only MARKET and LIMIT are accepted. STOP_LOSS_LIMIT / TAKE_PROFIT_LIMIT
  * need a stop price this API cannot express and the worker cannot send, so
  * they are rejected at the boundary rather than 202-accepted and then
- * rejected by Binance after the operator was told the order was scheduled (#364).
+ * rejected by Binance after the operator was told the order was scheduled.
  */
 export const ManualOrderRequest = z
   .object({
@@ -38,7 +38,7 @@ export const ManualOrderRequest = z
   // A price-less LIMIT was 202-accepted, then the worker omitted the absent
   // price and Binance rejected it (-1102) after the operator saw success.
   // Require the price at the boundary, the same class of guard as the
-  // amount checks above (#364).
+  // amount checks above.
   .refine((body) => body.type === 'MARKET' || body.price !== undefined, {
     message: '`price` is required for a LIMIT order',
     path: ['price'],

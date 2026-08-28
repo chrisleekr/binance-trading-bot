@@ -1,10 +1,9 @@
 // ProfilePageHeader — the shared header on every profile management sub-page.
-// Replaces the old persistent ProfileSectionNav (and its deleted test): the
-// contract is now "Back-to-dashboard link + title + profile name + the status
-// pill and Manage slide-over trigger in the header actions slot". This locks
-// that composition so a future edit cannot silently drop the Manage trigger,
-// repoint Back away from the dashboard, or re-add the Investigate trigger that
-// deliberately lives only on the profile landing header.
+// The contract is "breadcrumb + title + profile name + the status pill and
+// Manage slide-over trigger in the header actions slot". This locks that
+// composition so a future edit cannot silently drop the Manage trigger, break
+// the route back up to the owning profile, or re-add the Investigate trigger
+// that deliberately lives only on the profile landing header.
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -19,6 +18,7 @@ import { render, screen } from '@testing-library/react';
 import { act } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { ONBOARDING_STATUS_QUERY_KEY } from '@/features/auth/api/auth';
 import { diagnosisRunsQueryKey } from '@/features/profile/api/diagnosis';
 import { profileQueryKey } from '@/features/profile/api/profile';
 import { profileDashboardQueryKey } from '@/features/profile/api/profile-dashboard';
@@ -62,6 +62,8 @@ const renderHeader = async (): Promise<void> => {
   // it rehydrates the newest run; seed an empty history so the header renders
   // from cache instead of reaching for the api.
   qc.setQueryData(diagnosisRunsQueryKey(PID), []);
+  // That drawer also asks whether this is the public demo, which decides whether it offers a start control. The root loader primes this query at staleTime Infinity in the app, so seeding it here is what the header sees at runtime.
+  qc.setQueryData(ONBOARDING_STATUS_QUERY_KEY, { masterExists: true, demoMode: false });
   qc.setQueryData(profileDashboardQueryKey(PID), {
     profileId: PID,
     enabled: true,
@@ -122,21 +124,27 @@ const renderHeader = async (): Promise<void> => {
 };
 
 describe('<ProfilePageHeader>', () => {
-  it('Back links to the profile detail page with the accountId preserved', async () => {
+  it('names the owning profile as a breadcrumb ancestor, with the accountId preserved', async () => {
     await renderHeader();
 
-    // Back means "up one level", not "all the way home": from a profile
-    // sub-page the parent is that profile, and the link must carry the account
-    // it lives under or the operator lands on an account-less route.
-    const back = await screen.findByRole('link', { name: /back/i });
-    expect(back).toHaveAttribute('href', PROFILE_PATH);
+    // The same guard the old Back link carried: from a profile sub-page the
+    // parent is that profile, and the link must carry the account it lives
+    // under or the operator lands on an account-less route. It is a named
+    // ancestor now rather than an unnamed step, so assert on the profile's name.
+    const crumb = await screen.findByRole('link', { name: 'btc-real' });
+    expect(crumb).toHaveAttribute('href', PROFILE_PATH);
+    // And it must not claim to be the page it links away from — the defect the
+    // breadcrumb replaced.
+    expect(crumb).not.toHaveAttribute('aria-current');
   });
 
   it('renders the title + profile name and the Manage trigger', async () => {
     await renderHeader();
 
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Strategy config');
-    expect(screen.getByText('btc-real')).toBeInTheDocument();
+    // The profile is named once, by the breadcrumb. It used to also sit in the
+    // header's meta slot, so the same header stated it twice.
+    expect(screen.getAllByText('btc-real')).toHaveLength(1);
 
     // The Manage slide-over trigger replaces the old always-on section strip as
     // the way to reach other sections from any page.

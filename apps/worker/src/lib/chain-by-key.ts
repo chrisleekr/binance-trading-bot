@@ -27,8 +27,8 @@ export const createChainByKey = (): ChainByKey => {
       // The stored chain exists only to serialise the next call; the
       // caller observes the real error via `next`. Swallow the stored
       // branch's rejection so a throw inside `fn` doesn't surface as
-      // an unhandled rejection from the Map's reference. Surfaced by
-      // #261 once `mutateSymbolState` started throwing on migration
+      // an unhandled rejection from the Map's reference. Surfaced once
+      // `mutateSymbolState` started throwing on migration
       // failure inside `fill-adopter`.
       void cleanup.catch(() => undefined);
       tails.set(key, cleanup);

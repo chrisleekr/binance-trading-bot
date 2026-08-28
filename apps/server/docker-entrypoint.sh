@@ -5,9 +5,8 @@ set -eu
 # exits the container non-zero and readiness never answers, so the orchestrator
 # backs off rather than serving with a stale schema.
 #
-# ROLE=all and ROLE=api migrate on boot. In the split (scale) topology only ONE
-# service should migrate: the api service runs migrations, worker/study set
-# SKIP_MIGRATIONS=1 so concurrent runners never race on _app_migrations.
+# Every application role migrates before boot. Split-role starts are safe because
+# the migration runner serialises concurrent callers with a Postgres advisory lock.
 #
 # Operator's offline-only path is the same binary:
 #   docker compose run --rm app bun /app/dist/migrate.js

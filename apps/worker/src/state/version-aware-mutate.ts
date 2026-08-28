@@ -3,7 +3,7 @@
 // Strategy state lives in `symbol_states` as one row per (profile,
 // symbol). Three callers touch that row — the every-tick read, the
 // every-tick commit, and the event-driven mutate (fill-adopter, future
-// reset paths). Pre-#286 the tick read/commit hand-rolled their own I/O
+// reset paths). The tick read/commit used to hand-roll their own I/O
 // and skipped the reconciliation the mutate path used, reopening the
 // exact divergence bugs this module exists to close:
 //
@@ -373,7 +373,7 @@ export const mutateSymbolState = async (
  * match, and `schemaVersion` only moves on a migration — so two bodies at
  * the same version are indistinguishable. If `set` throws *after* PG
  * commits, the cache would hold a stale body at PG's version and the next
- * read would silently revert the committed state (#371). DEL the key on a
+ * read would silently revert the committed state. DEL the key on a
  * `set` failure so the next read falls back to the authoritative PG body.
  * A failed DEL is the one window a stale body can outlive committed PG
  * state; log it loudly rather than fail the write (the next successful
@@ -605,7 +605,7 @@ export const commitSymbolStateForTick = async (
   // process, so the only out-of-band writer is this tick's own uncancelled PG
   // write — same body, CAS-guarded (WHERE version=expected), so it cannot
   // clobber (it may still CAS-miss a later tick, which is safe). When replicas>1
-  // is enabled (dormant, epic #561), a degrade here could race a fill adopted
+  // is enabled (dormant), a degrade here could race a fill adopted
   // on the stream-owner pod and revert its authoritative position body in the
   // cache — this seam MUST be revisited then (block-until-confirmed for
   // order-placing ticks, or a version-tagged cache), exactly as the cas-miss
@@ -639,7 +639,7 @@ export interface MergeLatchDeps {
  * the merged body. Bounded retries — a fresh fill can win again between our
  * re-read and write, so re-read + re-merge each attempt (the merge composes on
  * the newest winner). Exhausting retries logs and gives up: the latch fields are
- * lost, same as the pre-#581 skip, but only after a real write storm.
+ * lost, same as the skip this replaced, but only after a real write storm.
  *
  * Returns `true` when a merged body landed. NEVER reached at single replica
  * (`chainByKey` means the tick commit never CAS-misses). Mirrors

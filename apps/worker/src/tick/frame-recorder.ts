@@ -36,7 +36,6 @@ export interface RecordedProfile {
   readonly quoteAsset: string;
   readonly weightLimit1m: number;
   readonly needsAccountDeployedQuote: boolean;
-  readonly reserveBaseQuantity: string | null;
   readonly config: unknown;
 }
 

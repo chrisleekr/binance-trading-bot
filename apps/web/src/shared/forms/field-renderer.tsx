@@ -8,7 +8,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Switch } from '@/shared/components/ui/switch';
 import { Panel } from '@/shared/components/panel';
-import { cn } from '@/shared/lib/cn';
+import { Select } from '@/shared/components/ui/select';
 
 import { lookupWidget } from './widgetRegistry';
 import { reindexPaths } from './field-paths';
@@ -286,8 +286,8 @@ function DefaultBooleanInput({ field }: { field: FormField & { kind: 'boolean' }
   const { control } = useFormContext();
   const { field: controller } = useController({ name: field.path, control });
   const { value, onChange, onBlur, name } = controller;
-  // Radix Switch renders a <button>. A sibling <label htmlFor> names <input>/
-  // <select> but NOT a <button> (accessible-name spec), so without this the
+  // Radix Switch renders a <button>. A sibling <label htmlFor> names an input or
+  // a `<select>` but NOT a `<button>` (accessible-name spec), so without this the
   // toggle is nameless to screen readers and tests. Name it from the field
   // label, which is the same text the visible <label> shows (Label in Name).
   return (
@@ -307,7 +307,7 @@ function DefaultEnumSelect({ field }: { field: FormField & { kind: 'enum' } }) {
   const { field: controller, fieldState } = useController({ name: field.path, control });
   const { value, onChange, onBlur, name, ref: inputRef } = controller;
   return (
-    <select
+    <Select
       id={field.path}
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value)}
@@ -315,9 +315,7 @@ function DefaultEnumSelect({ field }: { field: FormField & { kind: 'enum' } }) {
       name={name}
       ref={inputRef}
       aria-invalid={fieldState.invalid || undefined}
-      className={cn(
-        'flex h-11 w-full rounded-xs border border-border bg-surface-alt px-3 py-2 text-sm text-fg focus-visible:border-focus focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50',
-      )}
+      className="w-full"
     >
       <option value="" disabled>
         Select…
@@ -327,7 +325,7 @@ function DefaultEnumSelect({ field }: { field: FormField & { kind: 'enum' } }) {
           {titleCase(opt)}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 

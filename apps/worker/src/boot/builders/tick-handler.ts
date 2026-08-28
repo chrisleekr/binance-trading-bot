@@ -18,7 +18,7 @@ import {
   SYMBOL_DELISTED_KEY_PREFIX,
   SYMBOL_NOT_PERMITTED_RETIRE_KEY_PREFIX,
 } from 'executor/notifier-gap-throttle.js';
-import { reapAutoBinding } from 'crons/discovery-reap.js';
+import { reapUnpinnedBinding } from 'crons/discovery-reap.js';
 import { buildProfileTickContext } from 'profile-bindings/tick-context.js';
 import { QUEUE_NAMES } from 'queues/queue-names.js';
 import { createReconfigureEnqueue } from 'queues/reconfigure-enqueue.js';
@@ -282,12 +282,12 @@ export const buildTickHandler = ({
       });
     },
     // Self-heal a symbol Binance no longer lists on this profile's mode: reap the
-    // auto-added binding when it is flat and clear its discovery bookkeeping.
-    // Delegates to the SAME `reapAutoBinding` the discovery cron uses so the two
+    // binding when it is unpinned and flat, and clear its discovery bookkeeping.
+    // Delegates to the SAME `reapUnpinnedBinding` the discovery cron uses so the two
     // reap paths cannot drift (stale added-at / enter-on-add hashes). The flat
     // guard + cleanup order are the helper's; the scope is the one the tick proved.
-    reapAutoIfFlat: (scope, symbol) =>
-      reapAutoBinding(
+    reapUnpinnedIfFlat: (scope, symbol) =>
+      reapUnpinnedBinding(
         profileRepoFromScope(scope).profileSymbols,
         redis,
         {

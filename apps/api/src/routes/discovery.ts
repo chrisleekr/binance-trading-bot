@@ -5,6 +5,7 @@ import {
   type DecimalString,
   decimalMul,
   type DiscoveryActivityEntry,
+  asDecimalString,
   DiscoveryConfigSchema,
   DiscoveryDashboardResponse,
   type DiscoveryHolding,
@@ -150,12 +151,14 @@ const readQuoteCash = async (di: DI, p: ProfileRepo, quoteAsset: string): Promis
  * resolves the same percent against live equity at tick time (the enforcing
  * site); this mirrors it for display. The worker/api cannot import the strategy
  * package, so the cap is duck-read via `readAccountExposureCap`.
+ *
+ * Both arms format through `asDecimalString`. The `amount` arm looks like a passthrough but is not: it comes out of untyped profile-config JSONB, and the config field that writes it validates with `decimalString(...)`, whose grammar admits scientific notation — so a stored `1e-8` would render as an exponent in a quote-currency ceiling. This route hands its body straight to `c.json` with no response `.parse`, so there is no schema downstream to re-spell either arm.
  */
 const resolveGaugeCap = (config: unknown, equity: Decimal): DecimalString | null => {
   const cap = readAccountExposureCap(config);
-  if (cap.mode === 'amount') return cap.amount as DecimalString;
+  if (cap.mode === 'amount' && cap.amount !== null) return asDecimalString(cap.amount);
   if (cap.mode === 'percent' && cap.percent !== null) {
-    return new Decimal(cap.percent).mul(equity).toString() as DecimalString;
+    return asDecimalString(new Decimal(cap.percent).mul(equity));
   }
   return null;
 };
@@ -234,7 +237,8 @@ const buildDashboard = async (
       // ticks; deep capture writes a row per tick per symbol, so 200 rows now
       // covers a few minutes and the activity feed silently empties out.
       const logs = await ptx.actionLogs.listPage(ACTIVITY_SCAN, null, { source: 'auto' });
-      const autoSymbols = symbols.filter((sym) => sym.source === 'auto').map((sym) => sym.symbol);
+      // Unpinned, not discovery-provenanced: this set is what the dashboard treats as "discovery may rotate this", and a binding the system re-created is rotatable even though nobody chose it.
+      const autoSymbols = symbols.filter((sym) => !sym.pinned).map((sym) => sym.symbol);
       const holdings = await buildHoldings(ptx, autoSymbols);
       const entryBlockers = await buildEntryBlockers(ptx, autoSymbols);
       return { all, last7, deployed, autoSymbols, logs, holdings, entryBlockers };
@@ -243,10 +247,7 @@ const buildDashboard = async (
   // cost-basis (mirrors the strategy's tick-time equity).
   const equity = quoteCash.add(new Decimal(deployed));
   const autoSet = new Set(autoSymbols);
-  // The Redis snapshot the cron writes has every candidate's entryBlocker null
-  // (it predates per-symbol state); enrich auto candidates from live state here
-  // so the dashboard glosses why a held auto pick isn't entering. Non-auto rows
-  // stay null — discovery doesn't manage their entry.
+  // The Redis snapshot the cron writes has every candidate's entryBlocker null (it predates per-symbol state); enrich rotatable candidates from live state here so the dashboard glosses why a held pick isn't entering. Pinned rows stay null — discovery doesn't manage the entry of a coin it may not rotate.
   const parsedUniverse = readUniverse(rawExplain, di.logger);
   const universe = parsedUniverse
     ? {
@@ -266,10 +267,12 @@ const buildDashboard = async (
       realizedProfitPercent: all.totalProfitPercent as DecimalString,
       totalFees: all.totalFees as DecimalString,
       netProfit: all.netProfit as DecimalString,
+      feeBasis: all.feeBasis,
       tradeCount: all.tradeCount,
       winRate: all.tradeCount > 0 ? all.wins / all.tradeCount : 0,
       realizedProfit7d: last7.totalProfit as DecimalString,
       netProfit7d: last7.netProfit as DecimalString,
+      feeBasis7d: last7.feeBasis,
       tradeCount7d: last7.tradeCount,
     },
     gauge: {
@@ -322,8 +325,8 @@ const patchRoute = createRoute({
   },
 });
 
-// Period-ranged discovery scoreboard for the Home KPI strip's D/W/M/All toggle
-// (#504). Only the trade-archive aggregates are time-rangeable; the gauge cards
+// Period-ranged discovery scoreboard for the Home KPI strip's D/W/M/All toggle.
+// Only the trade-archive aggregates are time-rangeable; the gauge cards
 // (deployed cost, exposure cap, holdings) are "now" values served by the full
 // dashboard endpoint, so this stays a small, separate query rather than
 // re-fetching the whole dashboard (universe + activity) on every toggle.
@@ -374,6 +377,8 @@ export const discoveryRouter = (di: DI): ApiHono => {
         realizedProfitPercent: (auto?.totalProfitPercent ?? '0') as DecimalString,
         totalFees: (auto?.totalFees ?? '0') as DecimalString,
         netProfit: (auto?.netProfit ?? '0') as DecimalString,
+        // `exact` when the window held no auto rows at all: nothing was read, so there is nothing to distrust, which is the same empty-set reading the SQL fold uses.
+        feeBasis: auto?.feeBasis ?? 'exact',
         tradeCount: auto?.tradeCount ?? 0,
         winRate: auto && auto.tradeCount > 0 ? auto.wins / auto.tradeCount : 0,
         bySource: ranged.map((r) => ({
@@ -381,6 +386,7 @@ export const discoveryRouter = (di: DI): ApiHono => {
           realizedProfit: r.totalProfit as DecimalString,
           totalFees: r.totalFees as DecimalString,
           netProfit: r.netProfit as DecimalString,
+          feeBasis: r.feeBasis,
           tradeCount: r.tradeCount,
           wins: r.wins,
           losses: r.losses,

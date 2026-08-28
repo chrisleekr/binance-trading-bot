@@ -21,7 +21,6 @@ import {
   DialogTitle,
 } from '@/shared/components/ui/dialog';
 import { SymbolConfigForm } from '@/features/symbol/components/symbol-config-form';
-import { SymbolReserveCard } from '@/features/symbol/components/symbol-reserve-card';
 import { fetchProfile, profileQueryKey } from '@/features/profile/api/profile';
 import {
   fetchProfileDashboard,
@@ -131,9 +130,8 @@ export function SymbolConfigPanel({
 
   return (
     <div className="space-y-6" data-testid="symbol-config-panel">
-      {/* Shape mirrors what lands here: the reserve card, then the override
-          form's groups. */}
-      {!ready && !loadError ? <PanelStackSkeleton shape={[2, 5, 4]} /> : null}
+      {/* Shape mirrors what lands here: the override form's groups. */}
+      {!ready && !loadError ? <PanelStackSkeleton shape={[5, 4]} /> : null}
 
       {loadError ? (
         <Alert variant="danger">
@@ -142,17 +140,6 @@ export function SymbolConfigPanel({
             {loadError instanceof Error ? loadError.message : 'unknown'}
           </AlertDescription>
         </Alert>
-      ) : null}
-
-      {/* Always-hold reserve: independent of the strategy override form (it is
-          account/capital data, not strategy config), so it renders whenever the
-          symbol row loaded — even for a strategy that ships no override schema. */}
-      {override.isSuccess ? (
-        <SymbolReserveCard
-          profileId={profileId}
-          symbol={symbol}
-          reserve={override.data.reserveBaseQuantity}
-        />
       ) : null}
 
       {ready && descriptor === undefined ? (

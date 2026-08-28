@@ -94,7 +94,6 @@ const makeProfile = (overrides: Partial<ProfileTickContext> = {}): ProfileTickCo
   candleInterval: '1h',
   technicalsConfig: {} as unknown as TechnicalsBundleConfig,
   needsAccountDeployedQuote: false,
-  reserveBaseQuantity: null,
   ...overrides,
 });
 
@@ -252,28 +251,7 @@ describe('buildTickInput', () => {
     expect('overrideTtlMs' in built).toBe(false);
   });
 
-  it('subtracts the per-symbol reserve from the bot-visible base balance (#498)', async () => {
-    const { deps } = makeStubs();
-    const built = await buildTickInput(
-      deps,
-      buildArgs({
-        profile: makeProfile({ reserveBaseQuantity: '0.5' }),
-        raw: baseRaw({
-          accountInfo: JSON.stringify({
-            balances: { BTC: { free: '2', locked: '0' }, USDT: { free: '100', locked: '0' } },
-          }),
-        }),
-      }),
-    );
-    expect(built.kind).toBe('ready');
-    if (built.kind !== 'ready') throw new Error('expected ready');
-    // Bot sees 2 - 0.5 = 1.5 BTC tradeable; the reserve is invisible to the strategy.
-    expect(built.input.account.balances['BTC']?.free.toString()).toBe('1.5');
-    // Quote balance is untouched — the reserve is base-only.
-    expect(built.input.account.balances['USDT']?.free.toString()).toBe('100');
-  });
-
-  it('leaves the base balance untouched when no reserve is set', async () => {
+  it('passes the wallet base balance through to the strategy untouched', async () => {
     const { deps } = makeStubs();
     const built = await buildTickInput(
       deps,
@@ -286,26 +264,6 @@ describe('buildTickInput', () => {
     expect(built.kind).toBe('ready');
     if (built.kind !== 'ready') throw new Error('expected ready');
     expect(built.input.account.balances['BTC']?.free.toString()).toBe('2');
-  });
-
-  it('is inert when a reserve is set but the base balance line is absent', async () => {
-    // The realistic first-enable case: the operator set a reserve before any base
-    // balance landed in the wallet snapshot. The overlay must no-op (not throw, not
-    // synthesize a base line) and leave the quote balance intact.
-    const { deps } = makeStubs();
-    const built = await buildTickInput(
-      deps,
-      buildArgs({
-        profile: makeProfile({ reserveBaseQuantity: '0.5' }),
-        raw: baseRaw({
-          accountInfo: JSON.stringify({ balances: { USDT: { free: '100', locked: '0' } } }),
-        }),
-      }),
-    );
-    expect(built.kind).toBe('ready');
-    if (built.kind !== 'ready') throw new Error('expected ready');
-    expect(built.input.account.balances['BTC']).toBeUndefined();
-    expect(built.input.account.balances['USDT']?.free.toString()).toBe('100');
   });
 
   it('injects the cross-profile deployed total when the account cap is armed', async () => {

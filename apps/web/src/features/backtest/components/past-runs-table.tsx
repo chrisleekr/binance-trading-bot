@@ -3,18 +3,26 @@
 // clickable — an explicit "Load →" button loads a run into the workbench, so
 // scrolling the list on a touch screen can't select a run by accident. The
 // checkbox (bulk delete) and the ⋯ menu (abort / retry / delete) stay per row.
+//
+// Picking two runs to compare their configs is a per-row BUTTON, not a second checkbox column. The checkbox already on the row means "include in the bulk delete", and a second one beside it would put two independent multi-select semantics on one row with nothing but a tooltip separating "queue this for deletion" from "compare this". The button arms one run, then reads as an invitation on every other row, so the two-step pick is visible in the rows themselves.
 
-import { Ban, PinOff, RotateCcw, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+
+import { Ban, GitCompare, PinOff, RotateCcw, Trash2 } from 'lucide-react';
 
 import { RowActions, type RowAction } from '@/shared/components/row-actions';
 import { formatPercent } from '@/shared/lib/format';
-import { formatDate } from '@/shared/lib/format-time';
+import { formatDate, formatInstant } from '@/shared/lib/format-time';
 import { useTimezone } from '@/shared/context/timezone-context';
 import type { BacktestWorkbench } from './use-backtest-workbench';
+import { BacktestConfigCompareSheet, type CompareSide } from './backtest-config-compare-sheet';
 
 export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Element {
   const timeZone = useTimezone();
-  const { selectRun } = wb;
+  const { selectRun, profileId } = wb;
+  // The two picked runs. `armed` is the first, held while the operator reads the other rows; `against` is the second, and setting it is what opens the drawer. Local because the pick is an affordance on this list and outlives nothing beyond it.
+  const [armed, setArmed] = useState<CompareSide | null>(null);
+  const [against, setAgainst] = useState<CompareSide | null>(null);
   const {
     runItems,
     selectedRunIds,
@@ -30,6 +38,19 @@ export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Elem
 
   return (
     <div>
+      <BacktestConfigCompareSheet
+        profileId={profileId}
+        a={armed}
+        b={against}
+        open={against !== null}
+        // Closing drops BOTH picks. Leaving the first one armed would leave every other row still offering to compare against a run the operator has stopped thinking about, with nothing on screen saying which one it was.
+        onOpenChange={(next) => {
+          if (!next) {
+            setArmed(null);
+            setAgainst(null);
+          }
+        }}
+      />
       {/* Header: the select-all checkbox always renders (bulk-delete affordance);
           the column labels show only at sm+, where the rows read as a table. */}
       <div className="flex items-center gap-3 border-b border-border px-3 py-2 text-xs text-muted-fg">
@@ -48,7 +69,11 @@ export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Elem
           onChange={(e) => setSelectedRunIds(e.target.checked ? new Set(deletableIds) : new Set())}
         />
         <span className="hidden flex-1 sm:block">Symbol</span>
+        {/* Two different times, and the operator needs both: the window is the market period the run replayed, "Run at" is when they launched it. Two runs of the same coin over the same window are otherwise indistinguishable. */}
         <span className="hidden flex-1 sm:block">Window period</span>
+        <span className="hidden flex-1 sm:block">Run at</span>
+        {/* Which SETTINGS the run executed. Two runs of one coin over one window differ only by config, and nothing else on the row can say so. */}
+        <span className="hidden w-24 sm:block">Config</span>
         <span className="hidden w-20 sm:block">Status</span>
         <span className="hidden w-20 text-right sm:block">PnL</span>
         <span className="hidden w-28 sm:block" aria-hidden="true" />
@@ -104,6 +129,10 @@ export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Elem
             });
           }
 
+          // Names every per-row control as well as the row itself: a screen reader hearing "Load BTCUSDT run" twice cannot pick between two runs of the same coin. The instant alone is not enough — it resolves only to the minute, and two runs launched in the same minute would collide again — so the id prefix that already identifies a run in the results header travels with it.
+          const ranAt = formatInstant(r.createdAt, timeZone);
+          const runLabel = `${r.symbols.join(', ')} run ${r.runId.slice(0, 8)} from ${ranAt}`;
+
           return (
             <li
               key={r.runId}
@@ -115,7 +144,7 @@ export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Elem
                   <input
                     type="checkbox"
                     className="size-3.5 align-middle accent-accent"
-                    aria-label={`Select ${r.symbols.join(', ')} run`}
+                    aria-label={`Select ${runLabel}`}
                     data-testid={`backtest-select-${r.runId}`}
                     checked={selectedRunIds.has(r.runId)}
                     onChange={(e) =>
@@ -130,8 +159,28 @@ export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Elem
                 ) : null}
               </div>
               <div className="flex-1 basis-32 font-medium">{r.symbols.join(', ')}</div>
+              {/* Below sm the column headers are hidden and both cells go full-width, so the row shows two stacked dates with nothing saying which is the replayed market window and which is the launch time. The label rides inside the cell at that width and goes `sr-only` once the header row is back — not `hidden`, because `display: none` drops it from the accessibility tree, which would leave a screen reader on a wide viewport hearing the same two bare dates the sighted mobile reader was rescued from. */}
               <div className="basis-full text-xs text-muted-fg tabular-nums sm:flex-1 sm:basis-auto">
+                <span className="sm:sr-only">Window </span>
                 {formatDate(r.fromMs, timeZone)} → {formatDate(r.toMs, timeZone)}
+              </div>
+              <div className="basis-full text-xs text-muted-fg tabular-nums sm:flex-1 sm:basis-auto">
+                <span className="sm:sr-only">Run at </span>
+                {ranAt}
+              </div>
+              {/* The fingerprint hashes the merged strategy config alone, so an equal code means the two runs differed by window, not by settings. Shown as an 8-character prefix — the repo's short-id width — with the whole digest on `title`, because eight hex characters can collide and a reader comparing two rows needs the full value to settle it. Stacks full-width below sm behind the same in-cell `sm:sr-only` label the two date cells use, so it is never a bare hash. */}
+              <div
+                className="basis-full text-xs text-muted-fg tabular-nums sm:w-24 sm:basis-auto"
+                data-testid={`backtest-config-${r.runId}`}
+              >
+                <span className="sm:sr-only">Config </span>
+                {r.configFingerprint !== null ? (
+                  <span className="font-mono" title={r.configFingerprint}>
+                    {r.configFingerprint.slice(0, 8)}
+                  </span>
+                ) : (
+                  '—'
+                )}
               </div>
               <div
                 className={
@@ -158,18 +207,49 @@ export function PastRunsTable({ wb }: { wb: BacktestWorkbench }): React.JSX.Elem
                 {r.totalReturnPct !== null ? formatPercent(r.totalReturnPct) : '—'}
               </div>
               <div className="ml-auto flex items-center gap-1">
+                {/* Offered on every row including one with no fingerprint. Hiding it there would make the drawer's "config unavailable" answer unreachable from the list, leaving an operator to read a blank Config cell as a rendering fault rather than as a run that predates the stamping. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const side: CompareSide = {
+                      runId: r.runId,
+                      label: r.symbols.join(', ') + ' · ' + ranAt,
+                      configFingerprint: r.configFingerprint,
+                    };
+                    if (armed === null) setArmed(side);
+                    else if (armed.runId === r.runId) setArmed(null);
+                    else setAgainst(side);
+                  }}
+                  aria-pressed={armed?.runId === r.runId}
+                  aria-label={
+                    armed === null
+                      ? `Compare config of ${runLabel}`
+                      : armed.runId === r.runId
+                        ? `Cancel comparing ${runLabel}`
+                        : `Compare config of ${runLabel} against the armed run`
+                  }
+                  title={
+                    armed === null || armed.runId === r.runId
+                      ? 'Compare config'
+                      : 'Compare against the armed run'
+                  }
+                  data-testid={`backtest-compare-config-${r.runId}`}
+                  className="inline-flex items-center rounded-xs p-1 text-muted-fg hover:text-fg focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none aria-pressed:text-accent"
+                >
+                  <GitCompare className="h-4 w-4" aria-hidden="true" />
+                </button>
                 <button
                   type="button"
                   onClick={() => selectRun(r.runId)}
-                  aria-label={`Load ${r.symbols.join(', ')} run`}
-                  aria-current={r.runId === activeRunId}
+                  aria-label={`Load ${runLabel}`}
+                  aria-current={r.runId === activeRunId ? 'page' : undefined}
                   data-testid={`backtest-load-${r.runId}`}
                   className="inline-flex items-center gap-1 rounded-xs px-2 py-1 text-sm font-medium text-accent hover:underline focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
                 >
                   Load →
                 </button>
                 <RowActions
-                  label={`Actions for ${r.symbols.join(', ')} run`}
+                  label={`Actions for ${runLabel}`}
                   testId={`backtest-row-actions-${r.runId}`}
                   actions={rowActions}
                 />

@@ -1,12 +1,7 @@
 // "When this coin gets removed" panel for the symbol page.
 //
-// The symbol-state response carries no discovery awareness, so this reads the
-// profile's discovery-dashboard payload (shared query cache with the profile
-// page) to answer the one question an operator asks on an auto-discovered
-// symbol: when will the bot drop it? Removal is not a scheduled event — it
-// needs the coin to stop trending AND be flat AND have aged past min-hold — so
-// we state those conditions plainly instead of a countdown that may never fire.
-// Renders nothing for a manually-added symbol (discovery does not manage it).
+// The symbol-state response carries no discovery awareness, so this reads the profile's discovery-dashboard payload (shared query cache with the profile page) to answer the one question an operator asks about a coin discovery may rotate out: when will the bot drop it? Removal is not a scheduled event — it needs the coin to stop trending AND be flat AND have aged past min-hold — so we state those conditions plainly instead of a countdown that may never fire.
+// Renders nothing for a pinned coin. Rotation follows the pin, not who added the coin, so this panel says nothing about where the binding came from.
 
 import { useQuery } from '@tanstack/react-query';
 
@@ -42,14 +37,11 @@ export function SymbolDiscoveryStatus({
   });
 
   const data = dashboard.data;
-  // Supplementary panel: stay invisible until we know the symbol is auto-managed
-  // rather than flashing a spinner or an error on the symbol page.
+  // Supplementary panel: stay invisible until we know the coin is unpinned and therefore rotatable, rather than flashing a spinner or an error on the symbol page.
   if (!data || !data.autoSymbols.includes(symbol)) return null;
 
   const hold = formatHold(data.config.minHoldMinutes);
-  // The universe is a frozen snapshot of the last scan; an auto symbol can be
-  // absent from it (just pinned/unpinned, or first scan) — fall back to the
-  // generic "stays while trending" wording when its disposition is unknown.
+  // The universe is a frozen snapshot of the last scan; a rotatable coin can be absent from it (just pinned/unpinned, or first scan) — fall back to the generic "stays while trending" wording when its disposition is unknown.
   const disposition = data.universe?.candidates.find((c) => c.symbol === symbol)?.disposition;
 
   let headline: string;
@@ -78,10 +70,10 @@ export function SymbolDiscoveryStatus({
       <div className="flex items-center gap-2">
         <Badge
           variant="outline"
-          aria-label={`${symbol} auto-discovered`}
-          title="Rotated in by auto-discovery (not operator-added)."
+          aria-label={`${symbol} in rotation`}
+          title="Auto-discovery may rotate this coin out. Pin it to keep it."
         >
-          auto-discovered
+          in rotation
         </Badge>
         <h2 className="text-sm font-semibold text-fg">When this coin gets removed</h2>
       </div>

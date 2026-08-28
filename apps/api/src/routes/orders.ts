@@ -224,7 +224,7 @@ export const ordersRouter = (di: DI): ApiHono => {
     // re-read it here for the registry lookup (one indexed PK read; the symbol
     // page is not the hot dashboard path). Resolve against the live plugin: a
     // profile pinned to a bumped strategy version still surfaces its actions
-    // (issue #407), only a genuinely-unregistered name yields no panels.
+    // and only a genuinely-unregistered name yields no panels.
     const profile = await p.profile.findById();
     const resolved = profile
       ? di.strategies.describeForProfile(profile.strategyName, profile.strategyVersion)

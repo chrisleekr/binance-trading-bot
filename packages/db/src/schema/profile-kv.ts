@@ -2,7 +2,7 @@ import { jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/p
 import { profiles } from './profiles.js';
 
 /**
- * Per-profile cross-symbol KV store (tracker #267). A strategy trading several
+ * Per-profile cross-symbol KV store. A strategy trading several
  * symbols on one profile gets one `tick()` slice per symbol and so cannot read a
  * sibling symbol's state directly; it publishes facts here under a strategy-owned
  * namespaced `key` via `set-kv` / `delete-kv` decisions, and every symbol's later

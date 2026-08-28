@@ -408,7 +408,7 @@ export const buildOrphanOrdersDetectCron = (ctx: BootContext): CronDef => {
     queue: QUEUE_NAMES.orphanOrdersDetect,
     // Every 10 minutes: an orphan is not time-critical (it just sits open),
     // and the account-wide `getOpenOrders()` (no symbol) costs Binance weight 80
-    // (correctly reserved since #458). At this cadence the cost is negligible.
+    // (correctly reserved). At this cadence the cost is negligible.
     pattern: '0 */10 * * * *',
     handler: orphanOrdersDetectHandler({
       logger: ctx.logger,

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FeeBasis } from './archive.js';
 import { ClosedTradesPeriod } from './dashboard.js';
 import { asDecimalString, decimalString, DecimalString } from './decimal.js';
 import { EntryBlockerResponse } from './entry-blocker.js';
@@ -10,7 +11,7 @@ import { EntryBlockerResponse } from './entry-blocker.js';
  * `@app/contracts`. The field set is a superset of the pure-chain
  * `DiscoveryConfig` (`@app/discovery`): it adds `enabled` and `refreshPeriodMs`,
  * which gate and pace the cron rather than the filter chain. Seed defaults are
- * the balanced posture locked in epic #423; the backtest gate (#428) tunes them.
+ * the balanced posture ratified for discovery; the backtest gate tunes them.
  */
 
 // Re-parse the schema's own defaults so an absent block yields a fully-shaped
@@ -217,20 +218,20 @@ export type StoredDiscoveryConfig = z.infer<typeof DiscoveryConfigSchema>;
 /**
  * The "is it working" half of the operator dashboard: realized PnL attributed
  * to `source='auto'` archives (all-time and rolling-7-day) plus win rate.
- * `realizedProfit` is `sell_quote - buy_quote` (GROSS of commission); `netProfit`
- * subtracts the quote-valued commissions (`totalFees`) so the UI can show what
- * was actually kept. `winRate` counts NET-of-fee winners.
+ * `realizedProfit` is the Recorded cost-basis result; `netProfit` subtracts the additional quote adjustment. How far the Net fields can be trusted is what the matching fee tier says; the all-time and 7-day windows carry their own, because a window that happens to hold only proven cycles is proven whatever the other one holds.
  */
 export const DiscoveryScoreboard = z.object({
   realizedProfit: DecimalString,
   realizedProfitPercent: DecimalString,
   totalFees: DecimalString.default(asDecimalString('0')),
   netProfit: DecimalString.default(asDecimalString('0')),
+  feeBasis: FeeBasis.default('unknown'),
   tradeCount: z.number().int().nonnegative(),
   /** Fraction of auto trades that closed NET-positive, 0..1; 0 when no trades. */
   winRate: z.number().min(0).max(1),
   realizedProfit7d: DecimalString,
   netProfit7d: DecimalString.default(asDecimalString('0')),
+  feeBasis7d: FeeBasis.default('unknown'),
   tradeCount7d: z.number().int().nonnegative(),
 });
 export type DiscoveryScoreboard = z.infer<typeof DiscoveryScoreboard>;
@@ -240,17 +241,14 @@ export type DiscoveryScoreboard = z.infer<typeof DiscoveryScoreboard>;
  * `manual`). Carries the raw win/loss counts and gross win/loss magnitudes so
  * the web layer derives win% and profit factor with the same helpers the
  * trade-archive page uses — the ratios are display-only, the money stays a
- * decimal string. `realizedProfit` is the signed GROSS profit; `netProfit`
- * subtracts `totalFees` (quote-valued commissions). `wins`/`losses` and
- * `grossProfit`/`grossLoss` are classified on NET-of-fee profit, so profit
- * factor reflects what was kept. No `quoteAsset`: a profile trades one quote,
- * surfaced once by the strip.
+ * decimal string. `realizedProfit` is the signed Recorded result; `netProfit` subtracts `totalFees` (the additional quote adjustment). `wins`/`losses` and `grossProfit`/`grossLoss` classify the known Net subtotal, and `feeBasis` says how far that classification can be trusted. No `quoteAsset`: a profile trades one quote, surfaced once by the strip.
  */
 export const ScoreboardSourceRollup = z.object({
   source: z.string(),
   realizedProfit: DecimalString,
   totalFees: DecimalString.default(asDecimalString('0')),
   netProfit: DecimalString.default(asDecimalString('0')),
+  feeBasis: FeeBasis.default('unknown'),
   tradeCount: z.number().int().nonnegative(),
   wins: z.number().int().nonnegative(),
   losses: z.number().int().nonnegative(),
@@ -262,7 +260,7 @@ export type ScoreboardSourceRollup = z.infer<typeof ScoreboardSourceRollup>;
 /**
  * Period-ranged discovery scoreboard — the subset of {@link DiscoveryScoreboard}
  * that is meaningfully filterable by a past time window (the trade-archive
- * aggregates). Backs the Home KPI strip's D/W/M/All toggle (#504). The top-level
+ * aggregates). Backs the Home KPI strip's D/W/M/All toggle. The top-level
  * realised/win-rate fields stay attributed to `auto` (discovery) so the existing
  * cells are unchanged; `bySource` adds the auto-vs-manual breakdown the strip's
  * by-source band renders. `from`/`to` are echoed back like
@@ -279,6 +277,7 @@ export const DiscoveryScoreboardResponse = z.object({
   realizedProfitPercent: DecimalString,
   totalFees: DecimalString.default(asDecimalString('0')),
   netProfit: DecimalString.default(asDecimalString('0')),
+  feeBasis: FeeBasis.default('unknown'),
   tradeCount: z.number().int().nonnegative(),
   /** Fraction of auto trades that closed NET-positive in the window, 0..1; 0 when none. */
   winRate: z.number().min(0).max(1),

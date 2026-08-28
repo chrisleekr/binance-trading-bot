@@ -1,7 +1,6 @@
 import { Decimal } from '@app/money';
 import { resolveCandleWindow, resolveFill } from '@app/strategy-core';
 import type {
-  AccountSnapshot,
   Candle,
   CandleInterval,
   IndicatorSnapshot,
@@ -73,15 +72,6 @@ export interface RunBacktestOptions<C, S, B extends Readonly<Record<string, unkn
   /** Asset the equity curve is denominated in. */
   readonly quoteAsset: string;
   readonly symbolInfos: readonly SymbolInfo[];
-  /**
-   * Optional overlay applied to the account snapshot the strategy sees each
-   * tick, keyed by the symbol being ticked. Mirrors the live worker's per-tick
-   * reserve overlay (`applyReserveToBase`): the caller subtracts the operator's
-   * base-asset reserve so sell-sizing trades only the surplus and never sells
-   * into the reserve. Identity by default — a run with no reserve is
-   * byte-identical to before, so this cannot shift an existing result.
-   */
-  readonly adjustAccount?: (account: AccountSnapshot, symbol: string) => AccountSnapshot;
   /**
    * Candles consumed for indicator warm-up before any tick fires. The data
    * source is expected to stream this many extra candles before the
@@ -161,7 +151,6 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
   opts: RunBacktestOptions<C, S, B>,
 ): Promise<BacktestReport> {
   const { strategy, config, dataSource, fillModel, request, quoteAsset } = opts;
-  const adjustAccount = opts.adjustAccount ?? ((account: AccountSnapshot) => account);
   const startup = opts.startupCandleCount ?? 0;
   const buildBundle = opts.buildBundle ?? (() => ({}) as B);
 
@@ -347,7 +336,7 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     // candle (post-warmup) so the hold baseline spans the same window as the
     // strategy's equity curve. Accumulating during warmup would measure the
     // benchmark over the extra warmup candles the operator never asked to
-    // evaluate, distorting alphaVsHold (#534).
+    // evaluate, distorting alphaVsHold.
     if (!firstClose.has(symbol)) firstClose.set(symbol, price);
     lastClose.set(symbol, price);
     // A non-positive close cannot anchor a percentage benchmark; skip it from
@@ -401,17 +390,14 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
       config,
       state,
       market,
-      account: adjustAccount(
-        {
-          ...executor.snapshotAccount(),
-          deployedQuoteAcrossProfiles: accountDeployedQuote(),
-        },
-        symbol,
-      ),
+      account: {
+        ...executor.snapshotAccount(),
+        deployedQuoteAcrossProfiles: accountDeployedQuote(),
+      },
       openOrders: executor.openOrders(symbol),
       bundle: buildBundle({ symbol, interval, window }),
       limits: { weightUsed1m: 0, weightLimit1m: 1200, headroomBps: 10_000 },
-      // Cross-symbol KV (#267): mirror the live read gating — only a strategy
+      // Cross-symbol KV: mirror the live read gating — only a strategy
       // that opts in sees the store, so per-symbol strategies stay byte-identical.
       ...(strategy.capabilities.needsProfileKv ? { profileKv: executor.kvSnapshot() } : {}),
     };

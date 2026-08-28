@@ -134,12 +134,12 @@ describeIfDb('profile-symbols unbind tears down per-symbol state', () => {
     await ap.profileSymbols.setSource(symbol, 'auto');
   };
 
-  it('removeAutoIfFlat leaves no per-symbol row behind when it reaps', async () => {
+  it('removeUnpinnedIfFlat leaves no per-symbol row behind when it reaps', async () => {
     await bindAuto('TDAUSDT', 'TDA');
     await seedSurfaces(ap, 'TDAUSDT');
     expect(await countSurfaces(fx.alice.profileId, 'TDAUSDT')).toEqual(SEEDED);
 
-    expect(await ap.profileSymbols.removeAutoIfFlat('TDAUSDT')).toBe('removed');
+    expect(await ap.profileSymbols.removeUnpinnedIfFlat('TDAUSDT')).toBe('removed');
     expect(await countSurfaces(fx.alice.profileId, 'TDAUSDT')).toEqual(CLEARED);
   });
 
@@ -157,7 +157,7 @@ describeIfDb('profile-symbols unbind tears down per-symbol state', () => {
     });
     await ap.overrideActions.settle(pending.id, { status: 'applied' });
 
-    expect(await ap.profileSymbols.removeAutoIfFlat('TDBUSDT')).toBe('removed');
+    expect(await ap.profileSymbols.removeUnpinnedIfFlat('TDBUSDT')).toBe('removed');
     const rows = await fx.db
       .select()
       .from(overrideActions)
@@ -170,31 +170,32 @@ describeIfDb('profile-symbols unbind tears down per-symbol state', () => {
     expect(rows.map((r) => r.id)).toEqual([pending.id]);
   });
 
-  it('removeAutoIfFlat touches nothing when the symbol is not attached', async () => {
+  it('removeUnpinnedIfFlat touches nothing when the symbol is not attached', async () => {
     await seedSurfaces(ap, 'TDCUSDT');
-    expect(await ap.profileSymbols.removeAutoIfFlat('TDCUSDT')).toBe('not-found');
+    expect(await ap.profileSymbols.removeUnpinnedIfFlat('TDCUSDT')).toBe('not-found');
     expect(await countSurfaces(fx.alice.profileId, 'TDCUSDT')).toEqual(SEEDED);
   });
 
-  it('removeAutoIfFlat touches nothing when the symbol is manual', async () => {
-    await ap.profileSymbols.upsert('TDDUSDT', 'TDD', { overrideConfig: null }); // defaults manual
+  it('removeUnpinnedIfFlat touches nothing when the symbol is pinned', async () => {
+    await ap.profileSymbols.upsert('TDDUSDT', 'TDD', { overrideConfig: null });
+    await ap.profileSymbols.setPinned('TDDUSDT', true, new Date());
     await seedSurfaces(ap, 'TDDUSDT');
-    expect(await ap.profileSymbols.removeAutoIfFlat('TDDUSDT')).toBe('not-auto');
+    expect(await ap.profileSymbols.removeUnpinnedIfFlat('TDDUSDT')).toBe('pinned');
     expect(await countSurfaces(fx.alice.profileId, 'TDDUSDT')).toEqual(SEEDED);
   });
 
-  it('removeAutoIfFlat touches nothing when the symbol holds a position', async () => {
+  it('removeUnpinnedIfFlat touches nothing when the symbol holds a position', async () => {
     await bindAuto('TDEUSDT', 'TDE');
     await seedSurfaces(ap, 'TDEUSDT', '0.5');
-    expect(await ap.profileSymbols.removeAutoIfFlat('TDEUSDT')).toBe('held');
+    expect(await ap.profileSymbols.removeUnpinnedIfFlat('TDEUSDT')).toBe('held');
     expect(await countSurfaces(fx.alice.profileId, 'TDEUSDT')).toEqual(SEEDED);
   });
 
-  it('removeAutoIfFlat touches nothing when the symbol has an open order', async () => {
+  it('removeUnpinnedIfFlat touches nothing when the symbol has an open order', async () => {
     await bindAuto('TDFUSDT', 'TDF');
     await seedSurfaces(ap, 'TDFUSDT');
     await seedOpenOrder('TDFUSDT');
-    expect(await ap.profileSymbols.removeAutoIfFlat('TDFUSDT')).toBe('held');
+    expect(await ap.profileSymbols.removeUnpinnedIfFlat('TDFUSDT')).toBe('held');
     expect(await countSurfaces(fx.alice.profileId, 'TDFUSDT')).toEqual(SEEDED);
   });
 
@@ -254,7 +255,7 @@ describeIfDb('profile-symbols unbind tears down per-symbol state', () => {
       now: new Date(),
     });
 
-    expect(await ap.profileSymbols.removeAutoIfFlat('TDIUSDT')).toBe('removed');
+    expect(await ap.profileSymbols.removeUnpinnedIfFlat('TDIUSDT')).toBe('removed');
     expect(await countSurfaces(fx.alice.profileId, 'TDIUSDT')).toEqual(CLEARED);
     expect(await ap.conditionStates.findOne('discovery-idle')).toBeDefined();
   });

@@ -64,7 +64,7 @@ export interface CronDef {
    * instead of {@link pattern} when the handler's worst-case runtime can
    * approach or exceed the cadence: a fixed-cadence scheduler mints a fresh
    * iteration regardless of whether the previous finished, so overlapping runs
-   * backlog and the scheduler eventually wedges (#361). Self-rescheduling
+   * backlog and the scheduler eventually wedges. Self-rescheduling
    * enqueues the next run only on the current run's terminal state, so
    * iterations can never overlap. The next delay is `max(0, period - runtime)`,
    * so the cadence holds when runs are fast and collapses to back-to-back

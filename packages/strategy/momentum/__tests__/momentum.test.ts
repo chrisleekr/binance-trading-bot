@@ -2525,12 +2525,7 @@ describe('protective stop — a foreign order locking PART of the base (#613)', 
     expect(out.blocker?.reason).toBe('base-locked-by-foreign-order');
   });
 
-  // No foreign order to blame: the wallet simply holds less base than the tracked
-  // position (drift, a withdrawal, or the operator's base reserve, which the worker
-  // subtracts from `free` before the strategy sees it). Silence here is the same
-  // defect as the foreign-lock silence, so it gets its own blocker — and the resting
-  // stop is LEFT alone: cancelling a live stop we merely cannot resize strips real
-  // protection from an open position.
+  // No foreign order to blame: the wallet simply holds less base than the tracked position (drift, a withdrawal, or coins locked by an order this profile cannot see). Silence here is the same defect as the foreign-lock silence, so it gets its own blocker — and the resting stop is LEFT alone: cancelling a live stop we merely cannot resize strips real protection from an open position.
   it('blocks (and keeps the resting stop) when the free base is below the exchange minimum', () => {
     // Our own stop rests on a dust 0.001 and the wallet holds nothing else, so the
     // most we could re-commit is 0.001 — below minNotional at stop 95.

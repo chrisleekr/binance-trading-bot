@@ -5,11 +5,11 @@
 #     -f deploy/compose/docker-compose.scale.yml up
 #
 # The single-process `app` is parked (moved under an inactive profile) so only
-# the split services run. Only the api service migrates on boot; worker and study
-# set SKIP_MIGRATIONS=1 so concurrent starts never race on _app_migrations.
+# the split services run. Every role migrates before boot; the runner's advisory
+# lock serialises concurrent starts and every later role observes the new schema.
 #
 # This is the horizontal-scaling seam. Multi-replica live worker is NOT yet
-# enabled (epic #561 plumbing is merged but dormant at one replica), so keep
+# enabled (the plumbing is merged but dormant at one replica), so keep
 # WORKER_REPLICAS=1.
 
 x-app-image: &app-image
@@ -79,15 +79,13 @@ services:
       # Action-log and audit-log retention are DB-configured via Account →
       # Settings → Retention, not env. A leftover *_RETENTION_DAYS here would
       # read like a live knob while the worker ignores it.
-      # Only the api service migrates; skip here so concurrent boots never race.
-      SKIP_MIGRATIONS: '1'
     volumes:
       # db-backup cron runs pg_dump here, sharing the dump dir with the api.
       - ./../../backups:/backups
     healthcheck: *worker-healthcheck
     deploy:
       # Live-worker replica count. Keep at 1: multi-replica is not yet enabled
-      # (epic #561 scale-out plumbing is merged but dormant at one replica).
+      # (the scale-out plumbing is merged but dormant at one replica).
       replicas: ${WORKER_REPLICAS:-1}
 
   study:
@@ -95,5 +93,4 @@ services:
     environment:
       <<: *app-env
       ROLE: study
-      SKIP_MIGRATIONS: '1'
     healthcheck: *worker-healthcheck

@@ -147,8 +147,8 @@ interface EntryHintBundle {
 }
 
 /**
- * Decode the discovery entry-hint hash value into the strategy entry-hint (#473;
- * broadened to all discovery symbols in #486). Three shapes, in order of tolerance:
+ * Decode the discovery entry-hint hash value into the strategy entry-hint, written
+ * for every discovery symbol. Three shapes, in order of tolerance:
  *
  *   - rich JSON `{ at, enterOnAdd?, high24h?, maxDistanceFrom24hHighPercent?,
  *     knifeCandles?, knifeDropPercent? }` (current writer): arm with the guard
@@ -182,7 +182,7 @@ const parseEntryHintValue = (raw: string): EntryHintBundle | null => {
   if (typeof parsed !== 'object' || parsed === null || !('at' in parsed)) return null;
   const p = parsed as Record<string, unknown>;
   const hint: EntryHintBundle = {
-    // A flag-less rich payload predates #486 and was only written for enterOnAdd
+    // A flag-less rich payload predates the current writer and was only written for enterOnAdd
     // symbols, so default true; the current writer always sets it explicitly.
     enterOnAdd: typeof p['enterOnAdd'] === 'boolean' ? p['enterOnAdd'] : true,
     ...(nonNegativeDecimal.safeParse(p['high24h']).success
@@ -212,7 +212,7 @@ const parseEntryHintValue = (raw: string): EntryHintBundle | null => {
  * captures `deps.redis` and assembles ONLY the providers the strategy
  * declares in `capabilities.bundleProviders` (passed per tick), matching the
  * backtest runner's `buildBundle`: a strategy that declares neither provider
- * (e.g. momentum) pays no Redis round-trip, and a strategy #3 selects its own
+ * (e.g. momentum) pays no Redis round-trip, and a third strategy selects its own
  * set without a code change here. When `technicals` is declared it runs
  * `GET technicals:<symbol>:<interval>` for every operator-configured interval;
  * when `override` is declared it adds a non-destructive `GET` of the per-symbol
@@ -350,7 +350,7 @@ export const createTickBundleProvider = (
 
     if (wantsEntryHint) {
       // Presence of the symbol member in the discovery entry-hint hash arms the
-      // hint (discovery refreshes it for every managed symbol each cycle, #486);
+      // hint (discovery refreshes it for every managed symbol each cycle);
       // the payload's `enterOnAdd` flag decides whether the gate is relaxed.
       // Read-only — the hint persists until discovery clears it on reap, so no
       // consume/DEL.

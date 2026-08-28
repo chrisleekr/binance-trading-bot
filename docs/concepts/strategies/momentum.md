@@ -2,7 +2,7 @@
 
 ![Momentum strategy config](../../assets/screenshots/concepts/strategy-momentum.png)
 
-_The Momentum configuration form, as the profile's Strategy tab renders it. Every field is documented in the table below. Seeded demo data, not a real account._
+_The Momentum configuration form, as the profile's Strategy section renders it. Every field is documented in the table below. Seeded demo data, not a real account._
 
 Momentum buys a coin that is already moving up and rides it until the move ends. It enters on a confirmed upward **EMA crossover** and exits only through a stop — there is no upside price target. It trades less often than Trailing Trade and can sit in cash for long stretches waiting for a clean move.
 
@@ -109,7 +109,7 @@ A resting native trail is re-armed only when the configured distance changes. Ca
 
 ## Configuration
 
-The in-app form and the table below are generated from the same schema, so the fields, labels, and help below match the profile's **Strategy** tab exactly. Momentum takes its **traded coins from the profile's symbol list, not from config** — there is no `symbol` field. The new-profile wizard seeds `entrySizing` fixed `15`, `ema` `{fast: 9, slow: 21}`, `protectiveStop` on, and `entryExtension` on.
+The in-app form and the table below are generated from the same schema, so the fields, labels, and help below match the profile's **Strategy** section exactly. Momentum takes its **traded coins from the profile's symbol list, not from config** — there is no `symbol` field. The new-profile wizard seeds `entrySizing` fixed `15`, `ema` `{fast: 9, slow: 21}`, `protectiveStop` on, and `entryExtension` on.
 
 !!! info "About some of the levers"
 

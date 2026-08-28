@@ -16,7 +16,11 @@ import { profileRepo, repo } from '@app/db';
 import { Decimal, isPlainDecimalString } from '@app/money';
 
 import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
-import { loadSymbolInfo } from 'queues/pipeline-handlers/archive-grid-trade.js';
+import {
+  createCommissionRateResolver,
+  loadSymbolInfo,
+  resolveFeesFromTradesWithRates,
+} from 'queues/pipeline-handlers/archive-grid-trade.js';
 import {
   reconstructRoundTrips,
   type ReconstructedOrderSummary,
@@ -110,7 +114,7 @@ const attributeRecoveredClosingExit = (
   }
   if (
     candidate.executedQty === null ||
-    !samePositiveQuantity(candidate.executedQty, closingOrder.qty)
+    !samePositiveQuantity(candidate.executedQty, closingOrder.executedQty)
   ) {
     return { orders: roundTrip.orders, outcome: 'quantity-unproven' };
   }
@@ -168,6 +172,13 @@ const fetchAllMyTrades = async (
   return all;
 };
 
+/**
+ * Reconstruct historical round-trips for one profile and symbol, then persist only evidence-backed archive rows.
+ *
+ * @param deps - Database, Binance, Redis, clock, and logging dependencies.
+ * @param payload - Ownership, symbol, and optional time bounds for the backfill.
+ * @returns Nothing after recoverable rows and the attempt marker are persisted.
+ */
 export const handleBackfillTradeArchive = async (
   deps: BackfillTradeArchiveHandlerDeps,
   payload: BackfillTradeArchiveJobPayload,
@@ -184,7 +195,7 @@ export const handleBackfillTradeArchive = async (
   // quiet "no recoverable history" note instead of nagging forever.
   const p = await profileRepo(deps.db, payload.userId, payload.accountId, payload.profileId);
   // Symbol filters differ per Binance mode; read the keyspace matching this
-  // account's mode so a test-mode account reads testnet filters (#582). A
+  // account's mode so a test-mode account reads testnet filters. A
   // missing account (deletion race) fails closed to test.
   const mode: BinanceMode =
     (await repo.accounts.binanceModeById(deps.db, payload.accountId)) === 'live' ? 'live' : 'test';
@@ -246,7 +257,10 @@ export const handleBackfillTradeArchive = async (
     return;
   }
 
-  const { roundTrips, skippedOrphanSells, droppedOvershootCycles } = reconstructRoundTrips(fills);
+  const { roundTrips, skippedOrphanSells, droppedOvershootCycles } = reconstructRoundTrips(
+    fills,
+    symbolInfo.baseAsset,
+  );
   if (skippedOrphanSells > 0 || droppedOvershootCycles > 0) {
     // Un-costed base (orphan sells while flat, or a cycle that sold more than
     // it bought): dropped because no honest P/L exists. Surfaced, never silent.
@@ -334,9 +348,45 @@ export const handleBackfillTradeArchive = async (
     'blank-intent': 0,
     'quantity-unproven': 0,
   };
+  // Provenance is a property of the binding, and this writer did not observe any of the cycles it is reconstructing. It can only read what the binding says now, so it reads that instead of asserting one: a stamp of its own would credit discovery with coins the operator picked by hand, and `source` is the exact column the discovery net-edge scoreboard filters on. Read once for the whole pass rather than per round-trip — one symbol, one binding, and the loop below can insert hundreds of rows.
+  //
+  // Honest about its limit: this is a present-tense reading applied to past cycles. A symbol the operator later converted from auto to manual backfills entirely as manual. That is the best available answer — nothing durable records what the binding was at the time — and it is strictly better than a constant, which is wrong for every manual symbol rather than for the re-labelled ones.
+  //
+  // `unknown` when the binding is already gone (a backfill after an unsubscribe): the cycles really happened and nobody can now say who chose the coin, so neither column may claim them.
+  const source = (await p.profileSymbols.findForSymbol(payload.symbol))?.source ?? 'unknown';
+  // One resolver for the whole reconstruction: every cycle below is the same symbol, so the rates are fetched at most once no matter how many rows this pass inserts.
+  const resolveCommissionRates = createCommissionRateResolver(client, deps.logger);
+  const fillsById = new Map(fills.map((fill) => [fill.id, fill]));
   for (const rt of missing) {
     const { orders: attributedOrders, outcome } = attributeRecoveredClosingExit(rt, candidatesById);
     attribution[outcome] += 1;
+    const cycleTrades = rt.orders
+      .flatMap((order) => order.tradeIds)
+      .map((tradeId) => fillsById.get(tradeId))
+      .filter((fill): fill is MyTradeDto => fill !== undefined);
+    const resolvedFees = await resolveFeesFromTradesWithRates(
+      cycleTrades,
+      rt.orders,
+      payload.symbol,
+      symbolInfo.baseAsset,
+      symbolInfo.quoteAsset,
+      resolveCommissionRates,
+    );
+    if (resolvedFees.feeBasis === 'unknown') {
+      deps.logger.warn(
+        {
+          ...logCtx,
+          closingTradeId: rt.closingTradeId,
+          missingOrderIds: resolvedFees.missingOrderIds,
+          mismatchedOrders: resolvedFees.mismatchedOrders,
+          unprovenBaseBuyOrders: resolvedFees.unprovenBaseBuyOrders,
+          malformedOrders: resolvedFees.malformedOrders,
+          unpricedTrades: resolvedFees.unpricedTrades,
+          malformedTrades: resolvedFees.malformedTrades,
+        },
+        'pipeline_backfill_trade_archive_fees_incomplete',
+      );
+    }
     const row = await p.tradeArchive.insert({
       symbol: payload.symbol,
       baseAsset: symbolInfo.baseAsset,
@@ -345,12 +395,11 @@ export const handleBackfillTradeArchive = async (
       totalSellQuote: rt.totalSellQuote,
       breakdown: rt.breakdown,
       profit: rt.profit,
-      profitPercent: rt.profitPercent,
       orders: attributedOrders,
-      fees: rt.fees,
-      // Backfilled cycles are reconstructed from discovery-era trade history;
-      // the discovery scoreboard reads source='auto', so stamp it.
-      source: 'auto',
+      fees: resolvedFees.fees,
+      feesQuote: resolvedFees.feesQuote,
+      feeBasis: resolvedFees.feeBasis,
+      source,
       // Pin to the real closing time so historic P/L lands at its trade date
       // and these past rows never disturb the forward archive's `since`
       // cutoff (which tracks the latest archivedAt).

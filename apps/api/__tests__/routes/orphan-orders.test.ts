@@ -204,12 +204,14 @@ describeIfInfra('orphan-orders router', () => {
     // The strategy's OWN slot, derived from the id — not a blanket `manual` bucket
     // the strategy can never account for.
     expect(live.rows[0]?.intent).toBe('grid-buy');
-    // The symbol is now bound so the strategy manages it.
+    // The symbol is now bound so the strategy manages it — but adopting an orphan is the system rescuing a position, not the operator choosing a coin. It is recorded as such, and left UNPINNED so discovery can rotate it out once the position closes rather than the coin holding a slot forever.
     const bound = await fx.di.pool.query(
-      `select source from profile_symbols where profile_id = $1 and symbol = 'BTCUSDT'`,
+      `select source, pinned, pinned_at from profile_symbols where profile_id = $1 and symbol = 'BTCUSDT'`,
       [fx.alice.profileId],
     );
-    expect(bound.rows[0]?.source).toBe('manual');
+    expect(bound.rows[0]?.source).toBe('unknown');
+    expect(bound.rows[0]?.pinned).toBe(false);
+    expect(bound.rows[0]?.pinned_at).toBeNull();
     // The worker was signalled to pick up the new subscription.
     expect(addSpy).toHaveBeenCalledWith(
       'reconfigure-profile',

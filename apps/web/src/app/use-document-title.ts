@@ -8,6 +8,8 @@
 import { useMatches } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
+import { useCrumbs } from '@/shared/components/breadcrumb';
+
 const APP_NAME = 'binance-trading-bot';
 
 /** A route's page title: a fixed string, or a function of the route's params. */
@@ -16,6 +18,8 @@ export type RouteTitle = string | ((params: Record<string, string>) => string);
 declare module '@tanstack/react-router' {
   interface StaticDataRouteOption {
     title?: RouteTitle;
+    /** Breadcrumb label, when the document title would read wrong as a rung. A title is written to stand alone in a browser tab, so it often repeats an ancestor; a crumb only has to name this step. Falls back to `title`, so most routes never set it. */
+    crumb?: RouteTitle;
   }
 }
 
@@ -38,12 +42,17 @@ export function titleFromMatches(
 }
 
 /**
- * Sets `document.title` from the active route chain. Mounted once at the router
- * root; re-runs whenever the resolved page title changes.
+ * Sets `document.title` from the active route chain. Mounted once at the router root; re-runs whenever the resolved page title changes.
+ *
+ * A leaf that declares no title of its own is named by the breadcrumb's last rung instead. That is the profile overview, whose identity is the profile's operator-given name and so cannot be a static string: without this it inherited its layout parent's generic "Profile" while the page's own `<h1>` said the name.
  */
 export function useDocumentTitle(): void {
   const matches = useMatches();
-  const page = titleFromMatches(matches);
+  const crumbs = useCrumbs();
+  const leafDeclaresTitle = matches.at(-1)?.staticData?.title !== undefined;
+  const page = leafDeclaresTitle
+    ? titleFromMatches(matches)
+    : (crumbs.at(-1)?.label ?? titleFromMatches(matches));
   useEffect(() => {
     document.title = page ? `${page} · ${APP_NAME}` : APP_NAME;
   }, [page]);

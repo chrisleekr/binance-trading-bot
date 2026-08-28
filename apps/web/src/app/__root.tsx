@@ -40,6 +40,17 @@ export const rootRoute = createRootRouteWithContext<RouterContext>()({
 
 const PUBLIC_PATHS = new Set<string>(['/login', '/onboarding']);
 
+/**
+ * Leaf route ids whose page owns its own per-zone scroll, so the shell must not also scroll or pad `<main>` — that would double-scroll and inset a full-bleed grid.
+ *
+ * Matched against `useMatches().at(-1)?.routeId`, so only a LEAF can ever be a member: nesting a child under one of these demotes it to a layout match and the id silently stops being the last one. That is why the symbol workspace is named by its INDEX route rather than the layout that owns the path, and why a sibling like `symbols/new` or the `/config` child cannot be caught by accident the way a `[^/]+` path regex would catch them.
+ */
+export const FULL_SCREEN_LEAVES: ReadonlySet<string> = new Set([
+  '/accounts/$accountId/',
+  '/accounts/$accountId/profiles/$profileId/',
+  '/accounts/$accountId/profiles/$profileId/symbols/$symbol/',
+]);
+
 function RootComponent() {
   const { pathname } = useLocation();
   useDocumentTitle();
@@ -47,20 +58,7 @@ function RootComponent() {
   // and must not show the authenticated nav chrome — sidebar/bottom-nav links
   // would only bounce a signed-out visitor back here.
   const isPublic = PUBLIC_PATHS.has(pathname);
-  // The terminal overview (`/`) and the per-symbol workspace own their own
-  // per-zone scroll, so the shell must not also scroll/pad <main>. Match the
-  // workspace by its exact leaf route id, not a path regex: the sibling
-  // `symbols/new` (add-symbol page) and the `/config` child are normal
-  // scrolling pages and a `[^/]+` regex would wrongly catch `new`.
   const leafRouteId = useMatches().at(-1)?.routeId;
-  // The dashboard (account overview + per-profile overview) and the symbol
-  // workspace own their own per-zone scroll, so the shell must not also scroll
-  // <main>. Match by exact leaf route id under the account scope.
-  const FULL_SCREEN_LEAVES = new Set<string>([
-    '/accounts/$accountId/',
-    '/accounts/$accountId/profiles/$profileId/',
-    '/accounts/$accountId/profiles/$profileId/symbols/$symbol',
-  ]);
   const fullScreen = leafRouteId !== undefined && FULL_SCREEN_LEAVES.has(leafRouteId);
   return (
     <TooltipProvider delayDuration={150}>

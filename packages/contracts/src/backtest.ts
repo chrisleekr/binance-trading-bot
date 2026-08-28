@@ -156,7 +156,7 @@ export type BacktestRunListFilter = z.infer<typeof BacktestRunListFilter>;
  * Coarse phase of a running backtest. `backfill` loads price history, `warmup`
  * feeds the indicator warm-up window (no trades yet), `replay` is the strategy
  * tick loop, `finalize` computes metrics. The phase label lets the UI explain a
- * bar that sits near 0 during a long warm-up instead of reading as wedged (#334).
+ * bar that sits near 0 during a long warm-up instead of reading as wedged.
  */
 export const BacktestPhase = z.enum(['backfill', 'warmup', 'replay', 'finalize']);
 export type BacktestPhase = z.infer<typeof BacktestPhase>;
@@ -288,7 +288,7 @@ export interface TradeOrHoldRecommendation {
  * A run with zero completed trades is handled first: it has no edge to evaluate
  * at all (the strategy never closed a round-trip), so its `alphaVsHoldPct` is an
  * artifact of cash sitting out the market's move, not a result the config can
- * repeat. Such a run must never read as "trade" (#534).
+ * repeat. Such a run must never read as "trade".
  */
 export function recommendTradeOrHold(metrics: {
   readonly alphaVsHoldPct: number;
@@ -478,6 +478,8 @@ export const BacktestListItemSchema = z.object({
   fromMs: z.number().int().nonnegative(),
   toMs: z.number().int().nonnegative(),
   totalReturnPct: z.number().nullable(),
+  // Hash of the effective merged strategy config the run actually executed, so two runs over the same window are comparable by settings from the list alone. Deliberately NOT `backtestSignature`, which also folds in the market window and therefore cannot separate a config change from a window change. Null until the run completes (it is stamped at completion, from the config that ran, not from the config at enqueue), and null for rows written before the column existed. Defaulted so a cached page decoded before the field shipped still parses; that the SERVER actually sends the key is pinned in the api suite, where the raw body is visible — a default here can only fill a gap, it cannot detect one.
+  configFingerprint: z.string().nullable().default(null),
 });
 export type BacktestListItem = z.infer<typeof BacktestListItemSchema>;
 

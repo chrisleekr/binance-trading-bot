@@ -5,7 +5,7 @@
 // default and bound out of a zod schema by hand. Nothing tied the two together:
 // `no-undocumented-env-var.sh` only checks that a key is MENTIONED in the doc,
 // so a default could change from 2 to 5 and the reference would keep claiming 2
-// with CI green. Exactly that drift shipped in the technicals doc (#718).
+// with CI green. Exactly that drift shipped in the technicals doc.
 //
 // This module owns the prose; the zod schemas stay where they are parsed
 // (`schema.ts`, `apps/api/src/env.ts`, `apps/worker/src/env.ts`). The two are
@@ -217,7 +217,7 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     description: 'Turns the instance into a public, no-login sandbox.',
     when: 'Only on a throwaway public demo box. Never on an instance holding your keys.',
     expect:
-      'Injects a demo operator for every anonymous request; blocks credential, notifier, backup/restore, account-creation, retention-change, and diagnosis-start routes; suppresses all notifier sending; and refuses to boot if any account is on live Binance. Trading remains interactive on Binance testnet. Only `1` or `true` enable it.',
+      'Injects a demo operator for every anonymous request; blocks credential, notifier, backup/restore, account-creation, account-rename/delete, retention-change, diagnosis-start, fee-reconciliation, and archive-backfill routes; suppresses all notifier sending; and refuses to boot if any account is on live Binance. Trading remains interactive on Binance testnet. Only `1` or `true` enable it.',
   },
   PUBLIC_WEB_URL: {
     group: 'Runtime',

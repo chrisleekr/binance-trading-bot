@@ -57,16 +57,19 @@ describe('titleFromMatches', () => {
 });
 
 describe('route staticData.title', () => {
-  it('dashboard overview route is titled Dashboard', () => {
-    expect(accountOverviewRoute.options.staticData?.title).toBe('Dashboard');
+  it('dashboard overview route is titled Home, agreeing with its h1 and its sidebar row', () => {
+    // Was 'Dashboard' while the sidebar said 'Overview' and the h1 said
+    // 'Overview' — three names for one page.
+    expect(accountOverviewRoute.options.staticData?.title).toBe('Home');
   });
 
   it('settings route is titled Settings', () => {
     expect(settingsRoute.options.staticData?.title).toBe('Settings');
   });
 
-  it('profile config route is titled Strategy config', () => {
-    expect(configRoute.options.staticData?.title).toBe('Strategy config');
+  it('profile config route is titled Strategy, agreeing with its nav row', () => {
+    // The nav row said 'Strategy' while the page said 'Strategy config'.
+    expect(configRoute.options.staticData?.title).toBe('Strategy');
   });
 
   it('profile detail layout route is titled Profile', () => {
@@ -90,16 +93,30 @@ describe('every titled route resolves to real copy', () => {
       // is ignored by the fixed-string ones.
       const resolved = typeof title === 'function' ? title({ symbol: 'btcusdt' }) : title;
       expect(resolved.length, `route ${route.id} has an empty title`).toBeGreaterThan(0);
-      // A mistyped `t('edit.…')` key falls through to the raw key, which starts
-      // with the 'edit.' namespace — the exact silent failure this guards.
+      // A mistyped `t()` key falls through to the raw key itself. Matched by
+      // SHAPE rather than by a list of namespaces: route titles now come from
+      // 'edit.', 'nav.' and 'home.', and a hardcoded list is one more thing to
+      // forget when the next namespace appears. No real title is a lowercase
+      // dotted identifier with no spaces.
       expect(
-        resolved.startsWith('edit.'),
-        `route ${route.id} title is a raw key: ${resolved}`,
+        /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/.test(resolved),
+        `route ${route.id} title is a raw i18n key: ${resolved}`,
       ).toBe(false);
       checked += 1;
     }
     // Guard the guard: an empty route collection would make the loop vacuously pass.
-    // The nine i18n-backed leaf routes are the floor.
-    expect(checked).toBeGreaterThanOrEqual(9);
+    expect(checked).toBeGreaterThanOrEqual(12);
+  });
+
+  it('resolves backup & restore under the /settings layout, not as a root sibling', () => {
+    // Assert the PARENT, not the id. TanStack derives a route id by joining the
+    // parent id with the child path and trimming the leading slash, so a root
+    // child declaring path '/settings/backup-restore' and a settings child
+    // declaring 'backup-restore' produce the identical id — an id assertion
+    // passes in both shapes and pins nothing. Every other route test builds its
+    // own mirror of router.ts, and a mirror cannot notice the original drifted.
+    const route = router.routesById['/settings/backup-restore'];
+    expect(route).toBeDefined();
+    expect(route?.parentRoute?.id).toBe('/settings');
   });
 });

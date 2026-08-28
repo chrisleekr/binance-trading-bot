@@ -3,7 +3,7 @@ import { asProfileId, asUserId } from '@app/contracts';
 import { resolveBindings, type DecisionDeps } from './_types.js';
 
 /**
- * `delete-kv` removes a cross-symbol KV entry (tracker #267) from the profile's
+ * `delete-kv` removes a cross-symbol KV entry from the profile's
  * KV store. Idempotent — deleting an absent key is a no-op success. A persist
  * failure is non-retryable and fails loud, like {@link setKvHandler}.
  */

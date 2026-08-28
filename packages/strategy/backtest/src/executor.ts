@@ -97,7 +97,7 @@ export class BacktestExecutor implements Executor {
   private readonly market = new Map<string, MarketContext>();
   private readonly trades: BacktestTrade[] = [];
   private readonly events: { eventType: string; payload: unknown }[] = [];
-  // In-memory cross-symbol KV (tracker #267). The live path persists to PG; the
+  // In-memory cross-symbol KV. The live path persists to PG; the
   // backtest holds the same store in memory so a cross-symbol strategy
   // (rebalancing) replays its set-kv / delete-kv writes and reads them back via
   // `TickInput.profileKv`. Reset per run with the rest of the executor state.

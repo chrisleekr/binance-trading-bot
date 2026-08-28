@@ -39,6 +39,7 @@ import {
   type UserId,
 } from '@app/contracts';
 import { resolveGitSha } from '@app/core/git-sha';
+import { demoScanFunnel } from '@app/discovery';
 import {
   accountRepo,
   assertTestDatabaseUrl,
@@ -61,7 +62,7 @@ import { buildStrategyRegistry } from '@app/strategy-registry';
 // their fixtures this way. This is a dev seeder, not `apps/{api,worker}`, so
 // invariant #1's no-plugin-import rule does not reach it.
 import { firstBuyClientOrderId } from '@app/strategy-trailing-trade';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 const HOUR_MS = 3_600_000;
 // Fixed base for synthetic binance order ids so re-runs do not drift.
@@ -346,6 +347,83 @@ async function ensureOperator(db: Database): Promise<Operator> {
   // Password intentionally not echoed — the docs driver inherits this stdout.
   console.log(`[seed] operator ${OPERATOR_EMAIL} created (password: $SEED_OPERATOR_PASSWORD)`);
   return { operatorId, accountId: asAccountId(account.id), bootstrapped: true };
+}
+
+// Discovery's default `refreshPeriodMs`, so the seeded scan series is spaced the way an unconfigured profile would really scan.
+const SCAN_PERIOD_MS = 900_000;
+const SEEDED_SCANS = 8;
+
+/**
+ * Rewrites the discovery scan series the "Where candidates drop out" panel reads.
+ *
+ * Without stored stage counts that panel draws nothing and says so: it deliberately separates "no scan recorded this" from "nothing survived", so a profile that has never scanned renders an honest empty state instead of a funnel of zeros. The docs stack has never run the cron, so the counts have to be seeded or the page ships as that empty state.
+ *
+ * The two ladders carry different denominators and the numbers here keep that relationship. The ticker ladder narrows every pair on the exchange down through the quote, asset-policy, blocklist, volume, movement, spread and gainers-band cuts; the candidate ladder starts at `probed`, the shortlist klines were actually fetched for, which is legitimately far smaller than the ticker ladder's last rung rather than a collapse. The deepest proportional cut is put on the gainers band on purpose: the panel calls out the worst drop as the choke, and that is a stage the operator can actually tune, unlike the quote or asset-policy rows.
+ *
+ * Only the candidate rungs move; the ticker rungs and the reasoning behind their shape live in `demoScanFunnel`, which is typed as a real `DiscoveryFunnel` so the compiler owns the stage set. The newest scan is pinned rather than hashed so the captured screenshot is stable, and it adds nothing: `eligible` above zero with `added` at zero is the truthful reading of a profile whose auto slots are already full.
+ *
+ * @param db - Pool handle. The insert is written directly rather than through `discoveryUniverseSnapshots.record`, which cannot set `captured_at` — it defaults to now, so every scan would land on one instant and the history strip would have no axis to plot against.
+ * @param profileId - The profile whose series is rewritten; rows are wiped first so a re-run lands the same set.
+ * @param quote - The profile's quote asset, recorded in the payload's config digest and used to build the scanned pairs.
+ * @param rotatable - The unpinned symbols discovery may rotate, which is what each scan records as its desired set.
+ * @returns Nothing; the inserted rows are the output.
+ */
+async function seedDiscoveryScans(
+  db: Database,
+  profileId: string,
+  quote: string,
+  rotatable: readonly string[],
+): Promise<void> {
+  await db
+    .delete(schema.discoveryUniverseSnapshots)
+    .where(eq(schema.discoveryUniverseSnapshots.profileId, profileId));
+
+  const shortlist = BASE_POOL.map((base) => `${base}${quote}`);
+  const universe = shortlist.map((symbol) => ({
+    symbol,
+    priceChangePercent: between(symbol, 'scanChange', -4, 12).toFixed(2),
+    quoteVolume: Math.round(between(symbol, 'scanVolume', 8_000_000, 240_000_000)).toFixed(2),
+  }));
+
+  for (let i = SEEDED_SCANS - 1; i >= 0; i--) {
+    const key = `${profileId}:scan${i}`;
+    const newest = i === 0;
+    const probed = newest ? shortlist.length : shortlist.length - intBetween(key, 'probed', 0, 2);
+    const age = newest ? probed - 1 : probed - intBetween(key, 'age', 0, 2);
+    const trend = newest ? 6 : Math.max(2, age - intBetween(key, 'trend', 2, 5));
+    // Floored at one survivor: a scan that lands on zero eligible would be a 100% drop and would take the choke callout off the gainers band, which is the rung this series exists to demonstrate.
+    const eligible = newest ? 4 : Math.max(1, trend - intBetween(key, 'eligible', 0, 2));
+    // The newest scan adds nothing so its record cannot contradict the bindings on screen; older scans are history no visible row can disagree with.
+    const added = newest ? 0 : Math.min(eligible, intBetween(key, 'added', 0, 2));
+    const add = shortlist.filter((symbol) => !rotatable.includes(symbol)).slice(0, added);
+    await db.insert(schema.discoveryUniverseSnapshots).values({
+      profileId,
+      capturedAt: new Date(NOW_MS - i * SCAN_PERIOD_MS),
+      snapshot: {
+        universe,
+        shortlist,
+        add,
+        remove: [],
+        desired: [...rotatable],
+        configDigest: {
+          quoteAsset: quote,
+          maxAutoSymbols: 5,
+          changeMinPercent: '0',
+          rankTopPercent: 30,
+          rankExcludeTopPercent: 5,
+          marketBreadthMinPercent: '0',
+        },
+        funnel: demoScanFunnel({
+          probed,
+          age,
+          trend,
+          eligible,
+          added,
+          kept: rotatable.length,
+        }),
+      },
+    });
+  }
 }
 
 /**
@@ -914,6 +992,47 @@ async function main(): Promise<void> {
       const profiles = await account.profiles.listForAccount();
       const first = profiles[0];
       if (!first) throw new Error('app-e2e seed produced no profile');
+      const firstRepo = await profileRepo(db, op.operatorId, op.accountId, asProfileId(first.id));
+      const archivedAt = new Date();
+      await firstRepo.tradeArchive.insert({
+        symbol: `BTC${first.quoteAsset}`,
+        baseAsset: 'BTC',
+        quoteAsset: first.quoteAsset,
+        totalBuyQuote: '100',
+        totalSellQuote: '110',
+        profit: '10',
+        breakdown: { 'app-e2e:BUY': '100', 'app-e2e:SELL': '110' },
+        orders: [
+          { side: 'BUY', intent: 'app-e2e', binanceOrderId: '900001' },
+          { side: 'SELL', intent: 'app-e2e', binanceOrderId: '900002' },
+        ],
+        fees: { BNB: '0.01000000' },
+        feesQuote: '0',
+        feeBasis: 'unknown',
+        source: 'manual',
+        archivedAt,
+        cycleEnd: archivedAt,
+      });
+      const completeArchivedAt = new Date(archivedAt.getTime() - 1_000);
+      await firstRepo.tradeArchive.insert({
+        symbol: `ETH${first.quoteAsset}`,
+        baseAsset: 'ETH',
+        quoteAsset: first.quoteAsset,
+        totalBuyQuote: '50',
+        totalSellQuote: '55',
+        profit: '5',
+        breakdown: { 'app-e2e:BUY': '50', 'app-e2e:SELL': '55' },
+        orders: [
+          { side: 'BUY', intent: 'app-e2e', binanceOrderId: '900003' },
+          { side: 'SELL', intent: 'app-e2e', binanceOrderId: '900004' },
+        ],
+        fees: { [first.quoteAsset]: '0.5' },
+        feesQuote: '0.5',
+        feeBasis: 'exact',
+        source: 'manual',
+        archivedAt: completeArchivedAt,
+        cycleEnd: completeArchivedAt,
+      });
       for (const profile of profiles) {
         const scoped = await profileRepo(db, op.operatorId, op.accountId, asProfileId(profile.id));
         await scoped.profile.setEnabled(false);
@@ -1087,6 +1206,10 @@ async function main(): Promise<void> {
         symbols = picked.map((base) => `${base}${quote}`);
       }
 
+      // The Pinned panel and the docs screenshot of it only read as a choice when both states are on screen, so hold the first symbol back from discovery and leave the rest rotatable. Outside the allocation branch so a re-run over existing bindings pins them too.
+      const first = symbols[0];
+      if (first) await p.profileSymbols.setPinned(first, true, new Date());
+
       // Wipe prior seed so a re-run lands the same set of rows. Deliberately
       // after allocation: a profile skipped for want of a free base asset above
       // would otherwise be left emptied and never repopulated. Scoped by the
@@ -1107,10 +1230,24 @@ async function main(): Promise<void> {
       // a real row deleted here is gone. Nothing distinguishes a seeded row from
       // a real one afterwards — `breakdown` is schema-constrained to decimal
       // strings — so the seeder never touches archive history it did not create.
+      //
+      // The scans and the auto provenance below are gated for that same reason: on a dev database they are records of what the bot actually observed and did, and a fabricated scan or a rewritten provenance would sit beside real ones with nothing to tell them apart.
       if (DOCS_STACK) {
+        const rotatable = symbols.filter((symbol) => symbol !== first);
         await db
           .delete(schema.tradeArchive)
           .where(eq(schema.tradeArchive.profileId, p.scope.profileId));
+        // Provenance for the bindings the archive rows below attribute to discovery. Nothing reads this column to decide anything, but a coin whose trades are credited to auto-rotation while its binding says the operator chose it is a seed that contradicts itself.
+        await db
+          .update(schema.profileSymbols)
+          .set({ source: 'auto' })
+          .where(
+            and(
+              eq(schema.profileSymbols.profileId, p.scope.profileId),
+              eq(schema.profileSymbols.pinned, false),
+            ),
+          );
+        await seedDiscoveryScans(db, p.scope.profileId, quote, rotatable);
       }
 
       const now = NOW_MS;
@@ -1195,6 +1332,7 @@ async function main(): Promise<void> {
           // rows cannot be told apart from real ones later, so a re-run would
           // either accumulate them forever or risk deleting genuine history.
           if (DOCS_STACK) {
+            const completeFeeQuote = (tradeQuote * 0.001).toFixed(4);
             const archived = await p.tradeArchive.insert({
               symbol,
               baseAsset: base,
@@ -1202,7 +1340,6 @@ async function main(): Promise<void> {
               totalBuyQuote: tradeQuote.toFixed(18),
               totalSellQuote: sellQuote.toFixed(18),
               profit: profit.toFixed(18),
-              profitPercent: (profitPct * 100).toFixed(10),
               breakdown: {
                 'grid-buy:BUY': tradeQuote.toFixed(8),
                 'grid-sell:SELL': sellQuote.toFixed(8),
@@ -1221,9 +1358,11 @@ async function main(): Promise<void> {
                   price: (sellQuote / tradeQty).toFixed(8),
                 },
               ],
-              fees: {},
-              feesQuote: (tradeQuote * 0.001).toFixed(4),
-              source: 'manual',
+              fees: { [quote]: completeFeeQuote },
+              feesQuote: completeFeeQuote,
+              feeBasis: 'exact',
+              // Attributed to whichever way this coin entered the profile. The discovery scoreboard sums `source='auto'` alone, so with every row marked manual it reports zero trades and its win-rate tile drops the "of N trades" denominator entirely; the Home by-source band likewise has only one side to compare. `exact` fee evidence is what keeps both reading a number rather than "Unavailable".
+              source: symbol === first ? 'manual' : 'auto',
               archivedAt: sellClosedAt,
               cycleEnd: sellClosedAt,
             });

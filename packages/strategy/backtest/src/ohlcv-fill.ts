@@ -335,7 +335,7 @@ export class OhlcvFillModel implements FillModel {
  * Strict cross — BUY on bar low < limit, SELL on bar high > limit — not a mere
  * touch: a resting maker order at the back of the queue is not guaranteed a fill
  * when price only kisses its level, so requiring price to trade past it models
- * queue non-fill rather than assuming a free fill (#534, audit F6). A maker
+ * queue non-fill rather than assuming a free fill (audit F6). A maker
  * backtest is then no longer optimistic about getting filled at every touch.
  */
 function firstCrossBar(side: OrderSide, limit: Decimal, bars: readonly Candle[]): Candle | null {

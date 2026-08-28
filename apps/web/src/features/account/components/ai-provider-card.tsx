@@ -21,9 +21,7 @@ import {
 
 import type { AiProvider } from '@app/contracts';
 import { LoadingRows } from '@/shared/components/page-skeleton';
-
-const SELECT_CLASS =
-  'border-border bg-bg-elevated text-fg w-full rounded-md border px-3 py-2 text-sm sm:w-72';
+import { Select } from '@/shared/components/ui/select';
 
 /** Placeholder that tells the operator whether a secret is already stored. */
 const secretPlaceholder = (isSet: boolean): string =>
@@ -109,17 +107,17 @@ export function AiProviderCard(): React.JSX.Element {
 
         <div className="space-y-1">
           <Label htmlFor="ai-provider-select">Provider</Label>
-          <select
+          <Select
             id="ai-provider-select"
             data-testid="ai-provider-select"
             value={provider}
             disabled={busy}
             onChange={(e) => setProvider(e.target.value as AiProvider)}
-            className={SELECT_CLASS}
+            className="w-full sm:w-72"
           >
             <option value="anthropic">Anthropic (Claude)</option>
             <option value="openai-compatible">OpenAI-compatible (Ollama, vLLM, OpenAI)</option>
-          </select>
+          </Select>
         </div>
 
         {provider === 'anthropic' ? (

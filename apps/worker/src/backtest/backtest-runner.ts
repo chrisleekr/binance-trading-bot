@@ -12,7 +12,6 @@ import { intervalToMs, repo, type Database } from '@app/db';
 import type { BinanceRestClient } from '@app/binance';
 import { computeTechnicalsRating } from '@app/indicators/rating';
 import type {
-  AccountSnapshot,
   AnyStrategy,
   Candle,
   CandleInterval,
@@ -20,7 +19,6 @@ import type {
   SymbolInfo,
 } from '@app/strategy-core';
 import { configFingerprint, mergeConfig } from '@app/strategy-core';
-import { reserveAdjustedBalance } from 'lib/reserve.js';
 import { orderFeasibilityWarnings } from './order-feasibility-warnings.js';
 import {
   arrayMarketDataSource,
@@ -225,14 +223,6 @@ export interface RunProfileBacktestArgs {
   readonly strategyName: string;
   /** The profile's base strategy config (jsonb); merged with the run override. */
   readonly profileConfig: unknown;
-  /**
-   * Per-symbol base-asset reserve (decimal-string) keyed by symbol, from
-   * `profile_symbols`. Mirrors the live per-tick reserve overlay so backtest
-   * sell-sizing trades only the surplus above the reserve — without this, a
-   * backtest on a reserved symbol over-sells relative to live. Absent symbols
-   * (or a null value) leave that symbol's account untouched.
-   */
-  readonly reserveBySymbol?: ReadonlyMap<string, string | null>;
   /** Throttled progress callback: percent plus phase/count detail. */
   readonly onProgress?: (update: BacktestProgressUpdate) => void;
   /**
@@ -478,7 +468,7 @@ export async function runProfileBacktest(
   // Progress is reported against tradeable ticks, not the raw candle count: the
   // first WARMUP_CANDLES per symbol fire no tick, so a coarse strategy interval
   // over a short range is warm-up dominated and dividing by the raw count pins
-  // the percentage near 0 — the run looks wedged though it is running (#334).
+  // the percentage near 0 — the run looks wedged though it is running.
   const totalTicks = tradeableTickCount(tickSeries, WARMUP_CANDLES);
   // Zero tradeable ticks means warm-up consumed every candle. Surface it loudly
   // rather than completing with a silent empty result that reads as a hang.
@@ -493,7 +483,7 @@ export async function runProfileBacktest(
   // Warm-up phase: the engine consumes the first WARMUP_CANDLES per symbol with
   // no tradeable tick, so the replay onProgress stays silent until trading
   // begins. Announce the phase up front so the UI shows "warming up" instead of
-  // a bar stuck at 0% for the whole warm-up window (#334). No count is sent: the
+  // a bar stuck at 0% for the whole warm-up window. No count is sent: the
   // "candle X of Y" view only applies once replay starts.
   args.onProgress?.({ pct: 0, phase: 'warmup' });
 
@@ -511,29 +501,6 @@ export async function runProfileBacktest(
   // keyed by symbol (the interval is fixed). Same monotonic-asOf slice as the
   // bundle's signal cursor, so per-tick cost is O(1) amortised, no lookahead.
   const regimeCursor = new Map<string, number>();
-
-  // Reserve overlay: mirror the live worker's per-tick `applyReserveToBase` so a
-  // backtest on a symbol with an operator reserve sells only the surplus above
-  // it. Applied to the account the strategy sees each tick, per the ticked
-  // symbol's base reserve. Undefined (identity) when no symbol carries a reserve.
-  const baseAssetBySymbol = new Map(symbolInfos.map((i) => [i.symbol, i.baseAsset]));
-  const reserveBySymbol = args.reserveBySymbol;
-  const hasAnyReserve = reserveBySymbol
-    ? [...reserveBySymbol.values()].some((r) => r !== null && r !== '')
-    : false;
-  const adjustAccount = hasAnyReserve
-    ? (account: AccountSnapshot, symbol: string): AccountSnapshot => {
-        const reserve = reserveBySymbol?.get(symbol) ?? null;
-        const baseAsset = baseAssetBySymbol.get(symbol);
-        const bal = baseAsset ? account.balances[baseAsset] : undefined;
-        if (reserve === null || reserve === '' || !baseAsset || !bal) return account;
-        const adjusted = reserveAdjustedBalance(bal.free, bal.locked, reserve);
-        return {
-          ...account,
-          balances: { ...account.balances, [baseAsset]: { ...bal, ...adjusted } },
-        };
-      }
-    : undefined;
 
   const report = await runBacktest({
     strategy: strategy as AnyStrategy,
@@ -560,7 +527,6 @@ export async function runProfileBacktest(
     initialBalances: { [quoteAsset]: params.initialQuoteBalance },
     quoteAsset,
     symbolInfos,
-    ...(adjustAccount ? { adjustAccount } : {}),
     // Cede the loop before the engine's CPU-bound metric pass so a long run's
     // heartbeat / lock renewal survives the gap after the last tick's yield.
     onBeforeMetrics: () => new Promise<void>((resolve) => setImmediate(resolve)),

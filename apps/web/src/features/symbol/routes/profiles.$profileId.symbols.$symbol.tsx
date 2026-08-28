@@ -1,11 +1,13 @@
 // /profiles/$profileId/symbols/$symbol — the per-symbol workspace. A real page
 // (one full-screen surface model across the app): a compact cross-profile
 // switch rail beside the workspace, each scrolling on its own. The shell drops
-// <main>'s scroll+padding for this route (see __root's full-screen check) so the
-// workspace owns its own per-zone scroll, the same as the overview at `/`.
+// <main>'s scroll+padding for this route (see __root's FULL_SCREEN_LEAVES) so
+// the workspace owns its own per-zone scroll, the same as the overview at `/`.
+//
+// Split into a LAYOUT and an INDEX for the same reason the profile detail is: the per-symbol config page is a child, so the symbol names a rung above it in the breadcrumb and the config page has a route back. The title and the search schema stay on the layout, where both the workspace and its children inherit them.
 
 import { useQuery } from '@tanstack/react-query';
-import { createRoute } from '@tanstack/react-router';
+import { createRoute, Outlet } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { dashboardAggregateQueryOptions } from '@/features/dashboard/api/dashboard';
@@ -53,9 +55,16 @@ function SymbolWorkspacePage(): React.JSX.Element {
 }
 
 export const symbolDetailRoute = createRoute({
+  // Stays on the LAYOUT, not the index child: the index declares no title of its own so the breadcrumb names this rung, and the document title resolves to the same string from either.
   staticData: { title: (p) => (p['symbol'] ? p['symbol'].toUpperCase() : 'Symbol') },
   getParentRoute: () => profileDetailRoute,
   path: 'symbols/$symbol',
   validateSearch: (raw: Record<string, unknown>) => searchSchema.parse(raw),
+  component: () => <Outlet />,
+});
+
+export const symbolDetailIndexRoute = createRoute({
+  getParentRoute: () => symbolDetailRoute,
+  path: '/',
   component: SymbolWorkspacePage,
 });

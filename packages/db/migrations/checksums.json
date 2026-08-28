@@ -85,5 +85,11 @@
   "0084_diagnosis_runs.sql": "311ef49ae1173a048ecbecd33f014fb968f61aa3fe6d185caa91e6a6c413bde9",
   "0085_purge_cross_quote_equity_snapshots.sql": "5483e595d07d7e5fe4172f63b37b6cf2508d3668e530bd304dc6948c830afd02",
   "0086_trade_archive_profile_archived_id.sql": "bb2b4ddb3eed587f77029f16ab2a118e5ba6800fb9271bd55d6a54fd44aa0505",
-  "0087_better_auth_account_issuer.sql": "3e00f0560de4cbad544049819a1c5e3a75d67d3f173da0f144a757349ee047bb"
+  "0087_better_auth_account_issuer.sql": "3e00f0560de4cbad544049819a1c5e3a75d67d3f173da0f144a757349ee047bb",
+  "0088_profile_symbols_pinned.sql": "400810cd51956ca130193aff0ed89ee4d83e98662e54c967aa7e51b13353329a",
+  "0089_drop_trade_archive_profit_percent.sql": "9a44fd84442e548ced111122ee2fc5ddd7fb5ef3007c1f0872ef16b2948f718e",
+  "0090_trade_archive_fee_evidence.sql": "e44c0e6dd717de77643ecf82efd60d9582f4ec10b0ddc403b650bed9dd2c3e94",
+  "0091_drop_profile_symbols_reserve.sql": "1477156512f4c37afd7fc9f9883ab80cd00897f89b3b431f0c93fda440d65085",
+  "0092_trade_archive_fees_plain_decimal.sql": "7f51219214ad4d24b4068f97c2ad0a49e670cfb4cdc9611a87d40d81312f0515",
+  "0093_trade_archive_fee_basis.sql": "f869a7f7d9e3b91e6488932244ab3d4c8e2635ee47e5d748d5faaa657a747f82"
 }

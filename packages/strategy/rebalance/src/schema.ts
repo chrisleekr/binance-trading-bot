@@ -51,7 +51,7 @@ const RebalanceMomentumSchema = z.object({
  * instead equal-weights the top-K symbols by trailing return, rotating as the
  * cross-sectional ranking changes (the strong form of momentum the single-symbol
  * EMA cross lacks; the listed targets are the ranked universe, their weights
- * ignored). Both are cross-symbol, so they ride the #267 KV seam. `enabled`
+ * ignored). Both are cross-symbol, so they ride the KV seam. `enabled`
  * defaults FALSE — inert until the operator has backtested it on.
  */
 export const RebalanceConfigSchema = z.object({

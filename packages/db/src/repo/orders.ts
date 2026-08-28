@@ -538,36 +538,23 @@ export async function closeByBinanceOrderId(
 }
 
 /**
- * Reconcile a row to FILLED keyed by Binance's numeric `orderId`, for an order
- * that filled asynchronously via the user-stream (a resting LIMIT or
- * STOP_LOSS_LIMIT). place-order only inserts immediate (MARKET) fills as
- * FILLED; a resting order is inserted `NEW` and, without this, stays `NEW`
- * until {@link upsertLive} reuses its `(symbol, intent)` slot and clobbers it
- * to CANCELED — a filled order recorded as a cancellation, and (because the
- * archive reads `raw->>'cummulativeQuoteQty'`) a zeroed cost basis that inflates
- * realised P/L.
+ * Reconcile a row to FILLED by Binance `orderId` after a user-stream fill. Resting orders start as `NEW`; without this update they can later be mistaken for cancellations and leave the archive without a truthful cost basis.
  *
- * Matches on `(profileId, binanceOrderId)` WITHOUT a `closed_at IS NULL` guard
- * so it RECLAIMS a row a racing `upsertLive` already closed as CANCELED — the
- * fill is ground truth, a wrongly-CANCELED row must yield to it. Idempotent:
- * the `status <> 'FILLED'` predicate makes a Binance executionReport replay a
- * no-op. Merges the fill totals into `raw` (top-level `||`, preserving
- * `clientOrderId` / `transactTime` / `fills` / etc.) so the archive's cost
- * basis is truthful.
+ * The status update deliberately reclaims a racing CANCELED row but is idempotent for an already-FILLED row.
  *
- * Safe to call only from a FILLED executionReport: a truly-canceled order never
- * emits a FILLED event, so forcing the row to FILLED here is always correct.
- * Returns rows updated (0 = already FILLED, or the id was never tracked).
- *
- * Like {@link closeByBinanceOrderId} / {@link findByBinanceOrderId}, this relies
- * on `binance_order_id` being unique within a profile (every placement gets a
- * fresh Binance id; no path reuses one) — the whole orders model assumes it, so
- * the unguarded `UPDATE` patches exactly the one matching row in practice.
+ * @param scope - Ownership-proven account scope containing the order.
+ * @param binanceOrderId - Binance identity of the filled order.
+ * @param fill - Final exchange totals.
+ * @param closedAtMs - Fill time in epoch milliseconds; current time is used when the producer has no meaningful timestamp.
+ * @returns The number of rows whose status changed; zero means already FILLED or untracked.
  */
 export async function markFilledByBinanceOrderId(
   scope: AccountScope,
   binanceOrderId: bigint,
-  fill: { readonly executedQty: string; readonly cummulativeQuoteQty: string },
+  fill: {
+    readonly executedQty: string;
+    readonly cummulativeQuoteQty: string;
+  },
   // Epoch-ms of the fill. Optional; the wall-clock fallback keeps `closed_at`
   // non-null and is within seconds of the real fill on the live path. It is
   // reconcile-time, not fill-time, so a fill reconciled long after the fact
@@ -591,6 +578,37 @@ export async function markFilledByBinanceOrderId(
         eq(orders.accountId, scope.accountId),
         eq(orders.binanceOrderId, binanceOrderId),
         sql`${orders.status} <> 'FILLED'`,
+      ),
+    )
+    .returning({ id: orders.id });
+  return updated.length;
+}
+
+/**
+ * Record the exact base-asset BUY commission already removed from cost-basis quantity. Keeping this write in the fill transaction prevents the position and its later fee evidence from diverging.
+ *
+ * @param scope - Ownership-proven profile scope containing the order.
+ * @param symbol - Binance symbol, required because order ids are symbol-scoped.
+ * @param binanceOrderId - Binance identity of the filled BUY order.
+ * @param amount - Cumulative base-asset commission removed from the adopted quantity.
+ * @returns The number of matching BUY rows stamped; zero means the tracked row was absent.
+ */
+export async function stampBaseCommissionNetted(
+  scope: ProfileScope,
+  symbol: string,
+  binanceOrderId: bigint,
+  amount: string,
+): Promise<number> {
+  const updated = await scope.db
+    .update(orders)
+    .set({ baseCommissionNetted: amount })
+    .where(
+      and(
+        eq(orders.accountId, scope.accountId),
+        eq(orders.profileId, scope.profileId),
+        eq(orders.symbol, symbol),
+        eq(orders.binanceOrderId, binanceOrderId),
+        eq(orders.side, 'BUY'),
       ),
     )
     .returning({ id: orders.id });

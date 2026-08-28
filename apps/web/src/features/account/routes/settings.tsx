@@ -10,7 +10,7 @@
 
 import type { ChangePasswordRequest } from '@app/contracts';
 import { useQueryClient } from '@tanstack/react-query';
-import { createRoute, useRouter } from '@tanstack/react-router';
+import { createRoute, Outlet, useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 import { z } from 'zod';
 
@@ -29,6 +29,7 @@ import { AiProviderCard } from '@/features/account/components/ai-provider-card';
 import { OpsHealthPanel } from '@/features/account/components/ops-health-panel';
 import { RetentionSettingsCard } from '@/features/account/components/retention-settings-card';
 import { rootRoute } from '@/app/__root';
+import { Select } from '@/shared/components/ui/select';
 
 const EmptyResponse = z.unknown();
 
@@ -150,20 +151,20 @@ function SettingsPage(): React.JSX.Element {
         <div className="space-y-4">
           <div className="space-y-1">
             <Label htmlFor="account-timezone">Timezone</Label>
-            <select
+            <Select
               id="account-timezone"
               data-testid="account-timezone-select"
               value={timezone}
               disabled={tzSubmitting}
               onChange={(e) => void onChangeTimezone(e.target.value)}
-              className="w-full rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm text-fg sm:w-72"
+              className="w-full sm:w-72"
             >
               {TIMEZONE_OPTIONS.map((zone) => (
                 <option key={zone} value={zone}>
                   {zone}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <ActionBanner banner={tzBanner} />
         </div>
@@ -257,9 +258,21 @@ function SettingsPage(): React.JSX.Element {
   );
 }
 
+/**
+ * `/settings` as a LAYOUT, not a leaf. Backup & restore lives at
+ * `/settings/backup-restore`, so the URL already says it nests here; the route
+ * tree used to disagree, which left that page with no ancestor match and so no
+ * breadcrumb to orient by once its `Back` link was removed.
+ */
 export const settingsRoute = createRoute({
   staticData: { title: 'Settings' },
   getParentRoute: () => rootRoute,
   path: '/settings',
+  component: () => <Outlet />,
+});
+
+export const settingsIndexRoute = createRoute({
+  getParentRoute: () => settingsRoute,
+  path: '/',
   component: SettingsPage,
 });

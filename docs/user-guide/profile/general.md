@@ -1,10 +1,10 @@
-# General
+# Profile settings
 
-![Profile settings tab](../../assets/screenshots/user-guide/profile-general.png)
+![Profile settings section](../../assets/screenshots/user-guide/profile-general.png)
 
-_The General (Profile settings) tab. Name, quote asset, and profile-level toggles. Seeded demo data, not a real account._
+_The Profile settings section. Name, quote asset, and profile-level toggles. Seeded demo data, not a real account._
 
-The **General** tab (header "Profile settings") holds the profile's identity and its lifecycle controls — enabling, stopping, and deleting. There is no strategy config here.
+**Profile settings** holds the profile's identity and its lifecycle controls — enabling, stopping, and deleting. There is no strategy config here. It is named the same in the sidebar and in the page heading; it was previously "General" in the menu and "Profile settings" on the page.
 
 ## Name
 
@@ -27,7 +27,7 @@ Use **stop trading** for an instant freeze that leaves everything in place; use 
 
 ## Reconcile fees
 
-**Reconcile fees** (in the **Operate** group of the Manage sheet) backfills the real Binance commission for this profile's completed trades into the archive, so net-of-fee P/L reads honestly rather than estimated. Use it if a trade's **Fees** column looks empty or the net numbers seem too good — for example on trades archived before fee tracking, or where the live fee lookup returned zero. It fetches from Binance in the background and updates the archive on the next read; nothing is placed or cancelled. The corrected figures show on the [History → Archive](history.md) view.
+Use **Reconcile fees** in **Manage profile** when anything in History is marked `net n/a`, a trade row or a summary line,, which means its fee evidence is incomplete. It retries Binance fee evidence in the background and does not place or cancel orders. A fee charged in a third coin such as BNB is priced from the commission rates Binance applies to your account, so it usually resolves; it stays unavailable only when that rate lookup fails or returns something the bot will not trust. Results appear in [History → Archive](history.md).
 
 ## Danger zone
 

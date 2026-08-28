@@ -132,4 +132,44 @@ describe('BacktestResults diagnosis spine', () => {
     expect(screen.getByRole('heading', { name: 'What next?' })).toBeInTheDocument();
     expect(screen.getByTestId('recs-slot')).toBeInTheDocument();
   });
+
+  it('labels each numeric count badge with what it counts', () => {
+    render(
+      <BacktestResults
+        result={GATED_RESULT}
+        config={CONFIG}
+        reasonAttribution={TT_ATTR}
+        loadChartModule={loadChartModule}
+      />,
+    );
+    const spine = screen.getByTestId('bt-diagnosis-spine');
+    // The RSI blocker fired 900 times. Rendered as a bare number the badge reads out as "900" with no noun, so a screen-reader user gets a figure with no idea what it measures — and sighted readers rely on the adjacent title, which the badge is not programmatically tied to. Queried BY ROLE, because the role is half the fix: ARIA prohibits naming a `generic` element, so real assistive tech drops an `aria-label` on a bare `<span>`. `toHaveAccessibleName` cannot see that — `dom-accessibility-api` implements the naming steps with no notion of the prohibition, and would happily report the label off a `generic`. Only `getByRole('img')` pins the element type that makes the label survive.
+    const badge = within(spine).getByRole('img', { name: '900 blocked entries — indicator-rsi' });
+    expect(badge).toHaveTextContent('900');
+  });
+
+  it('names a gate-fail count for what that kind counts, not the blocker wording', () => {
+    // The noun is per-kind, so one exercised kind proves nothing about the others: a gate-fail badge saying "blocked entries" would be wrong in a way the blocker case cannot show.
+    render(
+      <BacktestResults
+        result={GATED_RESULT}
+        config={CONFIG}
+        reasonAttribution={TT_ATTR}
+        loadChartModule={loadChartModule}
+        enablementPolicy={{
+          enabled: true,
+          minProfitFactor: 1.1,
+          minTrades: 100,
+          minAlphaVsHoldPct: 0,
+          requireOutOfSample: true,
+          maxDrawdownPct: 30,
+        }}
+      />,
+    );
+    const spine = screen.getByTestId('bt-diagnosis-spine');
+    const badge = within(spine).getByRole('img', {
+      name: /^\d+ failed checks — Live-gate checks not cleared: /,
+    });
+    expect(badge).toHaveTextContent(/^\d+$/);
+  });
 });

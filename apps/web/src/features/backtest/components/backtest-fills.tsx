@@ -4,6 +4,7 @@ import type { BacktestTrade } from '@app/contracts';
 import { Button } from '@/shared/components/ui/button';
 import { formatAmount, formatMoneyAmount, formatPrice } from '@/shared/lib/format';
 import { formatInstant } from '@/shared/lib/format-time';
+import { Select } from '@/shared/components/ui/select';
 
 /** Fills table filter: every fill, only buys, or only sells. */
 type FillFilter = 'all' | 'buys' | 'sells';
@@ -78,13 +79,13 @@ export function BacktestFills({ trades, timeZone }: BacktestFillsProps): React.J
             </div>
             <label className="flex items-center gap-1.5 text-xs text-muted-fg">
               Rows per page
-              <select
+              <Select
+                variant="sm"
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
                   setPage(1);
                 }}
-                className="rounded-md border border-border bg-bg-elevated px-2 py-1 text-xs text-fg"
                 data-testid="bt-fills-page-size"
               >
                 {PAGE_SIZES.map((n) => (
@@ -92,7 +93,7 @@ export function BacktestFills({ trades, timeZone }: BacktestFillsProps): React.J
                     {n}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
 

@@ -10,6 +10,7 @@ import { accountHealthQueryKey, fetchAccountHealth } from '@/app/account-health-
 import { PnlValue } from '@/shared/components/pnl-value';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
 import { cn } from '@/shared/lib/cn';
+import { formatMoneyAmount } from '@/shared/lib/format';
 
 const POLL_MS = 15_000;
 
@@ -108,7 +109,8 @@ export function AccountHealthBar(): React.JSX.Element | null {
             <div className="flex max-w-xs flex-col gap-1">
               {approachingLimit.map((a) => (
                 <span key={a.profileId}>
-                  {a.name}: {a.lossQuote} of {a.limitQuote} limit
+                  {a.name}: {formatMoneyAmount(a.lossQuote)} of {formatMoneyAmount(a.limitQuote)}{' '}
+                  limit
                 </span>
               ))}
             </div>

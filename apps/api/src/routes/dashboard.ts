@@ -17,7 +17,7 @@ import {
   NotifyProviderTestFireResponse,
   ProfileDashboardResponse,
 } from '@app/contracts';
-import { projections } from '@app/db';
+import { POSITION_SEED_REFUSED, projections } from '@app/db';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
 import { periodWindow } from 'lib/period-window.js';
@@ -213,7 +213,11 @@ export const dashboardRouter = (di: DI): ApiHono => {
     // Enrich every symbol with its persisted blockers in one batch query (the
     // dashboard cache predates the fields, so they're read live here). A symbol
     // whose state has no blocker is absent from the map, decoding to null.
-    const rows = await p.symbolStates.findBySymbols(dashboard.symbols.map((s) => s.symbol));
+    // Two batched reads, not one per symbol. The refusal comes from a different table than the blockers, so it needs its own query, but it is still ONE query for the whole profile: this is the hottest route in the app and a per-symbol read would add a round trip per coin to every poll.
+    const [rows, refusalRows] = await Promise.all([
+      p.symbolStates.findBySymbols(dashboard.symbols.map((s) => s.symbol)),
+      p.conditionStates.listOpenByCondition(POSITION_SEED_REFUSED),
+    ]);
     const blockers = new Map<string, EntryBlockerResponse>();
     const stopBlockers = new Map<string, EntryBlockerResponse>();
     for (const r of rows) {
@@ -222,10 +226,15 @@ export const dashboardRouter = (di: DI): ApiHono => {
       const sb = projections.readProtectiveStopBlocker(r.state);
       if (sb) stopBlockers.set(r.symbol, sb);
     }
+    const refusals = new Map(
+      refusalRows.map((r) => [r.symbol, { code: r.code, since: r.since.toISOString() }] as const),
+    );
     const symbols = dashboard.symbols.map((s) => ({
       ...s,
       entryBlocker: blockers.get(s.symbol) ?? null,
       protectiveStopBlocker: stopBlockers.get(s.symbol) ?? null,
+      // The cost basis on this row survives a refused seed by design, so without this the dashboard reads it as a held position and prices it — a gain on something that will never be sold, in the column where every real one sits.
+      positionSeedRefusal: refusals.get(s.symbol) ?? null,
     }));
     return c.json({ ...dashboard, enabledNotifierCount, symbols }, 200);
   });

@@ -28,8 +28,8 @@ import {
 import { isRawShape, orderDisplayPrice, orderQty } from '@/features/symbol/lib/order-raw';
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
 import { FormActions } from '@/shared/components/form-actions';
-import { BackLink } from '@/shared/components/page';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
+import { Breadcrumb } from '@/shared/components/breadcrumb';
 import { Button } from '@/shared/components/ui/button';
 import {
   Dialog,
@@ -475,10 +475,8 @@ function WorkspaceHeader({
   const switcherShown = symbols.length >= 2 && symbols.some((s) => s.symbol === symbol);
   return (
     <header className="shrink-0 space-y-3 border-b border-border bg-bg-elevated p-4">
-      {/* Back, not a close X: the workspace is a page under a profile, not a
-          modal over the overview. The X dropped the operator at the account
-          root, losing the profile they were working in. */}
-      <BackLink to="/accounts/$accountId/profiles/$profileId" params={{ accountId, profileId }} />
+      {/* Orientation comes from the breadcrumb above the shell, not a close X: the workspace is a page under a profile, not a modal over the overview. */}
+      <Breadcrumb />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className={switcherShown ? 'sr-only' : 'text-xl font-semibold text-fg'}>{symbol}</h1>

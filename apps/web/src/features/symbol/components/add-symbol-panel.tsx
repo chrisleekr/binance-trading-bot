@@ -109,9 +109,10 @@ export function AddSymbolPanel({ profileId }: { readonly profileId: string }): R
       // instead of waiting for the next 5s poll.
       await queryClient.invalidateQueries({ queryKey: profileDashboardQueryKey(profileId) });
       // Toast survives the navigation; a local banner would unmount with the page.
+      // "with cost basis", not "at entry": the price the operator typed is a record of what they paid, and the worker may still refuse to seed a position from it when nothing sellable backs the coin. The old wording promised a position this form cannot guarantee.
       toast.success(
         body.avgEntryPrice !== undefined
-          ? `Added ${body.symbol} at entry ${body.avgEntryPrice}.`
+          ? `Added ${body.symbol} with cost basis ${body.avgEntryPrice}.`
           : `Added ${body.symbol}.`,
       );
       notifySaveDiagnostics(created.diagnostics);

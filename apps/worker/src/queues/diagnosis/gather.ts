@@ -153,8 +153,8 @@ export interface GatheredDiagnosis {
   readonly discovery: {
     readonly config: StoredDiscoveryConfig;
     readonly quoteAsset: string;
-    readonly autoSymbols: readonly string[];
-    readonly manualSymbols: readonly string[];
+    readonly rotatableSymbols: readonly string[];
+    readonly pinnedSymbols: readonly string[];
   } | null;
 }
 
@@ -219,8 +219,9 @@ export const gatherDiagnosisInput = async (
   // which is still worth reading — inventing paths would not be.
   const reasonAttribution = (plugin?.reasonAttribution ?? {}) as ReasonAttributionMap;
 
-  const autoSymbols = symbolRows.filter((s) => s.source === 'auto').map((s) => s.symbol);
-  const manualSymbols = symbolRows.filter((s) => s.source === 'manual').map((s) => s.symbol);
+  // The slot cap counts what discovery may rotate, which is the UNPINNED set — not the discovery-provenanced one, or a system-recovered binding would occupy a slot the ladder cannot see.
+  const rotatableSymbols = symbolRows.filter((s) => !s.pinned).map((s) => s.symbol);
+  const pinnedSymbols = symbolRows.filter((s) => s.pinned).map((s) => s.symbol);
 
   // Only what the profile currently holds. A condition row closes when its
   // owning tick writes a null code, so a row for a symbol whose binding is gone
@@ -248,7 +249,7 @@ export const gatherDiagnosisInput = async (
       discoveryConfig: discoveryCfg,
       maxAutoSymbols: discoveryCfg?.maxAutoSymbols ?? null,
       refreshPeriodMs: discoveryCfg?.refreshPeriodMs ?? null,
-      autoSymbolCount: autoSymbols.length,
+      autoSymbolCount: rotatableSymbols.length,
     },
     worker: { heartbeatPresent },
     halts,
@@ -263,7 +264,7 @@ export const gatherDiagnosisInput = async (
   return {
     input,
     discovery: discoveryCfg
-      ? { config: discoveryCfg, quoteAsset, autoSymbols, manualSymbols }
+      ? { config: discoveryCfg, quoteAsset, rotatableSymbols, pinnedSymbols }
       : null,
   };
 };

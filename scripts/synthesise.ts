@@ -316,7 +316,7 @@ const synthCandle = (price: string): Candle => ({
 });
 
 // Attach an enterOnAdd entry hint (with optional guard fields) to a tvBundle by
-// re-parsing through TTBundleSchema, so the discovery fixtures express the #473
+// re-parsing through TTBundleSchema, so the discovery fixtures express the guard
 // shape without duplicating the technicals scaffolding.
 const withEntryHint = (base: TTBundle, entryHint: Record<string, unknown>): TTBundle =>
   TTBundleSchema.parse({ ...base, entryHint });
@@ -788,7 +788,7 @@ const SCENARIO_BUILDERS: Record<Scenario, () => TickInput<TTConfig, TTState, TTB
       ],
     }),
   ],
-  // Anti-chase guard (#473): an armed enterOnAdd discovery hint with a 24h high
+  // Anti-chase guard: an armed enterOnAdd discovery hint with a 24h high
   // of 100 and a 3% max-distance. Price 98 is within the band (>= 97), so the
   // entry is DEFERRED with entryBlocker=chase-guard and no place-order, even
   // though the technicals floor would otherwise allow it. Pins the guard's veto.
@@ -806,7 +806,7 @@ const SCENARIO_BUILDERS: Record<Scenario, () => TickInput<TTConfig, TTState, TTB
     );
     return [buildInput({ config: c, bundle, currentPrice: '98' })];
   },
-  // Falling-knife guard (#473): an armed enterOnAdd hint with knifeCandles=3 and
+  // Falling-knife guard: an armed enterOnAdd hint with knifeCandles=3 and
   // knifeDropPercent=5. The 1h window closes 100 -> 97 -> 94 (top-to-last 6% >=
   // 5%), so the entry is DEFERRED with entryBlocker=knife-guard and no
   // place-order. Pins the knife veto and its top-to-last reference price.

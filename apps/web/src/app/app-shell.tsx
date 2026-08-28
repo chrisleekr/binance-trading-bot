@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { AccountHealthBar } from '@/app/account-health-bar';
 import { BottomNav } from '@/app/bottom-nav';
 import { DemoBanner } from '@/app/demo-banner';
-import { SideNav } from '@/app/side-nav';
+import { SETTINGS_ITEM, SideNav } from '@/app/side-nav';
 import { StatusBar } from '@/app/status-bar';
 import { TopBarStatus } from '@/app/top-bar-status';
 import { TopBarTicker, TopBarTickerBar } from '@/app/top-bar-ticker';
@@ -13,6 +13,7 @@ import { useDemoMode } from '@/features/auth/api/auth';
 import { ThemeToggle } from '@/shared/components/theme-toggle';
 import { buttonVariants } from '@/shared/components/ui/button';
 import { cn } from '@/shared/lib/cn';
+import { visibleInDemo } from '@/shared/lib/demo-visibility';
 import { t } from '@/shared/lib/i18n';
 import { useScrollAnchor } from '@/shared/lib/use-scroll-anchor';
 
@@ -34,8 +35,7 @@ export function AppShell({
   // full-bleed grid. Every other route keeps the default scroll+padding.
   disableMainScroll?: boolean;
 }) {
-  // Public "Live demo": show the persistent banner and hide settings,
-  // backup, and API-key entry points. Testnet trading stays interactive.
+  // Public "Live demo": show the persistent banner and drop every entry point whose destination declared itself demo-hidden. Testnet trading stays interactive.
   const demoMode = useDemoMode();
   // WebKit has no scroll anchoring: a polled reflow above the fold bounces a
   // scrolled reader on the next tick. Hold their spot on <main> — the scroller
@@ -61,6 +61,14 @@ export function AppShell({
     // and real overlays portal to document.body, outside the shell, so they
     // are unaffected.
     <div className="relative flex h-svh flex-col overflow-hidden bg-bg text-fg">
+      {/* WCAG 2.1 SC 2.4.1 Bypass Blocks. First tab stop on every page, visually hidden until focused, so a keyboard operator skips the sidebar's ten rows instead of tabbing them on every navigation. Anchored to <main>'s id, and <main> takes tabIndex={-1} so the jump moves focus, not just the scroll position. */}
+      <a
+        href="#main-content"
+        data-testid="skip-link"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-bg-elevated focus:px-4 focus:py-3 focus:text-sm focus:font-medium focus:text-fg focus:ring-2 focus:ring-focus focus:outline-none"
+      >
+        {t('nav.skip_to_content')}
+      </a>
       {demoMode && <DemoBanner />}
       {/* Full-width terminal top bar: accent wordmark block, then the profile
           switcher, with the account/theme controls on the right. The 2px
@@ -94,9 +102,9 @@ export function AppShell({
             lives on the Account settings page, not here. */}
         <TopBarStatus />
         {/* Settings is a compact icon by the theme toggle on desktop; mobile
-            reaches it through the BottomNav. Hidden in the live demo: it fronts
-            the now-403 credential/backup routes. */}
-        {!demoMode && (
+            reaches it through the BottomNav. Reads the sidebar's declaration for
+            the same destination rather than restating the demo answer. */}
+        {visibleInDemo(SETTINGS_ITEM, demoMode) && (
           <Link
             to="/settings"
             aria-label={t('nav.settings')}
@@ -105,6 +113,10 @@ export function AppShell({
               buttonVariants({ variant: 'ghost', size: 'icon' }),
               'hidden md:inline-flex',
             )}
+            // exact: without it the icon stays lit — and stamped
+            // `aria-current="page"` — on /settings/backup-restore, which it does
+            // not point at.
+            activeOptions={{ exact: true }}
             activeProps={{ className: 'bg-surface-alt text-fg-emphasis' }}
           >
             <Settings className="h-5 w-5" aria-hidden="true" />
@@ -122,6 +134,11 @@ export function AppShell({
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <SideNav className="hidden md:flex" demoMode={demoMode} />
         <main
+          id="main-content"
+          // Focusable only as a skip-link target: without it the browser scrolls
+          // to the anchor but leaves focus on the link, so the next Tab returns
+          // to the nav the operator just skipped.
+          tabIndex={-1}
           ref={disableMainScroll ? undefined : mainScrollRef}
           className={cn(
             // overscroll-contain, on the scroller itself: overscroll-behavior is

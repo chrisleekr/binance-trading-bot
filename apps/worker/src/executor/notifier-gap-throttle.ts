@@ -10,7 +10,7 @@
 // rather than one per pod. This is a self-expiring `SET NX` flag (a TTL'd
 // idempotency key), not a distributed lock: no owner, no release, the key
 // self-expires. Like the request-weight bucket, it is coordination
-// infrastructure the no-locks gate permits (WS6 ADR, epic #561).
+// infrastructure the no-locks gate permits (WS6 ADR).
 
 import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';

@@ -47,9 +47,10 @@ const snapshotRow = {
   snapshot: { funnel: { universe: 400, eligible: 4, added: 1, breadthOk: true } },
 };
 
+// One rotatable row and one pinned one. The pin, not the provenance, is what the slot maths and the funnel probe read.
 const symbolRows = [
-  { symbol: 'BTCUSDT', source: 'auto' },
-  { symbol: 'ETHUSDT', source: 'manual' },
+  { symbol: 'BTCUSDT', source: 'auto', pinned: false },
+  { symbol: 'ETHUSDT', source: 'manual', pinned: true },
 ];
 
 /**
@@ -115,8 +116,8 @@ const expectCompleteButTimelineless = (
   expect(input.snapshots).toHaveLength(1);
   expect(input.snapshots[0]?.capturedAtMs).toBe(NOW - 30_000);
   expect(input.snapshots[0]?.funnel?.eligible).toBe(4);
-  expect(gathered.discovery?.autoSymbols).toEqual(['BTCUSDT']);
-  expect(gathered.discovery?.manualSymbols).toEqual(['ETHUSDT']);
+  expect(gathered.discovery?.rotatableSymbols).toEqual(['BTCUSDT']);
+  expect(gathered.discovery?.pinnedSymbols).toEqual(['ETHUSDT']);
 };
 
 /**

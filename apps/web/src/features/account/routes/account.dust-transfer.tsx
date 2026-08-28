@@ -6,7 +6,7 @@
 // The POST returns an override-action id; Binance gets called from the worker.
 //
 // `?profileId=…` as a search param so this route is reachable without nesting
-// under the per-profile root that lands with #8.
+// under the per-profile root.
 
 import { useQuery } from '@tanstack/react-query';
 import { createRoute, useSearch } from '@tanstack/react-router';
@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { z } from 'zod';
 
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
-import { BackLink, Page, PageHeader } from '@/shared/components/page';
+import { Page, PageHeader } from '@/shared/components/page';
 import { Panel } from '@/shared/components/panel';
 import { LoadingRows } from '@/shared/components/page-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
@@ -28,16 +28,12 @@ import {
 import { DustCancelPanel } from '@/features/account/components/dust-cancel-panel';
 import { accountScopeRoute } from '@/features/account/routes/account-scope';
 import { useTimezone } from '@/shared/context/timezone-context';
+import { formatAmount, formatBalanceAmount } from '@/shared/lib/format';
 import { formatInstant } from '@/shared/lib/format-time';
 
-import type { DustAsset } from '@app/contracts';
+import { decimalAdd, type DustAsset } from '@app/contracts';
 
-// Binance's dust-transfer minimum is 0.001 BTC equivalent. Anything below is
-// not eligible regardless of `canDustTransfer` so we drop it from the UI list.
-// String comparison is not safe for arbitrary decimals; we widen to Number for
-// the eligibility predicate and the running preview only — the operator never
-// see-saws a single satoshi on this screen and the actual value flowing back
-// to Binance is the asset *symbol* (string), not the BTC estimate.
+// Binance's dust-transfer minimum is 0.001 BTC equivalent. Anything below is not eligible regardless of `canDustTransfer` so we drop it from the UI list. String comparison is not safe for arbitrary decimals, so the eligibility predicate widens one stored value to Number to compare it against this threshold. That is a single-value comparison against a constant, not an accumulation: nothing is summed there, so there is nothing for the error to build up in, and the value flowing back to Binance is the asset *symbol* anyway, never the BTC estimate.
 const DUST_THRESHOLD_BTC = 0.001;
 // BNB is the destination asset and BTC is the quote asset for the estimate;
 // neither can be the source of a dust conversion.
@@ -58,13 +54,16 @@ const isEligible = (asset: DustAsset): boolean =>
   !NON_SOURCE_ASSETS.has(asset.asset) &&
   Number(asset.estimatedBTC) >= DUST_THRESHOLD_BTC;
 
-const sumEstimatedBtc = (assets: readonly DustAsset[]): string => {
-  // Fixed-point string sum to 8 decimals (BTC precision) avoids visible IEEE-754
-  // drift in the preview. The value never crosses the API boundary — the POST
-  // body sends asset symbols, not amounts.
-  const total = assets.reduce((acc, a) => acc + Number(a.estimatedBTC), 0);
-  return total.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
-};
+/**
+ * Total the selected assets' BTC estimates as decimal strings.
+ *
+ * `decimalAdd`, not `acc + Number(...)`: the accumulator is money, and the comment that used to sit here claimed a fixed-point sum while the code did the opposite. The visible defect was not the arithmetic but the rendering that followed it — the total was stringified raw and trimmed while every row beside it went through the shared balance formatter, so a selection landing on a whole number read `1 BTC` directly under rows reading `0.4000 BTC`. Formatting is now the caller's job through that same helper, which is what makes the total and its parts unable to disagree.
+ *
+ * @param assets - The eligible assets the operator has ticked, in any order.
+ * @returns Their summed BTC estimate as a plain decimal string, `'0'` for an empty selection.
+ */
+const sumEstimatedBtc = (assets: readonly DustAsset[]): string =>
+  assets.reduce<string>((acc, a) => decimalAdd(acc, a.estimatedBTC), '0');
 
 function DustTransferPage(): React.JSX.Element {
   const timeZone = useTimezone();
@@ -136,7 +135,7 @@ function DustTransferPage(): React.JSX.Element {
 
   return (
     <Page>
-      <PageHeader title="Dust transfer" back={<BackLink to="/account" />} />
+      <PageHeader title="Dust transfer" />
 
       <p className="text-sm text-muted-fg">
         Convert leftover small balances ("dust") in your Binance spot wallet into BNB in one click.
@@ -200,8 +199,9 @@ function DustTransferPage(): React.JSX.Element {
                       />
                       <span className="font-medium">{asset.asset}</span>
                     </label>
+                    {/* formatBalanceAmount, not formatAmount: this is a tabular column, and formatAmount sets no MINIMUM fraction digits, so 0.0001 sits beside 0.00012345 ragged and anything under 5e-9 collapses to a bare 0. */}
                     <span className="font-mono text-sm text-muted-fg tabular-nums">
-                      {asset.estimatedBTC} BTC
+                      {formatBalanceAmount(asset.estimatedBTC)} BTC
                     </span>
                   </li>
                 );
@@ -209,7 +209,7 @@ function DustTransferPage(): React.JSX.Element {
             </ul>
             <div className="flex items-center justify-between text-sm">
               <span className="text-xs text-muted-fg">{selectedAssets.length} selected</span>
-              <span className="font-mono tabular-nums">{previewBtc} BTC</span>
+              <span className="font-mono tabular-nums">{formatBalanceAmount(previewBtc)} BTC</span>
             </div>
             <ActionBanner banner={banner} />
             <Button
@@ -256,7 +256,10 @@ function DustTransferPage(): React.JSX.Element {
                 <div className="text-xs text-muted-fg">
                   {(row.convertedAssets ?? row.requestedAssets).join(', ') || '—'}
                   {row.bnbReceived !== null ? (
-                    <span className="font-mono text-fg tabular-nums"> → {row.bnbReceived} BNB</span>
+                    <span className="font-mono text-fg tabular-nums">
+                      {' '}
+                      → {formatAmount(row.bnbReceived)} BNB
+                    </span>
                   ) : null}
                 </div>
               </li>

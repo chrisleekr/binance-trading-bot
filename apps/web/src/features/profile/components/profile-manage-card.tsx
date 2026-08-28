@@ -1,25 +1,15 @@
-// Profile Manage menu — the launcher into a profile's management pages, shown in
-// the Manage slide-over. Mostly navigation, grouped (Configure / Analyze /
-// Operate / Profile). The lifecycle and admin actions (enable/disable, the
-// per-profile stop, rename, quote, delete, API key) moved to the General page
-// (profile-general-panel.tsx). Sections come from the shared PROFILE_SECTIONS.
+// Profile Manage menu — the operations panel in the Manage slide-over.
 //
-// Two entries are hand-written rather than PROFILE_SECTIONS members: Investigate
-// and Reconcile fees are ACTIONS, not routes, and PROFILE_SECTIONS is `as const`
-// precisely so its `to` stays a literal route path for TanStack's typed Link.
+// It holds only what has no page of its own: Investigate and Reconcile fees, both ACTIONS rather than routes. The navigation tiles it used to carry duplicated the sidebar's expanded profile and the mobile Profiles sheet, and lost to both: a modal can say where to go but never where you are among the siblings, which is the question an operator moving between two settings is actually asking.
 
 import { useMutation } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
 import { Receipt, Stethoscope } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { useDemoMode } from '@/features/auth/api/auth';
 import { reconcileProfileFees } from '@/features/profile/api/profiles-mutations';
-import { PROFILE_SECTIONS } from '@/features/profile/lib/profile-sections';
-import { useActiveAccountId } from '@/shared/lib/account-scope';
 import { Button } from '@/shared/components/ui/button';
-
-const tileClass =
-  'border-border text-fg hover:bg-bg-elevated flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm';
+import { t } from '@/shared/lib/i18n';
 
 export function ProfileManageCard({
   profileId,
@@ -29,9 +19,9 @@ export function ProfileManageCard({
   /** Hands the screen over to the investigation drawer; the caller closes this one. */
   readonly onInvestigate: () => void;
 }): React.JSX.Element {
-  const accountId = useActiveAccountId() ?? '';
-  // Backfill real Binance commission into the trade archive so net-of-fee P/L is
-  // honest. Fire-and-forget worker job; the result shows on the next History read.
+  // Enqueues a weighted Binance `myTrades` pull with no jobId dedup, so the route 403s for the demo operator. Investigate keeps its button because its drawer can explain itself; this one has nowhere to say so but here.
+  const demoMode = useDemoMode();
+  // Retry incomplete Binance fee evidence in the background; History remains unavailable where the required valuation cannot be proven.
   const reconcileFees = useMutation({
     mutationFn: () => reconcileProfileFees(profileId),
     onSuccess: () =>
@@ -41,53 +31,33 @@ export function ProfileManageCard({
   });
 
   return (
-    <div className="space-y-5" data-testid="profile-manage-card">
-      {PROFILE_SECTIONS.map((g) => (
-        <div key={g.group} className="space-y-2">
-          <h3 className="text-xs font-semibold tracking-wide text-muted-fg uppercase">{g.group}</h3>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-2">
-            {g.items.map((it) => {
-              const Icon = it.icon;
-              return (
-                <Link
-                  key={it.to}
-                  to={it.to}
-                  params={{ accountId, profileId }}
-                  className={tileClass}
-                  data-testid={`profile-manage-${it.testId}`}
-                >
-                  <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{it.label}</span>
-                </Link>
-              );
-            })}
-            {g.group === 'Analyze' ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-11 justify-start gap-2"
-                data-testid="profile-manage-investigate"
-                onClick={onInvestigate}
-              >
-                <Stethoscope className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span className="truncate">Investigate</span>
-              </Button>
-            ) : null}
-            {g.group === 'Operate' ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-11 justify-start gap-2"
-                data-testid="profile-manage-reconcile-fees"
-                onClick={() => reconcileFees.mutate()}
-              >
-                <Receipt className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span className="truncate">Reconcile fees</span>
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ))}
+    <div className="space-y-2" data-testid="profile-manage-card">
+      <Button
+        type="button"
+        variant="outline"
+        className="min-h-11 w-full justify-start gap-2"
+        data-testid="profile-manage-investigate"
+        onClick={onInvestigate}
+      >
+        <Stethoscope className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span className="truncate">Investigate</span>
+      </Button>
+      {demoMode ? (
+        <p className="text-sm text-muted-fg" data-testid="reconcile-fees-demo-unavailable">
+          {t('demo.reconcile_fees_unavailable')}
+        </p>
+      ) : (
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11 w-full justify-start gap-2"
+          data-testid="profile-manage-reconcile-fees"
+          onClick={() => reconcileFees.mutate()}
+        >
+          <Receipt className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span className="truncate">Reconcile fees</span>
+        </Button>
+      )}
     </div>
   );
 }

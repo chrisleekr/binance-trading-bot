@@ -76,17 +76,48 @@ const baseIntent = (intent: string): string => {
 };
 
 /**
- * Per-bucket realized-P/L primitives shared by the by-intent and by-source
- * rollups. `profitSum` is the signed GROSS profit (before fees); `totalFees` is
- * the commissions valued in the quote asset, so net = `profitSum - totalFees`.
- * `wins`/`losses` and `grossProfit`/`grossLoss` are computed on NET-of-fee
- * profit — a trade that cleared a gross profit but not its fees is a net loss —
- * so `grossProfit - grossLoss` equals the net profit sum. The wire carries only
- * verbatim decimal sums and integer counts, never a divided ratio: the UI
- * derives win% (`wins`/`tradeCount`), profit factor (`grossProfit`/`grossLoss`),
- * and expectancy at render time so no money value is ever stored as an IEEE-754
- * number. A breakeven trade (net exactly 0) counts in `tradeCount` but in
- * neither `wins` nor `losses`.
+ * How well a stored fee figure is known. `exact` means every commission was valued from evidence dated to the fill itself; `estimated` means a real charge was reconstructed from a source that is not dated to it (a rate table or a ticker read later), so the figure has a basis but no way left to check it; `unknown` means at least one charge is missing outright, so the recorded total under-states what was actually paid.
+ *
+ * The three are not degrees of confidence in one number, they are three different situations, and the middle one is why a boolean could not carry this: a reconstruction is neither a proof nor an absence, and collapsing it either way tells the operator something false. Collapsed up, an estimate renders as a certified Net P/L; collapsed down, a usable figure is withheld along with every statistic derived from it.
+ *
+ * `unknown` is the one that biases: a missing charge only ever makes the result look better than it was, so a profit factor rendered off it flatters. That is why the display gate withholds the fee-sensitive statistics there and merely marks them at `estimated`.
+ *
+ * Text with a named CHECK at the database boundary rather than a native enum, matching {@link SymbolSource}: a native enum gains a value only through its own migration, and `alter type ... add value` cannot run in the same transaction as the rows that would use it.
+ */
+export const FeeBasis = z.enum(['exact', 'estimated', 'unknown']);
+/** TS type derived from {@link FeeBasis} so consumers don't re-run z.infer at every call site. */
+export type FeeBasis = z.infer<typeof FeeBasis>;
+
+/**
+ * Trust ordering: `unknown` < `estimated` < `exact`. Not an opinion about how close each is to the truth, but a statement about which one a set of rows must be reported as, and the order runs this way because the weakest member is what a reader has to be told about.
+ */
+const FEE_BASIS_RANK: Record<string, number> = { unknown: 0, estimated: 1, exact: 2 };
+
+/** The tiers by rank, so the fold can return a canonical spelling rather than whichever string it was handed. Index positions must match the ranks above. */
+const FEE_BASIS_BY_RANK: readonly FeeBasis[] = ['unknown', 'estimated', 'exact'];
+
+/**
+ * Combine two fee tiers into the one a bucket holding both must report: the WEAKER of the pair.
+ *
+ * A rollup is a single claim about a set of cycles, so it inherits the worst evidence any member carries. Taking the stronger tier would let one proven cycle certify a bucket whose other rows were never valued, which is the direction that flatters — and the direction nothing downstream could detect, because the bucket arrives as one row with one tier.
+ *
+ * This is the single TS fold; the SQL aggregates use the same ranking inline because a per-row function call in an aggregate is not something Postgres can plan around. An unrecognised value ranks as `unknown` rather than throwing: a tier is read back off a database column and out of a wire payload, and a read path that dies on an unexpected string takes the whole rollup with it when the safe answer is right there.
+ *
+ * @param a - One tier, from a row or from the fold so far.
+ * @param b - The other tier.
+ * @returns Whichever of the two is weaker, or `'unknown'` if either is a value this build does not recognise.
+ */
+export function weakestFeeBasis(a: string, b: string): FeeBasis {
+  const rankA = FEE_BASIS_RANK[a] ?? 0;
+  const rankB = FEE_BASIS_RANK[b] ?? 0;
+  // Map the rank back to a canonical tier rather than returning the input verbatim. An unrecognised string ranks lowest but is not itself a tier, and every consumer gates by equality against the three known spellings, so passing it through would satisfy neither the `=== 'unknown'` withholding branch nor the `=== 'estimated'` marker and render as fully proven. The SQL fold already normalises this way; returning the input is the one input on which the two halves would disagree.
+  return FEE_BASIS_BY_RANK[Math.min(rankA, rankB)] as FeeBasis;
+}
+
+/**
+ * Per-bucket realized-P/L primitives shared by the by-intent and by-source rollups. `profitSum` is the signed Recorded cost-basis result; `totalFees` is the additional quote adjustment, so Net = `profitSum - totalFees`.
+ *
+ * `wins`/`losses` and `grossProfit`/`grossLoss` classify the known Net subtotal; `feeBasis` says how well that subtotal's fee component is known and therefore how far those statistics can be trusted. The wire carries decimal sums and integer counts, never divided money values. A zero subtotal counts in `tradeCount` but in neither `wins` nor `losses`.
  */
 const rollupMetricFields = {
   tradeCount: z.number().int().nonnegative(),
@@ -97,6 +128,7 @@ const rollupMetricFields = {
   grossProfit: DecimalString,
   grossLoss: DecimalString,
   totalFees: DecimalString,
+  feeBasis: FeeBasis.default('unknown'),
 } as const;
 
 /** One period-scoped P/L bucket grouped by `(quoteAsset, exitIntent)`. */
@@ -108,7 +140,7 @@ export const ByIntentRollupSchema = z.object({
 /** TS type derived from {@link ByIntentRollupSchema}. */
 export type ByIntentRollup = z.infer<typeof ByIntentRollupSchema>;
 
-/** One period-scoped P/L bucket grouped by `(quoteAsset, source)` (auto = discovery, manual = pinned). */
+/** One period-scoped P/L bucket grouped by `(quoteAsset, source)` (auto = discovery found it, manual = the operator added it, unknown = the bot re-created it to recover an untracked position). */
 export const BySourceRollupSchema = z.object({
   quoteAsset: z.string(),
   source: z.string(),
@@ -118,16 +150,14 @@ export const BySourceRollupSchema = z.object({
 export type BySourceRollup = z.infer<typeof BySourceRollupSchema>;
 
 /**
- * One period row fed to the archive rollups: its quote, source, GROSS realized
- * profit, the commissions valued in the quote asset (`feesQuote`), and the
- * cycle's orders. `feesQuote` defaults to `'0'` so a producer that has not yet
- * been updated reads as gross-only rather than throwing.
+ * One period row fed to the archive rollups: its quote, source, Recorded result, additional fee adjustment, fee tier, and orders. An absent `feeBasis` reads as `unknown`, so an older producer stays parseable without its Net result being promoted.
  */
 export interface ArchiveRollupItem {
   readonly quoteAsset: string;
   readonly source: string;
   readonly profit: string;
   readonly feesQuote?: string;
+  readonly feeBasis?: string;
   // `closedAt` is what {@link deriveExitIntent} orders by; a projection that annotates itself with this type and drops the field silently falls back to position-based selection.
   readonly orders: readonly { side: string; intent?: string | null; closedAt?: string | null }[];
 }
@@ -142,6 +172,7 @@ interface RollupBucket {
   grossProfit: string;
   grossLoss: string;
   totalFees: string;
+  feeBasis: FeeBasis;
 }
 
 /**
@@ -175,15 +206,16 @@ function accumulateBuckets(
         grossProfit: '0',
         grossLoss: '0',
         totalFees: '0',
+        // Seeded at the STRONGEST tier so the fold below can only ever weaken it. An empty bucket is one nothing is wrong with, which is the reading `coalesce(bool_and(...), true)` already had on the SQL side.
+        feeBasis: 'exact' as FeeBasis,
       };
       buckets.set(key, b);
     }
     b.tradeCount += 1;
-    // profitSum is GROSS (before fees); win/loss and the gross winner/loser
-    // magnitudes are classified on net = profit - feesQuote so the derived
-    // win% and profit factor reflect what was actually kept.
+    // Win/loss and the gross winner/loser magnitudes are classified on Net = Recorded profit - the additional fee adjustment.
     b.profitSum = decimalAdd(b.profitSum, item.profit);
     const feesQuote = item.feesQuote ?? '0';
+    b.feeBasis = weakestFeeBasis(b.feeBasis, item.feeBasis ?? 'unknown');
     b.totalFees = decimalAdd(b.totalFees, feesQuote);
     const net = new Decimal(item.profit).sub(feesQuote);
     if (net.gt(0)) {
@@ -210,6 +242,7 @@ function bucketMetrics(b: RollupBucket): {
   grossProfit: DecimalString;
   grossLoss: DecimalString;
   totalFees: DecimalString;
+  feeBasis: FeeBasis;
 } {
   return {
     quoteAsset: b.quoteAsset,
@@ -217,11 +250,12 @@ function bucketMetrics(b: RollupBucket): {
     wins: b.wins,
     losses: b.losses,
     profitSum: asDecimalString(b.profitSum),
-    // net = gross profit − fees; equals grossProfit − grossLoss by construction.
+    // Net = Recorded result minus the additional fee adjustment.
     netProfit: asDecimalString(new Decimal(b.profitSum).sub(b.totalFees)),
     grossProfit: asDecimalString(b.grossProfit),
     grossLoss: asDecimalString(b.grossLoss),
     totalFees: asDecimalString(b.totalFees),
+    feeBasis: b.feeBasis,
   };
 }
 
@@ -235,7 +269,7 @@ export function rollupByExitIntent(items: readonly ArchiveRollupItem[]): ByInten
   }));
 }
 
-/** Group archived trades by `(quoteAsset, source)` so the operator sees discovery vs manual edge. */
+/** Group archived trades by `(quoteAsset, source)` so the operator sees which origin — discovery, operator-added, or bot-recovered — carries the edge. */
 export function rollupBySource(items: readonly ArchiveRollupItem[]): BySourceRollup[] {
   return accumulateBuckets(items, (item) => item.source).map((b) => ({
     ...bucketMetrics(b),
@@ -252,6 +286,7 @@ export interface ClosedTradesSummary {
   readonly grossLoss: string;
   readonly netProfit: string;
   readonly totalFees: string;
+  readonly feeBasis: FeeBasis;
 }
 
 const EMPTY_CLOSED_TRADES_SUMMARY: ClosedTradesSummary = {
@@ -262,14 +297,14 @@ const EMPTY_CLOSED_TRADES_SUMMARY: ClosedTradesSummary = {
   grossLoss: '0',
   netProfit: '0',
   totalFees: '0',
+  feeBasis: 'exact',
 };
 
 /**
- * Collapse a profile's closed trades into one net-of-fee summary, ignoring the
- * quote/source partition the rollups carry. Same win/loss net classification as
- * the rollups (a single all-bucket accumulation), so the headline profit factor
- * the edge-decay monitor compares against the baseline is computed identically
- * to the scorecard's. Empty input yields the all-zero summary, not a throw.
+ * Collapse a profile's closed trades into one summary, ignoring the quote/source partition. The known Net subtotal uses the same classification as the rollups, and `feeBasis` tells consumers how far those statistics can be trusted. Empty input yields the all-zero summary at the strongest tier: there is nothing there to distrust.
+ *
+ * @param items - Archive rows whose known fee adjustments should be combined.
+ * @returns The combined known subtotal, classification fields, and the weakest fee tier any row carried.
  */
 export function summarizeClosedTrades(items: readonly ArchiveRollupItem[]): ClosedTradesSummary {
   const bucket = accumulateBuckets(items, () => 'all')[0];
@@ -283,18 +318,12 @@ export function summarizeClosedTrades(items: readonly ArchiveRollupItem[]): Clos
     grossLoss: m.grossLoss,
     netProfit: m.netProfit,
     totalFees: m.totalFees,
+    feeBasis: m.feeBasis,
   };
 }
 
 /**
- * Closed-trade archive row: the long-term record of one buy/sell cycle.
- * `totalBuyQuote`/`totalSellQuote` and `profit` are strategy-agnostic
- * (sum of the filled BUY/SELL quote, profit = sell - buy). `breakdown` is
- * the strategy-specific decomposition: a map keyed by `"<intent>:<side>"`
- * to the summed quote for that pair, so the operator's P&L UI can show a
- * per-intent split without re-aggregating the orders table. TT populates
- * keys like `grid-buy:BUY`, `manual:SELL`, `grid-stop-loss:SELL`; another
- * strategy uses its own intents (e.g. `entry:BUY`, `exit:SELL`).
+ * Closed-trade archive row for one buy/sell cycle. `profit` is the strategy-agnostic Recorded cost-basis result and may already include a base-asset BUY fee through fee-net quantity. `breakdown` maps `"<intent>:<side>"` to its quote total so the UI can show a strategy-owned split without re-aggregating orders.
  */
 export const TradeArchiveResponse = z.object({
   id: z.uuid(),
@@ -304,26 +333,18 @@ export const TradeArchiveResponse = z.object({
   totalBuyQuote: DecimalString,
   totalSellQuote: DecimalString,
   breakdown: z.record(z.string(), DecimalString),
-  // Binance commissions for the cycle, summed per commission asset (key =
-  // asset, value = total paid). Empty when trade history was unavailable at
-  // archive time.
+  // Binance commissions for the cycle, summed per asset. Empty when trade history was unavailable at archive time.
   fees: z.record(z.string(), DecimalString),
-  // The cycle's commissions valued in the quote asset, so the row can show net
-  // P/L (`profit - feesQuote`). `.default('0')` keeps pre-column producers and
-  // backfilled rows valid (they report gross until re-archived).
+  // Known quote-currency adjustment not already included in `profit`. The scalar default keeps older producers parseable; the tier beside it defaults to `unknown` so a zero is never promoted to an exact Net without evidence.
   feesQuote: DecimalString.default(asDecimalString('0')),
-  // Realised P/L net of fees (`profit - feesQuote`), server-computed so the row
-  // need not re-derive it. `.default('0')` keeps older producers valid.
+  // How well `feesQuote` is known. Defaulted to the weakest tier so a payload from an older producer, which says nothing about its fee evidence, is never promoted to a certified Net P/L on that silence.
+  feeBasis: FeeBasis.default('unknown'),
+  // `profit - feesQuote`, server-computed and trustworthy only as far as `feeBasis` says. The default keeps older producers parseable.
   netProfit: DecimalString.default(asDecimalString('0')),
   profit: DecimalString,
-  profitPercent: DecimalString,
   // Why the cycle closed: the intent of the SELL that closed it, i.e. the one with the greatest `closedAt`, derived at read time from the archived `orders` (no stored column). `'unknown'` for rows with no SELL or a missing intent (e.g. backfilled history). `.default` keeps pre-existing response producers/consumers from breaking.
   exitIntent: z.string().default('unknown'),
-  // How many SELLs in this cycle had no cost basis. Those contribute nothing to
-  // `profit`, so a positive count means `profit`/`netProfit`/`profitPercent`
-  // are a conservative UNDER-count and must be presented as unavailable — a
-  // zero here reads as a measured break-even, which it is not. `.default(0)`
-  // keeps pre-column producers valid (they were fully costed or unknowable).
+  // How many SELLs had no cost basis. A positive count makes both P/L bases unavailable because their numeric subtotal is an under-count. The default preserves the earlier wire shape.
   missingCostBasis: z.number().int().nonnegative().default(0),
   archivedAt: z.iso.datetime(),
 });
@@ -403,10 +424,7 @@ export const ProfileArchiveListResponse = z.object({
   // is winning or bleeding across the whole window. `.default([])` keeps older
   // producers valid.
   byIntent: z.array(ByIntentRollupSchema).default([]),
-  // Same period-scoped rollup grouped by symbol source (auto = discovery,
-  // manual = pinned) so the operator sees whether the discovery engine or
-  // manual trading is the edge or the drag. `.default([])` keeps older
-  // producers valid.
+  // Same period-scoped rollup grouped by where the binding came from (auto = discovery found it, manual = the operator added it, unknown = the bot re-created it to recover an untracked position) so the operator sees which origin is the edge or the drag. Provenance only: a pin does not move a trade between buckets. `.default([])` keeps older producers valid.
   bySource: z.array(BySourceRollupSchema).default([]),
 });
 /** TS type derived from {@link ProfileArchiveListResponse} so consumers don't re-run z.infer at every call site. */

@@ -11,7 +11,7 @@
 // circuit breaker does not silently re-close intraday.
 //
 // Cross-symbol by nature (a profile-wide P/L sum), so it lives worker-side, never
-// in the pure per-(profile,symbol) strategy (invariant #1, tracker #267).
+// in the pure per-(profile,symbol) strategy (invariant #1).
 
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';

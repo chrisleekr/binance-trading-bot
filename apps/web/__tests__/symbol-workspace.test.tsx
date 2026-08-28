@@ -20,6 +20,7 @@ import {
   __setChartLoader,
   type ChartModule,
 } from '@/features/symbol/components/symbol-candle-chart';
+import { profileQueryKey } from '@/features/profile/api/profile';
 import { createQueryClient } from '@/shared/lib/query-client';
 import { rootRoute } from '@/app/__root';
 import { accountScopeRoute } from '@/features/account/routes/account-scope';
@@ -27,7 +28,11 @@ import {
   profileDetailIndexRoute,
   profileDetailRoute,
 } from '@/features/profile/routes/profiles.$profileId';
-import { symbolDetailRoute } from '@/features/symbol/routes/profiles.$profileId.symbols.$symbol';
+import {
+  symbolDetailIndexRoute,
+  symbolDetailRoute,
+} from '@/features/symbol/routes/profiles.$profileId.symbols.$symbol';
+import { symbolConfigRoute } from '@/features/symbol/routes/profiles.$profileId.symbols.$symbol.config';
 import { symbolStateQueryKey } from '@/features/symbol/api/symbol';
 
 const ACCOUNT_ID = '00000000-0000-4000-8000-0000000000ac';
@@ -173,6 +178,9 @@ const mountWorkspace = (path: string) => {
   const queryClient = createQueryClient();
   queryClient.setQueryData(['auth', 'onboarding-status'], { masterExists: true });
   queryClient.setQueryData(['accounts'], [TEST_ACCOUNT]);
+  // The breadcrumb names the profile rung from the profile row, so seed it —
+  // otherwise the trail suppresses that crumb rather than flashing a placeholder.
+  queryClient.setQueryData(profileQueryKey(PROFILE_ID), { name: 'Main' });
   const router = createRouter({
     routeTree: rootRoute.addChildren([
       stub('/'),
@@ -181,7 +189,11 @@ const mountWorkspace = (path: string) => {
       accountScopeRoute.addChildren([
         // The Back control targets the profile detail page, so its index route
         // must exist in the tree for the navigation to resolve.
-        profileDetailRoute.addChildren([profileDetailIndexRoute, symbolDetailRoute]),
+        profileDetailRoute.addChildren([
+          profileDetailIndexRoute,
+          // Config is a CHILD of the workspace, not a sibling: that is what puts the symbol on the trail above it and gives the config page a route back.
+          symbolDetailRoute.addChildren([symbolDetailIndexRoute, symbolConfigRoute]),
+        ]),
       ]),
     ]),
     context: { queryClient },
@@ -198,6 +210,7 @@ const mountWorkspace = (path: string) => {
 };
 
 const WORKSPACE_PATH = `/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}/symbols/BTCUSDT`;
+const CONFIG_PATH = `${WORKSPACE_PATH}/config`;
 
 afterEach(() => {
   stateResponse = sampleState;
@@ -327,17 +340,22 @@ describe('symbol workspace route', () => {
     expect(loadStub).not.toHaveBeenCalled();
   });
 
-  it('renders a Back control that returns to the owning profile', async () => {
+  it('renders a breadcrumb whose profile ancestor returns to the owning profile', async () => {
     const { router } = mountWorkspace(WORKSPACE_PATH);
 
     // The workspace is a page under a profile, not a modal over the overview.
     // A bare X dumped the operator at the account root, losing the profile they
-    // were working in; Back goes up exactly one level.
+    // were working in. The trail names every ancestor instead of offering one
+    // unnamed step, but the guard is the same: the profile rung must resolve to
+    // the profile, account included.
     expect(screen.queryByTestId('workspace-close')).toBeNull();
-    // Exact name, scoped to the workspace: a substring match would also hit the
-    // workspace's own "Backtest" link and the shell sidebar's "Backup & restore".
     const workspace = await screen.findByTestId('symbol-workspace');
-    await userEvent.click(await within(workspace).findByRole('link', { name: 'Back' }));
+    const trail = await within(workspace).findByTestId('breadcrumb');
+    const profileCrumb = within(trail).getByRole('link', { name: 'Main' });
+    // The symbol is the page you are on, so it is text and holds the only
+    // aria-current in the trail; the ancestor must not claim to be current.
+    expect(profileCrumb).not.toHaveAttribute('aria-current');
+    await userEvent.click(profileCrumb);
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe(`/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}`);
@@ -432,6 +450,43 @@ describe('symbol workspace route', () => {
     const summary = details?.querySelector('summary') ?? null;
     expect(summary).not.toBeNull();
     expect(summary?.tagName).toBe('SUMMARY');
+  });
+
+  it('trails the symbol config page back through the workspace it belongs to', async () => {
+    mountWorkspace(CONFIG_PATH);
+
+    const trail = await screen.findByTestId('breadcrumb');
+    const rungs = [...trail.querySelectorAll('li')].map((li) => li.textContent?.trim() ?? '');
+    expect(rungs).toEqual(['Home', 'Main', 'BTCUSDT', 'Config']);
+    // The symbol rung is the route back: nesting is what earns the config page an ancestor, and removing the interim "Open workspace" link is only safe because this rung resolves there.
+    expect(within(trail).getByRole('link', { name: 'BTCUSDT' })).toHaveAttribute(
+      'href',
+      WORKSPACE_PATH,
+    );
+    // The page you are on is text, not a link, and holds the trail's only aria-current.
+    expect(within(trail).queryByRole('link', { name: 'Config' })).toBeNull();
+    expect(within(trail).queryAllByRole('link', { current: 'page' })).toHaveLength(0);
+  });
+
+  it('drops the interim Open workspace link now the breadcrumb leads there', async () => {
+    mountWorkspace(CONFIG_PATH);
+
+    // Asserted structurally, on the href. Querying by the link's old NAME would stay green under a regression: `I18nKey` is a template literal type, so `t('nav.open_workspace')` still typechecks after the key's removal and the provider falls back to rendering the key itself — a restored link would read "nav.open_workspace" and match no name query.
+    const trail = await screen.findByTestId('breadcrumb');
+    const rung = within(trail).getByRole('link', { name: 'BTCUSDT' });
+    const toWorkspace = [...document.querySelectorAll(`a[href="${WORKSPACE_PATH}"]`)];
+    expect(toWorkspace).toHaveLength(1);
+    expect(toWorkspace[0]).toBe(rung);
+  });
+
+  it('parses the config URL without a search-validation error', async () => {
+    // The config route inherits the workspace's `validateSearch` once it is nested under it. A schema that did not tolerate an absent `tab` would fail the whole route here rather than defaulting.
+    const { router } = mountWorkspace(CONFIG_PATH);
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(CONFIG_PATH));
+    expect(await screen.findByTestId('breadcrumb')).toBeInTheDocument();
+    expect(router.state.matches.at(-1)?.routeId).toBe(symbolConfigRoute.id);
+    expect(screen.queryByTestId('route-error-card')).toBeNull();
   });
 
   it('points the Backtest link at the Configure view (#659 C2)', async () => {

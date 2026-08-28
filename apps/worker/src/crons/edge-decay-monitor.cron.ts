@@ -172,19 +172,29 @@ export const buildEdgeDecayMonitorCron = (ctx: BootContext): CronDef =>
         const baselineId =
           (row as { baselineBacktestRunId?: string | null }).baselineBacktestRunId ?? null;
 
-        // Live realized summary over all closed trades — the same window the
-        // live-vs-backtest scorecard uses, so alert and display agree. `orders`
-        // is unused by the collapsed summary, so an empty array avoids a cast.
-        const rows = await repo.tradeArchive.listForProfileInRange(null);
+        // Live realized summary over all closed trades, narrowed to the profile's own quote — the same window AND the same currency the live-vs-backtest scorecard uses, so alert and display agree. `useEdgeVerdict` folds through `mergeRollupBuckets(…, quoteAsset)`, which drops every other currency before it sums; without the same filter here a profile holding legacy rows in a quote it has since moved off would abstain in this alert while the screen issued a verdict, and neither surface could show the operator why.
+        //
+        // It is also what makes the ratio a ratio: `grossProfit` and `grossLoss` are decimal sums, so an unfiltered fold adds BTC magnitudes to USDT ones and `profitFactorFromGross` divides two numbers that are not denominated in anything.
+        //
+        // `orders` is unused by the collapsed summary, so an empty array avoids a cast.
+        const quoteAsset = ((row as { quoteAsset?: string }).quoteAsset ?? '').toUpperCase();
+        // Abstain rather than filter against nothing. A profile with no quote asset would match no row, and an empty window folds to `exact` by identity — so the tier gate below would wave through a summary of zero trades instead of declining to judge one.
+        if (quoteAsset === '') return null;
+        const rows = (await repo.tradeArchive.listForProfileInRange(null)).filter(
+          (r) => r.quoteAsset.toUpperCase() === quoteAsset,
+        );
         const summary = summarizeClosedTrades(
           rows.map((r) => ({
             quoteAsset: r.quoteAsset,
             source: r.source,
             profit: r.profit,
             feesQuote: r.feesQuote,
+            feeBasis: r.feeBasis,
             orders: [],
           })),
         );
+        // A profit factor with a charge missing is not a ratio of anything, so `unknown` yields no verdict. `estimated` does have a basis and still alerts: demanding the strongest tier would silence this monitor outright on a BNB-billed account, whose every cycle carries a reconstructed commission, and a monitor that never fires is worse than one that fires on a fee valued from the account's own rate card.
+        if (summary.feeBasis === 'unknown') return null;
         const liveProfitFactor = profitFactorFromGross(summary.grossProfit, summary.grossLoss);
 
         // Baseline profit factor from the pinned backtest run, when present and readable.

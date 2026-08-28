@@ -35,7 +35,7 @@ It applies to **Trailing Trade buys only**. Sells always execute immediately —
 
 ## The settings
 
-On the profile's **Strategy** tab, under **Execution** (an advanced section).
+On the profile's **Strategy** section, under **Execution** (an advanced section).
 
 | Setting | What it does | Values | Default | When to change it |
 | --- | --- | --- | --- | --- |

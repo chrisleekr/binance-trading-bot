@@ -32,6 +32,7 @@ import { buildSymbolStateKey } from '../../src/executor/redis-namespace.js';
 const repoMocks = vi.hoisted(() => ({
   avgEntryPricesFindBySymbol: vi.fn(),
   avgEntryPricesUpsert: vi.fn(),
+  conditionRecordCondition: vi.fn(async () => ({ changed: false, sinceMs: null })),
   avgEntryPricesRemove: vi.fn(),
   appliedFillsTryRecord: vi.fn(),
   profileFindById: vi.fn(),
@@ -41,6 +42,7 @@ const repoMocks = vi.hoisted(() => ({
   profileSymbolsUpsert: vi.fn(),
   actionLogsAppend: vi.fn(),
   ordersMarkFilled: vi.fn(),
+  ordersStampBaseCommissionNetted: vi.fn(),
   ordersStampRealizedPnl: vi.fn(),
   ordersFindByBinanceOrderId: vi.fn(),
   manualOrdersFindByBinanceOrderId: vi.fn(),
@@ -58,6 +60,8 @@ const testRepo = {
     upsert: repoMocks.avgEntryPricesUpsert,
     remove: repoMocks.avgEntryPricesRemove,
   },
+  // A buy fill proves the coin is really held, so the adopter closes any open seed refusal on it.
+  conditionStates: { recordCondition: repoMocks.conditionRecordCondition },
   appliedFills: { tryRecord: repoMocks.appliedFillsTryRecord },
   profile: { findById: repoMocks.profileFindById },
   symbolStates: { findBySymbol: repoMocks.symbolStatesFindBySymbol },
@@ -68,6 +72,7 @@ const testRepo = {
   actionLogs: { append: repoMocks.actionLogsAppend },
   orders: {
     markFilledByBinanceOrderId: repoMocks.ordersMarkFilled,
+    stampBaseCommissionNetted: repoMocks.ordersStampBaseCommissionNetted,
     stampRealizedPnl: repoMocks.ordersStampRealizedPnl,
     findByBinanceOrderId: repoMocks.ordersFindByBinanceOrderId,
   },
@@ -214,6 +219,7 @@ const reset = (): { ledger: { row: LedgerRow | null } } => {
   });
 
   repoMocks.ordersMarkFilled.mockResolvedValue(1);
+  repoMocks.ordersStampBaseCommissionNetted.mockResolvedValue(1);
   repoMocks.ordersStampRealizedPnl.mockResolvedValue(1);
   repoMocks.ordersFindByBinanceOrderId.mockResolvedValue({ symbol: SYMBOL, profileId: PROFILE_ID });
   repoMocks.manualOrdersFindByBinanceOrderId.mockResolvedValue(null);
@@ -273,6 +279,31 @@ describe('fill-adopter: base-asset commission is netted out of the held quantity
     expect(repoMocks.avgEntryPricesUpsert).toHaveBeenCalledTimes(1);
     expectQty(repoMocks.avgEntryPricesUpsert.mock.calls[0]?.[1]?.quantity, BUY_NET_QTY);
     expectQty(readState(store)['heldQuantity'], BUY_NET_QTY);
+    expect(repoMocks.ordersStampBaseCommissionNetted).toHaveBeenCalledWith(
+      SYMBOL,
+      4001n,
+      BUY_COMMISSION,
+    );
+  });
+
+  it('fails the fill transaction when its base-commission proof matches no order', async () => {
+    reset();
+    repoMocks.ordersStampBaseCommissionNetted.mockResolvedValueOnce(0);
+    const { adopter, store } = makeAdopter();
+
+    await expect(
+      adopter.adopt(
+        mkFill({
+          orderId: 4009,
+          tradeId: 4009,
+          commissions: { [BASE_ASSET]: BUY_COMMISSION },
+        }),
+      ),
+    ).rejects.toThrow('base-commission proof did not match one order');
+
+    expect(repoMocks.ordersMarkFilled).not.toHaveBeenCalled();
+    expect(repoMocks.persistSymbolState).not.toHaveBeenCalled();
+    expect(store.has(buildSymbolStateKey(ACCOUNT_ID, PROFILE_ID, SYMBOL))).toBe(false);
   });
 
   it('subtracts only the base-asset subtotal from a mixed-fee BUY', async () => {
@@ -344,6 +375,7 @@ describe('fill-adopter: base-asset commission is netted out of the held quantity
 
     expectQty(repoMocks.avgEntryPricesUpsert.mock.calls[0]?.[1]?.quantity, BUY_GROSS_QTY);
     expectQty(readState(store)['heldQuantity'], BUY_GROSS_QTY);
+    expect(repoMocks.ordersStampBaseCommissionNetted).not.toHaveBeenCalled();
   });
 
   it('keeps the full gross quantity when the report carries no commission fields', async () => {

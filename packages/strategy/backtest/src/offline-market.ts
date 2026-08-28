@@ -22,7 +22,7 @@ const RSI_MIN_WINDOW = RSI_PERIOD + 1;
  *
  * Byte-equivalence comes from the seed-equivalence of the incremental indicators:
  * `initFromWindow(window)` over the candles seen so far yields the same value the
- * computer reaches by folding candles one at a time. The #317 parity gate verifies
+ * computer reaches by folding candles one at a time. The parity gate verifies
  * the indicators end-to-end. A field is null when the window is shorter than the
  * indicator's minimum, exactly as live.
  */

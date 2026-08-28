@@ -40,6 +40,12 @@ export default defineConfig({
     // slow wait fails on its own assertion rather than a test-level timeout.
     // Timeouts only bite on failure, so this costs nothing on a green run.
     testTimeout: 20_000,
+    // Cap the worker fan-out for the same contention, at its source. Vitest
+    // defaults to one worker per core, and CI's shared runner does not have
+    // those cores to itself, so the suites above starve mid-wait and hit the
+    // ceiling. Raising the timeout would only move that ceiling; four workers
+    // keeps the pool inside what the runner actually schedules.
+    maxWorkers: 4,
     server: {
       deps: {
         // Inline workspace packages and zod so vite SSR transforms them

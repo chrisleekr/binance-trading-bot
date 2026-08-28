@@ -1664,7 +1664,7 @@ export type TTOverrideBundle = z.infer<typeof TTOverrideBundleSchema>;
 export const TTEntryHintBundleSchema = z
   .object({
     enterOnAdd: z.boolean(),
-    // Anti-chase guard inputs (#473, broadened in #486), refreshed by discovery
+    // Anti-chase guard inputs, refreshed by discovery
     // each cycle and optional so a hint-less tick stays byte-identical (golden
     // replay diff-0): `high24h` is the symbol's current 24h high, and the three
     // knobs mirror the profile's discovery entryGuard config. The guards apply to

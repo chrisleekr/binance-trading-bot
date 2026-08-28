@@ -19,6 +19,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { errorMessage } from '@/shared/lib/api';
 import { engageDisable, symbolStateQueryKey } from '@/features/symbol/api/symbol';
+import { Select } from '@/shared/components/ui/select';
 
 const HOUR = 3600;
 
@@ -117,9 +118,9 @@ export function SymbolPausePanel({
 
           <div className="space-y-1">
             <Label htmlFor="pause-duration">Duration</Label>
-            <select
+            <Select
               id="pause-duration"
-              className="h-11 w-full rounded-md border border-border bg-bg px-3 text-sm"
+              className="w-full"
               value={ttl}
               onChange={(e) => setTtl(Number(e.target.value))}
               data-testid="pause-duration"
@@ -129,7 +130,7 @@ export function SymbolPausePanel({
                   {d.label}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <FormActions>

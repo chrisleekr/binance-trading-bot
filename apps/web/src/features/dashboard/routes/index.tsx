@@ -10,6 +10,8 @@ import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import { formatLastTick, formatTickLatency } from '@/shared/lib/format-tick';
 import { t } from '@/shared/lib/i18n';
+import { API_KEY_DESTINATION } from '@/features/account/lib/api-key-destination';
+import { useDemoMode } from '@/features/auth/api/auth';
 import { aggregatePositionPnl, type QuotePnl } from '@/features/dashboard/lib/aggregate-pnl';
 import { dashboardAggregateQueryOptions } from '@/features/dashboard/api/dashboard';
 import { EquityPnlCard } from '@/features/dashboard/components/equity-pnl-card';
@@ -24,11 +26,15 @@ import { InvestigateButton } from '@/features/profile/components/investigate-but
 import { ProfileManageSheet } from '@/features/profile/components/profile-manage-sheet';
 import { ProfileStatus } from '@/features/profile/components/profile-status';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
+import { visibleInDemo } from '@/shared/lib/demo-visibility';
 import { useScrollAnchor } from '@/shared/lib/use-scroll-anchor';
 
 import { accountScopeRoute } from '@/features/account/routes/account-scope';
 
 import type { DashboardAggregateRow } from '@app/contracts';
+
+import { Breadcrumb } from '@/shared/components/breadcrumb';
+import { useProfileName } from '@/features/profile/lib/use-profile-name';
 
 // The dashboard lives at the account index (`/accounts/$accountId`) unfocused —
 // every profile of the account — and at the per-profile route
@@ -37,7 +43,7 @@ import type { DashboardAggregateRow } from '@app/contracts';
 // a single source of truth.
 
 export const accountOverviewRoute = createRoute({
-  staticData: { title: 'Dashboard' },
+  staticData: { title: t('home.heading') },
   getParentRoute: () => accountScopeRoute,
   path: '/',
   component: AccountOverviewPage,
@@ -129,11 +135,19 @@ function OverviewPanel({
   rows: readonly DashboardAggregateRow[];
   focusedProfileId: string | null;
 }) {
+  const profileName = useProfileName(focusedProfileId ?? '');
+  // Falls back to the generic heading until the name resolves. Not the empty string: this names the landmark as well as the h1, and an empty `aria-label` leaves the region with no accessible name at all.
+  const heading =
+    focusedProfileId !== null ? (profileName ?? t('home.heading')) : t('home.heading');
   return (
-    <section className="space-y-4" aria-label={t('nav.home')}>
+    <section className="space-y-4" aria-label={heading}>
       <header className="flex flex-wrap items-center justify-between gap-3">
+        {/* The account's overview and a profile's overview render this same
+            panel, so a fixed heading named both. The profile's own name is the
+            only thing that tells the operator which one they are looking at. */}
+        <Breadcrumb className="w-full" />
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">{t('home.heading')}</h1>
+          <h1 className="text-xl font-semibold">{heading}</h1>
           {/* Global Technicals compute-job health pill — same component the
               symbol-detail panel uses, so an operator sees an upstream throttle
               from the dashboard without having to drill into a symbol. */}
@@ -365,6 +379,7 @@ function EmptyState() {
  */
 function AwaitingTickHint({ row }: { row: DashboardAggregateRow }) {
   const accountId = useActiveAccountId() ?? '';
+  const demoMode = useDemoMode();
   if (row.lastTickAt !== null) return null;
   const variant: 'no-key' | 'key-error' | null = !row.apiKeyConfigured
     ? 'no-key'
@@ -383,15 +398,20 @@ function AwaitingTickHint({ row }: { row: DashboardAggregateRow }) {
       className="border-t border-border px-4 py-2 text-xs text-muted-fg"
     >
       {t('home.card.last_tick.awaiting')}
-      {' · '}
-      <Link
-        to="/accounts/$accountId/api-key"
-        params={{ accountId }}
-        className="text-accent underline"
-        data-testid={`profile-card-${row.profileId}-awaiting-hint-link`}
-      >
-        {linkCopy}
-      </Link>
+      {/* The hint itself survives the demo — it is why the profile is idle, and that explanation is true for a demo visitor too. Only the link into the 403 page drops. */}
+      {visibleInDemo(API_KEY_DESTINATION, demoMode) ? (
+        <>
+          {' · '}
+          <Link
+            to="/accounts/$accountId/api-key"
+            params={{ accountId }}
+            className="text-accent underline"
+            data-testid={`profile-card-${row.profileId}-awaiting-hint-link`}
+          >
+            {linkCopy}
+          </Link>
+        </>
+      ) : null}
     </p>
   );
 }

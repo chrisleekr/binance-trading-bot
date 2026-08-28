@@ -31,7 +31,11 @@ export type { RetentionConfigRow } from './schema/retention-config.js';
 export type { ActionLogCursor, ActionLogFilter } from './repo/action-logs.js';
 // The subject sentinel every reader of `condition_states` needs to tell a
 // profile-level row from a symbol row.
-export { PROFILE_SUBJECT } from './repo/condition-states.js';
+export {
+  PROFILE_SUBJECT,
+  POSITION_SEED_REFUSED,
+  NO_SELLABLE_POSITION,
+} from './repo/condition-states.js';
 export {
   FLEET_COUNT_KEY,
   MEMBER_KEY_PREFIX,

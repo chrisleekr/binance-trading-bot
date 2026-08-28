@@ -27,6 +27,7 @@ import { buildSymbolStateKey } from '../../src/executor/redis-namespace.js';
 const repoMocks = vi.hoisted(() => ({
   avgEntryPricesFindBySymbol: vi.fn(),
   avgEntryPricesUpsert: vi.fn(),
+  conditionRecordCondition: vi.fn(async () => ({ changed: false, sinceMs: null })),
   avgEntryPricesRemove: vi.fn(),
   appliedFillsTryRecord: vi.fn(),
   profileFindById: vi.fn(),
@@ -46,6 +47,8 @@ const testRepo = {
     upsert: repoMocks.avgEntryPricesUpsert,
     remove: repoMocks.avgEntryPricesRemove,
   },
+  // A buy fill proves the coin is really held, so the adopter closes any open seed refusal on it.
+  conditionStates: { recordCondition: repoMocks.conditionRecordCondition },
   appliedFills: { tryRecord: repoMocks.appliedFillsTryRecord },
   profile: { findById: repoMocks.profileFindById },
   symbolStates: { findBySymbol: repoMocks.symbolStatesFindBySymbol },

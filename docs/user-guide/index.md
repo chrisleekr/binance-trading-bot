@@ -9,7 +9,7 @@ The reference spine: one page per screen, mirroring the app sidebar. Each page l
 
 ## Profile
 
-Every tab you see when you open a profile, in sidebar order — see the [Profile overview](profile/index.md):
+Every section you see when you open a profile, in sidebar order — see the [Profile overview](profile/index.md):
 
 - **[Strategy](profile/strategy.md)** — which strategy runs and all its config knobs.
 - **[Risk](profile/risk.md)** — account-wide safety limits.
@@ -19,11 +19,11 @@ Every tab you see when you open a profile, in sidebar order — see the [Profile
 - **[Backtest](profile/backtest.md)** — replay the strategy over history before trading it.
 - **[History](profile/history.md)** — the profile's past trades, audit, and activity.
 - **[Bulk order](profile/bulk-order.md)** — one manual order across every coin.
-- **[General](profile/general.md)** — rename, enable, stop, reconcile fees, and delete.
+- **[Profile settings](profile/general.md)** — rename, enable, stop, reconcile fees, and delete.
 
 ## Account
 
-Account-level surfaces shared by every profile on the account — see [Manage account](account/index.md):
+Account-level surfaces shared by every profile on the account — see [Account](account/index.md):
 
 - **[API key](account/api-key.md)** — connect the account's Binance key pair.
 - **[Dust transfer](account/dust-transfer.md)** — convert tiny balances to BNB.

@@ -1,32 +1,32 @@
 # History
 
-The **History** tab is read-only: it shows what the profile has done. It has four views (the "History view" tabs): **Archive**, **Audit**, **Logs**, and **Activity**.
+The **History** section is read-only: it shows what the profile has done. It has four views (the "History view" tabs): **Archive**, **Audit**, **Logs**, and **Activity**.
 
 **Audit** and **Logs** answer different questions and stay separate. Audit is _what you changed_ — a handful of rows a day. Logs is _what the bot did and why_ — the worker's own record, at much higher volume.
 
 ## Archive
 
-![History Archive view](../../assets/screenshots/user-guide/profile-history-archive.png)
-
-_The Archive view: completed trades with net-of-fee P/L, filters, and summaries. Seeded demo data, not a real account._
-
 Completed trades with their profit and loss. Controls:
 
 - **Period** — `All time`, `Today`, `This week`, `This month`.
-- **P/L** basis toggle — **Net of fees** (profit after Binance fees) or **Gross** (before fees). Net is the honest number; run **Reconcile fees** (below) if fees look missing.
+- **P/L** basis toggle — **Net of fees** or **Recorded**. Recorded uses the stored cost-basis result; Net also applies fees not already included there. Net appears only when fee evidence is complete.
 - Summaries: **P/L by exit reason** and **P/L by source**.
 - **Recover a specific coin** — a collapsed section for a coin that is missing from the list below and from the notices above it (enter e.g. `WLDUSDT`, press **Backfill**); reconstructed trades appear shortly. Safe to re-run, and the coin need not still be trading.
 
-**Columns:** Symbol · Exit · Buy · Sell · Net PnL (or PnL in gross basis) · PnL% · Fees (commission paid to Binance) · Time · row actions.
+**Columns:** Symbol · Exit · Buy · Sell · Net P/L (or Recorded P/L) · P/L% · Fees (commission paid to Binance) · Time · row actions. P/L% uses the same basis as the amount beside it, so both change together. When the selected basis is available, the **% of P/L** shares in each summary — **P/L by exit reason** and **P/L by source** — add up to 100 for one quote coin (the coin you spend, e.g. USDT) whenever that coin has any P/L. The two summaries are counted separately, so their percentages are not meant to be added together; an all-zero line in either summary shows `0%`. If the period covers trades priced in more than one quote coin, each share names its own coin — **25% of USDT P/L** — because each coin is counted to 100 on its own and the lines are not shares of one shared total. With a single coin the shares stay the plain **% of P/L**. An incomplete Net group shows `net n/a` in place of each share instead of a made-up split; a screen reader reads that mark as **Share of P/L unavailable, <coin> fee evidence incomplete**. One incomplete line withholds every share for that quote coin, so a complete line in the same coin loses its share too, but keeps its own amount. Only the incomplete line's amount reads `net n/a`. Precision: P/L% always reads at 2 decimal places, Buy, Sell and Fees show up to 8 so a fraction-of-a-coin amount stays visible instead of reading as zero, and the P/L amount reads at 2 decimal places from 1 upward and up to 8 below it.
+
+**On a phone** those nine columns will not fit, so each trade becomes a two-line row instead: the coin and its profit or loss on the first line, why it closed and when on the second. Tap a row to open a panel with the full figures — Buy, Sell, P/L, P/L%, fees and the archived time. The **⋮** button at the end of each row is the same actions menu as on a wide screen, **Delete** included. Nothing is dropped by the narrower layout; it is the same trades, one tap deeper.
 
 ### When history is incomplete
 
-Two notices can appear above the table, and they mean different things.
+Two notices can appear above the trades, and they mean different things.
 
 - **Trade history incomplete** (a yellow warning) — these coins have fills on Binance but no saved profit/loss here. **While the profile is running**, the bot retries them by itself every 15 minutes, so they usually clear without you doing anything. A **paused profile is not swept**, so nothing retries until you resume it — press **Recover all** to repair it now, and press it any time you would rather not wait for the next pass.
 - A quieter grey note lists coins a recovery already tried and could not rebuild, each with its reason: no closed buy → sell cycle yet, sold without a recorded buy, sold more than was bought here, or Binance no longer lists the coin. There is nothing to do about those, so there is no button — **✕** hides one and **Show hidden** brings it back.
 
-A row itself can read **P/L unavailable** with an em-dash in the PnL% column. That means the bot has no record of what the coin originally cost, so it cannot work out the profit or loss. On those rows the **Buy** and **Sell** figures count only the part it could match, so they read low too, and the summaries above count the trade as zero. It is an unmeasured trade, not a break-even one.
+A trade can read `n/a` in place of its profit or loss, with an em-dash where the percentage would be — in the P/L% column on a wide screen, in the tap-to-open panel on a phone. A plain `n/a` means the bot has no record of what the coin originally cost, so it cannot work out the profit or loss. It is the only mark that means unrecoverable history: a P/L amount withheld for incomplete fee evidence reads `net n/a` instead. Other things that fault withholds read differently, so do not read them as empty: the P/L% cell shows an em dash, and each summary line's statistics say **Net statistics unavailable, fee accounting incomplete**. A screen reader reads that mark as **P/L unavailable**. On those rows the **Buy** and **Sell** figures count only the part it could match, so they read low too, and the summaries above count the trade as zero. It is an unmeasured trade, not a break-even one.
+
+A row marked `net n/a` is the other fault: the fee evidence is incomplete, so only the Net figure is withheld. A screen reader reads that mark as **Net P/L unavailable**. Recorded P/L and raw **Fees** remain visible, but Net rollups and derived statistics are withheld. Zero alone does not prove completeness because a BUY fee already included in cost basis can require no additional adjustment.
 
 ## Audit
 
@@ -70,4 +70,4 @@ A merged, dashboard-style feed of recent events for the profile.
 
 ## Reconcile fees
 
-The **Fees** column and **Net of fees** P/L here are only as accurate as the commission data on file. If they look empty or too good to be true, run **Reconcile fees** to backfill the real Binance commissions — see [General → Reconcile fees](general.md#reconcile-fees).
+If a row or a summary line is marked `net n/a`, run **Reconcile fees**; a summary can carry the mark when the incomplete trade is not on the page you are looking at, because the summaries cover the whole period while the list is paged. see [Profile settings → Reconcile fees](general.md#reconcile-fees).
