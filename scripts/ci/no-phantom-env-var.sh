@@ -33,7 +33,10 @@ const INFRA_ONLY = new Set([
 const READ_EXCLUSIONS = new Map([
   ["DATABASE_TEST_URL", new Set(["packages/testcontainers/src/index.ts"])],
   ["REDIS_TEST_URL", new Set(["packages/testcontainers/src/index.ts"])],
-  ["TESTCONTAINERS", new Set(["packages/testcontainers/src/index.ts"])],
+  ["TESTCONTAINERS", new Set([
+    "packages/testcontainers/src/index.ts",
+    "packages/db/vitest.config.ts",
+  ])],
   ["API_PROXY_TARGET", new Set(["apps/web/vite.config.ts"])],
   ["ADMIN_DATABASE_URL", new Set(["packages/db/drizzle.config.ts"])],
   ["npm_package_version", new Set([

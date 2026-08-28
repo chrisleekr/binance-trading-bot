@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, Pool } from 'pg';
 import { migrate } from '../src/migrate.js';
+import { HAS_INFRA, sharedDatabaseUrl } from './_infra.js';
 
 // Pins the runner-side half of the migration-immutability invariant, whose repo-side half is guarded by `scripts/ci/no-mutated-applied-migration.sh`.
 //
@@ -16,11 +17,7 @@ import { migrate } from '../src/migrate.js';
 //
 // Needs a real Postgres: TESTCONTAINERS=1 boots a throwaway container, or DATABASE_TEST_URL names a pre-existing server. Skipped in the no-Docker unit lane.
 
-const HAS_INFRA =
-  process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['DATABASE_TEST_URL']);
-
 describe.skipIf(!HAS_INFRA)('migrate() refuses to replay mutated history', () => {
-  let stopContainer: () => Promise<void> = async () => undefined;
   let adminUrl: URL;
   let baseUrl: string;
   const created: string[] = [];
@@ -71,27 +68,17 @@ describe.skipIf(!HAS_INFRA)('migrate() refuses to replay mutated history', () =>
   };
 
   beforeAll(async () => {
-    if (process.env['TESTCONTAINERS'] === '1') {
-      const pg = await (await import('@app/testcontainers')).withPostgres();
-      baseUrl = pg.databaseUrl;
-      stopContainer = pg.stop;
-    } else {
-      baseUrl = process.env['DATABASE_TEST_URL'] as string;
-    }
+    baseUrl = await sharedDatabaseUrl();
     adminUrl = new URL(baseUrl);
     adminUrl.pathname = '/postgres';
-  }, 120_000);
+  });
 
   afterAll(async () => {
-    // Settled, not sequential-await: one drop that rejects must not strand the container, which is the only teardown here that cannot be swept by anything else.
-    try {
-      await Promise.allSettled(
-        created.map((name) => withAdmin(`drop database if exists "${name}" with (force)`)),
-      );
-      for (const dir of fixtureDirs) rmSync(dir, { recursive: true, force: true });
-    } finally {
-      await stopContainer();
-    }
+    // Settled, not sequential-await: one drop that rejects must not skip the fixture-directory sweep behind it.
+    await Promise.allSettled(
+      created.map((name) => withAdmin(`drop database if exists "${name}" with (force)`)),
+    );
+    for (const dir of fixtureDirs) rmSync(dir, { recursive: true, force: true });
   });
 
   it('throws when an applied migration body changes, even by a comment', async () => {

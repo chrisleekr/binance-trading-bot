@@ -3,17 +3,15 @@
 // Verifies the properties the fake-eval unit tests cannot: the Lua token
 // bucket is atomic under concurrency (no lost update), the counter is shared
 // across pod instances, weight decays by wall-clock, and the priority band is
-// enforced server-side. Runs under TESTCONTAINERS=1 (local Docker) or
-// REDIS_TEST_URL (the CI worker-integration service container); neither skips.
+// enforced server-side.
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { Redis } from 'ioredis';
 
 import { createRedisWeightGovernor } from '@app/binance';
 import { withRedis } from '@app/testcontainers';
 
-const HAS_INFRA = process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['REDIS_TEST_URL']);
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 const fakeClock = (start = 1_700_000_000_000): { nowMs(): number; advance(ms: number): void } => {
   let now = start;
@@ -25,7 +23,7 @@ const fakeClock = (start = 1_700_000_000_000): { nowMs(): number; advance(ms: nu
   };
 };
 
-describeIfInfra('shared Redis weight bucket', () => {
+describeInfra('redis', 'shared Redis weight bucket', () => {
   let redis: Redis;
   let stop: () => Promise<void>;
   let keySeq = 0;

@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client, Pool } from 'pg';
 import { migrate } from '../src/migrate.js';
+import { HAS_INFRA, sharedDatabaseUrl } from './_infra.js';
 
 // Migration-safety test for issue #503 (remove per-profile paper trading).
 // Migration 0074 must (1) drop the demo_mode column and the simulated_orders
@@ -21,9 +22,6 @@ import { migrate } from '../src/migrate.js';
 // on it so the partial-migration sequence starts from an empty schema). Skipped
 // in the no-Docker unit lane.
 
-const HAS_INFRA =
-  process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['DATABASE_TEST_URL']);
-
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = resolve(HERE, '..', 'migrations');
 
@@ -38,7 +36,6 @@ const migrationNames = (): string[] =>
 
 describe.skipIf(!HAS_INFRA)('migration 0074 — remove paper trading', () => {
   const dbName = `bt_rm_paper_${randomUUID().replace(/-/g, '')}`;
-  let stopContainer: () => Promise<void> = async () => undefined;
   let adminUrl: URL;
   let targetUrl: string;
   let pool: Pool;
@@ -58,15 +55,7 @@ describe.skipIf(!HAS_INFRA)('migration 0074 — remove paper trading', () => {
   };
 
   beforeAll(async () => {
-    let baseUrl: string;
-    if (process.env['TESTCONTAINERS'] === '1') {
-      const { withPostgres } = await import('@app/testcontainers');
-      const pg = await withPostgres();
-      baseUrl = pg.databaseUrl;
-      stopContainer = pg.stop;
-    } else {
-      baseUrl = process.env['DATABASE_TEST_URL'] as string;
-    }
+    const baseUrl = await sharedDatabaseUrl();
     adminUrl = new URL(baseUrl);
     adminUrl.pathname = '/postgres';
     const target = new URL(baseUrl);
@@ -107,12 +96,11 @@ describe.skipIf(!HAS_INFRA)('migration 0074 — remove paper trading', () => {
       copyFileSync(join(MIGRATIONS_DIR, name), join(stageDir, name));
     }
     await migrate({ connectionString: targetUrl, migrationsDir: stageDir, log: () => undefined });
-  }, 180_000);
+  });
 
   afterAll(async () => {
     if (pool) await pool.end();
     if (adminUrl) await withAdmin(`drop database if exists "${dbName}" with (force)`);
-    await stopContainer();
   });
 
   it('drops the profiles.demo_mode column', async () => {

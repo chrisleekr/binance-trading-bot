@@ -4,10 +4,9 @@
 // cannot: upsert-in-place, remove-by-id, patch of filled amounts, and — the
 // safety property the whole design rests on — that remove/patch NEVER fabricate
 // an absent key (a dropped snapshot cold-loads, it is not reconstructed from one
-// event). Runs under TESTCONTAINERS=1 (local Docker) or REDIS_TEST_URL (the CI
-// worker-integration service container); neither skips.
+// event).
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
 
 import { withRedis } from '@app/testcontainers';
@@ -18,8 +17,7 @@ import {
   upsertOpenOrder,
 } from '../../src/executor/open-orders-cache.js';
 
-const HAS_INFRA = process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['REDIS_TEST_URL']);
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 interface CachedOrder {
   orderId: number;
@@ -36,7 +34,7 @@ const order = (orderId: number, over: Partial<CachedOrder> = {}): CachedOrder =>
   ...over,
 });
 
-describeIfInfra('open-orders cache Lua', () => {
+describeInfra('redis', 'open-orders cache Lua', () => {
   let redis: Redis;
   let stop: () => Promise<void>;
   let keySeq = 0;

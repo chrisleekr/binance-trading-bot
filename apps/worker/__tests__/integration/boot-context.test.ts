@@ -5,22 +5,15 @@
 // drainer holds its OWN Redis connection (a blocking XREADGROUP must not share
 // the shared client) — so a construction-order decomposition can be proven a
 // no-op against real Postgres + Redis rather than a mocked constructor.
-//
-// Gated like the other worker integration suites: TESTCONTAINERS=1 boots
-// throwaway containers, DATABASE_TEST_URL + REDIS_TEST_URL reuse CI service
-// containers, and a leg with neither resolves as `describe.skip`.
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { migrate } from '@app/db';
 import { withPostgres, withRedis } from '@app/testcontainers';
 
 import { buildBootContext, type BootContext, type BootEnv } from '../../src/boot/boot-context.js';
 
-const HAS_INFRA =
-  process.env['TESTCONTAINERS'] === '1' ||
-  Boolean(process.env['DATABASE_TEST_URL'] && process.env['REDIS_TEST_URL']);
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 // The exact public field set, sorted. Captured from a real `buildBootContext`
 // run; the decomposition must leave every one of these — and no more — in place.
@@ -72,7 +65,7 @@ const EXPECTED_FIELDS = [
 
 const PUBLIC_WEB_URL = 'https://demo.example.test';
 
-describeIfInfra('buildBootContext — public DI surface', () => {
+describeInfra('both', 'buildBootContext — public DI surface', () => {
   let ctx: BootContext;
   let stopPg: () => Promise<void>;
   let stopRedis: () => Promise<void>;
@@ -113,12 +106,15 @@ describeIfInfra('buildBootContext — public DI surface', () => {
     // BullMQ workers, the audit drainer's dedicated connection, the shared
     // client, and the pg pool. Lifecycles are never started, so no start()ed
     // subsystem needs stopping.
-    await ctx?.queueSet.closeAll();
-    await ctx?.auditDrainerRedis.quit();
-    await ctx?.redis.quit();
-    await ctx?.pool.end();
-    if (stopRedis) await stopRedis();
-    if (stopPg) await stopPg();
+    //
+    // Each close is swallowed individually, following `tick-tv-bundle`: sequenced bare, the first rejection returns from this hook and leaves BOTH containers running for the rest of the session. A close that fails here is not the suite's result — the assertions have already run — but a stranded container degrades every suite after it.
+    const swallow = (): void => undefined;
+    await ctx?.queueSet.closeAll().catch(swallow);
+    await ctx?.auditDrainerRedis.quit().catch(swallow);
+    await ctx?.redis.quit().catch(swallow);
+    await ctx?.pool.end().catch(swallow);
+    if (stopRedis) await stopRedis().catch(swallow);
+    if (stopPg) await stopPg().catch(swallow);
 
     process.env['DATABASE_URL'] = priorEnv.DATABASE_URL;
     process.env['REDIS_URL'] = priorEnv.REDIS_URL;

@@ -11,12 +11,8 @@
 // ticks would clobber a single row and only one symbol's marker would
 // survive. Post-cutover the rows are independent and all three markers
 // land.
-//
-// Runs under TESTCONTAINERS=1 (local Docker) or DATABASE_TEST_URL+REDIS_TEST_URL
-// (the CI worker-integration service containers); a leg with neither resolves
-// the suite as `describe.skip`, matching the sibling integration suites.
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { Redis } from 'ioredis';
 import { Queue, Worker, type ConnectionOptions } from 'bullmq';
@@ -52,13 +48,7 @@ import { buildSymbolStateKey } from '../../src/executor/redis-namespace.js';
 import { tickJobId, QUEUE_NAMES, QUEUE_SPECS } from '../../src/queues/queue-names.js';
 import type { TickJobData } from '../../src/queues/job-payloads.js';
 
-// Needs BOTH Postgres and Redis: gate on both URLs so a partial local env skips
-// cleanly rather than admitting the suite and then failing in withRedis() when it
-// falls through to spinning a container with no Docker socket.
-const HAS_INFRA =
-  process.env['TESTCONTAINERS'] === '1' ||
-  (Boolean(process.env['DATABASE_TEST_URL']) && Boolean(process.env['REDIS_TEST_URL']));
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 const TEST_USER_ID = '00000000-0000-0000-0000-0000000000a1';
 const TEST_ACCOUNT_ID = '00000000-0000-0000-0000-0000000000c1';
@@ -432,7 +422,7 @@ const waitForRowCount = async (pool: Pool, target: number, timeoutMs = 30_000): 
   throw new Error(`timed out waiting for symbol_states rows >= ${target}; last=${last}`);
 };
 
-describeIfInfra('multi-symbol state isolation — per-(profile, symbol) slice', () => {
+describeInfra('both', 'multi-symbol state isolation — per-(profile, symbol) slice', () => {
   let h: Harness;
 
   beforeAll(async () => {

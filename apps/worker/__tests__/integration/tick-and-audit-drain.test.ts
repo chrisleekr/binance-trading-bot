@@ -10,12 +10,8 @@
 // (rather than `trailing-trade`) is what makes the test deterministic: TT
 // will only emit a buy when its preconditions align, and threading that
 // through testcontainers is not the contract we want to exercise here.
-//
-// Runs under TESTCONTAINERS=1 (local Docker) or DATABASE_TEST_URL+REDIS_TEST_URL
-// (the CI worker-integration service containers); a leg with neither resolves
-// the suite as `describe.skip` (matches the sibling integration suites).
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { Redis } from 'ioredis';
 import { Queue, Worker, type ConnectionOptions } from 'bullmq';
@@ -73,13 +69,7 @@ import { tickJobId, QUEUE_NAMES, QUEUE_SPECS } from '../../src/queues/queue-name
 import type { TickJobData } from '../../src/queues/job-payloads.js';
 import { errorMessage } from '@app/core/error';
 
-// Needs BOTH Postgres and Redis: gate on both URLs so a partial local env skips
-// cleanly rather than admitting the suite and then failing in withRedis() when it
-// falls through to spinning a container with no Docker socket.
-const HAS_INFRA =
-  process.env['TESTCONTAINERS'] === '1' ||
-  (Boolean(process.env['DATABASE_TEST_URL']) && Boolean(process.env['REDIS_TEST_URL']));
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000abc';
 const TEST_ACCOUNT_ID = '00000000-0000-0000-0000-0000000000ac';
@@ -403,7 +393,7 @@ const waitForCount = async (
   throw new Error(`timed out waiting for count >= ${target}; last=${last}`);
 };
 
-describeIfInfra('worker tick + audit-drain integration', () => {
+describeInfra('both', 'worker tick + audit-drain integration', () => {
   let h: Harness;
 
   beforeAll(async () => {

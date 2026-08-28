@@ -222,7 +222,6 @@ describeIfInfra('symbols router — per-symbol config override', () => {
       await fx.di.pool.query(`update accounts set binance_mode = 'test' where id = $1`, [
         fx.alice.accountId,
       ]);
-      await redis.quit();
     }
   });
 

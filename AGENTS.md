@@ -65,6 +65,7 @@ Directory grouping (`packages/strategy/*`) is filesystem-only; **npm names stay 
 | `bun run typecheck` | `tsc --noEmit -b` across all packages. Must be clean. |
 | `bun run test` | Vitest. Per-workspace thresholds are enforced in the complete-suite coverage lane assigned by `COVERAGE_POLICY`. |
 | `bun run test:e2e` | Playwright e2e. |
+| `bun run test:worker-integration` | `apps/worker` integration lane on a laptop. Provisions throwaway Postgres + Redis under `TESTCONTAINERS=1`, so it needs a reachable Docker daemon and prints a notice instead of running when there is none. |
 | `bun run db:migrate` | Apply hand-authored SQL migrations (checksum-tracked runner). |
 | `bun run db:generate` | Not used — repo hand-authors `NNNN_*.sql`. |
 | `bun run setup` | First-time bootstrap: `.env` from `.env.example` + migrate. |

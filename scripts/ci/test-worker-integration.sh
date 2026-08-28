@@ -1,24 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# apps/worker integration suites against real Postgres + Redis service
-# containers. The suites gate on DATABASE_TEST_URL / REDIS_TEST_URL (see each
-# file's `HAS_INFRA`), so no Docker-in-Docker is needed — the service containers
-# are the stack, exactly as the apps/api `integration` job does it.
+# apps/worker integration suites against real Postgres + Redis service containers. Each suite admits itself through `describeInfra`, which takes DATABASE_TEST_URL / REDIS_TEST_URL as readily as it takes a Docker daemon, so no Docker-in-Docker is needed — the service containers are the stack, exactly as the apps/api `integration` job does it. On a laptop, run `bun run test:worker-integration` instead: it provisions the same stack.
 #
-# Runs the complete worker suite serially: the tests share one database and several
-# `truncate ... cascade` their slice, which cannot safely interleave with a
-# sibling's fixture. Each suite migrates + resets its own slice, so a fresh
-# service container starts clean and the run is order-independent.
+# Runs the complete worker suite serially: the tests share one database and several `truncate ... cascade` their slice, which cannot safely interleave with a sibling's fixture. Each suite migrates + resets its own slice, so a fresh service container starts clean and the run is order-independent.
 #
-# The Vitest binary delegates to `node` when it is on PATH, and the job installs
-# nodejs. The
-# tick-and-audit suite mocks Binance with nock, whose fetch interception
-# (@mswjs/interceptors) throws "Attempted to assign to readonly property" under
-# the bun-alpine runtime; running vitest under node avoids it. Same reason the
-# `unit` job installs nodejs.
+# Bun 1.4.0 passes the nock-backed tick-and-audit tests but recursively overflows the stack while merging v8 coverage, so this lane runs vitest under Node: the vitest binary delegates to node when it is on PATH, which is why the job installs nodejs and why removing that step would silently move the lane back onto Bun.
 #
-# Kept out of the `integration` job (apps/api) because both TRUNCATE their
-# database; each job gets its own service container.
+# Kept out of the `integration` job (apps/api) because both TRUNCATE their database; each job gets its own service container.
 # shellcheck source=_common.sh
 source "$(dirname "$0")/_common.sh"
 ci::start test-worker-integration
@@ -48,4 +36,17 @@ export COVERAGE_LANE=worker-integration
   process.exit(1);
 ' )
 
-( cd apps/worker && bun x vitest run --no-file-parallelism --hookTimeout=180000 --coverage )
+# `--reporter` on the CLI REPLACES the config's list rather than adding to it, so junit is re-specified here or the artifact the coverage jobs collect disappears. The json report is what the honesty check reads: it is the only vitest artifact that carries a suite title (and therefore a skip reason) and a failed-test count.
+set +e
+( cd apps/worker && bun x vitest run --no-file-parallelism --hookTimeout=180000 --coverage \
+  --reporter=default --reporter=junit --reporter=json \
+  --outputFile.junit=test-results/junit.xml \
+  --outputFile.json=test-results/vitest-results.json )
+STATUS=$?
+set -e
+
+# Runs whatever vitest's exit code was: a lane that dies with every assertion passed is exactly the condition this check names, so gating it on success would blind it to that case.
+bun scripts/ci/check-worker-integration-honesty.ts --vitest-status="$STATUS" --forbid-skips \
+  <apps/worker/test-results/vitest-results.json || STATUS=$?
+
+exit "$STATUS"
