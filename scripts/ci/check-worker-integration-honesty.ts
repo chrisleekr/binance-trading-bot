@@ -2,7 +2,7 @@
 //
 // Three ways it lied. A gated suite resolved to `describe.skip` with no reason recorded anywhere an artifact could carry, so three of twelve files silently stood down and the job still reported success. A broken include glob produced an empty run that `passWithNoTests: true` turned green. And a crash after the last assertion — a teardown that never settled, a connection that kept the process alive — exited nonzero with every test passed, which reads as a flaky infrastructure blip rather than the real defect it is.
 //
-// Skips are REPORT-ONLY here. The lane is expected to skip suites on a leg without service containers, so failing on a skip would only make the honest report unusable; the operator sees which files stood down and why, and that is what was missing.
+// Skips are report-only by DEFAULT. A leg without service containers is expected to stand suites down, and failing on that would only make the honest report unusable: the operator sees which files stood down and why, and that is what was missing. A caller that supplies Postgres and Redis itself passes `--forbid-skips` to make a skip fatal instead, because on that lane a stood-down suite is a misconfigured job. See the flag's own rationale at the foot of this file.
 
 interface AssertionResult {
   readonly status?: string;

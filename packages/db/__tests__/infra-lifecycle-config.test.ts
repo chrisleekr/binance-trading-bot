@@ -117,7 +117,7 @@ const fileParallelismUnder = async (
 };
 
 describe('database test hook timeouts', () => {
-  it('sets the project hook timeout to 120 seconds', () => {
+  it('sets the project hook timeout to 180 seconds', () => {
     expect(config.test?.hookTimeout).toBe(180_000);
   });
 
