@@ -77,9 +77,10 @@ describeInfra('both', 'buildBootContext — public DI surface', () => {
   };
 
   beforeAll(async () => {
+    // Each handle is published the instant its provision resolves, never after the pair. Assigned below the second `await`, a rejecting `withRedis` — the likely one on the contended daemon this budget targets — returns through this frame with `stopPg` still unassigned, so the `afterAll` below skips a Postgres that is still RUNNING. Vitest runs that hook even when this one throws or times out, so publishing early is all the teardown needs; what it cannot reach is a binding this hook never got to write.
     const pg = await withPostgres();
-    const rd = await withRedis();
     stopPg = pg.stop;
+    const rd = await withRedis();
     stopRedis = rd.stop;
 
     await migrate({ connectionString: pg.databaseUrl, log: () => undefined });

@@ -1,8 +1,8 @@
 // One Postgres endpoint per test file, provisioned lazily and torn down by a hook this module owns.
 //
-// The migration suites here used to each resolve their own endpoint inside `beforeAll`, which put the container's only handle inside the hook that acquires it. When that hook timed out — the ordinary outcome once several suites provisioned at once — the suite's own `afterAll` never ran and the container that eventually came up was never stopped. The teardown therefore has to live outside the hook that acquires: the file-scope `afterAll` below runs whether or not any suite's setup succeeded.
+// The migration suites here used to each resolve their own endpoint inside `beforeAll`, which put the container's only handle inside the hook that acquires it. When that hook timed out — the ordinary outcome once several suites provisioned at once — the suite's `afterAll` still ran, but the assignment it needed was still awaiting the provision, so it had nothing to stop and the container that eventually came up ran on. The handle therefore has to be reachable from outside the hook that acquires it: this module's memo holds it from the moment the provision resolves, however late that is, and the file-scope `afterAll` below stops it whether or not any suite's setup succeeded.
 //
-// Serialisation is the other half, and it lives in `vitest.config.ts` (`fileParallelism: false`): Vitest isolates module state per test file, so this memo bounds provisioning within a file, never across them. Only running one file at a time bounds it across the package.
+// Serialisation is the other half, and it lives in `vitest.config.ts` (`fileParallelism: !provisionsContainers` — serial only under `TESTCONTAINERS=1`, the one lane where this memo has a container to bound). Vitest isolates module state per test file, so the memo bounds provisioning within a file, never across them; only running one file at a time bounds it across the package. On the `DATABASE_TEST_URL` lane there is nothing to bound — every `stop` is a no-op — so the files run in parallel.
 
 import { afterAll } from 'vitest';
 

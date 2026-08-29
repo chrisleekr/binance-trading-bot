@@ -230,9 +230,15 @@ const buildStubMarketDataPort = (): MarketDataPort => ({
   loadWindow: async () => [],
 });
 
+// Published as each provision resolves, so the file's teardown can reach a container even when this builder threw before it could return the Harness that owns it — a rejecting `withRedis`, a failing `migrate`, an unreachable Redis. Same reason the memo in `packages/db/__tests__/_infra.ts` sits outside the hook that acquires: a handle held only by a frame that unwinds is a container that runs for the rest of the session. Ryuk still reaps at session exit, so this bounds the leak to the run rather than removing it.
+let pgFixture: PostgresFixture | undefined;
+let redisFixture: RedisFixture | undefined;
+
 const buildHarness = async (): Promise<Harness> => {
   const pgFx = await withPostgres();
+  pgFixture = pgFx;
   const redisFx = await withRedis();
+  redisFixture = redisFx;
 
   await migrate({ connectionString: pgFx.databaseUrl, log: () => undefined });
   const pool = new Pool({ connectionString: pgFx.databaseUrl });
@@ -403,7 +409,13 @@ describeInfra('both', 'worker tick + audit-drain integration', () => {
   afterAll(async () => {
     nock.cleanAll();
     nock.enableNetConnect();
-    if (h) await h.stop();
+    if (h) {
+      await h.stop();
+      return;
+    }
+    // No Harness, so `buildHarness` threw: stop whatever it had provisioned by then. Each swallows its own rejection, because sequenced bare the first failure would return from this hook and leave the other container running.
+    await redisFixture?.stop().catch(() => undefined);
+    await pgFixture?.stop().catch(() => undefined);
   });
 
   beforeEach(() => {
