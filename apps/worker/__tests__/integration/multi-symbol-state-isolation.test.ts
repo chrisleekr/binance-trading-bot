@@ -205,7 +205,6 @@ interface Harness {
   readonly pgFx: PostgresFixture;
   readonly redisFx: RedisFixture;
   readonly registry: StrategyRegistry;
-  stop(): Promise<void>;
 }
 
 const seedOwner = async (pool: Pool): Promise<void> => {
@@ -268,21 +267,40 @@ const buildPersistSymbolState = (pool: Pool) => {
   };
 };
 
-// Published as each provision resolves, so the file's teardown can reach a container even when this builder threw before it could return the Harness that owns it — a rejecting `withRedis`, a failing `migrate`, an unreachable Redis. Same reason the memo in `packages/db/__tests__/_infra.ts` sits outside the hook that acquires: a handle held only by a frame that unwinds is a container that runs for the rest of the session. Ryuk still reaps at session exit, so this bounds the leak to the run rather than removing it.
-let pgFixture: PostgresFixture | undefined;
-let redisFixture: RedisFixture | undefined;
+// Every resource `buildHarness` opens is registered here the moment it exists, so a builder that throws part-way can still be unwound. Registering at construction rather than in the returned Harness is the whole point: a handle held only by a frame that unwinds is a container that runs for the rest of the session, and — worse — an ioredis client on `maxRetriesPerRequest: null` that reconnects forever and holds the vitest process open. That turns a legible `beforeAll` failure into a hang, the exact outcome this lane exists to remove. Ryuk still reaps the containers at session exit, so for those this bounds the leak to the run rather than removing it.
+//
+// It is also the only teardown order: newest-first unwinding derives from construction order, so a resource added later cannot be forgotten by a hand-maintained close list that no longer matches.
+const opened: Array<() => Promise<void>> = [];
+
+/**
+ * Closes everything `buildHarness` opened, newest first, whether or not it ran to completion. Draining the stack makes a second call a no-op.
+ *
+ * @returns A promise that settles once every registered resource has been asked to close.
+ */
+const closeOpened = async (): Promise<void> => {
+  for (let close = opened.pop(); close !== undefined; close = opened.pop()) {
+    // Swallowed individually: sequenced bare, the first rejection returns from this loop and strands everything registered below it. A close that fails is not the suite's result — the assertions have already run.
+    await close().catch(() => undefined);
+  }
+};
 
 const buildHarness = async (): Promise<Harness> => {
   const pgFx = await withPostgres();
-  pgFixture = pgFx;
+  opened.push(pgFx.stop);
   const redisFx = await withRedis();
-  redisFixture = redisFx;
+  opened.push(redisFx.stop);
 
   await migrate({ connectionString: pgFx.databaseUrl, log: () => undefined });
   const pool = new Pool({ connectionString: pgFx.databaseUrl });
+  opened.push(async () => {
+    await pool.end();
+  });
   await seedOwner(pool);
 
   const redis = new Redis(redisFx.redisUrl, { maxRetriesPerRequest: null });
+  opened.push(async () => {
+    await redis.quit();
+  });
   const redisUrlParsed = new URL(redisFx.redisUrl);
   const connection: ConnectionOptions = {
     host: redisUrlParsed.hostname,
@@ -357,6 +375,9 @@ const buildHarness = async (): Promise<Harness> => {
   });
 
   const tickQueue = new Queue<TickJobData>(QUEUE_NAMES.tick, { connection });
+  opened.push(async () => {
+    await tickQueue.close();
+  });
   // Drop any residual jobs a prior run left in the shared tick queue before the
   // worker attaches. The worker integration job's Redis is fresh, but a local
   // re-run against a persistent Redis would otherwise replay stale ticks into
@@ -369,6 +390,9 @@ const buildHarness = async (): Promise<Harness> => {
   const tickWorker = new Worker<TickJobData>(QUEUE_NAMES.tick, handler, {
     connection,
     concurrency: Math.max(SYMBOLS.length, QUEUE_SPECS.tick.concurrency),
+  });
+  opened.push(async () => {
+    await tickWorker.close();
   });
 
   await tickWorker.waitUntilReady();
@@ -383,14 +407,6 @@ const buildHarness = async (): Promise<Harness> => {
     pgFx,
     redisFx,
     registry,
-    async stop() {
-      await tickWorker.close();
-      await tickQueue.close();
-      await redis.quit().catch(() => undefined);
-      await pool.end().catch(() => undefined);
-      await redisFx.stop();
-      await pgFx.stop();
-    },
   };
 };
 
@@ -436,13 +452,7 @@ describeInfra('both', 'multi-symbol state isolation — per-(profile, symbol) sl
   }, 180_000);
 
   afterAll(async () => {
-    if (h) {
-      await h.stop();
-      return;
-    }
-    // No Harness, so `buildHarness` threw: stop whatever it had provisioned by then. Each swallows its own rejection, because sequenced bare the first failure would return from this hook and leave the other container running.
-    await redisFixture?.stop().catch(() => undefined);
-    await pgFixture?.stop().catch(() => undefined);
+    await closeOpened();
   });
 
   beforeEach(async () => {
