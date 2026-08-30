@@ -1,0 +1,3 @@
+ARG BUN_VERSION=9.9.9
+ARG BUN_IMAGE=oven/bun
+FROM ${BUN_IMAGE}:${BUN_VERSION}-alpine AS deps

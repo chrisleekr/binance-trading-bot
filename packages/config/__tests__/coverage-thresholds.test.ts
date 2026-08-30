@@ -9,6 +9,8 @@ import { COVERAGE_POLICY, PER_PACKAGE_THRESHOLDS } from '../vitest/index.js';
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const COVERAGE_LANES = ['unit', 'integration', 'worker-integration', 'db-isolation'] as const;
 const COVERAGE_LANE_SET: ReadonlySet<string> = new Set(COVERAGE_LANES);
+// Each lane starts a Bun process that imports every workspace Vitest config, so its cost tracks runner CPU contention rather than anything the assertions check. Isolated, a case settles in ~300ms; under a fully-parallel `turbo test` the same case has been observed past 5.1s, which the five-second default turns into a red pipeline with no defect behind it — and a red dismissed as flake is how a real failure gets waved through. The bound is contention headroom, not an expectation of how long the work takes; it stays only as a backstop against a subprocess that never returns.
+const CONFIG_IMPORT_TIMEOUT_MS = 15_000;
 type CoverageLane = (typeof COVERAGE_LANES)[number];
 type Thresholds = { readonly lines: number; readonly branches: number };
 
@@ -148,6 +150,7 @@ describe('coverage threshold lane binding', () => {
         );
       }
     },
+    CONFIG_IMPORT_TIMEOUT_MS,
   );
 
   it('treats an absent lane as unit and leaves infrastructure thresholds omitted', () => {

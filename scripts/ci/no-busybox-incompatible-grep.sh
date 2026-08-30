@@ -22,19 +22,31 @@ ci::start no-busybox-incompatible-grep
 
 root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root"
+# Overridable so no-busybox-incompatible-grep.selftest.sh can drive this exact script over fixture trees rather than re-implementing its matching.
+GUARD_ROOT="${GUARD_ROOT:-$root}"
 
-GUARD_ROOT="$root" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
 
 const dir = path.join(root, "scripts/ci");
 const self = "no-busybox-incompatible-grep.sh"; // names the flags in its own text
-const scripts = fs.readdirSync(dir).filter((f) => f.endsWith(".sh") && f !== self);
-if (scripts.length === 0) {
-  console.error("no scripts/ci/*.sh files scanned — scan-path regression in this guard.");
-  process.exit(1);
-}
+
+// Vacuity-checked by the shared helper. `flat` because the gate set is the .sh files directly under scripts/ci and nothing below it, and the anchors are two scripts that cannot leave: the lint entrypoint that runs every gate, and a gate that walks the tree with bun fs, which is exactly the shape this guard exists to keep people writing.
+const scripts = collectOrExit({
+  root,
+  label: "CI shell scripts",
+  flat: true,
+  test: (p) => p.endsWith(".sh") && path.basename(p) !== self,
+  roots: [
+    {
+      name: path.join("scripts", "ci"),
+      anchors: [path.join("scripts", "ci", "lint.sh"), path.join("scripts", "ci", "no-error-cast.sh")],
+    },
+  ],
+}).map((p) => path.basename(p));
 
 const BAD = /--include\b|--exclude(-dir)?\b/;
 const hits = [];

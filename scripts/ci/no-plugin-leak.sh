@@ -28,33 +28,39 @@ ci::start no-plugin-leak
 
 root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root"
+# Overridable so no-plugin-leak.selftest.sh can drive this exact script over fixture trees rather than re-implementing its matching.
+GUARD_ROOT="${GUARD_ROOT:-$root}"
 
-GUARD_ROOT="$root" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
 
 // Whole app trees, not just src/: a leak in a root-level app file (e.g. a
 // *.config.ts) is still a leak. __tests__/dist/node_modules are excluded.
-const ROOTS = ["apps/api", "apps/worker"];
-const SKIP_DIR = new Set(["node_modules", "dist", "__tests__"]);
 // Registry bootstrap files import plugins by design (invariant #1 exemption).
 const EXEMPT = new Set(["strategies.ts", "strategies.js", "notifiers.ts", "notifiers.js"]);
 
-const tsFiles = (dir, out = []) => {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (!SKIP_DIR.has(e.name)) tsFiles(p, out);
-    } else if (/\.tsx?$/.test(e.name)) {
-      out.push(p);
-    }
-  }
-  return out;
-};
-
-const files = ROOTS.flatMap((r) => tsFiles(path.join(root, r)));
+// Walked and vacuity-checked PER ROOT by the shared helper, which this gate had neither half of before: a union of the two app trees with no floor at all meant apps/worker vanishing from scope left the raw-hit count healthy on apps/api alone, and the gate reported the invariant holding over an app it never opened.
+//
+// Each app is anchored on its entrypoint and on its strategy-registry bootstrap. The bootstrap is the sharpest anchor available: it is the one file in the tree that imports a concrete plugin on purpose, so a walk that stops reaching it is a walk that has also stopped seeing every leak the rule is about.
+const files = collectOrExit({
+  root,
+  label: ".ts/.tsx files",
+  skipDirs: ["node_modules", "dist", "__tests__"],
+  test: (p) => /\.tsx?$/.test(p),
+  roots: [
+    {
+      name: path.join("apps", "api"),
+      anchors: [path.join("apps", "api", "src", "index.ts"), path.join("apps", "api", "src", "strategies.ts")],
+    },
+    {
+      name: path.join("apps", "worker"),
+      anchors: [path.join("apps", "worker", "src", "index.ts"), path.join("apps", "worker", "src", "strategies.ts")],
+    },
+  ],
+});
 
 // A plugin specifier in import position, adjacent to the import keyword: static
 // from "...", dynamic import("..."), or bindingless side-effect import "...".

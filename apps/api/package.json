@@ -9,7 +9,7 @@
     "dev": "bun --watch src/index.ts",
     "build": "tsc -b",
     "reset-password": "bun ./scripts/reset-password.ts",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsc -b --noEmit && tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
@@ -24,10 +24,10 @@
     "@app/strategy-registry": "workspace:*",
     "@hono/swagger-ui": "~0.6.1",
     "@hono/zod-openapi": "1.6.1",
-    "better-auth": "~1.7.1",
+    "better-auth": "~1.7.2",
     "bullmq": "5.58.6",
     "drizzle-orm": "~0.45.2",
-    "hono": "~4.13.4",
+    "hono": "~4.13.5",
     "ioredis": "~6.0.0",
     "pg": "~8.23.0",
     "pino": "~10.3.1",

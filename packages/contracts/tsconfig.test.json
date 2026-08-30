@@ -1,0 +1,17 @@
+{
+  // Type-checks the ordinary test surface, which neither sibling project covers: `tsc -b` builds `src/` only, and `tsconfig.test-d.json` includes just the `.test-d.ts` assertions. Everything else under `__tests__/` compiled nowhere, so a fixture here could claim a contract type it no longer satisfies and still pass at runtime.
+  //
+  // Ordinary tests and type-level tests keep separate compilers: the `.test-d.ts` files are excluded here because they assert deliberate type FAILURES, which only `tsconfig.test-d.json` and its expect-error tooling are set up to read.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "isolatedDeclarations": false,
+    "incremental": false
+  },
+  "include": ["src/**/*.ts", "__tests__/**/*.ts"],
+  "exclude": ["dist", "node_modules", "**/*.test-d.ts"]
+}

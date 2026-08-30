@@ -1,0 +1,3 @@
+# Scaffold. Pins the repo-root YAML listing, which sits under no scanned directory at all.
+lint:
+  script: echo lint

@@ -29,29 +29,20 @@ root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 GUARD_ROOT="${GUARD_ROOT:-$root}"
 cd "$root"
 
-GUARD_ROOT="$GUARD_ROOT" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
 
-const mdFiles = (dir, out = []) => {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (e.name !== "node_modules") mdFiles(p, out);
-    } else if (/\.md$/.test(e.name)) {
-      out.push(p);
-    }
-  }
-  return out;
-};
-
-const files = mdFiles(path.join(root, "docs"));
-if (files.length === 0) {
-  console.error("no markdown files scanned under docs/ — scan-path regression in this gate.");
-  process.exit(1);
-}
+// Walked and vacuity-checked by the shared helper: it refuses a walk that returns nothing AND one that still returns pages but no longer reaches docs/index.md, which is the only page in the tree that uses a card grid. Losing it leaves this gate scanning every other page for a construct none of them contain, and a page count cannot tell that apart from a clean tree.
+const files = collectOrExit({
+  root,
+  label: "markdown files",
+  skipDirs: ["node_modules"],
+  test: (p) => p.endsWith(".md"),
+  roots: [{ name: "docs", anchors: [path.join("docs", "index.md")] }],
+});
 
 const OPEN = /^\s*<div[^>]*class="[^"]*\bgrid\b[^"]*\bcards\b[^"]*"[^>]*>/;
 const DIV_OPEN = /^\s*<div\b/;

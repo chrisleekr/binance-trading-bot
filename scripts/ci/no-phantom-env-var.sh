@@ -11,7 +11,8 @@ repo_root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 GUARD_ROOT="${GUARD_ROOT:-$repo_root}"
 cd "$repo_root"
 
-GUARD_ROOT="$GUARD_ROOT" bun -e '
+CI_WALK_LIB="$repo_root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const ts = await import("typescript/unstable/ast");
@@ -66,27 +67,22 @@ if (declared.length === 0) {
   process.exit(1);
 }
 
-const SKIP_DIR = new Set(["node_modules", "dist", "__tests__"]);
-const tsFiles = (directory, out = []) => {
-  if (!fs.existsSync(directory)) return out;
-  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-    const file = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      if (!SKIP_DIR.has(entry.name)) tsFiles(file, out);
-    } else if (/\.tsx?$/.test(entry.name)) {
-      out.push(file);
-    }
-  }
-  return out;
-};
-const files = [
-  ...tsFiles(path.join(root, "apps")),
-  ...tsFiles(path.join(root, "packages")),
-];
-if (files.length === 0) {
-  console.error("no TS files found under apps/ or packages/ — scan-path regression in this gate.");
-  process.exit(1);
-}
+// Walked and vacuity-checked PER ROOT by the shared helper. A union walk with one shared floor is fail-open in the direction that matters: apps/ going dark still leaves hundreds of packages/ files, so the floor holds while every process.env read in the three apps goes unseen and the reverse gap below reports none.
+//
+// One apps anchor is .tsx on purpose, and it matters more here than anywhere: apps/web reads its configuration through import.meta.env in .tsx components, so dropping the .tsx clause would take the entire Vite side of the catalogue out of scope with both floors and both .ts anchors still satisfied.
+const files = collectOrExit({
+  root,
+  label: ".ts/.tsx files",
+  skipDirs: ["node_modules", "dist", "__tests__"],
+  test: (p) => /\.tsx?$/.test(p),
+  roots: [
+    {
+      name: "apps",
+      anchors: [path.join("apps", "api", "src", "index.ts"), path.join("apps", "web", "src", "main.tsx")],
+    },
+    { name: "packages", anchors: [path.join("packages", "core", "src", "env", "catalogue.ts")] },
+  ],
+});
 
 const catalogPath = path.join(root, "packages", "core", "src", "env", "catalogue.ts");
 if (!fs.existsSync(catalogPath)) {

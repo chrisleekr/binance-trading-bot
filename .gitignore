@@ -72,3 +72,6 @@ backups/
 !docs/assets/readme/**/*.png
 # Worker frame-trace diagnostic (holds account balances/holdings; defaults to OS tmp, ignore any stray repo-local copy). Not *.jsonl: committed test fixtures use that extension.
 worker-frame-trace.jsonl
+
+# Staged-migration scratch dirs. The migration suites copy the shipped `NNNN_*.sql` set into a mkdtemp under `__tests__/` so a migration can be applied to rows seeded through the PREVIOUS schema; the dir is removed in a `finally`, but a crashed or killed run leaves ~90 stray copies of real migrations behind, and the next `git add -A` sweeps every one of them into the diff. Ignored rather than trusted to clean up.
+packages/db/__tests__/.tmp-*/

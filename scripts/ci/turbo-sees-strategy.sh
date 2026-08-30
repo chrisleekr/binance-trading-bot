@@ -16,23 +16,43 @@ ci::start turbo-sees-strategy
 
 root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root" # turbo resolves its workspace graph from the cwd
+# Overridable so turbo-sees-strategy.selftest.sh can drive this exact script over fixture trees rather than re-implementing its matching.
+GUARD_ROOT="${GUARD_ROOT:-$root}"
 
-GUARD_ROOT="$root" bunx turbo run test --dry=json | GUARD_ROOT="$root" node -e '
+# The expected workspace set is resolved BEFORE turbo runs, in its own process. A broken walk is then reported as a broken walk rather than as turbo finding no tasks, and the self-test can drive both walk stops without paying for a dry run of the whole graph.
+EXPECTED_PACKAGES="$(CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
-const stratDir = path.join(process.env.GUARD_ROOT, "packages", "strategy");
-const expected = new Set();
-for (const d of fs.readdirSync(stratDir, { withFileTypes: true })) {
-  if (!d.isDirectory()) continue;
-  const pj = path.join(stratDir, d.name, "package.json");
-  if (!fs.existsSync(pj)) continue;
-  const name = JSON.parse(fs.readFileSync(pj, "utf8")).name;
-  if (name) expected.add(name);
-}
-if (expected.size === 0) {
-  console.error("no packages/strategy/* workspaces found — find path regression in this guard.");
+const root = process.env.GUARD_ROOT;
+
+// Directory entries at depth 1, vacuity-checked by the shared helper. The anchor is trailing-trade, the first strategy plugin and the one CLAUDE.md names as the source of truth for the contract: a listing that no longer reaches it is a listing this gate can draw no conclusion from, and the workspace count alone cannot say so.
+const dirs = collectOrExit({
+  root,
+  label: "strategy workspaces",
+  entry: "dir",
+  flat: true,
+  test: (p) => fs.existsSync(path.join(p, "package.json")),
+  roots: [
+    {
+      name: path.join("packages", "strategy"),
+      anchors: [path.join("packages", "strategy", "trailing-trade")],
+    },
+  ],
+});
+
+const names = dirs
+  .map((d) => JSON.parse(fs.readFileSync(path.join(d, "package.json"), "utf8")).name)
+  .filter(Boolean);
+if (names.length === 0) {
+  console.error("no packages/strategy/* workspace declares a name — manifest parser regression in this guard.");
   process.exit(1);
 }
+console.log(names.join("\n"));
+')"
+
+bunx turbo run test --dry=json | EXPECTED_PACKAGES="$EXPECTED_PACKAGES" node -e '
+const expected = new Set(process.env.EXPECTED_PACKAGES.split("\n").filter(Boolean));
 let buf = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (c) => (buf += c));

@@ -47,6 +47,12 @@ expect_reject exclusion-near-miss \
 expect_reject vacuous 'zero environment reads'
 expect_reject dynamic-read 'dynamic environment read is not supported' 'apps/api/src/read-env.ts'
 
+# The two walk stops. A count of TS files cannot tell a clean tree from one the walk no longer reaches, and this gate reads its whole answer off that walk: no files scanned means no environment reads found, which reads exactly like a catalogue with no gaps.
+expect_reject reject-empty-walk 'scan matched no .ts/.tsx files under apps, packages —'
+
+# Files under both roots, but neither anchor reached. Distinct sentence, distinct branch: the empty case above is what a floor catches, this is what only an anchor can.
+expect_reject reject-narrowed-walk 'walk narrowed' 'packages/core/src/env/catalogue.ts'
+
 if [ "$fails" -ne 0 ]; then
   echo 'no-phantom-env-var self-test: RED'
   exit 1

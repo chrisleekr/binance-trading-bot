@@ -29,6 +29,7 @@ const walk = (dir: string, output: string[]): void => {
   }
 };
 
+// Registered with no-blind-walk as a walk library rather than a walk gate: this listing is not a verdict either, and the root is again a parameter. A lane that goes dark here does not quietly lower a threshold, because `mergeCoverage` below refuses the merge outright at `missing complete-suite lcov for:` and `no lcov source records found`.
 export const discoverCoverageInputs = (root: string): string[] => {
   const inputs: string[] = [];
   for (const workspace of discoverWorkspaceRoots(root)) {
