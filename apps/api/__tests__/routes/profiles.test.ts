@@ -181,7 +181,7 @@ describeIfInfra('profiles router — quoteAsset', () => {
     };
     expect(body.benchmarkMode).toBe('basket');
     expect(body.points.some((p) => p.benchmarkPrices?.['ETHUSDT'] === '2000')).toBe(true);
-    // Every tier is served, `unknown` included, each carrying its own. A snapshot's realised leg is an all-time cumulative fold over an append-only archive, so its tier can only ever weaken and nothing revisits a closed row: withholding one here would not defer a point until better evidence arrives, it would blank the series permanently for any profile with a single historical fill Binance billed in an asset nobody valued. The route hands the tier to the caller, which is what lets the card mark the line instead of losing it.
+    // Every tier is served, `unknown` included, each carrying its own. A snapshot's realised leg is an all-time cumulative fold and its tier is stamped once at capture, never re-stamped: withholding one here would not defer a point until better evidence arrives, it would blank the series permanently for any profile with a single historical fill Binance billed in an asset nobody valued. The route hands the tier to the caller, which is what lets the card mark the line instead of losing it.
     // Keyed numerically rather than by string identity: the column is `numeric(38,18)` and the wire carries its full scale, so `=== '999'` is false for a row that IS present. Each tier is named against its own row, so a route that served all three but collapsed them to one label still fails.
     const tierByPnl = new Map(body.points.map((p) => [Number(p.netPnlQuote), p.feeBasis]));
     expect(tierByPnl.get(10)).toBe('exact');

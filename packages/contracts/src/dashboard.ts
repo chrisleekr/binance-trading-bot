@@ -227,7 +227,7 @@ export const EquitySnapshotPoint = z.object({
   /** Benchmark asset (e.g. 'BTC') and its price in the quote asset at capture. */
   benchmarkAsset: z.string(),
   benchmarkPriceQuote: DecimalString,
-  /** How well the realised leg's fee component was known when this point was recorded. Carried per point rather than filtered server-side: the realised leg is an all-time cumulative fold, so its tier can only ever weaken, and dropping the weak points would blank the curve rather than defer it. Defaulted so a body written before this field shipped still parses, and defaulted to the WEAKEST tier so silence is never read as proof. */
+  /** How well the realised leg's fee component was known when this point was recorded. Carried per point rather than filtered server-side: the realised leg is an all-time cumulative fold, and no forward path lifts its tier once stamped, so dropping the weak points would blank the curve rather than defer it. Defaulted so a body written before this field shipped still parses, and defaulted to the WEAKEST tier so silence is never read as proof. */
   feeBasis: FeeBasis.default('unknown'),
   /**
    * Per-symbol mark prices at capture (symbol → quote price) for the held

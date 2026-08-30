@@ -208,7 +208,7 @@ describe('equitySnapshotHandler', () => {
   });
 
   it('still records a point when the realised fee tier is unknown, stamped unknown', async () => {
-    // The tier must not gate the write. `load` folds `sumProfitInRange(quote, EPOCH, now)`, so the tier is the weakest cycle the profile has EVER closed and the append-only archive can never lift it back: a skip here is not "wait for better evidence", it is a profile whose curve stops for good on the first tick after one historical fill went unvalued. The stamp is what carries the caveat forward, and the card is where the line is marked.
+    // The tier must not gate the write. `load` folds `sumProfitInRange(quote, EPOCH, now)`, so the tier is the weakest cycle the profile has EVER closed and nothing on this forward path lifts it: a skip here is not "wait for better evidence", it is a profile whose curve stops for good on the first tick after one historical fill went unvalued. The stamp is what carries the caveat forward, and the card is where the line is marked.
     const record = vi.fn<EquitySnapshotDeps['record']>(async () => undefined);
     await equitySnapshotHandler(
       deps({

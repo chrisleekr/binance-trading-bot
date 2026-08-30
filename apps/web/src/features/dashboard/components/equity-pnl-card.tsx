@@ -64,7 +64,7 @@ const basketReturn = (
  * > 0), not the worker's first boot, so the comparison starts when money was put
  * in. When nothing was ever deployed the hold line stays flat at 0.
  *
- * `feeBasis` is the weakest tier any PLOTTED point carries, because the green line is one claim about the whole window and a reader has to be told about its worst evidence. It is folded here rather than filtered server-side: a snapshot's realised leg is an all-time cumulative fold that can only ever weaken, so withholding the weak points would empty the card permanently instead of deferring it. An empty window is `exact` — there is nothing there to distrust.
+ * `feeBasis` is the weakest tier any PLOTTED point carries, because the green line is one claim about the whole window and a reader has to be told about its worst evidence. It is folded here rather than filtered server-side: a snapshot's realised leg is an all-time cumulative fold whose tier no forward path lifts, so withholding the weak points would empty the card permanently instead of deferring it. Each point's tier is frozen at capture, so reconciling fees repairs the archive without clearing this marker for points already recorded — it stands until they age out of the window. An empty window is `exact` — there is nothing there to distrust.
  */
 export const toSeries = (
   points: readonly EquitySnapshotPoint[] | undefined,

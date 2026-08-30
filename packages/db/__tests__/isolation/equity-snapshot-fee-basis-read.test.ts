@@ -7,7 +7,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
 /**
  * `listForProfileInRange` must return every tier, `unknown` included.
  *
- * 0090 added `equity_snapshots.fees_quote_complete` as `not null default false` with no backfill and no writer ever set it, so 0093's `case when fees_quote_complete then 'exact' else 'unknown' end` stamps EVERY row that predates this release `unknown`. A tier filter on this read therefore does not withhold a handful of doubtful points, it withholds the entire curve — and permanently, because the tier a snapshot carries is folded over the profile's whole append-only archive and can only ever weaken.
+ * 0090 added `equity_snapshots.fees_quote_complete` as `not null default false` with no backfill and no writer ever set it, so 0093's `case when fees_quote_complete then 'exact' else 'unknown' end` stamps EVERY row that predates this release `unknown`. A tier filter on this read therefore does not withhold a handful of doubtful points, it withholds the entire curve — and permanently, because the tier a snapshot carries is folded over the profile's whole archive at capture and is never re-stamped afterwards, so no later evidence lifts it.
  *
  * A unit test cannot see this: the defect is a `where` clause, so only a real query against real rows distinguishes "returned it" from "silently dropped it".
  *
