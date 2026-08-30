@@ -67,7 +67,13 @@ import {
   SiblingQuoteConflictError,
   SymbolOwnershipConflictError,
 } from '@app/db';
-import { unwrapId, type AccountId, type ProfileId, type UserId } from '@app/contracts';
+import {
+  asDecimalString,
+  unwrapId,
+  type AccountId,
+  type ProfileId,
+  type UserId,
+} from '@app/contracts';
 import { resolveFill, realizedPnlOnSell } from '@app/strategy-core';
 import type {
   AdoptedFill,
@@ -384,7 +390,10 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
         firstApply = isFirstApply;
         if (event.side === 'BUY') {
           const buyResolution = await resolveBuy(txScope, event, isFirstApply, buy.quantity);
-          if (isFirstApply && buy.baseCommissionNetted !== null) {
+          // Gated on `ownStrategy`, not just on the commission, because the origin gate above admits a fill on EITHER an `orders` row or a `manual_orders` one and this stamp writes only `orders`. A bot-manual BUY that pays a base-asset commission therefore has no row to stamp by construction, and an unconditional throw would roll the whole transaction back — the applied-fill ledger row, the cost basis and the symbol state with it. The router catches and logs, no terminal FILLED report is re-emitted, and the position stays lost until the boot reconcile sweep: a missing proof would cost more than the thing it proves.
+          //
+          // Fatal only where the row must exist. `resolveFeesFromTrades` reads a null `base_commission_netted` on a base-asset BUY as an unproven charge and forces the archive row to `fee_basis = 'unknown'`, where the display gate withholds the statistics derived from it. So an unstamped fill degrades honestly on its own; a zero-row stamp against an order this profile really owns does not, and that is the corrupt ledger worth failing on.
+          if (isFirstApply && buy.baseCommissionNetted !== null && ownStrategy !== null) {
             const stamped = await txScope.orders.stampBaseCommissionNetted(
               event.symbol,
               BigInt(event.orderId),
@@ -620,13 +629,14 @@ const netBuyQuantity = (
         symbol: event.symbol,
         orderId: event.orderId,
         cumQty: event.cumQty,
-        commission: charged.toString(),
+        commission: asDecimalString(charged),
       },
       'fill-adopter: base-asset commission >= filled quantity; folding gross quantity',
     );
     return { quantity: gross, baseCommissionNetted: null };
   }
-  return { quantity: net, baseCommissionNetted: charged.toString() };
+  // `toFixed()` via asDecimalString, not `toString()`: decimal.js switches to exponential notation at an exponent of -7, and a base commission below 1e-7 is ordinary on a low-quantity fill. This string is persisted (`orders.base_commission_netted`) and read back as the proof that the cost basis absorbed the charge, so it travels in the same plain-decimal grammar every other wire decimal uses rather than in whichever spelling the magnitude happened to pick.
+  return { quantity: net, baseCommissionNetted: asDecimalString(charged) };
 };
 
 const resolveBuy = async (

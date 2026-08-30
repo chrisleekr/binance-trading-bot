@@ -306,6 +306,27 @@ describe('fill-adopter: base-asset commission is netted out of the held quantity
     expect(store.has(buildSymbolStateKey(ACCOUNT_ID, PROFILE_ID, SYMBOL))).toBe(false);
   });
 
+  // The sibling of the case above, and the reason that one is gated rather than unconditional. The origin gate admits a fill on EITHER an `orders` row or a `manual_orders` one, but the stamp writes only `orders`, so a bot-manual BUY has no row to stamp BY CONSTRUCTION — indistinguishable, at the stamp, from the corrupt-ledger zero the case above fails on. Failing here would roll back the applied-fill ledger row, the cost basis and the symbol state for a fill that is perfectly well-formed, and the router only logs, so the position would stay lost until the boot reconcile sweep. The proof is worth less than the position: an unstamped base BUY already degrades honestly, because `resolveFeesFromTrades` reads the null back as an unproven charge and forces the archive row to `fee_basis = 'unknown'`.
+  it('adopts a bot-manual BUY that pays a base-asset commission, with no order row to stamp', async () => {
+    reset();
+    repoMocks.ordersFindByBinanceOrderId.mockResolvedValue(null);
+    repoMocks.manualOrdersFindByBinanceOrderId.mockResolvedValue({ symbol: SYMBOL });
+    const { adopter, store } = makeAdopter();
+
+    await adopter.adopt(
+      mkFill({
+        orderId: 4010,
+        tradeId: 4010,
+        commissions: { [BASE_ASSET]: BUY_COMMISSION },
+      }),
+    );
+
+    expect(repoMocks.ordersStampBaseCommissionNetted).not.toHaveBeenCalled();
+    // The commission is still netted out of the credited quantity: what the gate drops is the proof, never the arithmetic the proof attests to.
+    expectQty(repoMocks.avgEntryPricesUpsert.mock.calls[0]?.[1]?.quantity, BUY_NET_QTY);
+    expectQty(readState(store)['heldQuantity'], BUY_NET_QTY);
+  });
+
   it('subtracts only the base-asset subtotal from a mixed-fee BUY', async () => {
     reset();
     const { adopter, store } = makeAdopter();
