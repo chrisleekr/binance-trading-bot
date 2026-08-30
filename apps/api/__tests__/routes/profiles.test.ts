@@ -162,7 +162,7 @@ describeIfInfra('profiles router — quoteAsset', () => {
       netPnlQuote: '999',
       feeBasis: 'unknown',
     });
-    // The middle tier, seeded because it is the arm a two-state fixture cannot see. It IS plotted: the boolean this column replaced admitted every accounted-for snapshot, and narrowing to the strongest tier would empty the chart outright for an account Binance bills in BNB, whose every cycle carries a commission reconstructed from the rate table. Only `unknown` is a point with a charge missing.
+    // The middle tier, seeded because it is the arm a two-state fixture cannot see: `exact` and `unknown` alone cannot tell "carries the tier through" apart from "maps anything imperfect to one bucket". An account Binance bills in BNB has a reconstructed commission on every cycle, so this is its entire series.
     await fx.di.db.insert(schema.equitySnapshots).values({
       profileId: fx.alice.profileId,
       ...base,
@@ -177,17 +177,16 @@ describeIfInfra('profiles router — quoteAsset', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       benchmarkMode: string;
-      points: { netPnlQuote: string; benchmarkPrices?: Record<string, string> }[];
+      points: { netPnlQuote: string; feeBasis: string; benchmarkPrices?: Record<string, string> }[];
     };
     expect(body.benchmarkMode).toBe('basket');
-    expect(body.points.length).toBeGreaterThanOrEqual(2);
     expect(body.points.some((p) => p.benchmarkPrices?.['ETHUSDT'] === '2000')).toBe(true);
-    // Compared numerically, not by string identity: the column is `numeric(38,18)` and the wire carries its full scale, so `=== '999'` is false for a row that IS present and both of these negatives pass with the eligibility filter deleted outright.
-    const plotted = body.points.map((p) => Number(p.netPnlQuote));
-    expect(plotted).not.toContain(999);
-    // And both eligible tiers must actually be there, or the negative above is satisfied by an empty series.
-    expect(plotted).toContain(10);
-    expect(plotted).toContain(888);
+    // Every tier is served, `unknown` included, each carrying its own. A snapshot's realised leg is an all-time cumulative fold over an append-only archive, so its tier can only ever weaken and nothing revisits a closed row: withholding one here would not defer a point until better evidence arrives, it would blank the series permanently for any profile with a single historical fill Binance billed in an asset nobody valued. The route hands the tier to the caller, which is what lets the card mark the line instead of losing it.
+    // Keyed numerically rather than by string identity: the column is `numeric(38,18)` and the wire carries its full scale, so `=== '999'` is false for a row that IS present. Each tier is named against its own row, so a route that served all three but collapsed them to one label still fails.
+    const tierByPnl = new Map(body.points.map((p) => [Number(p.netPnlQuote), p.feeBasis]));
+    expect(tierByPnl.get(10)).toBe('exact');
+    expect(tierByPnl.get(888)).toBe('estimated');
+    expect(tierByPnl.get(999)).toBe('unknown');
   });
 
   it('pins a finished backtest run as the baseline, then clears it', async () => {
