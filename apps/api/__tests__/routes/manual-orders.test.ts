@@ -495,7 +495,6 @@ describeIfInfra('avg-entry-price PUT — ledger-quantity fallback (no live walle
     // Redis test DB may carry leftovers from another suite).
     const redis = fx.di.redis.raw();
     await redis.del(`tenant:${fx.alice.accountId}:profile:${fx.alice.profileId}:account-info`);
-    await redis.quit();
 
     // The route enqueues the worker force-set job (not a plain tick) so the
     // operator's price reaches the running strategy; spy + mock so the assertion

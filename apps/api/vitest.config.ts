@@ -1,21 +1,6 @@
 import { defineProject } from '../../packages/config/vitest/index.js';
 
-// The api integration suites share one testcontainers Postgres+Redis stack,
-// provisioned lazily on the first setupApp() (see __tests__/_helpers.ts). On a
-// cold Docker host that cold-start runs well past vitest's 10s default
-// hookTimeout, so the first beforeAll times out while the container is still
-// starting. The shared infraPromise has not settled yet, so every sibling
-// suite awaiting it also hits its own 10s hook timeout before the container is
-// ready — the whole package cascades with "Hook timed out in 10000ms". 60s
-// absorbs a cold container start so an isolated
-// `--filter @app/api test` run is reliable. Its coverage threshold is bound to
-// the integration lane, where these database-backed suites actually run.
-// `fileParallelism: false`: every suite shares ONE Postgres + Redis, and each
-// setupApp() truncates and reseeds them. Run files concurrently and one file's
-// truncate lands between another's seed and its first query — 68 of 416 tests
-// fail on `users_pkey` duplicates and cascading beforeAll crashes, which in turn
-// silently *skip* another ~115. The in-process `resetChain` only orders setupApp
-// calls within a single worker, so isolation has to come from here.
+// Each isolated integration file lazily provisions its own Testcontainers Postgres and Redis pair through __tests__/_helpers.ts; files configured with DATABASE_TEST_URL and REDIS_TEST_URL instead share those external services. A cold Docker start can exceed Vitest's 10s default hook timeout, so this project allows 60s. `fileParallelism: false` also prevents concurrent files from truncating and reseeding the same external test database; the in-process reset chain only orders setupApp calls inside one isolated file.
 export default defineProject({
   packageName: '@app/api',
   test: {

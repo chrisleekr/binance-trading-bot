@@ -17,16 +17,14 @@
 // The other half of the contract is what must NOT happen: the order is closed as
 // a LEDGER record only. No cost basis, no strategy state, no re-subscription —
 // there is no profile left to adopt a position into.
-//
-// Gated on `DATABASE_TEST_URL` (repo convention) so unit-only CI legs resolve the
-// suite as `describe.skip` rather than fail.
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { Pool } from 'pg';
 import type { Logger } from 'pino';
 import type { Queue } from 'bullmq';
 
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
+import { withPostgres, type PostgresFixture } from '@app/testcontainers';
 import { accountRepo, createDb, migrate, projections, repo, scopeAccount } from '@app/db';
 
 import { createFillAdopter } from '../../src/executor/fill-adopter.js';
@@ -35,8 +33,7 @@ import { detachedOrdersReconcileHandler } from '../../src/crons/detached-orders-
 import type { StatePort } from '../../src/state/state-port.js';
 import type { SymbolInfoCache } from '../../src/tick/symbol-info-cache.js';
 
-const TEST_DB_URL = process.env['DATABASE_TEST_URL'];
-const describeIfInfra = TEST_DB_URL ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 const OWNER = asUserId('00000000-0000-0000-0000-0000000605a1');
 const ACCOUNT = asAccountId('00000000-0000-0000-0000-0000000605c1');
@@ -88,19 +85,25 @@ const buildAdopter = (db: ReturnType<typeof createDb>) =>
     } as unknown as SymbolInfoCache,
   });
 
-describeIfInfra('detached-order reconcile — end-to-end against Postgres', () => {
+describeInfra('db', 'detached-order reconcile — end-to-end against Postgres', () => {
   let pool: Pool;
+  let pgFx: PostgresFixture | undefined;
   let db: ReturnType<typeof createDb>;
 
   beforeAll(async () => {
-    if (!TEST_DB_URL) throw new Error('unreachable: gated by describeIfInfra');
-    await migrate({ connectionString: TEST_DB_URL, log: () => undefined });
-    pool = new Pool({ connectionString: TEST_DB_URL });
+    pgFx = await withPostgres();
+    await migrate({ connectionString: pgFx.databaseUrl, log: () => undefined });
+    pool = new Pool({ connectionString: pgFx.databaseUrl });
     db = createDb(pool);
-  }, 60_000);
+  }, 180_000);
 
   afterAll(async () => {
-    await pool?.end();
+    // The container stop runs even when the pool refuses to close. This suite only gained a container to strand when it moved off a supplied DATABASE_TEST_URL, and a rejected `pool.end()` would otherwise return from the hook with it still up.
+    try {
+      await pool?.end();
+    } finally {
+      await pgFx?.stop();
+    }
   });
 
   beforeEach(async () => {

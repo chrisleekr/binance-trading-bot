@@ -13,13 +13,14 @@ import {
   createPool,
   migrate,
   profileKey,
+  type ScopedRedis,
 } from '@app/db';
 import { Pool } from 'pg';
-import type { Hono } from 'hono';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import type pino from 'pino';
 import { pino as createPino } from 'pino';
+import { afterAll } from 'vitest';
 import { createMetricsRegistry } from '@app/observability';
 import { createAuth } from '../src/auth.js';
 import { authRouter } from '../src/routes/auth.js';
@@ -30,7 +31,7 @@ import { notifyProviders } from '../src/notifiers.js';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { createApiStrategyRegistry } from '../src/strategies/registry.js';
 import type { DI } from '../src/di.js';
-import { createApiHono, type Env } from '../src/types.js';
+import { createApiHono, type ApiHono } from '../src/types.js';
 
 export const TEST_DB_URL = process.env['DATABASE_TEST_URL'];
 export const TEST_REDIS_URL = process.env['REDIS_TEST_URL'] ?? 'redis://127.0.0.1:6390/15';
@@ -50,11 +51,7 @@ interface ResolvedInfra {
   readonly stop: () => Promise<void>;
 }
 
-// One container pair per test process, provisioned on first setupApp and reused
-// (each setupApp truncates) by later calls in the same file — spawning a
-// container per setupApp would be far too slow. Containers are torn down by the
-// global teardown below, and reaped by testcontainers' Ryuk on process exit as a
-// backstop. When DATABASE_TEST_URL is set we use it directly and spawn nothing.
+// One container pair is provisioned on the first setupApp and reused by this isolated test file. The root afterAll below stops the stack after it resolves; when DATABASE_TEST_URL is set, this module uses it directly and spawns nothing.
 let infraPromise: Promise<ResolvedInfra> | null = null;
 
 const resolveInfra = (): Promise<ResolvedInfra> => {
@@ -75,32 +72,58 @@ const resolveInfra = (): Promise<ResolvedInfra> => {
       // Docker-free unit lane; a static import would force them all to resolve
       // testcontainers (and fail in vite's import-analysis).
       const { withPostgres, withRedis } = await import('@app/testcontainers');
-      const pg = await withPostgres();
-      const redis = await withRedis();
-      await migrate({ connectionString: pg.databaseUrl, log: () => undefined });
-      return {
-        databaseUrl: pg.databaseUrl,
-        redisUrl: redis.redisUrl,
-        stop: async () => {
-          await pg.stop();
-          await redis.stop();
-        },
-      };
+      // Tighter than the wrapper's 90s default because this project's hookTimeout is 60s: on the default a stalled provision would blow the hook first and report "beforeAll timed out" instead of naming the daemon.
+      //
+      // One budget for the PAIR, not one each. Two independent 45s deadlines can run to 90s between them: Postgres taking 30s and Redis then stalling blows the hook at 60s while Redis's own deadline is not due until 75s, handing back exactly the undiagnosable message this path exists to replace. Only the first start would ever have been blamed correctly, and on a contended daemon — the one case this targets — both being slow is the normal shape, not the exotic one.
+      //
+      // The budget covers the two starts only. migrate() runs after it and is deliberately not deadline-guarded: 45s of the hook's 60s leaves it headroom, and a migrate slow enough to blow the rest still fails self-describingly because the runner names the file it is applying. A stalled daemon does not, which is the whole reason the starts are wrapped and this is not.
+      const PROVISION_BUDGET_MS = 45_000;
+      const provisionDeadlineAt = Date.now() + PROVISION_BUDGET_MS;
+      const pg = await withPostgres({ startTimeoutMs: PROVISION_BUDGET_MS });
+      // Everything after the first successful start is wrapped, because until the `stop` closure below exists that container's only handle is this local binding. A rejected `withRedis` or a throwing `migrate` would otherwise return through this frame and strand a RUNNING Postgres with nothing left holding it — and the deadline reaper in `@app/testcontainers` owns only the starts it timed out, not a sibling that succeeded. Ryuk still reaps it at session exit, so this bounds the leak to the run rather than removing it, which matters most on the contended daemon where the redis start is likeliest to reject.
+      try {
+        // Floored above zero because a fully spent budget is a deadline that has already expired: passed as 0 it rejects before the container is asked for, blaming the daemon for a delay that happened above this line. The floor buys one second to fail on its own merits.
+        const redis = await withRedis({
+          startTimeoutMs: Math.max(1_000, provisionDeadlineAt - Date.now()),
+        });
+        try {
+          await migrate({ connectionString: pg.databaseUrl, log: () => undefined });
+        } catch (error) {
+          await redis.stop().catch(() => undefined);
+          throw error;
+        }
+        return {
+          databaseUrl: pg.databaseUrl,
+          redisUrl: redis.redisUrl,
+          // Both stops are STARTED before either is awaited. Sequenced, a rejecting `pg.stop()` returns from this closure with the Redis container still running for the rest of the session; `Promise.all` still rejects with the first failure, so nothing is swallowed.
+          stop: async () => {
+            await Promise.all([pg.stop(), redis.stop()]);
+          },
+        };
+      } catch (error) {
+        await pg.stop().catch(() => undefined);
+        throw error;
+      }
     })();
   }
   return infraPromise;
 };
 
-// Vitest global teardown hook (exported as `teardown` from a setup file is one
-// option; here suites call it via afterAll is unnecessary because Ryuk reaps the
-// containers). Exposed so a suite may stop the shared stack early if it wants to.
+/**
+ * Stops a successfully resolved infrastructure stack owned by this isolated test file. The root hook below runs in the same module context as `infraPromise`; Vitest global setup runs separately and cannot reach it.
+ *
+ * @returns A promise that settles after the resolved stack's stop callback completes.
+ */
 export const stopSharedInfra = async (): Promise<void> => {
-  if (infraPromise) {
-    const infra = await infraPromise;
-    infraPromise = null;
-    await infra.stop();
-  }
+  const pending = infraPromise;
+  if (!pending) return;
+  infraPromise = null;
+  // Swallowed rather than awaited bare, matching `packages/db/__tests__/_infra.ts`: a provision that never resolved leaves nothing to stop, and rethrowing here would replace the real setup failure in the report with a teardown one. Clearing the memo before awaiting also keeps a rejected provision from being retained and re-awaited.
+  const infra = await pending.catch(() => null);
+  await infra?.stop();
 };
+
+afterAll(stopSharedInfra);
 
 // RFC-4122 v4 conformant (version nibble 4, variant nibble 8). Postgres accepts
 // any uuid text, but the route param schemas use zod v4 `z.uuid()`, which
@@ -127,7 +150,8 @@ export const TRAILING_TRADE_VERSION: string = ((): string => {
 })();
 
 export interface ApiFixture {
-  app: Hono<Env>;
+  // `OpenAPIHono`, not the narrower `Hono`, because the fixture app IS one: a suite that asserts on the generated OpenAPI document reaches `getOpenAPIDocument` through here.
+  app: ApiHono;
   di: DI;
   // The resolved Redis URL the app's DI client is wired to. A suite that opens
   // its own client to assert on cache side effects MUST use this, not a
@@ -139,6 +163,10 @@ export interface ApiFixture {
   bob: { userId: UserId; accountId: AccountId; profileId: ProfileId };
   cleanup: () => Promise<void>;
 }
+
+const unwiredMarketData = (): never => {
+  throw new Error('di.marketData is not wired in the api test fixture');
+};
 
 const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
   const pool = createPool({ kind: 'api', connectionString: infra.databaseUrl });
@@ -160,26 +188,26 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
   // route that 500s on every accept would still pass that. `profileKey` is the
   // same builder `createRedis().forProfile` uses, so the bytes match production.
   const scopedRedis = new Redis(infra.redisUrl);
-  const redis = {
-    raw: () => new Redis(infra.redisUrl),
-    forProfile: (scope: { accountId: AccountId; profileId: ProfileId }) => ({
-      get: async (name: never, ...params: never[]) =>
-        scopedRedis.get(profileKey(scope, name, ...params)),
-      set: async (
-        name: never,
-        value: string,
-        options: { ttlSeconds?: number },
-        ...params: never[]
-      ) => {
+  // Annotated as the real `ScopedRedis` rather than an untyped literal so the key-name and key-param generics bind: an inline `never`-typed stand-in accepts any name, which is exactly the drift a fixture must not hide.
+  const redis: ScopedRedis = {
+    // The raw accessor borrows the fixture-owned connection; only di.shutdown() or fx.cleanup() terminates it.
+    raw: () => scopedRedis,
+    forProfile: (scope) => ({
+      async get(name, ...params) {
+        return scopedRedis.get(profileKey(scope, name, ...params));
+      },
+      async set(name, value, options, ...params) {
         const key = profileKey(scope, name, ...params);
         return options.ttlSeconds === undefined
           ? scopedRedis.set(key, value)
           : scopedRedis.set(key, value, 'EX', options.ttlSeconds);
       },
-      del: async (name: never, ...params: never[]) =>
-        scopedRedis.del(profileKey(scope, name, ...params)),
-      getdel: async (name: never, ...params: never[]) =>
-        scopedRedis.getdel(profileKey(scope, name, ...params)),
+      async del(name, ...params) {
+        return scopedRedis.del(profileKey(scope, name, ...params));
+      },
+      async getdel(name, ...params) {
+        return scopedRedis.getdel(profileKey(scope, name, ...params));
+      },
     }),
     forGlobal: () => {
       throw new Error('not used in tests');
@@ -200,6 +228,9 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
     env: {
       NODE_ENV: 'test',
       PORT: 0,
+      ADMIN_PORT: 9100,
+      ADMIN_HOST: '127.0.0.1',
+      WEB_DIST_DIR: 'apps/web/dist',
       WEB_ORIGIN: ['http://localhost:5173'],
       DATABASE_URL: infra.databaseUrl,
       REDIS_URL: infra.redisUrl,
@@ -211,7 +242,7 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
     },
     pool,
     db,
-    redis: redis as unknown as DI['redis'],
+    redis,
     queue,
     tickQueue,
     backtestQueue,
@@ -222,6 +253,13 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
     strategies: createApiStrategyRegistry(buildStrategyRegistry()),
     notifyProviders,
     metrics: createMetricsRegistry({ service: 'api-test' }),
+    // Deliberately unwired: no api suite drives the market-data endpoints in `routes/orders.ts`, and a real REST client here would let a test reach Binance over the network. Throwing names the gap the moment a suite needs it, instead of the `undefined.getKlines` TypeError this fixture used to produce.
+    marketData: {
+      getKlines: unwiredMarketData,
+      getTicker24hr: unwiredMarketData,
+      getRecentTrades: unwiredMarketData,
+      getDepth: unwiredMarketData,
+    },
     // Default available LLM stub returning canned structured output; route
     // tests reassign fx.di.resolveLlm to flip availability or capture inputs.
     resolveLlm: async () => ({
@@ -395,7 +433,7 @@ export const setupApp = async (opts: SetupAppOptions = {}): Promise<ApiFixture> 
   // same-worker resets ordered as belt-and-suspenders. flushRedis stays outside
   // the transaction.
   resetChain = resetChain.then(async () => {
-    await resetDatabase(di.pool, { seed: opts.seed });
+    await resetDatabase(di.pool, opts);
     await flushRedis(infra.redisUrl);
   });
   await resetChain;

@@ -222,7 +222,7 @@ The oracle is the manifest rather than a diff against the base branch for two re
 
 Vitest coverage uses `src/**/*.{ts,tsx}` as the denominator, so an unimported source file still counts. `packages/config/vitest/coverage-policy.js` accounts for every workspace and binds each live threshold to the CI lane that runs that workspace's complete suite. The unit, integration, worker-integration, and db-isolation jobs write separate artifacts; `coverage-merge` rewrites their workspace-relative source paths and retains one deterministic `coverage/lcov.info` artifact.
 
-`@app/testcontainers` is exempt from a live threshold. The integration lane reuses externally provided Postgres and Redis services, but its Docker provisioning tests remain skipped. That partial execution is not complete-suite coverage evidence.
+`@app/testcontainers` is exempt from a live threshold. The integration lane reuses externally provided Postgres and Redis services, but the deadline and retry composition is now covered Docker-free against mocked container classes, while the real-daemon smoke test in `wrapper.test.ts` remains skipped. That partial execution is not complete-suite coverage evidence.
 
 Codecov is not active. Enabling its upload or badge requires the repository owner to provision a project or global `CODECOV_TOKEN` first. Until that human prerequisite is complete, the retained lcov artifact is the coverage evidence and the repository must not publish a Codecov status or badge.
 

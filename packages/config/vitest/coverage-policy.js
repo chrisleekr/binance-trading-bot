@@ -40,7 +40,7 @@ export const COVERAGE_POLICY = Object.freeze({
   '@app/strategy-trailing-trade': active('unit', 100, 100),
   '@app/testcontainers': Object.freeze({
     exemption:
-      'Docker provisioning tests are skipped in the integration lane, so its service-reuse coverage is not complete-suite evidence.',
+      'The deadline and retry composition is covered Docker-free against mocked container classes, but the real-daemon smoke test in wrapper.test.ts is still skipped in the integration lane, so that lane is not complete-suite evidence.',
     lane: 'integration',
   }),
 });

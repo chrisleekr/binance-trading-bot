@@ -40,4 +40,12 @@ export COVERAGE_LANE=integration
   process.exit(1);
 ' )
 
-TESTCONTAINERS_CONTENTION_CHECK=1 bunx turbo test --filter '@app/testcontainers' --filter '@app/api' -- --coverage
+# No concurrency cap here on purpose. This lane filters to two packages and
+# provisions nothing: TESTCONTAINERS is unset, so both take the service-container
+# reuse branch, and apps/api already serialises itself with `fileParallelism:
+# false`. A cap would buy no container relief and would serialise the whole
+# `test -> ^build` graph for it. The fan-out caps live where the fan-out is: the
+# unit lane and the root `test` script, both of which run every package at once.
+#
+# `--continue=dependencies-successful` still applies: with two packages in the filter, the first to fail would otherwise cancel the second and report it as unrun.
+TESTCONTAINERS_CONTENTION_CHECK=1 bunx turbo test --continue=dependencies-successful --filter '@app/testcontainers' --filter '@app/api' -- --coverage

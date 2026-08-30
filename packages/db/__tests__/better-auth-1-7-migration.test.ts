@@ -3,18 +3,17 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
-const TEST_DB_URL = process.env['DATABASE_TEST_URL'];
-const HAS_INFRA = process.env['TESTCONTAINERS'] === '1' || Boolean(TEST_DB_URL);
+import { HAS_INFRA, sharedDatabaseUrl } from './_infra.js';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const migration = (name: string): string =>
   readFileSync(resolve(HERE, '..', 'migrations', name), 'utf8');
 const LEGACY_SCHEMA = migration('0007_better_auth.sql');
 const UPGRADE = migration('0087_better_auth_account_issuer.sql');
 
-let databaseUrl = TEST_DB_URL ?? '';
-let stopPostgres: () => Promise<void> = async () => undefined;
+let databaseUrl = '';
 
 const withLegacySchema = async (run: (client: Client) => Promise<void>): Promise<void> => {
   const client = new Client({ connectionString: databaseUrl });
@@ -34,13 +33,8 @@ const withLegacySchema = async (run: (client: Client) => Promise<void>): Promise
 
 describe.skipIf(!HAS_INFRA)('Better Auth 1.7 account identity migration', () => {
   beforeAll(async () => {
-    if (process.env['TESTCONTAINERS'] !== '1') return;
-    const postgres = await import('@app/testcontainers').then((m) => m.withPostgres());
-    databaseUrl = postgres.databaseUrl;
-    stopPostgres = postgres.stop;
-  }, 120_000);
-
-  afterAll(async () => stopPostgres());
+    databaseUrl = await sharedDatabaseUrl();
+  });
 
   it('backfills credential identity and replaces the legacy provider index', async () => {
     await withLegacySchema(async (client) => {

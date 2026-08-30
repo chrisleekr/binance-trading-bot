@@ -81,17 +81,13 @@ describeIfInfra('account-health router', () => {
 
   it('aggregates the per-profile daily-loss halt Redis flag', async () => {
     const raw = fx.di.redis.raw();
-    try {
-      await raw.set(
-        profileKey(
-          { accountId: fx.alice.accountId, profileId: fx.alice.profileId },
-          'entryHaltDaily',
-        ),
-        JSON.stringify({ reason: 'daily-loss-limit' }),
-      );
-    } finally {
-      await raw.quit();
-    }
+    await raw.set(
+      profileKey(
+        { accountId: fx.alice.accountId, profileId: fx.alice.profileId },
+        'entryHaltDaily',
+      ),
+      JSON.stringify({ reason: 'daily-loss-limit' }),
+    );
 
     const body = await get();
     const kinds = body.halts

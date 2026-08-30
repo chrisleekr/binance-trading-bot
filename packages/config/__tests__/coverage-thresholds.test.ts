@@ -126,7 +126,9 @@ describe('approved coverage floors', () => {
 
   it('does not treat partial testcontainers coverage as a complete-suite floor', () => {
     expect(COVERAGE_POLICY['@app/testcontainers']).toMatchObject({
-      exemption: expect.stringContaining('Docker provisioning tests are skipped'),
+      exemption: expect.stringContaining(
+        'wrapper.test.ts is still skipped in the integration lane',
+      ),
     });
     expect(PER_PACKAGE_THRESHOLDS).not.toHaveProperty('@app/testcontainers');
   });

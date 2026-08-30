@@ -3,10 +3,8 @@
 // Reproduces the live wedge: a `discovery:lastrun:<pid>` key that exists with no
 // TTL (PTTL == -1) fails the `SET ... PX NX` every cycle, so the profile is
 // skipped forever (observed live: 5.5 days dead); the reclaim branch heals it.
-// Runs under TESTCONTAINERS=1 (local Docker) or REDIS_TEST_URL (the CI
-// worker-integration service container); a leg with neither skips.
 
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { Redis } from 'ioredis';
 import type { Logger } from 'pino';
 
@@ -15,15 +13,14 @@ import { withRedis } from '@app/testcontainers';
 
 import { shouldRunProfile } from '../../src/crons/discovery/gate.js';
 
-const HAS_INFRA = process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['REDIS_TEST_URL']);
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 const REFRESH_PERIOD_MS = 900_000;
 
 const stubLogger = () => ({ warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() });
 const asLogger = (l: ReturnType<typeof stubLogger>): Logger => l as unknown as Logger;
 
-describeIfInfra('discovery per-profile refresh gate', () => {
+describeInfra('redis', 'discovery per-profile refresh gate', () => {
   let redis: Redis;
   let stop: () => Promise<void>;
   let pidSeq = 0;

@@ -7,22 +7,17 @@
 // Credentials, environment, and order reconciliation all live on the ACCOUNT: one
 // key pair and one `binance_mode` per account, shared by every profile under it,
 // and a Binance order id that is unique per account.
-//
-// Gated on `DATABASE_TEST_URL` so unit-only CI legs and laptops without Postgres
-// resolve the suite as `describe.skip` rather than fail — the established repo
-// convention (matches `packages/db/__tests__/isolation` and
-// `apps/api/__tests__/auth-integration.test.ts`).
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import { Pool } from 'pg';
 
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
+import { withPostgres, type PostgresFixture } from '@app/testcontainers';
 import { accountRepo, createDb, migrate } from '@app/db';
 
 import { buildProfileBindings } from '../../src/profile-bindings/index.js';
 
-const TEST_DB_URL = process.env['DATABASE_TEST_URL'];
-const describeIfInfra = TEST_DB_URL ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 const OWNER_USER = asUserId('00000000-0000-0000-0000-00000000a001');
 const STRANGER_USER = asUserId('00000000-0000-0000-0000-00000000b001');
@@ -33,15 +28,16 @@ const OWNER_PROFILE = asProfileId('00000000-0000-0000-0000-00000000a101');
 const NOKEY_ACCOUNT = asAccountId('00000000-0000-0000-0000-00000000c002');
 const NOKEY_PROFILE = asProfileId('00000000-0000-0000-0000-00000000a102');
 
-describeIfInfra('buildProfileBindings — end-to-end DI smoke', () => {
+describeInfra('db', 'buildProfileBindings — end-to-end DI smoke', () => {
   let pool: Pool | undefined;
+  let pgFx: PostgresFixture | undefined;
   let db: ReturnType<typeof createDb>;
 
   beforeAll(async () => {
-    if (!TEST_DB_URL) throw new Error('unreachable: gated by describeIfInfra');
-    await migrate({ connectionString: TEST_DB_URL, log: () => undefined });
+    pgFx = await withPostgres();
+    await migrate({ connectionString: pgFx.databaseUrl, log: () => undefined });
 
-    pool = new Pool({ connectionString: TEST_DB_URL });
+    pool = new Pool({ connectionString: pgFx.databaseUrl });
     db = createDb(pool);
 
     // Truncate the slice this suite owns so re-runs are deterministic even when
@@ -74,10 +70,15 @@ describeIfInfra('buildProfileBindings — end-to-end DI smoke', () => {
       `insert into api_keys (account_id, key, secret, last4) values ($1, 'pk', 'sk', '1234')`,
       [KEYED_ACCOUNT],
     );
-  }, 60_000);
+  }, 180_000);
 
   afterAll(async () => {
-    await pool?.end();
+    // The container stop runs even when the pool refuses to close. This suite only gained a container to strand when it moved off a supplied DATABASE_TEST_URL, and a rejected `pool.end()` would otherwise return from the hook with it still up.
+    try {
+      await pool?.end();
+    } finally {
+      await pgFx?.stop();
+    }
   });
 
   it('returns a fully-wired bindings record for a profile whose account has an api-key', async () => {

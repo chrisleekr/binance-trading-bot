@@ -11,12 +11,8 @@
 // ticks would clobber a single row and only one symbol's marker would
 // survive. Post-cutover the rows are independent and all three markers
 // land.
-//
-// Runs under TESTCONTAINERS=1 (local Docker) or DATABASE_TEST_URL+REDIS_TEST_URL
-// (the CI worker-integration service containers); a leg with neither resolves
-// the suite as `describe.skip`, matching the sibling integration suites.
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { Redis } from 'ioredis';
 import { Queue, Worker, type ConnectionOptions } from 'bullmq';
@@ -52,13 +48,7 @@ import { buildSymbolStateKey } from '../../src/executor/redis-namespace.js';
 import { tickJobId, QUEUE_NAMES, QUEUE_SPECS } from '../../src/queues/queue-names.js';
 import type { TickJobData } from '../../src/queues/job-payloads.js';
 
-// Needs BOTH Postgres and Redis: gate on both URLs so a partial local env skips
-// cleanly rather than admitting the suite and then failing in withRedis() when it
-// falls through to spinning a container with no Docker socket.
-const HAS_INFRA =
-  process.env['TESTCONTAINERS'] === '1' ||
-  (Boolean(process.env['DATABASE_TEST_URL']) && Boolean(process.env['REDIS_TEST_URL']));
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 const TEST_USER_ID = '00000000-0000-0000-0000-0000000000a1';
 const TEST_ACCOUNT_ID = '00000000-0000-0000-0000-0000000000c1';
@@ -215,7 +205,6 @@ interface Harness {
   readonly pgFx: PostgresFixture;
   readonly redisFx: RedisFixture;
   readonly registry: StrategyRegistry;
-  stop(): Promise<void>;
 }
 
 const seedOwner = async (pool: Pool): Promise<void> => {
@@ -278,15 +267,40 @@ const buildPersistSymbolState = (pool: Pool) => {
   };
 };
 
+// Every resource `buildHarness` opens is registered here the moment it exists, so a builder that throws part-way can still be unwound. Registering at construction rather than in the returned Harness is the whole point: a handle held only by a frame that unwinds is a container that runs for the rest of the session, and — worse — an ioredis client on `maxRetriesPerRequest: null` that reconnects forever and holds the vitest process open. That turns a legible `beforeAll` failure into a hang, the exact outcome this lane exists to remove. Ryuk still reaps the containers at session exit, so for those this bounds the leak to the run rather than removing it.
+//
+// It is also the only teardown order: newest-first unwinding derives from construction order, so a resource added later cannot be forgotten by a hand-maintained close list that no longer matches.
+const opened: Array<() => Promise<void>> = [];
+
+/**
+ * Closes everything `buildHarness` opened, newest first, whether or not it ran to completion. Draining the stack makes a second call a no-op.
+ *
+ * @returns A promise that settles once every registered resource has been asked to close.
+ */
+const closeOpened = async (): Promise<void> => {
+  for (let close = opened.pop(); close !== undefined; close = opened.pop()) {
+    // Swallowed individually: sequenced bare, the first rejection returns from this loop and strands everything registered below it. A close that fails is not the suite's result — the assertions have already run.
+    await close().catch(() => undefined);
+  }
+};
+
 const buildHarness = async (): Promise<Harness> => {
   const pgFx = await withPostgres();
+  opened.push(pgFx.stop);
   const redisFx = await withRedis();
+  opened.push(redisFx.stop);
 
   await migrate({ connectionString: pgFx.databaseUrl, log: () => undefined });
   const pool = new Pool({ connectionString: pgFx.databaseUrl });
+  opened.push(async () => {
+    await pool.end();
+  });
   await seedOwner(pool);
 
   const redis = new Redis(redisFx.redisUrl, { maxRetriesPerRequest: null });
+  opened.push(async () => {
+    await redis.quit();
+  });
   const redisUrlParsed = new URL(redisFx.redisUrl);
   const connection: ConnectionOptions = {
     host: redisUrlParsed.hostname,
@@ -361,6 +375,9 @@ const buildHarness = async (): Promise<Harness> => {
   });
 
   const tickQueue = new Queue<TickJobData>(QUEUE_NAMES.tick, { connection });
+  opened.push(async () => {
+    await tickQueue.close();
+  });
   // Drop any residual jobs a prior run left in the shared tick queue before the
   // worker attaches. The worker integration job's Redis is fresh, but a local
   // re-run against a persistent Redis would otherwise replay stale ticks into
@@ -373,6 +390,9 @@ const buildHarness = async (): Promise<Harness> => {
   const tickWorker = new Worker<TickJobData>(QUEUE_NAMES.tick, handler, {
     connection,
     concurrency: Math.max(SYMBOLS.length, QUEUE_SPECS.tick.concurrency),
+  });
+  opened.push(async () => {
+    await tickWorker.close();
   });
 
   await tickWorker.waitUntilReady();
@@ -387,14 +407,6 @@ const buildHarness = async (): Promise<Harness> => {
     pgFx,
     redisFx,
     registry,
-    async stop() {
-      await tickWorker.close();
-      await tickQueue.close();
-      await redis.quit().catch(() => undefined);
-      await pool.end().catch(() => undefined);
-      await redisFx.stop();
-      await pgFx.stop();
-    },
   };
 };
 
@@ -432,7 +444,7 @@ const waitForRowCount = async (pool: Pool, target: number, timeoutMs = 30_000): 
   throw new Error(`timed out waiting for symbol_states rows >= ${target}; last=${last}`);
 };
 
-describeIfInfra('multi-symbol state isolation — per-(profile, symbol) slice', () => {
+describeInfra('both', 'multi-symbol state isolation — per-(profile, symbol) slice', () => {
   let h: Harness;
 
   beforeAll(async () => {
@@ -440,7 +452,7 @@ describeIfInfra('multi-symbol state isolation — per-(profile, symbol) slice', 
   }, 180_000);
 
   afterAll(async () => {
-    if (h) await h.stop();
+    await closeOpened();
   });
 
   beforeEach(async () => {

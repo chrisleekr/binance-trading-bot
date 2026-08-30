@@ -1,24 +1,22 @@
 // Real-Redis integration for the fleet membership registry (epic #561 WS1).
 // Proves the SCAN/MGET round-trip and the register → ready → deregister
-// lifecycle against actual ioredis. Runs under TESTCONTAINERS=1 (local Docker)
-// or REDIS_TEST_URL (the CI worker-integration service container).
+// lifecycle against actual ioredis.
 
 import { countWorkerMembers, FLEET_COUNT_KEY, MEMBER_KEY_PREFIX, parseFleetCount } from '@app/db';
 import { createMetricsRegistry } from '@app/observability';
 import { Redis } from 'ioredis';
 import { pino } from 'pino';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
 import { withRedis } from '@app/testcontainers';
 
 import { createMemberRegistry } from '../../src/boot/member-registry.js';
 
-const HAS_INFRA = process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['REDIS_TEST_URL']);
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 const logger = pino({ level: 'silent' });
 
-describeIfInfra('membership registry — real Redis', () => {
+describeInfra('redis', 'membership registry — real Redis', () => {
   let redis: Redis;
   let stop: () => Promise<void>;
 

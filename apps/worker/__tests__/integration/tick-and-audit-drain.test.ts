@@ -10,12 +10,8 @@
 // (rather than `trailing-trade`) is what makes the test deterministic: TT
 // will only emit a buy when its preconditions align, and threading that
 // through testcontainers is not the contract we want to exercise here.
-//
-// Runs under TESTCONTAINERS=1 (local Docker) or DATABASE_TEST_URL+REDIS_TEST_URL
-// (the CI worker-integration service containers); a leg with neither resolves
-// the suite as `describe.skip` (matches the sibling integration suites).
 
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { Redis } from 'ioredis';
 import { Queue, Worker, type ConnectionOptions } from 'bullmq';
@@ -73,13 +69,7 @@ import { tickJobId, QUEUE_NAMES, QUEUE_SPECS } from '../../src/queues/queue-name
 import type { TickJobData } from '../../src/queues/job-payloads.js';
 import { errorMessage } from '@app/core/error';
 
-// Needs BOTH Postgres and Redis: gate on both URLs so a partial local env skips
-// cleanly rather than admitting the suite and then failing in withRedis() when it
-// falls through to spinning a container with no Docker socket.
-const HAS_INFRA =
-  process.env['TESTCONTAINERS'] === '1' ||
-  (Boolean(process.env['DATABASE_TEST_URL']) && Boolean(process.env['REDIS_TEST_URL']));
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000abc';
 const TEST_ACCOUNT_ID = '00000000-0000-0000-0000-0000000000ac';
@@ -160,7 +150,6 @@ interface Harness {
   readonly registry: StrategyRegistry;
   readonly notifyRegistry: ReturnType<typeof createNotifyRegistry>;
   readonly placementDedup: PlacementDedup;
-  stop(): Promise<void>;
 }
 
 const seedOwner = async (pool: Pool): Promise<void> => {
@@ -240,22 +229,50 @@ const buildStubMarketDataPort = (): MarketDataPort => ({
   loadWindow: async () => [],
 });
 
+// Every resource `buildHarness` opens is registered here the moment it exists, so a builder that throws part-way can still be unwound. Registering at construction rather than in the returned Harness is the whole point: a handle held only by a frame that unwinds is a container that runs for the rest of the session, and — worse — an ioredis client on `maxRetriesPerRequest: null` that reconnects forever and holds the vitest process open. That turns a legible `beforeAll` failure into a hang, the exact outcome this lane exists to remove. Ryuk still reaps the containers at session exit, so for those this bounds the leak to the run rather than removing it.
+//
+// It is also the only teardown order: newest-first unwinding derives from construction order, so a resource added later cannot be forgotten by a hand-maintained close list that no longer matches.
+const opened: Array<() => Promise<void>> = [];
+
+/**
+ * Closes everything `buildHarness` opened, newest first, whether or not it ran to completion. Draining the stack makes a second call a no-op.
+ *
+ * @returns A promise that settles once every registered resource has been asked to close.
+ */
+const closeOpened = async (): Promise<void> => {
+  for (let close = opened.pop(); close !== undefined; close = opened.pop()) {
+    // Swallowed individually: sequenced bare, the first rejection returns from this loop and strands everything registered below it. A close that fails is not the suite's result — the assertions have already run.
+    await close().catch(() => undefined);
+  }
+};
+
 const buildHarness = async (): Promise<Harness> => {
   const pgFx = await withPostgres();
+  opened.push(pgFx.stop);
   const redisFx = await withRedis();
+  opened.push(redisFx.stop);
 
   await migrate({ connectionString: pgFx.databaseUrl, log: () => undefined });
   const pool = new Pool({ connectionString: pgFx.databaseUrl });
+  opened.push(async () => {
+    await pool.end();
+  });
   const db = createDb(pool);
   await seedOwner(pool);
 
   const redis = new Redis(redisFx.redisUrl, { maxRetriesPerRequest: null });
+  opened.push(async () => {
+    await redis.quit();
+  });
   // Drop a prior run's audit stream (and its consumer group) under the fixed
   // account/profile key. The CI Redis is fresh, but a local re-run against a
   // reused Redis would otherwise let the drainer redeliver stale pending
   // entries into `action_logs` and break the exact-count assertions.
   await redis.del(buildAuditStreamKey(ACCOUNT, PROFILE));
   const subscriber = new Redis(redisFx.redisUrl, { maxRetriesPerRequest: null });
+  opened.push(async () => {
+    await subscriber.quit();
+  });
   const redisUrlParsed = new URL(redisFx.redisUrl);
   const connection: ConnectionOptions = {
     host: redisUrlParsed.hostname,
@@ -334,6 +351,9 @@ const buildHarness = async (): Promise<Harness> => {
   });
 
   const tickQueue = new Queue<TickJobData>(QUEUE_NAMES.tick, { connection });
+  opened.push(async () => {
+    await tickQueue.close();
+  });
   // Drop any residual jobs a prior run left in the shared tick queue before the
   // worker attaches. The worker integration job's Redis is fresh, but a local
   // re-run against a persistent Redis would otherwise replay stale ticks into
@@ -342,6 +362,9 @@ const buildHarness = async (): Promise<Harness> => {
   const tickWorker = new Worker<TickJobData>(QUEUE_NAMES.tick, handler, {
     connection,
     concurrency: QUEUE_SPECS.tick.concurrency,
+  });
+  opened.push(async () => {
+    await tickWorker.close();
   });
 
   await tickWorker.waitUntilReady();
@@ -360,15 +383,6 @@ const buildHarness = async (): Promise<Harness> => {
     registry,
     notifyRegistry,
     placementDedup,
-    async stop() {
-      await tickWorker.close();
-      await tickQueue.close();
-      await subscriber.quit().catch(() => undefined);
-      await redis.quit().catch(() => undefined);
-      await pool.end().catch(() => undefined);
-      await redisFx.stop();
-      await pgFx.stop();
-    },
   };
 };
 
@@ -403,7 +417,7 @@ const waitForCount = async (
   throw new Error(`timed out waiting for count >= ${target}; last=${last}`);
 };
 
-describeIfInfra('worker tick + audit-drain integration', () => {
+describeInfra('both', 'worker tick + audit-drain integration', () => {
   let h: Harness;
 
   beforeAll(async () => {
@@ -413,7 +427,7 @@ describeIfInfra('worker tick + audit-drain integration', () => {
   afterAll(async () => {
     nock.cleanAll();
     nock.enableNetConnect();
-    if (h) await h.stop();
+    await closeOpened();
   });
 
   beforeEach(() => {

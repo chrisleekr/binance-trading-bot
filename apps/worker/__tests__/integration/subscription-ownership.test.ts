@@ -1,20 +1,18 @@
 // Real-Redis integration for HRW subscription ownership. Composes the member
 // read-side (listReadyMembers) with HRW election over actual ioredis to prove:
 // exactly one of ≥3 members owns each account, and removing a member re-homes
-// only the accounts it owned. Runs under TESTCONTAINERS=1 (local Docker) or
-// REDIS_TEST_URL (the CI worker-integration service container).
+// only the accounts it owned.
 
 import { listReadyMembers, MEMBER_KEY_PREFIX } from '@app/db';
 import { rendezvousOwner } from '@app/core/hrw';
 import { Redis } from 'ioredis';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
 import { withRedis } from '@app/testcontainers';
 
-const HAS_INFRA = process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['REDIS_TEST_URL']);
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
-describeIfInfra('subscription ownership — real Redis', () => {
+describeInfra('redis', 'subscription ownership — real Redis', () => {
   let redis: Redis;
   let stop: () => Promise<void>;
 

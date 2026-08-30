@@ -2,12 +2,8 @@
 // real Redis. Seeds the same `GLOBAL_KEYS.technicals` row the
 // `technicals-compute` cron writes, then asserts the bundle provider
 // returns the parsed signal the trailing-trade gate expects to consume.
-//
-// Runs under TESTCONTAINERS=1 (local Docker) or REDIS_TEST_URL (the CI
-// worker-integration service container); a leg with neither resolves the suite
-// as `describe.skip`, mirroring the sibling integration suites.
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, expect, it } from 'vitest';
 import { Redis } from 'ioredis';
 import { pino } from 'pino';
 
@@ -25,8 +21,7 @@ import { withRedis, type RedisFixture } from '@app/testcontainers';
 
 import { createTickBundleProvider } from '../../src/tick/bundle-builder.js';
 
-const HAS_INFRA = process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['REDIS_TEST_URL']);
-const describeIfInfra = HAS_INFRA ? describe : describe.skip;
+import { describeInfra } from './_infra-gate.js';
 
 const ACCOUNT = asAccountId('00000000-0000-0000-0000-000000000abc');
 const PROFILE = asProfileId('00000000-0000-0000-0000-000000000def');
@@ -59,7 +54,7 @@ interface ProviderBundle {
   readonly override: ManualOverridePayload | null;
 }
 
-describeIfInfra('tick bundle provider — Redis-backed', () => {
+describeInfra('redis', 'tick bundle provider — Redis-backed', () => {
   let redisFx: RedisFixture | undefined;
   let redis: Redis | undefined;
 

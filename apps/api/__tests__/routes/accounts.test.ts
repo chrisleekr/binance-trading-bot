@@ -125,7 +125,6 @@ describeIfInfra('accounts router — delete guard', () => {
       }
       addSpy.mockRestore();
     } finally {
-      await redis.quit();
       await fx.cleanup();
     }
   }, 30_000);
