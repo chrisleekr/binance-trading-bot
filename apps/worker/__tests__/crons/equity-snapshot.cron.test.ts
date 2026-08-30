@@ -168,22 +168,6 @@ describe('equitySnapshotHandler', () => {
     expect(record).not.toHaveBeenCalled();
   });
 
-  it('skips a snapshot when realised fee accounting is incomplete', async () => {
-    const record = vi.fn(async () => undefined);
-    await equitySnapshotHandler(
-      deps({
-        load: async () => ({
-          quoteAsset: 'USDT',
-          positions: [],
-          realizedNetQuote: '5',
-          feeBasis: 'unknown' as const,
-        }),
-        record,
-      }),
-    )(job);
-    expect(record).not.toHaveBeenCalled();
-  });
-
   it('stamps the snapshot with the realised fee tier it was handed', async () => {
     // The insert hardcodes a complete marker today, which makes the column a constant: it says `true` on rows whose realised input was reconstructed rather than valued, and the equity chart then plots a curve it describes as exact. An estimated input has to reach the row as an estimate, or nothing downstream can ever tell the two apart.
     const record = vi.fn<EquitySnapshotDeps['record']>(async () => undefined);
@@ -223,8 +207,8 @@ describe('equitySnapshotHandler', () => {
     expect(payload.feeBasis).toBe('exact');
   });
 
-  it('records nothing when the realised fee tier is unknown', async () => {
-    // Preserves today's skip. `unknown` is the tri-state spelling of the boolean's false, and a snapshot built on a realised subtotal nobody could account for is a point on a chart with no basis.
+  it('still records a point when the realised fee tier is unknown, stamped unknown', async () => {
+    // The tier must not gate the write. `load` folds `sumProfitInRange(quote, EPOCH, now)`, so the tier is the weakest cycle the profile has EVER closed and the append-only archive can never lift it back: a skip here is not "wait for better evidence", it is a profile whose curve stops for good on the first tick after one historical fill went unvalued. The stamp is what carries the caveat forward, and the card is where the line is marked.
     const record = vi.fn<EquitySnapshotDeps['record']>(async () => undefined);
     await equitySnapshotHandler(
       deps({
@@ -238,7 +222,9 @@ describe('equitySnapshotHandler', () => {
           }) as unknown as Awaited<ReturnType<EquitySnapshotDeps['load']>>,
       }),
     )(job);
-    expect(record).not.toHaveBeenCalled();
+    expect(record).toHaveBeenCalledTimes(1);
+    const payload = record.mock.calls[0]?.[3] as unknown as { feeBasis: string };
+    expect(payload.feeBasis).toBe('unknown');
   });
 
   it('collects a per-profile failure without throwing (next tick retries)', async () => {

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lt, lte, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, lte, sql } from 'drizzle-orm';
 import {
   equitySnapshots,
   type EquitySnapshotPayload,
@@ -28,12 +28,14 @@ export async function record(
  *
  * `quoteAsset` is required because the caller labels the whole series with ONE currency. A profile's quote can be changed, and rows recorded under the old one stay on disk (they were correct when written), so an unfiltered read hands the chart two currencies on one axis under the newer label. They are filtered out rather than deleted: the operator switching back makes that history readable again, and nothing is lost meanwhile.
  *
+ * Deliberately NOT filtered by `feeBasis`. A snapshot's realised leg is an ALL-TIME cumulative fold, so its tier is the weakest any cycle the profile ever closed carries, and the archive is append-only — nothing can ever lift it back. Withholding `unknown` here therefore does not defer a point until better evidence arrives, it blanks the whole curve permanently for any account that has one historical cycle Binance billed in an asset nobody valued. The tier travels with each row instead, so the decision to mark or withhold is made where the line is drawn.
+ *
  * @param scope - Ownership-proven profile scope.
  * @param quoteAsset - The currency to read the series in, normally the profile's current one. Rows recorded under any other quote are omitted.
  * @param from - Inclusive lower bound on `captured_at`.
  * @param to - Inclusive upper bound on `captured_at`.
  * @param limit - Maximum rows; the NEWEST are kept when the range holds more.
- * @returns Complete matching rows, oldest-first for direct plotting. Empty when the profile has no trusted series in this quote.
+ * @returns Every matching row, oldest-first for direct plotting, each carrying its own `feeBasis`. Empty only when the profile has no series in this quote.
  */
 export async function listForProfileInRange(
   scope: ProfileScope,
@@ -48,8 +50,6 @@ export async function listForProfileInRange(
     .where(
       and(
         eq(equitySnapshots.profileId, scope.profileId),
-        // Every tier that HAS a basis, which is the set the boolean this column replaced admitted. Only `unknown` is a point with a charge missing, and excluding `estimated` too would empty the chart for any account Binance bills in BNB: a third-asset commission is reconstructed from the rate table on the forward path as much as on the backfill, so `exact` is not a bar the live path clears often enough to draw a line from.
-        ne(equitySnapshots.feeBasis, 'unknown'),
         // Case-insensitive on BOTH sides, unlike the trade-archive filter: this column is stamped from the profile's own quote, which may be stored lower or mixed case, so neither the stored value nor the argument is guaranteed canonical.
         eq(sql`upper(${equitySnapshots.quoteAsset})`, quoteAsset.toUpperCase()),
         gte(equitySnapshots.capturedAt, from),

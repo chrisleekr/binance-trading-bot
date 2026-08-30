@@ -56,7 +56,7 @@ export interface EquitySnapshotDeps {
  * Build the snapshot handler that records a comparison point, stamped with how well the realised input's fees were known.
  *
  * @param deps - Active-profile, archive, ticker, persistence, and logging dependencies.
- * @returns A bounded BullMQ handler that skips unavailable profiles, and profiles whose realised input is missing a charge, independently of each other.
+ * @returns A bounded BullMQ handler that records one point per active profile at whatever tier its realised input supports, skipping only a profile that has gone away.
  */
 export const equitySnapshotHandler = (deps: EquitySnapshotDeps) => {
   return async (_job: Job): Promise<void> => {
@@ -65,14 +65,7 @@ export const equitySnapshotHandler = (deps: EquitySnapshotDeps) => {
       async (profile) => {
         const loaded = await deps.load(profile.operatorId, profile.accountId, profile.profileId);
         if (!loaded) return 'skipped';
-        // `unknown` only. A realised subtotal with a charge missing is a point with no basis, which is the case this skip has always covered. An `estimated` subtotal DOES have a basis, so it is recorded and stamped as such; the chart's own eligibility filter is what keeps it off the line, and that decision belongs where the line is drawn rather than here, where refusing to record would destroy the evidence instead of declining to plot it.
-        if (loaded.feeBasis === 'unknown') {
-          deps.logger.warn(
-            { profileId: profile.profileId },
-            'equity-snapshot: skipped because a realised fee charge is unaccounted for',
-          );
-          return 'skipped';
-        }
+        // No tier gates the write, `unknown` included. The realised leg is `sumProfitInRange(quote, EPOCH, now)`, an all-time fold whose tier is the weakest cycle the profile ever closed, so one historical fill Binance billed in an asset nobody valued pins it at `unknown` for good — the archive is append-only and nothing revisits a closed row. A skip on that tier is therefore not "wait for better evidence", it is a profile that never records another point. The tier is stamped onto the row instead and the curve is marked where it is drawn, which is the same argument the estimated case already rested on: refusing to record destroys the evidence rather than declining to plot it.
         // Canonical before the symbol is built. Ticker keys carry Binance's upper casing while `profiles.quote_asset` may be stored lower or mixed case, so a raw concat yields `BTCusdt`, misses the cache, and flatlines the "vs holding" comparator at zero while every other leg of the same row is computed correctly.
         const quoteAsset = loaded.quoteAsset.toUpperCase();
         const benchmarkSymbol = `${BENCHMARK_ASSET}${quoteAsset}`;
