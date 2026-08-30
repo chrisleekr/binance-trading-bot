@@ -397,10 +397,15 @@ export const runDiscoveryForProfile = async (
   // hash entry and reports `readded`. Skip it here so the lost-then-re-added case
   // surfaces as a single `re-added`, not a contradictory `membership lost` (the
   // sweep would hdel the hash, then the add loop would misclassify it `created`).
+  // A pinned symbol is not a loss either, and it is the one case the two skips above cannot cover: `listRotatableSymbols` returns the UNPINNED bindings, so pinning a coin discovery added drops it out of `rotatableSet`, while `resolveDiscovery` skips pinned symbols in its add loop so it is never in `diff.add`. The binding and its added-at stamp both survive the pin, so nothing about it is orphaned.
+  //
+  // Without this the operator's pin — the single action that means "keep this one" — reports the coin as silently lost and hdels its stamp. The warn is only noise; the hdel is not. On a later unpin the symbol rejoins the rotatable set at `addedAt[s] ?? 0` above, which reads as past any min-hold, so it has quietly forfeited the anti-churn delay that stops a faded coin being reaped the moment it is handed back.
   const rotatableSet = new Set(rotatableSymbols);
+  const pinnedSet = new Set(pinnedSymbols);
   const addSet = new Set(diff.add); // re-added this cycle -> heals as 'readded' in the add loop
   for (const [symbol, addedAtMs] of Object.entries(addedAt)) {
     if (rotatableSet.has(symbol)) continue;
+    if (pinnedSet.has(symbol)) continue; // still bound, just no longer discovery's to rotate
     if (addSet.has(symbol)) continue; // let the add loop report 'readded'
     const flattenMs = lastFlatten[symbol];
     if (flattenMs !== undefined && flattenMs >= addedAtMs) continue; // legit reap

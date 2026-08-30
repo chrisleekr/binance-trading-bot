@@ -460,6 +460,21 @@ describe('runDiscoveryForProfile', () => {
     expect(port.cleanupOrphanedAdded).not.toHaveBeenCalled();
   });
 
+  it('does not flag a pinned auto-added symbol as a lost membership, and keeps its added-at stamp', async () => {
+    // The gap the other three sweep cases leave open, and the one an operator hits on the headline pin flow. PINUSDT was auto-added, so it holds an added-at stamp; pinning it takes it out of `listRotatableSymbols` (which returns the UNPINNED bindings) without putting it in `diff.add` (the add loop skips pinned), so it matched neither existing skip and fell through to the loss branch.
+    // `cleanupOrphanedAdded` is the assertion that matters: the stray warn is noise, but dropping the stamp costs the symbol its min-hold on a later unpin, where `addedAt[s] ?? 0` reads as past any anti-churn delay.
+    const T0 = NOW - 2 * HOUR;
+    const port = fakePort({
+      addedAtBySymbol: async () => ({ PINUSDT: T0 }),
+      listRotatableSymbols: async () => [],
+      listPinnedSymbols: async () => ['PINUSDT'],
+      lastFlattenBySymbol: async () => ({}),
+    });
+    await runCycle(port, permissiveConfig(), 'USDT');
+    expect(port.emitMembershipLost).not.toHaveBeenCalled();
+    expect(port.cleanupOrphanedAdded).not.toHaveBeenCalled();
+  });
+
   it('persists the universe breakdown even when nothing rotates', async () => {
     const port = fakePort({ getAllTickers: async () => [] }); // empty universe, no changes
     await runCycle(port, permissiveConfig(), 'USDT');
