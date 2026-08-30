@@ -53,10 +53,10 @@ const row = (
 const stub = (path: string) =>
   createRoute({ getParentRoute: () => rootRoute, path, component: () => null });
 
-const setUp = (data: DashboardAggregateResponse | undefined): void => {
+const setUp = (data: DashboardAggregateResponse | undefined, demoMode = false): void => {
   const queryClient = createQueryClient();
-  // Bypass root loader auth gate.
-  queryClient.setQueryData(['auth', 'onboarding-status'], { masterExists: true });
+  // Bypass root loader auth gate. `demoMode` also decides whether the api-key link is offered.
+  queryClient.setQueryData(['auth', 'onboarding-status'], { masterExists: true, demoMode });
   if (data !== undefined) queryClient.setQueryData(['dashboard-aggregate', ACCOUNT_ID], data);
 
   const symbolStub = createRoute({
@@ -165,5 +165,26 @@ describe('SymbolTickChips', () => {
     // link separately, not as a single concatenated label.
     expect(lastTick.contains(link)).toBe(false);
     expect(screen.queryByTestId('symbol-tick-chip-latency')).toBeNull();
+  });
+
+  it('states the missing key without a link in the demo', async () => {
+    // `GET /api-key` 403s for the demo operator, so the link goes; the same words stay as text, because "this profile has no key" is still the true and useful reading.
+    setUp(
+      {
+        profiles: [
+          row({
+            name: 'btc-real',
+            lastTickAt: null,
+            lastTickLatencyMs: null,
+            apiKeyConfigured: false,
+          }),
+        ],
+      },
+      true,
+    );
+    expect(await screen.findByTestId('symbol-tick-chip-api-key-hint')).toHaveTextContent(
+      'Set API key if not configured',
+    );
+    expect(screen.queryByTestId('symbol-tick-chip-api-key-link')).toBeNull();
   });
 });

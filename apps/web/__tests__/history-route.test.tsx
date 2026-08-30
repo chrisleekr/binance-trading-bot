@@ -1,6 +1,4 @@
-// Scope: the page chrome and tab switching only. Each panel owns its own tests,
-// so asserting panel content here would duplicate them and make a panel change
-// fail in two places.
+// The routed suite owns the settings-to-archive boundary because the provider and panel meet here. Panel-only archive behavior stays in trade-archive-panel.test.tsx.
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
@@ -32,17 +30,47 @@ const TEST_ACCOUNT = {
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
+const json = (body: unknown): Response =>
+  new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+
+type FetchResponder = (url: string, init?: RequestInit) => Response | Promise<Response>;
+
+/**
+ * Isolates full archive traffic from the route shell's unrelated requests so timing assertions cannot pass on aggregate fetch counts.
+ * @param fetchMock - The route-level fetch mock whose calls include settings, shell, and archive requests.
+ * @returns Parsed URLs for full-view archive requests belonging to the test profile.
+ */
+const fullArchiveRequests = (fetchMock: ReturnType<typeof vi.fn>): URL[] =>
+  fetchMock.mock.calls
+    .map(([input]) => new URL(String(input), 'http://localhost'))
+    .filter(
+      (url) =>
+        url.pathname.endsWith(`/profiles/${PROFILE_ID}/trade-archive`) &&
+        url.searchParams.get('view') === 'full',
+    );
+
 const stub = (path: string) =>
   createRoute({ getParentRoute: () => rootRoute, path, component: () => null });
 
-const setUp = (initialPath?: string): ReturnType<typeof createRouter> => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(
-      async () =>
-        new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
-    ),
-  );
+/**
+ * Mounts the real provider-to-panel boundary so request-order tests share the production query state.
+ * @param initialPath - Optional route URL, defaulting to the test profile's History page.
+ * @param responder - Per-request response factory used to delay or fail settings independently of other route data.
+ * @returns The configured router rendered through the shared query provider.
+ */
+const setUp = (
+  initialPath?: string,
+  responder: FetchResponder = () => json({}),
+): ReturnType<typeof createRouter> => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url =
+      typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    return responder(url, init);
+  });
+  vi.stubGlobal('fetch', fetchMock);
   const queryClient = createQueryClient();
   // Sidestep the onboarding redirect so the page renders.
   queryClient.setQueryData(['auth', 'onboarding-status'], { masterExists: true });
@@ -87,6 +115,52 @@ describe('HistoryPage', () => {
     expect(screen.getByTestId('history-tab-audit')).toHaveAttribute('aria-selected', 'false');
     expect(screen.getByTestId('history-tab-logs')).toBeInTheDocument();
     expect(screen.getByTestId('history-tab-activity')).toBeInTheDocument();
+  });
+
+  it('does not request the full archive while display settings are unresolved', async () => {
+    const settings = new Promise<Response>(() => undefined);
+    setUp(undefined, (url) => (url.includes('/account/settings') ? settings : json({})));
+
+    expect(await screen.findByRole('heading', { name: /^history$/i })).toBeInTheDocument();
+    const fetchMock = vi.mocked(fetch);
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) => String(input).includes('/account/settings')),
+      ).toBe(true),
+    );
+    expect(fullArchiveRequests(fetchMock)).toHaveLength(0);
+  });
+
+  it('makes one initial full-archive request in the resolved display timezone', async () => {
+    let resolveSettings: (response: Response) => void = () => undefined;
+    const settings = new Promise<Response>((resolve) => {
+      resolveSettings = resolve;
+    });
+    setUp(undefined, (url) => (url.includes('/account/settings') ? settings : json({})));
+
+    expect(await screen.findByRole('heading', { name: /^history$/i })).toBeInTheDocument();
+    const fetchMock = vi.mocked(fetch);
+    expect(fullArchiveRequests(fetchMock)).toHaveLength(0);
+
+    resolveSettings(json({ timezone: 'Australia/Sydney' }));
+    await waitFor(() => expect(fullArchiveRequests(fetchMock)).toHaveLength(1));
+    expect(fullArchiveRequests(fetchMock).map((url) => url.searchParams.get('tz'))).toEqual([
+      'Australia/Sydney',
+    ]);
+  });
+
+  it('shows a settings error and keeps the archive disabled when display settings fail', async () => {
+    setUp(undefined, (url) =>
+      url.includes('/account/settings')
+        ? new Response('', { status: 503, statusText: 'settings unavailable' })
+        : json({}),
+    );
+
+    const fetchMock = vi.mocked(fetch);
+    await waitFor(() => {
+      expect(screen.getByText(/could not load.*settings/i)).toBeInTheDocument();
+      expect(fullArchiveRequests(fetchMock)).toHaveLength(0);
+    });
   });
 
   it('switches to the Activity tab on click', async () => {

@@ -1,10 +1,10 @@
 # Strategy
 
-![Strategy config tab](../../assets/screenshots/user-guide/profile-strategy.png)
+![Strategy section](../../assets/screenshots/user-guide/profile-strategy.png)
 
-_The Strategy tab, shown here for a Momentum profile. Every field maps to a row in the configuration reference for the chosen strategy. Seeded demo data, not a real account._
+_The Strategy section, shown here for a Momentum profile. Every field maps to a row in the configuration reference for the chosen strategy. Seeded demo data, not a real account._
 
-The **Strategy** tab (header "Strategy config") is where you pick the strategy the profile runs and set all of its knobs. The form is generated from the selected strategy's schema, so you only ever see fields that apply to that strategy, and the labels match its reference page exactly.
+The **Strategy** section is where you pick the strategy the profile runs and set all of its knobs. The form is generated from the selected strategy's schema, so you only ever see fields that apply to that strategy, and the labels match its reference page exactly.
 
 Pick the strategy that matches what you expect the market to do, then configure it on its reference page:
 
@@ -12,7 +12,7 @@ Pick the strategy that matches what you expect the market to do, then configure 
 - **[Momentum](../../concepts/strategies/momentum.md#configuration)** — buys a confirmed breakout and rides it out on a trailing stop; for a coin already moving up.
 - **[Rebalance](../../concepts/strategies/rebalance.md#configuration)** — holds a basket at target proportions, or (in momentum weight mode) rotates into the strongest few.
 
-Each reference page carries the full, always-current field table for that strategy — the same fields, labels, and help you see in this tab.
+Each reference page carries the full, always-current field table for that strategy — the same fields, labels, and help you see in this section.
 
 Saving checks your settings against Binance's own order rules for every coin on the profile. A save that goes through with a warning instead of an error is explained in [Troubleshooting](../../operations/troubleshooting.md#a-save-worked-but-warned-order-sizing-was-not-verified).
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FeeBasis } from './archive.js';
 import { asDecimalString, DecimalString } from './decimal.js';
 import { EntryBlockerResponse } from './entry-blocker.js';
 import { OrderResponse } from './orders.js';
@@ -13,10 +14,7 @@ import { SymbolSource } from './symbols.js';
 export const ProfileDashboardSymbol = z.object({
   symbol: z.string(),
   enabled: z.boolean(),
-  /** Whether the operator added this symbol (`manual`) or discovery rotated it in
-   * (`auto`). Drives the source badge. Defaults to `manual` so a payload from a
-   * pre-discovery deploy (or a fixture that omits it) still decodes; the live
-   * projection always sets it from the row. */
+  /** Where this binding came from: the operator (`manual`), discovery (`auto`), or a system recovery that can claim neither (`unknown`). Drives the source badge. Defaults to `manual` so a payload from a pre-discovery deploy (or a fixture that omits it) still decodes; the live projection always sets it from the row. */
   source: SymbolSource.default('manual'),
   avgEntryPrice: DecimalString.nullable(),
   currentPrice: DecimalString.nullable(),
@@ -38,6 +36,20 @@ export const ProfileDashboardSymbol = z.object({
    * `null` when it is protected (or flat). Enriched server-side from the same
    * persisted strategy state as `entryBlocker`. */
   protectiveStopBlocker: EntryBlockerResponse.default(null),
+  /**
+   * Why the operator's recorded cost basis was NOT handed to the strategy for this symbol, or null when it was.
+   *
+   * Travels beside `avgEntryPrice` because that is the record the refusal is about: the row survives the refusal by design, so a client holding only the row renders a position the strategy does not have — and prices it, because entry price and quantity are both right there. Same shape and same source as the per-symbol `SymbolStateResponse` field, so the dashboard row and the symbol workspace cannot disagree about whether a coin is held.
+   *
+   * `since` is when the refusal opened, not when it was last re-observed, so a duration stays exact after the opening log row has been swept. `.default(null)` keeps a payload written before this field shipped decodable.
+   */
+  positionSeedRefusal: z
+    .object({
+      code: z.string(),
+      since: z.iso.datetime(),
+    })
+    .nullable()
+    .default(null),
 });
 /** TS type derived from {@link ProfileDashboardSymbol} so consumers don't re-run z.infer at every call site. */
 export type ProfileDashboardSymbol = z.infer<typeof ProfileDashboardSymbol>;
@@ -215,6 +227,8 @@ export const EquitySnapshotPoint = z.object({
   /** Benchmark asset (e.g. 'BTC') and its price in the quote asset at capture. */
   benchmarkAsset: z.string(),
   benchmarkPriceQuote: DecimalString,
+  /** How well the realised leg's fee component was known when this point was recorded. Carried per point rather than filtered server-side: the realised leg is an all-time cumulative fold, and no forward path lifts its tier once stamped, so dropping the weak points would blank the curve rather than defer it. Defaulted so a body written before this field shipped still parses, and defaulted to the WEAKEST tier so silence is never read as proof. */
+  feeBasis: FeeBasis.default('unknown'),
   /**
    * Per-symbol mark prices at capture (symbol → quote price) for the held
    * positions, so the basket-hold line is computable at render time. `nullish`:

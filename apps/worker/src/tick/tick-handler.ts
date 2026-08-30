@@ -284,7 +284,7 @@ export const createTickHandler = (
           const latencyMs = clock.nowMs() - startMs;
           await stampTickMeta(latencyMs, errorMessage(err));
           // A symbol Binance no longer lists on this profile's mode is a
-          // self-healing skip, not a dead-letter: reap the flat auto-added binding
+          // self-healing skip, not a dead-letter: reap the flat unpinned binding
           // and return a graceful skip so the job never retries a symbol that will
           // not come back. Checked before the governor case; a non-delisted error
           // returns null and falls through. `profile` was resolved above.
@@ -376,7 +376,6 @@ export const createTickHandler = (
               quoteAsset: profile.quoteAsset,
               weightLimit1m: profile.weightLimit1m,
               needsAccountDeployedQuote: profile.needsAccountDeployedQuote,
-              reserveBaseQuantity: profile.reserveBaseQuantity,
               config: profile.config,
             },
             decisions: output.decisions,

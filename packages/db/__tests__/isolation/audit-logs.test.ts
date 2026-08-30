@@ -101,7 +101,9 @@ describeIfDb('audit_logs profile-scoped pagination', () => {
       const page1 = await localAlice.auditLogs.listForProfile(2, null, []);
       expect(page1.length).toBe(2);
 
-      const cursor = { createdAt: page1[1].cursorToken, id: page1[1].id };
+      const boundary = page1[1];
+      if (!boundary) throw new Error('expected a second audit-log row');
+      const cursor = { createdAt: boundary.cursorToken, id: boundary.id };
       const page2 = await localAlice.auditLogs.listForProfile(2, cursor, []);
 
       const seen = new Set([...page1.map((r) => r.id), ...page2.map((r) => r.id)]);

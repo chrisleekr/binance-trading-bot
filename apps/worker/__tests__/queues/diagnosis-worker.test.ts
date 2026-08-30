@@ -135,8 +135,8 @@ const gathered = (over: Partial<ProfileDiagnosisInput> = {}) => ({
     config: {} as never,
     quoteAsset: 'USDT',
     mode: 'live' as const,
-    autoSymbols: ['BTCUSDT'],
-    manualSymbols: [],
+    rotatableSymbols: ['BTCUSDT'],
+    pinnedSymbols: [],
   },
 });
 

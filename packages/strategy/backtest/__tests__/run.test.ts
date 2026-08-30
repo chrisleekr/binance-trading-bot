@@ -167,39 +167,8 @@ describe('runBacktest — auxiliary windows', () => {
   });
 });
 
-describe('runBacktest — account overlay (reserve floor)', () => {
-  it('applies adjustAccount to the account view the strategy sees each tick', async () => {
-    const seenBtcFree: string[] = [];
-    const probe: typeof idleStrategy = {
-      ...idleStrategy,
-      tick: (input) => {
-        seenBtcFree.push(input.account.balances['BTC']?.free.toString() ?? 'none');
-        return { nextState: input.state, decisions: [], logs: [], metrics: [] };
-      },
-    };
-    await runBacktest({
-      ...baseOpts,
-      initialBalances: { USDT: '1000', BTC: '10' },
-      strategy: probe,
-      config: {},
-      fillModel: new IdealFillModel(),
-      dataSource: candleSource(flatCandles(3, '100')),
-      // Reserve 4 BTC: the strategy must see 10 − 4 = 6 free base every tick.
-      adjustAccount: (account, symbol) => {
-        expect(symbol).toBe(SYMBOL);
-        const bal = account.balances['BTC'];
-        if (!bal) return account;
-        return {
-          ...account,
-          balances: { ...account.balances, BTC: { ...bal, free: bal.free.sub(4) } },
-        };
-      },
-    });
-    expect(seenBtcFree.length).toBeGreaterThan(0);
-    expect(seenBtcFree.every((v) => v === '6')).toBe(true);
-  });
-
-  it('leaves the account byte-identical when no overlay is passed', async () => {
+describe('runBacktest — account view', () => {
+  it('shows the strategy the executor account balances verbatim', async () => {
     const seen: string[] = [];
     const probe: typeof idleStrategy = {
       ...idleStrategy,

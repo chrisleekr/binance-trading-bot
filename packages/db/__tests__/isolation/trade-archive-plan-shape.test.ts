@@ -43,7 +43,6 @@ const uncoveringArchive = (symbol: string, baseAsset: string, uncoveredOrderId: 
   totalSellQuote: '62000',
   breakdown: { 'grid-buy:BUY': '60000', 'grid-sell:SELL': '62000' },
   profit: '2000',
-  profitPercent: '3.3333333333',
   orders: [{ binanceOrderId: uncoveredOrderId, side: 'BUY' as const }],
   archivedAt: new Date('2026-05-11T00:00:00Z'),
 });
@@ -223,8 +222,8 @@ describeIfDb('trade-archive pagination reads an index, not the whole archive', (
     // Inserted as one statement rather than through the repo: the seed is inert scaffolding for the planner, and 5,000 round-trips through `insert` would make the setup the slowest thing in the suite. One second per row keeps every `archived_at` distinct, so the keyset's tie-breaker is exercised on a real ordering rather than on a block of identical timestamps.
     await fx.pool.query(
       `insert into trade_archive (profile_id, symbol, base_asset, quote_asset,
-                                  total_buy_quote, total_sell_quote, profit, profit_percent, archived_at)
-       select $1, 'PAGEUSDT', 'PAGE', 'USDT', 100, 101, 1, 1,
+                                  total_buy_quote, total_sell_quote, profit, archived_at)
+       select $1, 'PAGEUSDT', 'PAGE', 'USDT', 100, 101, 1,
               timestamptz '2026-01-01T00:00:00Z' - (g || ' seconds')::interval
        from generate_series(1, $2) g`,
       [fx.alice.profileId, PAGINATION_CORPUS_ROWS],

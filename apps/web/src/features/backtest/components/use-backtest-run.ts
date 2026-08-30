@@ -65,7 +65,6 @@ export interface BacktestRunArgs {
   runFilter: RunFilter;
   runsLimitParam: number | null;
   runsFilterParam: RunFilter | null;
-  runsKindParam: string | null;
 }
 
 export function useBacktestRun({
@@ -82,7 +81,6 @@ export function useBacktestRun({
   runFilter,
   runsLimitParam,
   runsFilterParam,
-  runsKindParam,
 }: BacktestRunArgs) {
   // Keeping the selected run with its live progress prevents a prior run's final frame from bleeding into the next run.
   type LiveProgress = {
@@ -213,9 +211,11 @@ export function useBacktestRun({
           createdAt: new Date().toISOString(),
           finishedAt: null,
           totalReturnPct: null,
+          // A queued run has executed no config yet; the fingerprint is stamped at completion.
+          configFingerprint: null,
         };
         queryClient.setQueryData<BacktestListResponse>(
-          backtestListQueryKey(profileId, null, runsLimitParam, runsFilterParam, runsKindParam),
+          backtestListQueryKey(profileId, null, runsLimitParam, runsFilterParam),
           (prev) => {
             if (!prev) return { items: [optimistic], nextCursor: null, total: 1 };
             const existed = prev.items.some((r) => r.runId === created.runId);

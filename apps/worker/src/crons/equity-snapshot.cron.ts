@@ -13,7 +13,7 @@ import type { Logger } from 'pino';
 import type { EquitySnapshotPayload } from '@app/db';
 import { profileRepo, GLOBAL_KEYS } from '@app/db';
 import { fanOutBounded } from '@app/core/fan-out';
-import type { AccountId, ProfileId, UserId } from '@app/contracts';
+import type { AccountId, FeeBasis, ProfileId, UserId } from '@app/contracts';
 import type { BootContext } from 'boot/boot-context.js';
 import { defineCron, type CronDef } from './define.js';
 import { QUEUE_NAMES } from 'queues/queue-names.js';
@@ -40,6 +40,7 @@ export interface EquitySnapshotDeps {
     readonly quoteAsset: string;
     readonly positions: readonly SnapshotPosition[];
     readonly realizedNetQuote: string;
+    readonly feeBasis: FeeBasis;
   } | null>;
   /** Current price in quote terms for each given symbol, null when uncached. */
   readonly pricesOf: (symbols: readonly string[]) => Promise<ReadonlyMap<string, string>>;
@@ -51,6 +52,12 @@ export interface EquitySnapshotDeps {
   ) => Promise<void>;
 }
 
+/**
+ * Build the snapshot handler that records a comparison point, stamped with how well the realised input's fees were known.
+ *
+ * @param deps - Active-profile, archive, ticker, persistence, and logging dependencies.
+ * @returns A bounded BullMQ handler that records one point per active profile at whatever tier its realised input supports, skipping only a profile that has gone away.
+ */
 export const equitySnapshotHandler = (deps: EquitySnapshotDeps) => {
   return async (_job: Job): Promise<void> => {
     const { errors } = await fanOutBounded<ActiveProfile, 'recorded' | 'skipped'>(
@@ -58,6 +65,8 @@ export const equitySnapshotHandler = (deps: EquitySnapshotDeps) => {
       async (profile) => {
         const loaded = await deps.load(profile.operatorId, profile.accountId, profile.profileId);
         if (!loaded) return 'skipped';
+        // No tier gates the write, `unknown` included. The realised leg is `sumProfitInRange(quote, EPOCH, now)`, an all-time fold whose tier is the weakest cycle the profile ever closed, so one historical fill Binance billed in an asset nobody valued pins it at `unknown` and nothing on this forward path lifts it — closing further cycles can only weaken it. A skip on that tier is therefore not "wait for better evidence", it is a profile that never records another point. The tier is stamped onto the row instead and the curve is marked where it is drawn, which is the same argument the estimated case already rested on: refusing to record destroys the evidence rather than declining to plot it.
+        // The stamp is sticky, which is this choice's real cost. `reconcile-fees` CAN lift an archive row out of `unknown`, but it rewrites the archive alone: nothing re-stamps a snapshot already recorded from it, so every point captured before a reconciliation pass keeps its old tier until retention drops it, and the card goes on warning across that window. It over-warns rather than over-certifies, so it is left alone deliberately — clearing it means recomputing the fold per point, at that point's own capture time, which is a repair job and not this handler's business.
         // Canonical before the symbol is built. Ticker keys carry Binance's upper casing while `profiles.quote_asset` may be stored lower or mixed case, so a raw concat yields `BTCusdt`, misses the cache, and flatlines the "vs holding" comparator at zero while every other leg of the same row is computed correctly.
         const quoteAsset = loaded.quoteAsset.toUpperCase();
         const benchmarkSymbol = `${BENCHMARK_ASSET}${quoteAsset}`;
@@ -68,6 +77,7 @@ export const equitySnapshotHandler = (deps: EquitySnapshotDeps) => {
           positions: loaded.positions,
           priceOf: (symbol) => prices.get(symbol) ?? null,
           realizedNetQuote: loaded.realizedNetQuote,
+          feeBasis: loaded.feeBasis,
           benchmarkAsset: BENCHMARK_ASSET,
           benchmarkPriceQuote: prices.get(benchmarkSymbol) ?? null,
         });
@@ -121,6 +131,7 @@ export const buildEquitySnapshotCron = (ctx: BootContext): CronDef =>
             quantity: p.quantity,
           })),
           realizedNetQuote: realized.netProfit,
+          feeBasis: realized.feeBasis,
         };
       },
       pricesOf: async (symbols) => {

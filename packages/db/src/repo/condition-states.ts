@@ -14,6 +14,18 @@ import type { ProfileScope } from './_scoped.js';
  */
 export const PROFILE_SUBJECT = '';
 
+/**
+ * Condition name for "the operator recorded a cost basis and the worker refused to seed a position from it".
+ *
+ * Exported because its producer and its reader live in different packages — the worker's apply-avg-entry-price job opens and clears it, the symbol-state projection reads it — and a condition name is matched by equality with no schema to catch a typo, so two literals would be one silent skew away from a refusal that is recorded and never surfaced.
+ */
+export const POSITION_SEED_REFUSED = 'position-seed-refused';
+
+/**
+ * The only code {@link POSITION_SEED_REFUSED} takes today: nothing sellable backs the symbol, so there is no position to hand the strategy.
+ */
+export const NO_SELLABLE_POSITION = 'no-sellable-position';
+
 export interface RecordConditionInput {
   readonly condition: string;
   /** Omit (or pass null) for a profile-level condition. */
@@ -182,6 +194,29 @@ export async function listOpen(scope: ProfileScope): Promise<ConditionStateRow[]
     .select()
     .from(conditionStates)
     .where(eq(conditionStates.profileId, scope.profileId));
+}
+
+/**
+ * Every open row of ONE named condition across all of the profile's symbols, in a single query.
+ *
+ * Exists because the dashboard needs the same fact for every symbol at once, and it is the hottest route in the app: a per-symbol read would add one round trip per coin to every poll, which is the shape the blocker enrichment beside it already avoids. Served by the same primary key as {@link listOpen}, which leads with `profile_id`.
+ *
+ * Narrowed by condition NAME rather than reusing {@link listOpen} and filtering in the caller: the profile's other conditions describe decisions the strategy made, and one of those surfaced under a refusal's label would tell the operator a healthy position is not held.
+ *
+ * @param scope - Ownership-proven profile scope; bounds every row read here to one profile.
+ * @param condition - The condition name to read, e.g. {@link POSITION_SEED_REFUSED}.
+ * @returns Every open row of that condition, one per subject. Empty when none is open; a symbol absent from the result has no such condition, which is the only way "not refused" is expressed.
+ */
+export async function listOpenByCondition(
+  scope: ProfileScope,
+  condition: string,
+): Promise<ConditionStateRow[]> {
+  return scope.db
+    .select()
+    .from(conditionStates)
+    .where(
+      and(eq(conditionStates.profileId, scope.profileId), eq(conditionStates.condition, condition)),
+    );
 }
 
 /**

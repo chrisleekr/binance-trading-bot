@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { GLOBAL_KEYS, profileRepo } from '@app/db';
+import { GLOBAL_KEYS, profileRepo, schema } from '@app/db';
 import { asProfileId, asUserId, DEFAULT_PROFILE_NOTIFY_EVENTS } from '@app/contracts';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { HAS_INFRA, setupApp, TRAILING_TRADE_VERSION, type ApiFixture } from '../_helpers.js';
@@ -152,9 +152,23 @@ describeIfInfra('profiles router — quoteAsset', () => {
       positionCostQuote: '100',
       benchmarkAsset: 'BTC',
       benchmarkPriceQuote: '50000',
+      feeBasis: 'exact' as const,
     };
     await repo.equitySnapshots.record({ ...base, benchmarkPrices: { ETHUSDT: '2000' } });
     await repo.equitySnapshots.record(base); // old-style row, no benchmarkPrices
+    await fx.di.db.insert(schema.equitySnapshots).values({
+      profileId: fx.alice.profileId,
+      ...base,
+      netPnlQuote: '999',
+      feeBasis: 'unknown',
+    });
+    // The middle tier, seeded because it is the arm a two-state fixture cannot see: `exact` and `unknown` alone cannot tell "carries the tier through" apart from "maps anything imperfect to one bucket". An account Binance bills in BNB has a reconstructed commission on every cycle, so this is its entire series.
+    await fx.di.db.insert(schema.equitySnapshots).values({
+      profileId: fx.alice.profileId,
+      ...base,
+      netPnlQuote: '888',
+      feeBasis: 'estimated',
+    });
 
     const res = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/equity-snapshots?limit=500`,
@@ -163,11 +177,16 @@ describeIfInfra('profiles router — quoteAsset', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       benchmarkMode: string;
-      points: { benchmarkPrices?: Record<string, string> }[];
+      points: { netPnlQuote: string; feeBasis: string; benchmarkPrices?: Record<string, string> }[];
     };
     expect(body.benchmarkMode).toBe('basket');
-    expect(body.points.length).toBeGreaterThanOrEqual(2);
     expect(body.points.some((p) => p.benchmarkPrices?.['ETHUSDT'] === '2000')).toBe(true);
+    // Every tier is served, `unknown` included, each carrying its own. A snapshot's realised leg is an all-time cumulative fold and its tier is stamped once at capture, never re-stamped: withholding one here would not defer a point until better evidence arrives, it would blank the series permanently for any profile with a single historical fill Binance billed in an asset nobody valued. The route hands the tier to the caller, which is what lets the card mark the line instead of losing it.
+    // Keyed numerically rather than by string identity: the column is `numeric(38,18)` and the wire carries its full scale, so `=== '999'` is false for a row that IS present. Each tier is named against its own row, so a route that served all three but collapsed them to one label still fails.
+    const tierByPnl = new Map(body.points.map((p) => [Number(p.netPnlQuote), p.feeBasis]));
+    expect(tierByPnl.get(10)).toBe('exact');
+    expect(tierByPnl.get(888)).toBe('estimated');
+    expect(tierByPnl.get(999)).toBe('unknown');
   });
 
   it('pins a finished backtest run as the baseline, then clears it', async () => {

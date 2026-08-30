@@ -12,7 +12,11 @@
 import type { DashboardAggregateRow, ProfileDashboardSymbol } from '@app/contracts';
 
 import { aggregatePositionPnl } from '@/features/dashboard/lib/aggregate-pnl';
-import { isHeldPosition, toFinite, unrealisedPnlOf } from '@/features/profile/lib/unrealised-pnl';
+import {
+  isManagedPosition,
+  managedUnrealisedPnlOf,
+  toFinite,
+} from '@/features/profile/lib/unrealised-pnl';
 import { deriveQuote } from '@/shared/lib/symbol-quote';
 
 /** One realised-today entry: a profile's period P/L tagged with its quote unit. */
@@ -92,8 +96,9 @@ export function buildTickerMetrics(
 function buildHoldings(positions: readonly ProfileDashboardSymbol[]): CoinHolding[] {
   const out: CoinHolding[] = [];
   for (const p of positions) {
-    if (!isHeldPosition(p)) continue;
-    const pnl = unrealisedPnlOf(p);
+    // The refused seeds are the ones that matter most here. This is a SUM in the top bar, so a P/L on a position nothing backs is not merely one wrong row the operator can discount, it silently moves the headline number they read as their live money.
+    if (!isManagedPosition(p)) continue;
+    const pnl = managedUnrealisedPnlOf(p);
     if (pnl == null) continue;
     const quote = deriveQuote(p.symbol) ?? '';
     const base = quote && p.symbol.endsWith(quote) ? p.symbol.slice(0, -quote.length) : p.symbol;

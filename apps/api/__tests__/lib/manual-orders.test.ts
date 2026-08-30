@@ -34,7 +34,7 @@ const ACC_KEY = `tenant:${A}:profile:${P}:account-info`;
 // `symbol-info` is exchange-wide: the worker writes the global
 // `binance:symbol-info:<S>` key, with no tenant prefix. Derived from the
 // catalogue so the stub cannot drift from the key the code actually reads.
-const SYM_KEY = GLOBAL_KEYS.symbolInfo('BTCUSDT');
+const SYM_KEY = GLOBAL_KEYS.symbolInfo('BTCUSDT', 'live');
 
 /** Stubs Redis with an in-memory map so balance-read tests stay deterministic
  * and never touch a real Redis. */

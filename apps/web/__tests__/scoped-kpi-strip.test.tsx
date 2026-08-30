@@ -10,7 +10,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +21,12 @@ import { discoveryDashboardQueryKey } from '@/features/profile/api/discovery';
 import { rootRoute } from '@/app/__root';
 
 import { pendingFetchForPaths } from './helpers/pending-fetch';
+import {
+  SUB_UNIT_DEPLOYED_QUOTE,
+  SUB_UNIT_DEPLOYED_TEXT,
+  SUB_UNIT_EXPOSURE_CAP_QUOTE,
+  SUB_UNIT_EXPOSURE_CAP_TEXT,
+} from './helpers/sub-unit-quote-fixture';
 
 import type { DashboardAggregateResponse, DiscoveryDashboardResponse } from '@app/contracts';
 
@@ -55,7 +61,14 @@ const row = (
 });
 
 // Minimal discovery payload the scoped strip reads (gauge + scoreboard).
-const discovery = (): DiscoveryDashboardResponse =>
+const discovery = (
+  feeBasis = 'exact',
+  gauge: { deployedQuote: string; maxAccountExposureQuote: string; autoSymbolCount: number } = {
+    deployedQuote: '120',
+    maxAccountExposureQuote: '500',
+    autoSymbolCount: 2,
+  },
+): DiscoveryDashboardResponse =>
   ({
     config: { enabled: true } as DiscoveryDashboardResponse['config'],
     scoreboard: {
@@ -63,13 +76,15 @@ const discovery = (): DiscoveryDashboardResponse =>
       realizedProfitPercent: '0',
       totalFees: '0',
       netProfit: '12.5',
+      feeBasis,
       tradeCount: 4,
       winRate: 0.5,
       realizedProfit7d: '3.25',
       netProfit7d: '3.25',
+      feeBasis7d: feeBasis,
       tradeCount7d: 0,
     },
-    gauge: { deployedQuote: '120', maxAccountExposureQuote: '500', autoSymbolCount: 2 },
+    gauge,
     quoteAsset: 'USDT',
     universe: null,
     holdings: [],
@@ -80,8 +95,15 @@ const discovery = (): DiscoveryDashboardResponse =>
 const stub = (path: string) =>
   createRoute({ getParentRoute: () => rootRoute, path, component: () => null });
 
-const setUp = (scope: string, opts: { seedScoreboard?: boolean } = {}): void => {
-  const { seedScoreboard = true } = opts;
+const setUp = (
+  scope: string,
+  opts: {
+    seedScoreboard?: boolean;
+    feeBasis?: string;
+    gauge?: { deployedQuote: string; maxAccountExposureQuote: string; autoSymbolCount: number };
+  } = {},
+): void => {
+  const { seedScoreboard = true, feeBasis = 'exact', gauge } = opts;
   // Focus is URL-driven now: `all` stays on the account overview; a profile id
   // routes to the per-profile page where the scoped strip renders.
   const focusId = scope === 'all' ? null : scope;
@@ -104,7 +126,10 @@ const setUp = (scope: string, opts: { seedScoreboard?: boolean } = {}): void => 
   // out so they resolve from cache instead of hitting the network. The ranged
   // scoreboard (realised/win-rate/trades) is its own query keyed by period
   // (#504); seed 'd' and 'w' with distinct counts so a toggle is observable.
-  queryClient.setQueryData(discoveryDashboardQueryKey(PID), discovery());
+  queryClient.setQueryData(
+    discoveryDashboardQueryKey(PID),
+    gauge ? discovery(feeBasis, gauge) : discovery(feeBasis),
+  );
   const scoreboard = (period: string, tradeCount: number, winRate: number) => ({
     period,
     tz: 'UTC',
@@ -114,6 +139,7 @@ const setUp = (scope: string, opts: { seedScoreboard?: boolean } = {}): void => 
     realizedProfitPercent: '0',
     totalFees: '0',
     netProfit: '12.5',
+    feeBasis,
     tradeCount,
     winRate,
     // Discovery is the edge here (3 wins, no losers → PF ∞); manual is the drag
@@ -124,6 +150,7 @@ const setUp = (scope: string, opts: { seedScoreboard?: boolean } = {}): void => 
         realizedProfit: '12.5',
         totalFees: '0',
         netProfit: '12.5',
+        feeBasis,
         tradeCount: 3,
         wins: 3,
         losses: 0,
@@ -135,6 +162,7 @@ const setUp = (scope: string, opts: { seedScoreboard?: boolean } = {}): void => 
         realizedProfit: '-1',
         totalFees: '0',
         netProfit: '-1',
+        feeBasis,
         tradeCount: 2,
         wins: 1,
         losses: 1,
@@ -157,6 +185,7 @@ const setUp = (scope: string, opts: { seedScoreboard?: boolean } = {}): void => 
     to: '2026-06-04T00:00:00.000Z',
     totalProfit: '0',
     totalProfitPercent: '0',
+    feeBasis,
     tradeCount: 0,
   });
   queryClient.setQueryData(['closed-trades', PID, 'd', 'UTC'], closed('d'));
@@ -233,6 +262,9 @@ describe('Home KPI surface — scoped vs unscoped', () => {
     expect(screen.getByTestId('scoped-kpi-win-rate')).toHaveTextContent('50.00%');
     // The four discovery tiles added with the labelled Discovery section.
     expect(screen.getByTestId('scoped-kpi-auto-symbols')).toHaveTextContent('2');
+    // The count is every UNPINNED binding, so a provenance label ("Auto symbols") misreports a coin the operator added and unpinned, or one the bot re-created to recover an untracked position. State rotation instead.
+    expect(within(strip).getByText('In rotation')).toBeInTheDocument();
+    expect(within(strip).queryByText(/auto symbols/i)).not.toBeInTheDocument();
     expect(screen.getByTestId('scoped-kpi-holdings')).toHaveTextContent('0');
     expect(screen.getByTestId('scoped-kpi-realised')).toHaveTextContent('12.5');
     expect(screen.getByTestId('scoped-kpi-realised-7d')).toHaveTextContent('3.25');
@@ -249,11 +281,51 @@ describe('Home KPI surface — scoped vs unscoped', () => {
     expect(auto).toHaveTextContent('Discovery (auto-found)');
     expect(auto).toHaveTextContent('100% win');
     expect(auto).toHaveTextContent('PF ∞');
-    // Manual slice: 1 win of 2, gross 1 vs 2 → 50% win, sub-1 PF kept (0.5).
+    // Manual slice: 1 win of 2, gross 1 vs 2 → 50% win, sub-1 PF kept (0.5). The label no longer says "pinned": the band answers where a coin came from, and a pin is now an independent fact that a discovery-found coin can also carry.
     const manual = screen.getByTestId('scoped-source-manual');
-    expect(manual).toHaveTextContent('Manual (pinned)');
+    expect(manual).toHaveTextContent('You added it');
     expect(manual).toHaveTextContent('50% win');
     expect(manual).toHaveTextContent('PF 0.5');
+  });
+
+  it('applies the fee-tier gate to the Home by-source band, the same as History', async () => {
+    // Second of the two call sites. Both render the shared line, and a gate applied in only one of them leaves the operator reading the same bucket two different ways depending on which screen they are on.
+    setUp(PID, { feeBasis: 'unknown' });
+    const auto = await screen.findByTestId('scoped-source-auto');
+    expect(auto).toHaveTextContent('100% win');
+    expect(auto.textContent ?? '').not.toContain('PF');
+  });
+
+  it('marks an estimated Home by-source band in words', async () => {
+    setUp(PID, { feeBasis: 'estimated' });
+    const auto = await screen.findByTestId('scoped-source-auto');
+    expect(auto).toHaveTextContent('PF ∞');
+    expect((auto.textContent ?? '').toLowerCase()).toContain('estimated');
+    // The band above comes from the shared `RollupStatsLine`, which its own suite already covers. The strip's separate note under the KPI cells does not, and it is its own element with its own condition: without this line the whole block can be deleted and nothing fails.
+    expect(screen.getByTestId('scoped-fees-estimated')).toHaveTextContent(/reconstructed/i);
+  });
+
+  it('drops the estimated note under the Recorded basis, where no fee tier applies', async () => {
+    // The `basis === 'net'` conjunct, which nothing else reaches. Recorded P/L never subtracts fees, so a note about a reconstructed commission would point at a caveat that does not apply to the figure beside it.
+    setUp(PID, { feeBasis: 'estimated' });
+    await screen.findByTestId('scoped-fees-estimated');
+    await userEvent.click(screen.getByTestId('pnl-basis-gross'));
+    expect(screen.queryByTestId('scoped-fees-estimated')).not.toBeInTheDocument();
+  });
+
+  it('shows no estimated note at all when every commission evidenced itself', async () => {
+    // Anchors the two positives above: without an exact case they would also pass against a note rendered unconditionally.
+    setUp(PID, { feeBasis: 'exact' });
+    await screen.findByTestId('scoped-kpi-strip');
+    expect(screen.queryByTestId('scoped-fees-estimated')).not.toBeInTheDocument();
+  });
+
+  it('withholds Net P/L and net statistics when fee accounting is incomplete', async () => {
+    setUp(PID, { feeBasis: 'unknown' });
+    await screen.findByTestId('scoped-kpi-strip');
+    expect(screen.getByTestId('scoped-kpi-realised')).toHaveTextContent('Unavailable');
+    expect(screen.getByTestId('scoped-kpi-win-rate')).toHaveTextContent('—');
+    expect(screen.getByTestId('scoped-source-auto')).toHaveTextContent('fees not accounted');
   });
 
   it('omits the by-source band when the scoreboard has no per-source slices', async () => {
@@ -315,5 +387,43 @@ describe('Home KPI surface — scoped vs unscoped', () => {
     expect(screen.getByTestId('scoped-kpi-win-rate')).toHaveTextContent('25.00%');
     // The "now" gauge cards stay put regardless of the period.
     expect(screen.getByTestId('scoped-kpi-deployed')).toHaveTextContent('120');
+  });
+
+  // Which tile goes where is the whole point of making them links. Asserted as a
+  // table so a repointed tile cannot hide behind a sibling that still passes.
+  it.each([
+    ['deployed', `/accounts/${ACCOUNT_ID}/profiles/${PID}/risk`],
+    ['exposure-cap', `/accounts/${ACCOUNT_ID}/profiles/${PID}/risk`],
+    ['auto-symbols', `/accounts/${ACCOUNT_ID}/profiles/${PID}/discovery`],
+    ['realised', `/accounts/${ACCOUNT_ID}/profiles/${PID}/history?section=archive`],
+    ['realised-7d', `/accounts/${ACCOUNT_ID}/profiles/${PID}/history?section=archive`],
+    ['win-rate', `/accounts/${ACCOUNT_ID}/profiles/${PID}/history?section=archive`],
+    ['trades', `/accounts/${ACCOUNT_ID}/profiles/${PID}/history?section=archive`],
+  ])('the %s tile resolves to %s', async (id, href) => {
+    setUp(PID);
+    await screen.findByTestId('scoped-kpi-strip');
+    expect(screen.getByTestId(`scoped-kpi-${id}-link`)).toHaveAttribute('href', href);
+  });
+
+  // Characterization pin: this strip already used the shared money formatter, so this half was green before the change. It is the ANCHOR of the cross-surface pin, not proof of the fix — the Discovery page renders the same two gauge fields, both suites feed the SAME fixture value and assert the SAME literal from `./helpers/sub-unit-quote-fixture`, so changing the expected output on one surface fails the other suite until the shared literal moves with it.
+  it('prints the shared sub-unit gauge figures the Discovery page must match', async () => {
+    setUp(PID, {
+      gauge: {
+        deployedQuote: SUB_UNIT_DEPLOYED_QUOTE,
+        maxAccountExposureQuote: SUB_UNIT_EXPOSURE_CAP_QUOTE,
+        autoSymbolCount: 2,
+      },
+    });
+    await screen.findByTestId('scoped-kpi-strip');
+    expect(screen.getByTestId('scoped-kpi-deployed')).toHaveTextContent(SUB_UNIT_DEPLOYED_TEXT);
+    expect(screen.getByTestId('scoped-kpi-exposure-cap')).toHaveTextContent(
+      SUB_UNIT_EXPOSURE_CAP_TEXT,
+    );
+  });
+
+  it('leaves holdings terminal, its detail being already on this page', async () => {
+    setUp(PID);
+    await screen.findByTestId('scoped-kpi-strip');
+    expect(screen.queryByTestId('scoped-kpi-holdings-link')).toBeNull();
   });
 });

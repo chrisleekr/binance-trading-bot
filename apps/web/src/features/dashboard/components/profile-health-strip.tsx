@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
@@ -11,6 +12,7 @@ import {
 } from '@/features/dashboard/components/live-gate-status-card';
 import { LiveVsBacktestCard } from '@/features/dashboard/components/live-vs-backtest-card';
 import { useEdgeVerdict } from '@/features/dashboard/lib/use-edge-verdict';
+import { useActiveAccountId } from '@/shared/lib/account-scope';
 
 /** Severity rank so the worst of {gate, edge} wins the one-line headline. */
 const RANK: Record<Tone, number> = { down: 3, warning: 2, up: 0, muted: 0 };
@@ -49,6 +51,8 @@ export function pickHealthHeadline(
  * worse of the gate verdict and the live edge-decay verdict as a single coloured
  * line; expanding reveals the full gate and live-vs-backtest scorecards. The gate
  * (the buy-blocker) wins ties; a breached edge outranks a merely-unproven gate.
+ *
+ * The unproven-gate headline tells the operator to re-run a backtest, and the link that does it used to live only inside the collapsed detail — so the one line that names an action offered no way to take it. The action now rides the collapsed line itself; the expanded card keeps its own copy for the operator who opened the detail to read the reasoning first.
  */
 export function ProfileHealthStrip({
   profileId,
@@ -56,6 +60,7 @@ export function ProfileHealthStrip({
   readonly profileId: string;
 }): React.JSX.Element | null {
   const [open, setOpen] = useState(false);
+  const accountId = useActiveAccountId() ?? '';
   const { data } = useQuery(gateStatusQueryOptions(profileId));
   const edge = useEdgeVerdict(profileId);
   // Testnet/non-live profiles have no gate; the strip is the live-money alert
@@ -64,6 +69,10 @@ export function ProfileHealthStrip({
 
   const { tone, title, body } = pickHealthHeadline(describeGate(data), edge);
   const color = GATE_TONE_COLOR[tone];
+  // Only the gate's own unproven verdict is fixed by a backtest. An edge-decay
+  // headline outranks the gate and has a different remedy, so it must not
+  // inherit this call to action.
+  const showBacktestCta = data.applicability === 'gated' && !data.ok && tone !== 'down';
 
   return (
     <section
@@ -92,6 +101,22 @@ export function ProfileHealthStrip({
           />
         </span>
       </button>
+      {/* A real Link beside the toggle, not inside it: nesting an anchor in a
+          button is invalid, and the operator needs the action reachable without
+          first discovering that "Details" hides it. */}
+      {showBacktestCta && (
+        <div className="border-t border-border px-3 py-2">
+          <Link
+            to="/accounts/$accountId/profiles/$profileId/backtest"
+            params={{ accountId, profileId }}
+            search={{ view: 'configure' }}
+            data-testid="health-strip-run-backtest"
+            className="inline-flex min-h-11 items-center text-xs font-medium text-accent hover:underline focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+          >
+            Run backtest on current config
+          </Link>
+        </div>
+      )}
       {open ? (
         <div className="space-y-3 border-t border-border p-3">
           <LiveGateStatusCard profileId={profileId} />

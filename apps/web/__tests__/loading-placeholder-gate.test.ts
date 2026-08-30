@@ -765,6 +765,7 @@ describe('loading placeholders carry page height', () => {
     );
   });
 
+  // Same whole-tree compiler walk as the decimal gate, and the slowest of the repo's tree gates at ~1.3s unloaded, so it is the next one a loaded runner pushes past the default 5s deadline.
   it('every loading branch renders a height-carrying skeleton', () => {
     expect(existsSync(SRC_ROOT), `web source root missing at ${SRC_ROOT}`).toBe(true);
 
@@ -800,5 +801,5 @@ describe('loading placeholders carry page height', () => {
       offenders,
       `loading branches rendering bare text instead of a skeleton:\n${offenders.join('\n')}`,
     ).toEqual([]);
-  });
+  }, 60_000);
 });

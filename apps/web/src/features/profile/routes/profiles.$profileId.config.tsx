@@ -1,6 +1,4 @@
-// /profiles/$profileId/config — the profile's strategy config editor. A real
-// page (not a dashboard drawer): one full-screen surface model across the app,
-// reached from the profile Manage card and deep-linkable.
+// /profiles/$profileId/config — the profile's strategy config editor. A real page (not a dashboard drawer): one full-screen surface model across the app, reached from the sidebar's expanded profile or the phone's Profiles sheet, and deep-linkable.
 
 import { createRoute } from '@tanstack/react-router';
 

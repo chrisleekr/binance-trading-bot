@@ -13,7 +13,7 @@ import type { MetricsSink } from 'metrics/catalog.js';
  * different fact from a transient read failure (a thrown refresh, a non-2xx, a
  * Redis error) — those stay bare `Error` and dead-letter for a human. This one
  * will never resolve on its own, so it is a typed error the tick handler catches
- * to self-heal: reap the auto-added binding instead of dead-lettering the same
+ * to self-heal: reap the unpinned binding instead of dead-lettering the same
  * symbol every tick forever. Carries `symbol` and `mode` so the handler can act
  * without re-parsing the message. Name/shape mirror `RedisUnavailableError`.
  */

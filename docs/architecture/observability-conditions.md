@@ -70,7 +70,7 @@ So the log stays an append-only edge stream and the state is a mutable keyed row
 
 `condition_states` is bounded by open conditions × symbols, not by time: a row exists only while the condition is open, and resolving deletes it and records the resolution as an edge.
 
-A row is closed by its own producer, and for a symbol row that producer is the symbol's tick. Unbinding the symbol therefore ends the row's only writer, so the unbind deletes it: `profileSymbols.remove` / `removeAutoIfFlat` tear down every per-symbol surface in the transaction that drops the binding. Without that the row is unclosable, and the diagnosis reads it back as a live blocker on a coin the profile does not hold. Rows under the profile-level subject (`symbol = ''`) belong to the profile, not a binding, and are untouched — the diagnosis keeps them whatever the bound set is.
+A row is closed by its own producer, and for a symbol row that producer is the symbol's tick. Unbinding the symbol therefore ends the row's only writer, so the unbind deletes it: `profileSymbols.remove` / `removeUnpinnedIfFlat` tear down every per-symbol surface in the transaction that drops the binding. Without that the row is unclosable, and the diagnosis reads it back as a live blocker on a coin the profile does not hold. Rows under the profile-level subject (`symbol = ''`) belong to the profile, not a binding, and are untouched — the diagnosis keeps them whatever the bound set is.
 
 ### What the uniform edge buys
 

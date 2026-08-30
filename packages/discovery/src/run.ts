@@ -88,8 +88,8 @@ export const shortlistByTicker = (
  * ticker set (NOT the ~few kline candidates). `universe` is every ticker the
  * cron saw this cycle; each subsequent field is how many remain AFTER that stage
  * ran, so the vector is monotone non-increasing and `changeBand` equals
- * `shortlistByTicker(tickers, cfg).length`. This is the funnel's ticker segment
- * (issue #636): it answers "how much of the whole exchange did each filter cut"
+ * `shortlistByTicker(tickers, cfg).length`. This is the funnel's ticker segment:
+ * it answers "how much of the whole exchange did each filter cut"
  * rather than "how many of the handful of candidates survived".
  */
 export interface TickerStageCounts {
@@ -236,7 +236,7 @@ export const resolveDiscovery = (
   lastFlattenAtMsBySymbol: Readonly<Record<string, number>>,
   cfg: DiscoveryConfig,
   nowMs: number,
-  manualMembers: readonly string[] = [],
+  pinnedMembers: readonly string[] = [],
   // When false (breadth risk-off), propose NO new adds this cycle; `remove` and
   // the kept-survivor `desired` set are unaffected. Defaults true so every
   // existing caller stays byte-identical.
@@ -253,10 +253,10 @@ export const resolveDiscovery = (
   });
   const eligibleSet = new Set(eligible);
   const currentSet = new Set(currentAuto.map((c) => c.symbol));
-  // Pinned (manual) symbols are off-limits: never re-adopted to auto. They are
+  // Pinned symbols are off-limits: never re-adopted to auto. They are
   // not in `currentAuto`, so they never reach the slot-cap or reap math — only
   // the add loop below needs to skip them.
-  const manualSet = new Set(manualMembers);
+  const pinnedSet = new Set(pinnedMembers);
 
   // Faded current symbols (no longer eligible) split by min-hold: those still
   // within it stay and hold their slot; those past it are reaped.
@@ -285,7 +285,7 @@ export const resolveDiscovery = (
     // to add", so they get no skip reason. Order of these two guards before the
     // slot/cooldown checks keeps `add` byte-identical to the prior break-loop.
     if (currentSet.has(symbol)) continue;
-    if (manualSet.has(symbol)) continue;
+    if (pinnedSet.has(symbol)) continue;
     if (add.length >= availableSlots) {
       skipReasons?.set(symbol, 'slot-capped');
       continue;
@@ -332,7 +332,7 @@ export const runDiscovery = (input: DiscoveryInput): DiscoveryDiff => {
     input.lastFlattenAtMsBySymbol,
     input.config,
     input.nowMs,
-    input.manualMembers ?? [],
+    input.pinnedMembers ?? [],
     allowAdds,
   );
 };

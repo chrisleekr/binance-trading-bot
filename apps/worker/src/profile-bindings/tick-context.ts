@@ -105,8 +105,8 @@ export const buildProfileTickContext = async (
     profileId,
     // Already proven by the `profileRepo` call above — exposed so the tick
     // handler threads this single ownership proof into the StatePort read/
-    // commit instead of re-resolving (#397) and so the state write goes
-    // through the typed `ProfileScope` repo (#396). No extra DB read.
+    // commit instead of re-resolving and so the state write goes
+    // through the typed `ProfileScope` repo. No extra DB read.
     scope: p.scope,
     symbol,
     strategyName: profile.strategyName,
@@ -119,9 +119,5 @@ export const buildProfileTickContext = async (
     candleInterval,
     technicalsConfig,
     needsAccountDeployedQuote,
-    // Per-symbol reserve floor (base units) the bot must never sell below; null
-    // when unset. The tick assembler subtracts it from the bot-visible base
-    // balance so the strategy trades only the surplus above it (#498).
-    reserveBaseQuantity: symbolRow?.reserveBaseQuantity ?? null,
   };
 };

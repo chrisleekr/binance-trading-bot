@@ -29,7 +29,7 @@ export interface WorkerEnv {
    * `discovery-snapshot-prune` cron. Rows with `captured_at < now - retention`
    * are deleted on each cron fire. Default 180 days is deliberately generous:
    * the series is MEANT to accumulate for a net-edge discovery backtest window,
-   * so a short horizon would defeat its purpose (#436).
+   * so a short horizon would defeat its purpose.
    */
   DISCOVERY_SNAPSHOT_RETENTION_DAYS: number;
   /** Retention horizon for the per-profile net-P/L `equity_snapshots` series. */

@@ -18,7 +18,11 @@ import { useMemo, useState } from 'react';
 
 import { useSymbolRows, type SymbolRow } from '@/features/dashboard/lib/use-symbol-rows';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
-import { isHeldPosition, unrealisedPnlOf } from '@/features/profile/lib/unrealised-pnl';
+import {
+  isHeldPosition,
+  isManagedPosition,
+  unrealisedPnlOf,
+} from '@/features/profile/lib/unrealised-pnl';
 import { deriveQuote } from '@/shared/lib/symbol-quote';
 import { formatAmount, formatPrice } from '@/shared/lib/format';
 import {
@@ -163,9 +167,9 @@ function GridHeader() {
   );
 }
 
-/** The trading status of a symbol, in priority order: unprotected / stop-stale > held > paused > blocked > watching. */
+/** The trading status of a symbol, in priority order: not-held > unprotected / stop-stale > held > paused > blocked > watching. */
 type SymbolStatusKind =
-  'unprotected' | 'stop-stale' | 'holding' | 'paused' | 'blocked' | 'watching';
+  'not-held' | 'unprotected' | 'stop-stale' | 'holding' | 'paused' | 'blocked' | 'watching';
 
 export interface SymbolStatus {
   readonly kind: SymbolStatusKind;
@@ -174,26 +178,24 @@ export interface SymbolStatus {
   /** Full hover/aria text — the blocker gloss for `blocked`, the label otherwise. */
   readonly title: string;
   /**
-   * Shared `Badge` variant for the desktop chip. HOLDING maps to `up` (the same
-   * `--up`/`#00e070` token as the success dot; `Badge` has no `success`
-   * variant), BLOCKED to `warning` (amber tint matching the trade-archive
-   * panel's status badges), PAUSED to `secondary`, WATCHING to `outline`, and
-   * UNPROTECTED to `danger` — it is the only status that says money is at risk.
-   * A stop resting at a stale level reads `warning`, not `danger`: protection
-   * exists, it is just behind the trail.
+   * Shared `Badge` variant for the desktop chip. HOLDING maps to `up` (the same `--up`/`#00e070` token as the success dot; `Badge` has no `success` variant), BLOCKED to `warning` (amber tint matching the trade-archive panel's status badges), PAUSED to `secondary`, WATCHING to `outline`, and UNPROTECTED to `danger` — it is the only status that says money is at risk. A stop resting at a stale level reads `warning`, not `danger`: protection exists, it is just behind the trail. NOT HELD is `warning` too — nothing is at risk, because nothing is held, but a cost-basis row the strategy refused to seed is a state the operator has to go and resolve.
    */
   readonly variant: 'up' | 'secondary' | 'warning' | 'outline' | 'danger';
 }
 
 /**
- * Derive a symbol's at-a-glance status. An open position whose protective stop
- * could not be placed outranks everything — it is unguarded right now, unless an
- * earlier stop of ours still covers it, which downgrades it to stale. Otherwise
- * held positions read HOLDING regardless of enabled state (the operator's money
- * is in it); a paused symbol that holds nothing reads PAUSED; a flat enabled
- * symbol with a blocker shows the blocker (amber), otherwise it is WATCHING.
+ * Derive a symbol's at-a-glance status. A refused position seed outranks everything, including the unguarded-position alarm: every other status describes a position the strategy has, and this one says there is none. Below it, an open position whose protective stop could not be placed comes next — it is unguarded right now, unless an earlier stop of ours still covers it, which downgrades it to stale. Otherwise held positions read HOLDING regardless of enabled state (the operator's money is in it); a paused symbol that holds nothing reads PAUSED; a flat enabled symbol with a blocker shows the blocker (amber), otherwise it is WATCHING.
  */
 export function deriveStatus(sym: ProfileDashboardSymbol): SymbolStatus {
+  // Ahead of everything, including the unguarded-position alarm. The other statuses all describe a position the strategy has; this one says there is no position at all, so a row reading HOLDING or NO STOP beneath a refused seed is not a lesser warning, it is a claim about something that does not exist. The cost-basis row survives the refusal by design, which is exactly why the row would otherwise look held.
+  if (sym.positionSeedRefusal) {
+    return {
+      kind: 'not-held',
+      label: t('grid.status.notHeld'),
+      title: t('grid.status.notHeld.title'),
+      variant: 'warning',
+    };
+  }
   if (sym.protectiveStopBlocker) {
     const stale = blockerPositionGuarded(sym.protectiveStopBlocker);
     return {
@@ -203,6 +205,7 @@ export function deriveStatus(sym: ProfileDashboardSymbol): SymbolStatus {
       variant: stale ? 'warning' : 'danger',
     };
   }
+  // `isHeldPosition`, not `isManagedPosition`: the refusal arm above already returned, so a refused row never reaches here and the wider predicate would read as a guard that cannot fire.
   if (isHeldPosition(sym)) {
     return {
       kind: 'holding',
@@ -245,7 +248,10 @@ export function deriveStatus(sym: ProfileDashboardSymbol): SymbolStatus {
 function SymbolListRow({ row }: { row: SymbolRow }) {
   const { sym, profileName, profileId, binanceMode } = row;
   const accountId = useActiveAccountId() ?? '';
-  const held = isHeldPosition(sym);
+  // `?? null` rather than a bare read: the field is defaulted at the contract boundary, but a body that never went through it (an optimistic write, a fixture) leaves it undefined, and `undefined !== null` would suppress the P/L on every healthy row.
+  const refusal = sym.positionSeedRefusal ?? null;
+  // One fact, derived once, so the whole row agrees with its own badge, and shared with the sort comparator and the ticker rollup so the row cannot be held in one and flat in the other. Suppressing only the P/L would leave the quantity text and the green dot still asserting a holding beside a badge reading NOT HELD, which is a contradiction the operator has to resolve themselves.
+  const held = isManagedPosition(sym);
   const quote = deriveQuote(sym.symbol) ?? sym.symbol;
   const positionLabel = held
     ? t('home.symbols.held', { qty: formatAmount(sym.quantity ?? '0') })
@@ -362,8 +368,9 @@ function SymbolListRow({ row }: { row: SymbolRow }) {
         <div className="font-mono text-sm text-fg tabular-nums @3xl:text-right">
           {sym.currentPrice != null ? formatPrice(sym.currentPrice) : '—'}
         </div>
+        {/* A refused seed has no P/L to show. The arithmetic still produces one — entry price and quantity are both on the row — and that number is the whole problem: a gain or loss on a position that will never be sold, sitting in the column where every real one sits. The unit goes with it, because a bare quote symbol beside an em dash still labels the empty slot as this coin's money. */}
         <PnlValue
-          value={pnlString(sym)}
+          value={refusal === null ? pnlString(sym) : null}
           {...(held ? { unit: quote } : {})}
           className="text-xs @3xl:text-right"
         />

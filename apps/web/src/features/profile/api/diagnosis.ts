@@ -20,7 +20,7 @@ export const fetchDiagnosisRuns = (profileId: string, limit = 5): Promise<Diagno
   apiFetch(
     accountPath(`/profiles/${encodePathSegment(profileId)}/diagnosis/runs`),
     diagnosisRunListSchema,
-    { query: { limit: String(limit) } },
+    { method: 'GET', query: { limit: String(limit) } },
   );
 
 /** A run still being worked on. Anything terminal stops the poll. */

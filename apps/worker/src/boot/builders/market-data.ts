@@ -42,8 +42,8 @@ export interface MarketData {
 export const buildMarketData = ({ env, redis, logger }: MarketDataDeps): MarketData => {
   const wsFactory = createWsFactory(WebSocket);
   // One per-IP weight governor shared across every Binance REST caller — and,
-  // via Redis, across every worker pod that egresses the same NAT IP (epic
-  // #561). budget = Binance's real per-IP spot REST limit (6000/min); 80%
+  // via Redis, across every worker pod that egresses the same NAT IP.
+  // budget = Binance's real per-IP spot REST limit (6000/min); 80%
   // utilisation leaves headroom for unmetered paths like ping. Tick and cron
   // callers reserve weight ahead of issuing the request so a busy cron tick
   // cannot 429 the tick path. orderReserve keeps the top 8 weight free for order

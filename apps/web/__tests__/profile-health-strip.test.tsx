@@ -10,7 +10,7 @@ import {
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GateStatusResponse } from '@app/contracts';
+import type { FeeBasis, GateStatusResponse } from '@app/contracts';
 
 import {
   pickHealthHeadline,
@@ -19,6 +19,8 @@ import {
 import { createQueryClient } from '@/shared/lib/query-client';
 
 const PROFILE_ID = '4d2f9f4a-1c9c-4e5f-9a1d-3b6f7c8e0a2c';
+// The global test-setup default active account, which the strip reads via useActiveAccountId to build the backtest link.
+const ACCOUNT_ID = '00000000-0000-4000-8000-0000000000ac';
 
 describe('pickHealthHeadline', () => {
   const gateWarn = { tone: 'warning' as const, title: 'Unproven config.', body: 'gate body' };
@@ -92,6 +94,36 @@ const profileBody = {
 
 const emptyArchive = { items: [], byIntent: [], bySource: [], nextCursor: null };
 const emptyEquity = { profileId: PROFILE_ID, quoteAsset: 'USDT', benchmarkMode: 'btc', points: [] };
+const EDGE_RUN_ID = '8a1b2c3d-4e5f-4a1b-9c2d-3e4f5a6b7c8d';
+const edgeMetrics = {
+  startingBalance: '1000',
+  finalBalance: '1100',
+  absoluteProfit: '100',
+  totalReturnPct: 10,
+  cagrPct: 0,
+  marketChangePct: 5,
+  dcaChangePct: 4,
+  alphaVsHoldPct: 5,
+  alphaVsDcaPct: 6,
+  sharpe: 1,
+  sortino: 1,
+  calmar: 1,
+  sqn: 1,
+  maxDrawdownPct: -8,
+  absoluteDrawdown: '80',
+  drawdownStartMs: null,
+  drawdownEndMs: null,
+  totalTrades: 10,
+  winRate: 60,
+  wins: 6,
+  losses: 4,
+  profitFactor: 1.8,
+  expectancy: '10',
+  bestTradePct: 5,
+  worstTradePct: -3,
+  avgTradePnl: '10',
+  avgTradeDurationMs: 3600000,
+};
 
 const stubFetch = (gate: GateStatusResponse): void => {
   vi.stubGlobal(
@@ -104,6 +136,82 @@ const stubFetch = (gate: GateStatusResponse): void => {
       return jsonOf(profileBody);
     }),
   );
+};
+
+const stubEdgeFetch = (feeBasis: FeeBasis) => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/gate-status'))
+      return jsonOf({
+        applicability: 'gated',
+        ok: false,
+        failure: 'thresholds',
+        detail: 'the backtest does not clear the gate',
+        halted: false,
+      });
+    if (url.includes('/trade-archive'))
+      return jsonOf({
+        items: [],
+        byIntent: [],
+        bySource: [
+          {
+            quoteAsset: 'USDT',
+            source: 'manual',
+            tradeCount: 12,
+            wins: 3,
+            losses: 9,
+            profitSum: '-40',
+            netProfit: '-40',
+            grossProfit: '20',
+            grossLoss: '60',
+            totalFees: '1',
+            feeBasis,
+          },
+        ],
+        nextCursor: null,
+      });
+    if (url.includes('/equity-snapshots')) return jsonOf(emptyEquity);
+    if (url.includes('/backtests/'))
+      return jsonOf({
+        runId: EDGE_RUN_ID,
+        profileId: PROFILE_ID,
+        status: 'done',
+        progress: 100,
+        createdAt: '2026-06-19T00:00:00.000Z',
+        params: {
+          symbols: ['BTCUSDT'],
+          fromMs: 1,
+          toMs: 2,
+          strategyInterval: '1h',
+          detailInterval: '5m',
+          initialQuoteBalance: '1000',
+          fees: { makerBps: 10, takerBps: 10 },
+          slippageBps: 5,
+          discoveryMode: false,
+        },
+        result: {
+          params: {
+            symbols: ['BTCUSDT'],
+            fromMs: 1,
+            toMs: 2,
+            strategyInterval: '1h',
+            detailInterval: '5m',
+            initialQuoteBalance: '1000',
+            fees: { makerBps: 10, takerBps: 10 },
+            slippageBps: 5,
+            discoveryMode: false,
+          },
+          metrics: edgeMetrics,
+          equityCurve: [],
+          drawdownSeries: [],
+          trades: [],
+          perSymbol: [],
+        },
+      });
+    return jsonOf({ ...profileBody, baselineBacktestRunId: EDGE_RUN_ID });
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
 };
 
 // The expanded strip renders LiveGateStatusCard, which links to the backtest
@@ -180,117 +288,76 @@ describe('ProfileHealthStrip', () => {
   });
 
   it('overrides the gate headline when the live edge is breached (end-to-end via the hook)', async () => {
-    const RUN_ID = '8a1b2c3d-4e5f-4a1b-9c2d-3e4f5a6b7c8d';
-    // Full metrics shape so the pinned-baseline run parses; only profitFactor matters here.
-    const metrics = {
-      startingBalance: '1000',
-      finalBalance: '1100',
-      absoluteProfit: '100',
-      totalReturnPct: 10,
-      cagrPct: 0,
-      marketChangePct: 5,
-      dcaChangePct: 4,
-      alphaVsHoldPct: 5,
-      alphaVsDcaPct: 6,
-      sharpe: 1,
-      sortino: 1,
-      calmar: 1,
-      sqn: 1,
-      maxDrawdownPct: -8,
-      absoluteDrawdown: '80',
-      drawdownStartMs: null,
-      drawdownEndMs: null,
-      totalTrades: 10,
-      winRate: 60,
-      wins: 6,
-      losses: 4,
-      profitFactor: 1.8,
-      expectancy: '10',
-      bestTradePct: 5,
-      worstTradePct: -3,
-      avgTradePnl: '10',
-      avgTradeDurationMs: 3600000,
-    };
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = String(input);
-        // Gate is warning ("Unproven config."), so only a worse edge can flip the headline.
-        if (url.includes('/gate-status'))
-          return jsonOf({
-            applicability: 'gated',
-            ok: false,
-            failure: 'thresholds',
-            detail: 'the backtest does not clear the gate',
-            halted: false,
-          });
-        // 12 trades, gross +20 / -60 → live PF 0.33 < 1.0 → breached (net-losing floor).
-        if (url.includes('/trade-archive'))
-          return jsonOf({
-            items: [],
-            byIntent: [],
-            bySource: [
-              {
-                quoteAsset: 'USDT',
-                source: 'manual',
-                tradeCount: 12,
-                wins: 3,
-                losses: 9,
-                profitSum: '-40',
-                netProfit: '-40',
-                grossProfit: '20',
-                grossLoss: '60',
-                totalFees: '1',
-              },
-            ],
-            nextCursor: null,
-          });
-        if (url.includes('/equity-snapshots')) return jsonOf(emptyEquity);
-        if (url.includes('/backtests/'))
-          return jsonOf({
-            runId: RUN_ID,
-            profileId: PROFILE_ID,
-            status: 'done',
-            progress: 100,
-            createdAt: '2026-06-19T00:00:00.000Z',
-            params: {
-              symbols: ['BTCUSDT'],
-              fromMs: 1,
-              toMs: 2,
-              strategyInterval: '1h',
-              detailInterval: '5m',
-              initialQuoteBalance: '1000',
-              fees: { makerBps: 10, takerBps: 10 },
-              slippageBps: 5,
-              discoveryMode: false,
-            },
-            result: {
-              params: {
-                symbols: ['BTCUSDT'],
-                fromMs: 1,
-                toMs: 2,
-                strategyInterval: '1h',
-                detailInterval: '5m',
-                initialQuoteBalance: '1000',
-                fees: { makerBps: 10, takerBps: 10 },
-                slippageBps: 5,
-                discoveryMode: false,
-              },
-              metrics,
-              equityCurve: [],
-              drawdownSeries: [],
-              trades: [],
-              perSymbol: [],
-            },
-          });
-        return jsonOf({ ...profileBody, baselineBacktestRunId: RUN_ID });
-      }),
-    );
+    stubEdgeFetch('exact');
     renderStrip();
 
     const toggle = await screen.findByTestId('profile-health-strip-toggle');
     // Once the edge query resolves to "breached", it outranks the warning gate.
     await waitFor(() => expect(toggle).toHaveTextContent('Edge below baseline.'));
     expect(toggle).not.toHaveTextContent('Unproven config.');
+    // ...and the backtest CTA goes with it. A breached edge is not fixed by
+    // re-running a backtest, so the headline it owns must not inherit that
+    // action. This is the `tone !== 'down'` clause; without an assertion it can
+    // be deleted with a green suite.
+    expect(screen.queryByTestId('health-strip-run-backtest')).toBeNull();
+  });
+
+  it('keeps the gate headline when the same live edge has incomplete fee evidence', async () => {
+    const fetchMock = stubEdgeFetch('unknown');
+    renderStrip();
+
+    const toggle = await screen.findByTestId('profile-health-strip-toggle');
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/backtests/'))).toBe(
+        true,
+      ),
+    );
+    expect(toggle).toHaveTextContent('Unproven config.');
+    expect(toggle).not.toHaveTextContent('Edge below baseline.');
+  });
+
+  it('issues the edge verdict from a reconstructed fee total, matching the alert cron', async () => {
+    // The middle tier is the one a two-state gate gets wrong, and the safe-looking direction is the wrong one. `edge-decay-monitor.cron.ts` abstains only on `unknown`, so withholding the screen verdict at `estimated` would hide a decay the Slack channel DOES alert on. Worse, it would hide it permanently on an account Binance bills in BNB, where every cycle's commission is reconstructed from the rate table and the tier is never `exact`. Pinned here because both sites read the same tier over the same rows and only their predicate differs, which is a one-token edit away from diverging again.
+    stubEdgeFetch('estimated');
+    renderStrip();
+
+    const toggle = await screen.findByTestId('profile-health-strip-toggle');
+    await waitFor(() => expect(toggle).toHaveTextContent('Edge below baseline.'));
+    expect(toggle).not.toHaveTextContent('Unproven config.');
+  });
+
+  it('offers the backtest CTA on the collapsed line when the gate is merely unproven', async () => {
+    // The defect this closes: the only link that performs the action the
+    // headline recommends lived inside the collapsed detail, so the one line
+    // naming an action offered no way to take it.
+    stubFetch({
+      applicability: 'gated',
+      ok: false,
+      failure: 'no-matching-backtest',
+      detail: 'no recent backtest was run on the current configuration',
+      halted: true,
+    });
+    renderStrip();
+
+    const cta = await screen.findByTestId('health-strip-run-backtest');
+    expect(cta).toHaveAttribute(
+      'href',
+      `/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}/backtest?view=configure`,
+    );
+    // Beside the toggle, not inside it: an anchor nested in a button is invalid.
+    expect(cta.closest('button')).toBeNull();
+  });
+
+  it('withholds the CTA when the gate passes, there being nothing to re-prove', async () => {
+    stubFetch({
+      applicability: 'gated',
+      ok: true,
+      failure: null,
+      detail: 'backtest matches the current configuration',
+      halted: false,
+    });
+    renderStrip();
+    await screen.findByTestId('profile-health-strip-toggle');
+    expect(screen.queryByTestId('health-strip-run-backtest')).toBeNull();
   });
 });

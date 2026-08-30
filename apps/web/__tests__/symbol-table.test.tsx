@@ -51,6 +51,7 @@ const sym = (overrides: Partial<Sym> & { symbol: string }): Sym => ({
   openOrders: [],
   entryBlocker: null,
   protectiveStopBlocker: null,
+  positionSeedRefusal: null,
   ...overrides,
 });
 
@@ -334,6 +335,87 @@ describe('<SymbolTable>', () => {
     );
     const meta = await screen.findByTestId('symbol-status-meta-pa-SOLUSDT');
     expect(meta).toHaveTextContent(/Waiting for the price to dip/);
+  });
+
+  // The cost-basis row survives a refused seed by design, so the dashboard reads it as a held position and prices it. The arithmetic works — entry price and quantity are both there — and the number it produces is the problem: a gain on a position that will never be sold, in the same column as every real one.
+  it('shows no P/L figure and no quote unit while a position-seed refusal is open', async () => {
+    renderTable([row('pa', 'alpha')], () =>
+      json(
+        dashboard([
+          sym({
+            symbol: 'BTCUSDT',
+            avgEntryPrice: '64000',
+            currentPrice: '70000',
+            quantity: '0.5',
+            positionSeedRefusal: {
+              code: 'no-sellable-position',
+              since: '2026-08-18T00:00:00.000Z',
+            },
+          } as Partial<Sym> & { symbol: string }),
+        ]),
+      ),
+    );
+
+    const refused = await screen.findByTestId('symbol-row-pa-BTCUSDT');
+    expect(within(refused).queryByText(/\+3,?000/)).not.toBeInTheDocument();
+    // The unit, not just the figure. A bare quote symbol left standing beside an
+    // em dash still labels the empty slot as money that belongs to this coin, and
+    // dropping only the value guard would leave it there.
+    expect(within(refused).queryByText('USDT')).not.toBeInTheDocument();
+  });
+
+  it('names the refusal in the row, in words rather than a colour', async () => {
+    // The operator has to learn that the bot holds nothing here and that the cost basis is a note they left themselves. A tint says "something is odd about this number" and nothing else, and it is invisible to a screen reader.
+    renderTable([row('pa', 'alpha')], () =>
+      json(
+        dashboard([
+          sym({
+            symbol: 'BTCUSDT',
+            avgEntryPrice: '64000',
+            currentPrice: '70000',
+            quantity: '0.5',
+            positionSeedRefusal: {
+              code: 'no-sellable-position',
+              since: '2026-08-18T00:00:00.000Z',
+            },
+          } as Partial<Sym> & { symbol: string }),
+        ]),
+      ),
+    );
+
+    const refused = await screen.findByTestId('symbol-row-pa-BTCUSDT');
+    // Both surfaces, because the desktop STATUS column has no mobile twin: the row folds the same status onto its meta line at narrow widths, and an operator on a phone sees only that one.
+    expect(within(refused).getAllByText(/not held/i).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('symbol-status-meta-pa-BTCUSDT')).toHaveTextContent(/not held/i);
+    // And the rest of the row has to agree with the badge, which is a SEPARATE decision from the badge itself: `deriveStatus` was already refusal-aware, while the quantity text and the dot both read `held`. Suppressing only the P/L leaves them asserting a holding beside a badge that denies it.
+    //
+    // The quantity is the load-bearing half — `positionLabel` renders "0.5 held" when `held` is true and "no position" when it is false — so this line dies the moment `held` stops consulting the refusal. Asserting on /holding/i instead would prove nothing: the status badge's first arm returns `not-held` for any refused row before `isHeldPosition` is ever reached, so that assertion sits behind a gate that already returned.
+    expect(within(refused).queryByText(/0\.5/)).not.toBeInTheDocument();
+    // The dot carries no text at all — it is `aria-hidden` with its meaning in `title` — so `queryByText` can never see it and it needs an element assertion of its own.
+    const dot = refused.querySelector('span.rounded-full');
+    expect(dot).toHaveAttribute('title', expect.stringMatching(/no open position/i));
+    expect(dot?.className).not.toMatch(/bg-success/);
+  });
+
+  it('leaves a held row with no refusal exactly as it renders today', async () => {
+    // The no-change case. Without it, a guard that suppresses the figure unconditionally satisfies both cases above and blanks every healthy position on the dashboard.
+    renderTable([row('pa', 'alpha')], () =>
+      json(
+        dashboard([
+          sym({
+            symbol: 'BTCUSDT',
+            avgEntryPrice: '64000',
+            currentPrice: '70000',
+            quantity: '0.5',
+          }),
+        ]),
+      ),
+    );
+
+    const held = await screen.findByTestId('symbol-row-pa-BTCUSDT');
+    expect(within(held).getByText(/\+3,?000/)).toBeInTheDocument();
+    expect(within(held).getByText('USDT')).toBeInTheDocument();
+    expect(within(held).queryByText(/not held/i)).not.toBeInTheDocument();
   });
 
   it('flags a partial load when one profile fails but keeps the survivors', async () => {

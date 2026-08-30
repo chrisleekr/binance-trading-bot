@@ -1,12 +1,12 @@
 # Risk
 
-![Risk controls tab](../../assets/screenshots/user-guide/profile-risk.png)
+![Risk section](../../assets/screenshots/user-guide/profile-risk.png)
 
-_The Risk controls tab. Caps that stop the strategy before a loss compounds. Seeded demo data, not a real account._
+_The Risk section. Caps that stop the strategy before a loss compounds. Seeded demo data, not a real account._
 
-The **Risk** tab (header "Risk controls") sets safety limits that apply on top of whatever the strategy decides. They are circuit breakers: the strategy proposes trades, and these limits can veto or size them down. All limits are optional — a `0` or blank value turns that limit off.
+The **Risk** section sets safety limits that apply on top of whatever the strategy decides. They are circuit breakers: the strategy proposes trades, and these limits can veto or size them down. All limits are optional — a `0` or blank value turns that limit off.
 
-The fields, labels, and help below are generated from the same schema the tab renders, so they match what you see on screen exactly.
+The fields, labels, and help below are generated from the same schema the section renders, so they match what you see on screen exactly.
 
 --8<-- "docs/\_generated/config/risk.md"
 

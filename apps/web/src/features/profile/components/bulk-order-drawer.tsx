@@ -24,6 +24,7 @@ import {
 import { useTimezone } from '@/shared/context/timezone-context';
 import { formatClock } from '@/shared/lib/format-time';
 import { distinctQuotes } from '@/shared/lib/symbol-quote';
+import { Select } from '@/shared/components/ui/select';
 
 import { asDecimalString } from '@app/contracts';
 import type { ManualOrderAllRequest, ManualOrderAllResponse } from '@app/contracts';
@@ -166,9 +167,9 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
           <div className="space-y-1">
             <Label htmlFor="bulk-quote">Quote</Label>
             {quoteOptions.length > 0 ? (
-              <select
+              <Select
                 id="bulk-quote"
-                className="h-11 w-full rounded-xs border border-border bg-surface-alt px-3 text-sm"
+                className="w-full"
                 value={quoteNeedsReselection ? '' : selectedQuote}
                 onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value, amount: '' }))}
                 disabled={!dashboard.isSuccess}
@@ -184,7 +185,7 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
                     {q}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : (
               // Fallback for the (rare) case where no symbol's quote suffix
               // matches the known set — keep the operator unblocked rather than
@@ -201,21 +202,21 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
           </div>
           <div className="space-y-1">
             <Label htmlFor="bulk-side">Side</Label>
-            <select
+            <Select
               id="bulk-side"
-              className="h-11 w-full rounded-xs border border-border bg-surface-alt px-3 text-sm"
+              className="w-full"
               value={form.side}
               onChange={(e) => setForm((f) => ({ ...f, side: e.target.value as 'buy' | 'sell' }))}
             >
               <option value="buy">Buy</option>
               <option value="sell">Sell</option>
-            </select>
+            </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="bulk-mode">Amount type</Label>
-            <select
+            <Select
               id="bulk-mode"
-              className="h-11 w-full rounded-xs border border-border bg-surface-alt px-3 text-sm"
+              className="w-full"
               value={form.mode}
               onChange={(e) =>
                 setForm((f) => ({
@@ -226,7 +227,7 @@ export function BulkOrderDrawer({ profileId }: { readonly profileId: string }): 
             >
               <option value="quoteAmount">Quote amount</option>
               <option value="marketQuantity">Market quantity</option>
-            </select>
+            </Select>
           </div>
           <div className="space-y-1">
             <Label htmlFor="bulk-amount">Amount</Label>

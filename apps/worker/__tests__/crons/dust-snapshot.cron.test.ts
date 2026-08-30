@@ -39,6 +39,7 @@ const stubRest = (overrides: Partial<BinanceRestClient> = {}): BinanceRestClient
     })),
     convertDust: vi.fn(async () => ({}) as never),
     ctx: vi.fn(() => ({}) as never),
+    getCommissionRates: vi.fn(async () => ({}) as never),
     signWsApiPayload: vi.fn(() => ({ id: '', method: '', params: {} })),
   } satisfies BinanceRestClient;
   return { ...base, ...overrides };

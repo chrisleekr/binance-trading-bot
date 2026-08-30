@@ -1,11 +1,9 @@
 // Pure round-trip reconstruction from Binance myTrades fills. No mocks: the
-// function is I/O-free, so these assert the walk (BUY adds / SELL subtracts /
-// emit on empty), GROSS profit + per-asset fees, multi-fill order grouping,
-// epsilon dust tolerance, and the orphan/open-position drops.
+// function is I/O-free, so these assert wallet-quantity walking, Recorded cashflow, multi-fill order grouping, fee and step-size dust, and incomplete-history drops.
 
 import { describe, it, expect } from 'vitest';
 import type { MyTradeDto } from '@app/binance';
-import { reconstructRoundTrips } from '../../src/queues/pipeline-handlers/reconstruct-round-trips.js';
+import { reconstructRoundTrips as reconstructRoundTripsForSymbol } from '../../src/queues/pipeline-handlers/reconstruct-round-trips.js';
 
 // Local "assert defined" to read array elements without the non-null operator
 // (project convention, avoids `!`).
@@ -41,8 +39,11 @@ const trade = (o: {
   };
 };
 
+const reconstructRoundTrips = (fills: readonly MyTradeDto[]) =>
+  reconstructRoundTripsForSymbol(fills, 'WLD');
+
 describe('reconstructRoundTrips', () => {
-  it('builds one round-trip with gross profit, percent, breakdown, and closing marker', () => {
+  it('builds one round-trip with gross profit, breakdown, and closing marker', () => {
     const fills = [
       trade({ id: 1, qty: '100', quoteQty: '50', isBuyer: true, time: 1000 }),
       trade({ id: 2, qty: '100', quoteQty: '60', isBuyer: false, time: 2000 }),
@@ -54,7 +55,7 @@ describe('reconstructRoundTrips', () => {
     expect(rt.totalBuyQuote).toBe('50');
     expect(rt.totalSellQuote).toBe('60');
     expect(rt.profit).toBe('10');
-    expect(rt.profitPercent).toBe('20');
+    expect(rt).not.toHaveProperty('profitPercent');
     expect(rt.breakdown).toEqual({ 'backfill:BUY': '50', 'backfill:SELL': '60' });
     expect(rt.closingTradeId).toBe(2);
     expect(rt.closedAtMs).toBe(2000);
@@ -68,7 +69,7 @@ describe('reconstructRoundTrips', () => {
     expect(must(roundTrips[0]).profit).toBe('-2');
   });
 
-  it('groups multiple fills of one order and sums fees per commission asset', () => {
+  it('groups multiple fills of one order', () => {
     const { roundTrips } = reconstructRoundTrips([
       trade({
         id: 1,
@@ -105,10 +106,11 @@ describe('reconstructRoundTrips', () => {
     expect(rt.orders).toHaveLength(2);
     const buy = must(rt.orders.find((o) => o.side === 'BUY'));
     expect(buy.binanceOrderId).toBe('10');
-    expect(buy.qty).toBe('100');
+    expect(buy.executedQty).toBe('100');
+    expect(buy.cummulativeQuoteQty).toBe('50');
+    expect(buy.baseCommissionNetted).toBeNull();
     expect(buy.tradeIds).toEqual([1, 2]);
     expect(buy.clientOrderId).toBeNull();
-    expect(rt.fees).toEqual({ BNB: '0.1', USDT: '0.06' });
     expect(rt.closingTradeId).toBe(3);
   });
 
@@ -118,6 +120,38 @@ describe('reconstructRoundTrips', () => {
       trade({ qty: '99.9', quoteQty: '49.95', isBuyer: false, time: 2 }),
     ]);
     expect(roundTrips).toHaveLength(1);
+  });
+
+  it('proves a base BUY fee only when the exact fee-net quantity closes', () => {
+    const { roundTrips } = reconstructRoundTrips([
+      trade({
+        qty: '100',
+        quoteQty: '50',
+        isBuyer: true,
+        time: 1,
+        commission: '1',
+        commissionAsset: 'WLD',
+      }),
+      trade({ qty: '99', quoteQty: '59.4', isBuyer: false, time: 2 }),
+    ]);
+    const buy = must(must(roundTrips[0]).orders.find((order) => order.side === 'BUY'));
+    expect(buy.baseCommissionNetted).toBe('1');
+  });
+
+  it('drops a cycle that sells gross quantity after paying a base BUY fee', () => {
+    const { roundTrips, droppedOvershootCycles } = reconstructRoundTrips([
+      trade({
+        qty: '100',
+        quoteQty: '50',
+        isBuyer: true,
+        time: 1,
+        commission: '1',
+        commissionAsset: 'WLD',
+      }),
+      trade({ qty: '100', quoteQty: '60', isBuyer: false, time: 2 }),
+    ]);
+    expect(roundTrips).toHaveLength(0);
+    expect(droppedOvershootCycles).toBe(1);
   });
 
   it('does not close early on a genuine partial sell', () => {

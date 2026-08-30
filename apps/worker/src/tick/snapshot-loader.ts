@@ -104,7 +104,7 @@ export interface SnapshotColdLoad {
   ): Promise<readonly OpenOrder[]>;
   loadSymbolState(scope: ProfileScope, symbol: string): Promise<SymbolStateRowView | null>;
   /**
-   * The profile's cross-symbol KV store (tracker #267) as a `{ key: value }`
+   * The profile's cross-symbol KV store as a `{ key: value }`
    * snapshot, the shape passed to `TickInput.profileKv`. Read straight from PG
    * (the durable source of truth) only when the strategy opts in via
    * `capabilities.needsProfileKv`. Empty object when the profile has no KV rows.

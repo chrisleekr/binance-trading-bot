@@ -2,8 +2,8 @@
 // four tabs: Archive (closed-trade rollup + Binance backfill + P/L by exit),
 // Audit (what the operator changed), Logs (what the bot did and why), and
 // Activity (the merged event feed). This was the HISTORY dock; it outgrew a
-// 240px drawer, so it is its own page reached from the profile MANAGE card,
-// alongside Backtest.
+// 240px drawer, so it is its own page reached from the sidebar's expanded
+// profile or the phone's Profiles sheet, alongside Backtest.
 //
 // Audit and Logs are different records and stay separate tabs: Audit answers
 // "who changed this", Logs answers "why did it act". Merging them would bury the

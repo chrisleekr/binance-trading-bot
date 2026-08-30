@@ -4,6 +4,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AccountHealthBar } from '@/app/account-health-bar';
@@ -83,6 +84,36 @@ describe('<AccountHealthBar>', () => {
     expect(await screen.findByTestId('account-health-approaching')).toHaveTextContent(
       /near limit/i,
     );
+  });
+
+  it('narrows the loss and limit inside the tooltip, which is where the numbers actually live', async () => {
+    // The chip only carries a count. The wire values are full-scale decimal strings and they are painted in the TooltipContent, which never renders until the trigger is opened, so an assertion on the trigger alone leaves the formatter unpinned: delete it and the suite still passes.
+    renderBar(
+      {
+        ...base,
+        approachingLimit: [
+          {
+            profileId: PA,
+            name: 'Real',
+            lossQuote: '-42.190283746152',
+            limitQuote: '50.000000000001',
+          },
+        ],
+      },
+      0,
+    );
+    const user = userEvent.setup();
+    await user.hover(await screen.findByTestId('account-health-approaching'));
+
+    // Radix mirrors the content into a visually-hidden copy for screen readers, so both matches are the same painted text.
+    const painted = await screen.findAllByText(/^Real: /);
+    expect(painted.length).toBeGreaterThan(0);
+    for (const node of painted) {
+      expect(node.textContent).toContain('-42.19');
+      expect(node.textContent).toContain('50.00');
+      expect(node.textContent).not.toContain('-42.190283746152');
+      expect(node.textContent).not.toContain('50.000000000001');
+    }
   });
 
   it('excludes practice (test-mode) P/L from the headline', async () => {

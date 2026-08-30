@@ -1,4 +1,4 @@
-import { asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import { GLOBAL_KEYS, profileKey, type ProfileRepo } from '@app/db';
 import type { AnyStrategy } from '@app/strategy-core';
 import { TTConfigSchema, trailingTrade } from '@app/strategy-trailing-trade';
@@ -14,8 +14,9 @@ import {
 
 const U = asUserId('00000000-0000-0000-0000-000000000001');
 const P = asProfileId('00000000-0000-0000-0000-000000000002');
+const A = asAccountId('00000000-0000-0000-0000-000000000003');
 
-const SYM_KEY = GLOBAL_KEYS.symbolInfo('BTCUSDT');
+const SYM_KEY = GLOBAL_KEYS.symbolInfo('BTCUSDT', 'live');
 const TICKER_KEY = GLOBAL_KEYS.ticker('BTCUSDT');
 
 const symbolInfo = JSON.stringify({
@@ -54,7 +55,7 @@ interface Ledger {
 
 const fakeP = (symbols: string[], ledger: Ledger[] = []): ProfileRepo =>
   ({
-    scope: { userId: U, profileId: P },
+    scope: { operatorId: U, accountId: A, profileId: P },
     profileSymbols: { listForProfile: async () => symbols.map((symbol) => ({ symbol })) },
     avgEntryPrices: {
       findBySymbols: async (syms: readonly string[]) =>
@@ -89,7 +90,7 @@ const LIVE = { [SYM_KEY]: symbolInfo, [TICKER_KEY]: ticker };
 const TEST_SYM_KEY = GLOBAL_KEYS.symbolInfo('BTCUSDT', 'test');
 const TEST_ONLY = { [TEST_SYM_KEY]: symbolInfo, [TICKER_KEY]: ticker };
 
-const ACCOUNT_KEY = profileKey({ userId: U, profileId: P }, 'accountInfo');
+const ACCOUNT_KEY = profileKey({ accountId: A, profileId: P }, 'accountInfo');
 // Balances snapshot: `free`/`locked` per asset, as the worker writes it.
 const account = (balances: Record<string, { free: string; locked: string }>): string =>
   JSON.stringify({ balances });
@@ -146,6 +147,7 @@ describe('orderFeasibilityDiagnostics', () => {
       gridConfig,
       {
         availableQuoteOverride: '100000',
+        mode: 'live',
       },
     );
     expect(diags).toEqual([]);
@@ -467,7 +469,7 @@ describe('orderFeasibilityDiagnostics', () => {
 // A symbol whose snapshot carries Binance's price band, plus a config whose
 // backup stop is deeper than that band will hold: 15% against a maximum of
 // 1 − 0.95 ÷ 0.995 ≈ 4.52%.
-const BAND_SYM_KEY = GLOBAL_KEYS.symbolInfo('ETHUSDT');
+const BAND_SYM_KEY = GLOBAL_KEYS.symbolInfo('ETHUSDT', 'live');
 const bandSymbolInfo = JSON.stringify({
   ...JSON.parse(symbolInfo),
   symbol: 'ETHUSDT',

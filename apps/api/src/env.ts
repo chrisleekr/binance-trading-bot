@@ -50,13 +50,7 @@ export interface Env {
    */
   WEB_DIST_DIR: string;
   /**
-   * Public "Live demo" mode. When true, the api injects the sole demo operator
-   * id for every anonymous request (no login), locks credential, notifier,
-   * backup/restore, account-creation, retention-change, and diagnosis-start routes behind
-   * `requireNotDemo`, and refuses to boot if any account is live. Trading
-   * remains interactive on Binance testnet. A separate deployment concern; the
-   * operator's real instance always leaves this false. See
-   * `docs/architecture/auth.md`.
+   * Public "Live demo" mode. When true, the api injects the sole demo operator id for every anonymous request (no login), locks credential, notifier, backup/restore, account-creation, account-rename/delete, retention-change, diagnosis-start, fee-reconciliation, and archive-backfill routes behind `requireNotDemo`, and refuses to boot if any account is live. Trading remains interactive on Binance testnet. A separate deployment concern; the operator's real instance always leaves this false. See `docs/architecture/auth.md`.
    */
   LIVE_DEMO: boolean;
 }

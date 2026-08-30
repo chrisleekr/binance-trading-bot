@@ -148,16 +148,9 @@ export interface DiscoveryInput {
   readonly currentAuto: readonly CurrentAutoSymbol[];
   readonly lastFlattenAtMsBySymbol: Readonly<Record<string, number>>;
   /**
-   * Symbols the operator has pinned to `source='manual'`. Discovery treats them
-   * as off-limits: never proposed for `add` (so a still-qualifying pinned symbol
-   * is not re-adopted to auto, which would clobber its `overrideConfig`) and
-   * never surfaced as a discovery candidate. They are NOT in `currentAuto`
-   * (which is `source='auto'` only), so they do not count toward the slot cap or
-   * the reap set. Optional and defaults to empty: an absent value is the
-   * no-manual-members case, so existing callers and golden replays are
-   * unaffected.
+   * Symbols the operator has pinned. Discovery treats them as off-limits: never proposed for `add` (so a still-qualifying pinned symbol is not re-adopted, which would clobber its `overrideConfig`) and never surfaced as a discovery candidate. They are NOT in `currentAuto` (which is the ROTATABLE, i.e. unpinned, set), so they do not count toward the slot cap or the reap set. Keyed on the pin and not on provenance, so a binding the system re-created to recover an untracked position keeps rotating instead of holding a slot forever. Optional and defaults to empty: an absent value is the nothing-pinned case, so existing callers and golden replays are unaffected.
    */
-  readonly manualMembers?: readonly string[];
+  readonly pinnedMembers?: readonly string[];
   readonly config: DiscoveryConfig;
   readonly nowMs: number;
 }

@@ -41,9 +41,10 @@ export class RateLimitedError extends ApiError {
 /**
  * Render any thrown value as a one-line, operator-facing message.
  *
- * Single owner of the `ApiError → "${code}: ${message}"` idiom that mutation
- * surfaces previously hand-rolled. Surfaces wanting per-code copy (e.g. the
- * add-symbol form) keep their own richer mapper.
+ * Owns the `ApiError → "${code}: ${message}"` idiom for mutation surfaces that previously hand-rolled it, with two deliberate carve-outs rather than a clean monopoly. Surfaces wanting per-code copy (e.g. the add-symbol form) keep their own richer mapper. And a site that must show fixed copy for a non-ApiError keeps the hand-rolled ternary, because the non-Error arm here returns a driver message: the notifications panel's test-fire handler is one.
+ *
+ * @param err - Any thrown value, including a non-Error a driver or provider threw.
+ * @returns One line of operator-facing text: `"CODE: message"` for an ApiError, the message for any other Error, and a fixed generic string otherwise. Never empty, so a caller wanting an action-specific fallback must narrow to Error first rather than rely on `|| 'x failed'`.
  */
 export function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return `${err.code}: ${err.message}`;
@@ -168,18 +169,30 @@ const buildUrl = (path: string, query?: ApiFetchOptions['query']): string => {
     params.append(key, String(value));
   };
   for (const [key, value] of Object.entries(query)) {
-    if (Array.isArray(value)) {
-      for (const v of value) appendOne(key, v);
-    } else {
-      // `Object.entries` widens the value back to the full union,
-      // so the `Array.isArray` early branch does not narrow the else.
-      // The cast is load-bearing — without it tsc rejects the assignment.
-      appendOne(key, value as ApiQueryValue);
-    }
+    if (
+      value === undefined ||
+      value === null ||
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    )
+      appendOne(key, value);
+    else for (const item of value) appendOne(key, item);
   }
   const qs = params.toString();
   return qs ? `${url}${url.includes('?') ? '&' : '?'}${qs}` : url;
 };
+
+/**
+ * Builds a browser-owned download URL through the same query serializer as JSON requests so streamed responses cannot drift onto a second wire format.
+ * @param path - API-relative or absolute download path without a caller-built query string.
+ * @param staticQuery - Statically named query values; nullish values are omitted and arrays become repeated parameters.
+ * @returns The fully encoded URL for an anchor or browser navigation sink.
+ */
+export const apiDownloadUrl = (
+  path: string,
+  staticQuery: NonNullable<ApiFetchOptions['query']>,
+): string => buildUrl(path, staticQuery);
 
 export async function apiFetch<T>(
   path: string,

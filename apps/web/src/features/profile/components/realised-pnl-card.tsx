@@ -4,17 +4,16 @@
 // order.
 //
 // The period is controlled by the parent so one toggle can drive both this card
-// and the sibling KPI cards (#504).
+// and the sibling KPI cards.
 
 import { useQuery } from '@tanstack/react-query';
 
 import { closedTradesQueryOptions } from '@/features/dashboard/api/dashboard';
 import { Card } from '@/shared/components/ui/card';
 import { LoadingRows } from '@/shared/components/page-skeleton';
-import { PnlValue, PNL_TONE } from '@/shared/components/pnl-value';
+import { PnlPercent, PnlValue } from '@/shared/components/pnl-value';
 import { Button } from '@/shared/components/ui/button';
 import { useTimezone } from '@/shared/context/timezone-context';
-import { formatPercent, signOf } from '@/shared/lib/format';
 import { formatDate } from '@/shared/lib/format-time';
 
 import type { ClosedTradesPeriod } from '@app/contracts';
@@ -25,13 +24,6 @@ const PERIODS: readonly { readonly code: ClosedTradesPeriod; readonly label: str
   { code: 'm', label: 'M' },
   { code: 'a', label: 'All' },
 ];
-
-// Render a percent string with a leading `+` on gains. Non-finite input falls
-// back to the raw string (an upstream "—"/blank passes through unchanged).
-function signedPercent(value: string): string {
-  const n = Number(value);
-  return Number.isFinite(n) ? formatPercent(n, { sign: true }) : value;
-}
 
 function periodLabel(
   period: ClosedTradesPeriod,
@@ -53,7 +45,7 @@ function periodLabel(
 /**
  * Realised-P/L card with a D/W/M/All period selector backed by the closed-trades
  * endpoint. The selected period is controlled by the parent (the scoped-KPI
- * strip) so the same toggle re-filters the sibling KPI cards (#504).
+ * strip) so the same toggle re-filters the sibling KPI cards.
  */
 export function RealisedPnlCard({
   profileId,
@@ -72,7 +64,7 @@ export function RealisedPnlCard({
     <Card>
       <section aria-labelledby="realised-pnl-heading" className="space-y-3">
         <h2 id="realised-pnl-heading" className="text-sm font-semibold text-fg">
-          Realised P/L
+          Recorded P/L
         </h2>
         <div className="flex flex-wrap gap-1" role="group" aria-label="Period">
           {PERIODS.map((p) => (
@@ -108,12 +100,7 @@ export function RealisedPnlCard({
                     className="text-3xl font-semibold tabular-nums"
                     testId="realised-total-profit"
                   />
-                  <span
-                    className={PNL_TONE[signOf(data.totalProfitPercent)]}
-                    data-testid="realised-percent"
-                  >
-                    {signedPercent(data.totalProfitPercent)}
-                  </span>
+                  <PnlPercent value={data.totalProfitPercent} testId="realised-percent" />
                 </>
               )}
             </div>

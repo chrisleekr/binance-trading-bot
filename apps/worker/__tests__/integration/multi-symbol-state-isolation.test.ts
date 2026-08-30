@@ -369,7 +369,6 @@ const buildHarness = async (): Promise<Harness> => {
         intervals: [],
       },
       needsAccountDeployedQuote: false,
-      reserveBaseQuantity: null,
     }),
     auditShipper,
   });

@@ -4,6 +4,7 @@ bootstrapEnv(import.meta.url);
 
 import { repo } from '@app/db';
 import { createApp } from './app.js';
+import { RESTORE_MAX_BODY_BYTES } from './middleware/body-limit.js';
 import { createAuth } from './auth.js';
 import { assertLiveDemoInvariant, createDI } from './di.js';
 import { loadEnv, publicListenerHostname, type Env } from './env.js';
@@ -37,6 +38,8 @@ export const boot = async (env: Env): Promise<ApiHandle> => {
     // hang up". 120s (matching the websocket idleTimeout) is a deliberate
     // keep-alive window, not a workaround. Max is 255s.
     idleTimeout: 120,
+    // Bun refuses a larger body itself, terminating the connection with a bare 413 before the request reaches Hono — so our envelope and our own per-path caps never run for it. Its default is 128 MiB, which is below the restore ceiling and would make that hand-tuned limit unreachable. Sourced from the same constant so the two can never disagree. Raising it is only safe because the global cap refuses every other route at 1 MiB.
+    maxRequestBodySize: RESTORE_MAX_BODY_BYTES,
     fetch: app.fetch,
     websocket: { ...websocket, idleTimeout: 120, sendPings: true, perMessageDeflate: false },
   });

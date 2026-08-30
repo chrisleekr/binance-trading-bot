@@ -303,6 +303,60 @@ describe('NotificationsPanel', () => {
     expect(body.config['webhookUrl']).toBe('https://hooks.example/abc');
   });
 
+  // Both onError handlers narrow to Error before calling errorMessage, whose non-Error arm returns a truthy generic string that would otherwise displace the action-specific fallback. Nothing else drives a failing save or toggle, so without these two the handlers only have to compile.
+  it('renders the API error code and message when Save fails', async () => {
+    setUp((url, init) => {
+      if (url.endsWith('/profiles/p1/notify-providers')) return json(sampleProviders);
+      if (url.endsWith('/profiles/p1/notify-providers/slack')) {
+        if (init?.method === 'POST') {
+          return json(
+            { error: { code: 'UPSTREAM_FAILED', message: 'slack rejected the webhook' } },
+            502,
+          );
+        }
+        return json({ ...sampleProviders[0], enabled: null, config: null });
+      }
+      if (url.includes('/profiles/p1/notify-providers/')) {
+        const name = url.split('/').pop() ?? '';
+        const d = sampleProviders.find((p) => p.name === name);
+        if (!d) return json({}, 404);
+        return json({ ...d, enabled: null, config: null });
+      }
+      return json({}, 404);
+    });
+    fireEvent.click(await screen.findByTestId('save-slack'));
+
+    expect(
+      await screen.findByText('UPSTREAM_FAILED: slack rejected the webhook'),
+    ).toBeInTheDocument();
+  });
+
+  it('reverts the switch and renders the API error when the enabled toggle fails', async () => {
+    setUp((url, init) => {
+      if (url.endsWith('/profiles/p1/notify-providers')) return json([sampleProviders[0]]);
+      if (url.endsWith('/profiles/p1/notify-providers/slack/enabled') && init?.method === 'PATCH') {
+        return json(
+          { error: { code: 'CONFLICT', message: 'notifier is disabled account-wide' } },
+          409,
+        );
+      }
+      if (url.endsWith('/profiles/p1/notify-providers/slack')) {
+        return json({ ...sampleProviders[0], enabled: true, config: { channel: '#alerts' } });
+      }
+      return json({}, 404);
+    });
+    const toggle = await screen.findByTestId('enabled-slack');
+    await waitFor(() => expect(toggle).toBeChecked());
+
+    fireEvent.click(toggle);
+
+    expect(
+      await screen.findByText('CONFLICT: notifier is disabled account-wide'),
+    ).toBeInTheDocument();
+    // Optimistic update rolled back to server authority.
+    await waitFor(() => expect(toggle).toBeChecked());
+  });
+
   it('renders the test-fire outcome from a successful POST', async () => {
     const savedSlack = {
       name: 'slack',

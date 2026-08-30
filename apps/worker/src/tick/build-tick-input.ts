@@ -35,7 +35,6 @@ import type {
 import { type ProfileScope, profileRepoFromScope } from '@app/db';
 import { buildOpenOrdersKey } from 'executor/redis-namespace.js';
 import { OPEN_ORDERS_TTL_S } from 'executor/open-orders-cache.js';
-import { reserveAdjustedBalance } from 'lib/reserve.js';
 import type { StateLoad, StatePort } from 'state/state-port.js';
 import type { ProfileResolved } from 'profile-bindings/resolved-config.js';
 import type { TickBundleResult } from './bundle-builder.js';
@@ -61,8 +60,8 @@ export interface ProfileTickContext extends ProfileResolved {
    * The owning account's proven scope, resolved once when this context is
    * built. Threaded into the StatePort read/commit so the per-tick state
    * I/O reuses the single ownership proof instead of re-running
-   * `scopeProfile` (#397) and so every account-scoped write goes through
-   * the typed `ProfileScope` repo (#396).
+   * `scopeProfile` and so every account-scoped write goes through
+   * the typed `ProfileScope` repo.
    */
   readonly scope: ProfileScope;
   readonly symbol: string;
@@ -104,14 +103,6 @@ export interface ProfileTickContext extends ProfileResolved {
    * the cap, so a disarmed profile pays nothing for it.
    */
   readonly needsAccountDeployedQuote: boolean;
-  /**
-   * Per-symbol reserve floor in base units (decimal-string), or null when the
-   * operator has set none. The assembler subtracts it from the bot-visible base
-   * balance so sell-sizing trades only the surplus above it and never sells into
-   * the reserve (#498). Sourced from the `profile_symbols` row in
-   * {@link buildProfileTickContext}; the pure strategy never sees the reserve.
-   */
-  readonly reserveBaseQuantity: string | null;
 }
 
 /**
@@ -477,29 +468,6 @@ const loadOpenOrdersFresh = async (
   return openOrders;
 };
 
-/**
- * Apply the per-symbol reserve to the base-asset line of an account snapshot:
- * the bot then sees `wallet − reserve` base, so sell-sizing trades only the
- * surplus and never sells into the reserve (#498). Returns the snapshot
- * unchanged when no reserve is set or the base line is absent — strategy-
- * agnostic and inert by default. `reserveAdjustedBalance` (free-then-locked
- * drain) is the same primitive the boot reconciler uses for position adoption,
- * so adoption and sell-sizing stay consistent.
- */
-const applyReserveToBase = (
-  account: AccountSnapshot,
-  baseAsset: string,
-  reserve: string | null,
-): AccountSnapshot => {
-  const bal = account.balances[baseAsset];
-  if (!bal || reserve === null || reserve === '') return account;
-  const adjusted = reserveAdjustedBalance(bal.free, bal.locked, reserve);
-  return {
-    ...account,
-    balances: { ...account.balances, [baseAsset]: { ...bal, ...adjusted } },
-  };
-};
-
 export const buildTickInput = async (
   deps: TickInputDeps,
   args: BuildTickInputArgs,
@@ -539,7 +507,7 @@ export const buildTickInput = async (
   // context-computed flag avoids one indexed query per tick for every profile
   // that has not opted in (the default). The field is optional on
   // AccountSnapshot, so omitting it leaves the cap check defaulting to '0'.
-  const accountBeforeReserve: AccountSnapshot = profile.needsAccountDeployedQuote
+  const account: AccountSnapshot = profile.needsAccountDeployedQuote
     ? {
         ...accountBalances,
         // Scope the cross-profile deployed total to this profile's trading
@@ -552,14 +520,6 @@ export const buildTickInput = async (
         ),
       }
     : accountBalances;
-  // Reserve overlay: subtract the operator's per-symbol reserve floor (base
-  // units) from the bot-visible base balance so sell-sizing trades only the
-  // surplus above it and never sells into the reserve (#498). Inert when unset.
-  const account = applyReserveToBase(
-    accountBeforeReserve,
-    symbolInfo.baseAsset,
-    profile.reserveBaseQuantity,
-  );
   const openOrders: readonly OpenOrder[] =
     raw.openOrders !== null
       ? parseOpenOrders(raw.openOrders)
@@ -720,7 +680,7 @@ export const buildTickInput = async (
     'tick-handler: bundle ready',
   );
 
-  // Cross-symbol KV snapshot (tracker #267), gated on the strategy opting in —
+  // Cross-symbol KV snapshot, gated on the strategy opting in —
   // the same one-read-per-tick gating the account-deployed total uses. The
   // per-symbol strategies leave `needsProfileKv` false and pay nothing; a
   // cross-symbol strategy reads the merged store the worker folds from PG.

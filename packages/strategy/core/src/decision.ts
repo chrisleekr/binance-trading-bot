@@ -107,7 +107,7 @@ export type Decision<E extends StrategyEventMap = StrategyEventMap> =
         readonly payload: EventPayload<E[K]>;
       };
     }[keyof E & string]
-  // Cross-symbol scratchpad (tracker #267). A strategy trading several symbols on
+  // Cross-symbol scratchpad. A strategy trading several symbols on
   // one profile gets one `tick()` slice per symbol, so it cannot read a sibling
   // symbol's state directly. These two variants let a tick publish a fact under a
   // strategy-owned namespaced key into a PER-PROFILE (not per-symbol) store; every

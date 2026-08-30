@@ -8,7 +8,7 @@
 
 import { ActionLogPageResponse, ActionLogSymbolsResponse, TickTraceResponse } from '@app/contracts';
 
-import { apiFetch } from '@/shared/lib/api';
+import { apiDownloadUrl, apiFetch, encodePathSegment } from '@/shared/lib/api';
 import { accountPath } from '@/shared/lib/account-scope';
 
 /** Operator-chosen narrowing, shared by the reader and the export. */
@@ -23,22 +23,6 @@ export interface LogFilter {
 
 export const emptyLogFilter: LogFilter = { levels: [], symbols: [] };
 
-/**
- * Filters as query parameters. Multi-value filters go as one comma-joined
- * value, matching the server's `csv` parser — repeatable params would need a
- * different reader on both ends for no gain.
- */
-const filterQuery = (filter: LogFilter): Record<string, string> => {
-  const q: Record<string, string> = {};
-  if (filter.levels.length > 0) q['levels'] = filter.levels.join(',');
-  if (filter.symbols.length > 0) q['symbols'] = filter.symbols.join(',');
-  if (filter.source) q['source'] = filter.source;
-  if (filter.q) q['q'] = filter.q;
-  if (filter.from) q['from'] = filter.from;
-  if (filter.to) q['to'] = filter.to;
-  return q;
-};
-
 export const profileLogsQueryKey = (
   profileId: string,
   filter: LogFilter,
@@ -50,11 +34,18 @@ export const fetchProfileLogs = (
   filter: LogFilter,
   cursor: string | null,
 ): Promise<ActionLogPageResponse> => {
-  const query = filterQuery(filter);
-  if (cursor !== null) query['cursor'] = cursor;
   return apiFetch(accountPath(`/profiles/${profileId}/logs`), ActionLogPageResponse, {
     method: 'GET',
-    ...(Object.keys(query).length > 0 ? { query } : {}),
+    // Multi-value log filters remain comma-joined because the API parses one CSV value for each key.
+    query: {
+      levels: filter.levels.length > 0 ? filter.levels.join(',') : undefined,
+      symbols: filter.symbols.length > 0 ? filter.symbols.join(',') : undefined,
+      source: filter.source,
+      q: filter.q,
+      from: filter.from,
+      to: filter.to,
+      cursor,
+    },
   });
 };
 
@@ -73,12 +64,9 @@ export const fetchTickTrace = (
   symbol: string | null,
   before: string | null = null,
 ): Promise<TickTraceResponse> => {
-  const query: Record<string, string> = {};
-  if (symbol !== null) query['symbol'] = symbol;
-  if (before !== null) query['before'] = before;
   return apiFetch(accountPath(`/profiles/${profileId}/tick-trace`), TickTraceResponse, {
     method: 'GET',
-    ...(Object.keys(query).length > 0 ? { query } : {}),
+    query: { symbol, before },
   });
 };
 
@@ -92,9 +80,15 @@ export const profileLogsExportUrl = (
   accountId: string,
   profileId: string,
   filter: LogFilter,
-): string => {
-  const params = new URLSearchParams(filterQuery(filter));
-  const qs = params.toString();
-  const base = `/api/accounts/${encodeURIComponent(accountId)}/profiles/${encodeURIComponent(profileId)}/logs/export`;
-  return qs === '' ? base : `${base}?${qs}`;
-};
+): string =>
+  apiDownloadUrl(
+    `/accounts/${encodePathSegment(accountId)}/profiles/${encodePathSegment(profileId)}/logs/export`,
+    {
+      levels: filter.levels.length > 0 ? filter.levels.join(',') : undefined,
+      symbols: filter.symbols.length > 0 ? filter.symbols.join(',') : undefined,
+      source: filter.source,
+      q: filter.q,
+      from: filter.from,
+      to: filter.to,
+    },
+  );

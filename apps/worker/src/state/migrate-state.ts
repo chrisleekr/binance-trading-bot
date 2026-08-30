@@ -8,7 +8,7 @@
 //   - Out-of-band mutations (fill-adopter, future reset paths): the Redis
 //     cache may carry a state shape from a prior schema; mutating that row
 //     would write back a stale shape and clobber the durable `strategy_version`
-//     stamp on PG (see GitLab #261).
+//     stamp on PG.
 //
 // Both share the same algorithm: walk `migrateState` one hop at a time,
 // guard against cycles, bail at a max-hops cap. Extracting it here keeps a
@@ -70,7 +70,7 @@ export interface MigrateStateInput {
 export const runStateMigration = async (
   input: MigrateStateInput,
 ): Promise<MigrationResult | null> => {
-  // GitLab #264: the caller-supplied `fromVersion` is the durable
+  // The caller-supplied `fromVersion` is the durable
   // version stamp on the row (PG `strategy_version` column for the boot
   // path, Redis cache header for the mutate path). When that stamp
   // drifts away from `state.schemaVersion` — past write touched only

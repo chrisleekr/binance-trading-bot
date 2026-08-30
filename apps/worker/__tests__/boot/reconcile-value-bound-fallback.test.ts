@@ -11,6 +11,7 @@ import type { AccountId, ProfileId, UserId } from '@app/contracts';
 import { BinanceApiError } from '@app/binance';
 
 const repoMocks = vi.hoisted(() => ({
+  conditionRecordCondition: vi.fn(async () => ({ changed: false, sinceMs: null })),
   profileFindById: vi.fn(),
   avgEntryPricesFindBySymbol: vi.fn(),
   avgEntryPricesRemove: vi.fn(),
@@ -28,6 +29,8 @@ vi.mock('@app/db', async (importOriginal) => {
       async (_db: unknown, operatorId: UserId, accountId: AccountId, profileId: ProfileId) => ({
         scope: { userId: operatorId, accountId, profileId },
         profile: { findById: repoMocks.profileFindById },
+        // The recurring reconcile pass closes a seed refusal that a top-up or a buy has falsified; the destructive paths close theirs inside `avgEntryPrices.remove` itself.
+        conditionStates: { recordCondition: repoMocks.conditionRecordCondition },
         avgEntryPrices: {
           findBySymbol: repoMocks.avgEntryPricesFindBySymbol,
           remove: repoMocks.avgEntryPricesRemove,
@@ -48,6 +51,8 @@ import { GLOBAL_KEYS } from '@app/db';
 import { createMetricsRegistry } from '@app/observability';
 import { createWorkerMetricsSink } from '../../src/boot/metrics-sink.js';
 import {
+  reconcileHeldQuantity,
+  resolveWalletFields,
   runHeldQuantityReconciliation,
   valueBoundDisarmReason,
   type ReconcileOrchestratorDeps,
@@ -284,6 +289,8 @@ describe('boot reconcile — reference price at a cold cache', () => {
     expect(tally.heldQuantity['flatten-sub-notional-dust']).toBe(0);
     expect(tally.heldQuantity['no-op']).toBe(1);
     expect(repoMocks.avgEntryPricesRemove).not.toHaveBeenCalled();
+    // The same "do not act" has to bind the seed-refusal clear, and this is the pass that proves it: an unpriced symbol produces a no-op indistinguishable from a healthy one, so a clear that read the no-op as evidence would wipe the operator's "not held" warning on precisely the symbols nothing was checked on.
+    expect(repoMocks.conditionRecordCondition).not.toHaveBeenCalled();
   });
 
   it('retries per symbol when the batch throws, so one bad pair cannot disarm the rest', async () => {
@@ -405,7 +412,7 @@ describe('boot reconcile — counters exist at zero before they can move', () =>
       zeroSeeds(h, 'reconcile_value_bound_disarmed_total')
         .map((r) => r.tags?.['reason'])
         .sort(),
-    ).toEqual(['no-min-notional', 'no-reference-price', 'no-unreserved-total']);
+    ).toEqual(['no-min-notional', 'no-reference-price', 'no-wallet-total']);
     // The whole point: these label sets never increment on this pass, so the seed is the only thing that brings them into existence.
     expect(positive(h, 'reconcile_position_removed_total')).toEqual([]);
     expect(positive(h, 'reconcile_value_bound_disarmed_total')).toEqual([]);
@@ -453,7 +460,7 @@ describe('boot reconcile — counters exist at zero before they can move', () =>
     expect(disarmed.map((l) => l.match(/reason="([^"]+)"/)?.[1]).sort()).toEqual([
       'no-min-notional',
       'no-reference-price',
-      'no-unreserved-total',
+      'no-wallet-total',
     ]);
     expect(disarmed.every((l) => l.endsWith(' 0'))).toBe(true);
   });
@@ -523,14 +530,13 @@ describe('valueBoundDisarmReason', () => {
     walletLocked: '0',
     minNotional: MIN_NOTIONAL,
     referencePrice: DUST_PRICE,
-    unreservedWalletTotal: WALLET_QTY,
   };
 
-  // Named per input because each routes a different remedy, and only `no-reference-price` is reachable through the orchestrator harness above — the other two need a malformed target the sweep does not build. Untested, either could be misspelt or unreachable and the alert's `reason` label would route an operator to the wrong fix.
+  // Named per input because each routes a different remedy, and only `no-reference-price` is reachable through the orchestrator harness above — the other two need a target the sweep builds only from a malformed exchangeInfo or a malformed Binance balance. Untested, either could be misspelt or unreachable and the alert's `reason` label would route an operator to the wrong fix.
   it.each([
     ['no-reference-price', { referencePrice: null }],
     ['no-min-notional', { minNotional: null }],
-    ['no-unreserved-total', { unreservedWalletTotal: null }],
+    ['no-wallet-total', resolveWalletFields({ free: 'not-a-number', locked: '0' })],
   ])('reports %s when that input is the missing one', (reason, missing) => {
     expect(valueBoundDisarmReason({ ...base, ...missing })).toBe(reason);
   });
@@ -546,14 +552,29 @@ describe('valueBoundDisarmReason', () => {
     ['no-reference-price', { referencePrice: 'not-a-number' }],
     ['no-min-notional', { minNotional: 'Infinity' }],
     ['no-min-notional', { minNotional: '0' }],
-    ['no-unreserved-total', { unreservedWalletTotal: 'Infinity' }],
+    ['no-wallet-total', resolveWalletFields({ free: 'Infinity', locked: '0' })],
   ])('reports %s when that input is present but unusable: %o', (reason, bad) => {
     expect(valueBoundDisarmReason({ ...base, ...bad })).toBe(reason);
   });
 
-  it('does not report a zero unreserved total, which is a real answer the bound acts on', () => {
+  it('does not report a zero wallet total, which is a real answer the bound acts on', () => {
     // An empty wallet is not a missing input: `isValuelessResidue(0, …)` is a verdict, not a stand-down.
-    expect(valueBoundDisarmReason({ ...base, unreservedWalletTotal: '0' })).toBeNull();
+    expect(valueBoundDisarmReason({ ...base, walletFree: '0', walletLocked: '0' })).toBeNull();
+  });
+
+  it('reports no-wallet-total for the leg Binance really can return, on the same pass the reconciler skips', () => {
+    // The reachable end of this reason, driven through the one producer of the wallet legs rather than through a hand-built target. An unparseable balance leg makes the reconciler decline the whole symbol, so the pass reports `no-op` having judged nothing — and this reason is the only thing that says so.
+    const wallet = resolveWalletFields({ free: 'not-a-number', locked: '0' });
+    expect(
+      reconcileHeldQuantity({
+        ...wallet,
+        heldQuantity: WALLET_QTY,
+        stepSize: '0.01',
+        minNotional: MIN_NOTIONAL,
+        referencePrice: DUST_PRICE,
+      }),
+    ).toEqual({ action: 'no-op', nextHeldQuantity: WALLET_QTY });
+    expect(valueBoundDisarmReason({ ...base, ...wallet })).toBe('no-wallet-total');
   });
 
   it('reports nothing for an idle symbol whose claim is the STRING zero', () => {

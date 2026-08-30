@@ -12,7 +12,7 @@ The bar shows only what needs your attention. On a healthy account it is a singl
 | --- | --- | --- | --- |
 | **Bot live** | green | The worker has checked in recently. Trading decisions are being made. | Nothing. |
 | **Bot down — restart worker** | red | The worker has not checked in. **No coin is being traded**, and no strategy is watching your positions. | Restart the worker. See [Troubleshooting](../operations/troubleshooting.md). |
-| **_N_ paused** | amber | _N_ profiles have hit their **daily loss limit** and stopped opening new positions for the rest of the UTC day. | Hover for which ones. Either accept it or review the limit on the profile's Risk tab. |
+| **_N_ paused** | amber | _N_ profiles have hit their **daily loss limit** and stopped opening new positions for the rest of the UTC day. | Hover for which ones. Either accept it or review the limit on the profile's Risk section. |
 | **_N_ near limit** | amber | _N_ live profiles have lost **80% or more** of their daily loss limit but have not tripped yet. | Hover for the exact loss against the limit. This is your last warning before buying stops. |
 | **Today +12.40 USDT** | — | Realised profit or loss booked since **00:00 UTC**, one figure per quote asset. Counted in each profile's **current** quote asset only. | Nothing. This is the same number the daily loss limit is measured against. |
 

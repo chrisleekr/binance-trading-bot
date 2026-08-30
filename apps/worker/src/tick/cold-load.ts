@@ -56,7 +56,7 @@ export const createProductionColdLoad = (deps: ColdLoadDeps): SnapshotColdLoad =
       // Ownership was already proven once at tick entry (`buildProfileTickContext`
       // resolves the `ProfileScope` this receives), so the cold-load reuses it
       // instead of re-running `scopeProfile` — one fewer ownership read per
-      // tick (#397). A missing `symbol_states` row is normal: the first tick
+      // tick. A missing `symbol_states` row is normal: the first tick
       // for a new symbol returns `null` here and the tick handler seeds from
       // `strategy.initialState(profile.config)`. The `onDelete: cascade` FK
       // means a profile deleted after the scope was proven leaves no orphan
@@ -72,7 +72,7 @@ export const createProductionColdLoad = (deps: ColdLoadDeps): SnapshotColdLoad =
         : { state: row.state, strategyVersion: row.strategyVersion, version: row.version };
     },
     loadProfileKv: async (scope: ProfileScope): Promise<Record<string, unknown>> => {
-      // Cross-symbol KV (#267). Ownership already proven (same scope as the
+      // Cross-symbol KV. Ownership already proven (same scope as the
       // symbol-state read); fold the profile's rows into one snapshot. Only
       // reached when the strategy sets `needsProfileKv`, so it never runs for
       // the per-symbol strategies. One small indexed read per KV-strategy symbol
@@ -101,12 +101,7 @@ export const createProductionColdLoad = (deps: ColdLoadDeps): SnapshotColdLoad =
           'cold-load: malformed Binance balance, degraded to 0',
         ),
       );
-      // Fail-safe write-through: repopulate the account-info cache the WS
-      // otherwise refills, so the next tick reads Redis instead of re-fetching
-      // the weight-20 GET /account until the 5s safety cron catches up. Uses
-      // the pristine wire `dto.balances` (upstream of buildTickInput's reserve
-      // overlay / deployed-quote injection). A failed write must never abort
-      // the tick — the next tick simply REST-fetches again.
+      // Fail-safe write-through: repopulate the account-info cache the WS otherwise refills, so the next tick reads Redis instead of re-fetching the weight-20 GET /account until the 5s safety cron catches up. Uses the pristine wire `dto.balances` (upstream of buildTickInput's deployed-quote injection). A failed write must never abort the tick — the next tick simply REST-fetches again.
       try {
         await writeAccountInfo(deps.redis, accountId, profileId, dto.balances);
         await writeAccountPermissions(deps.redis, accountId, dto.permissions);

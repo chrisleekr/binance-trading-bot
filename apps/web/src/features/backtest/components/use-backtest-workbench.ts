@@ -27,11 +27,9 @@ export type { TabKey, BacktestSearch } from './use-backtest-types';
 export type { ParamState } from './use-backtest-config';
 export {
   RUNS_FILTERS,
-  RUNS_KIND_FILTERS,
   RUNS_PAGE_SIZES,
   deleteDialogCopy,
   type RunFilter,
-  type RunKind,
   type PendingDelete,
 } from './use-backtest-history';
 
@@ -126,7 +124,6 @@ export function useBacktestWorkbench(profileId: string, search: BacktestSearch) 
     runFilter: history.runFilter,
     runsLimitParam: history.runsLimitParam,
     runsFilterParam: history.runsFilterParam,
-    runsKindParam: history.runsKindParam,
   });
 
   const config = useBacktestConfig({

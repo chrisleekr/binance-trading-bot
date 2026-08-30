@@ -57,7 +57,7 @@ const stub = (path: string) =>
 
 const setUp = (
   data: DashboardAggregateResponse | undefined,
-  { scope }: { scope?: string } = {},
+  { scope, demoMode = false }: { scope?: string; demoMode?: boolean } = {},
 ) => {
   // Focus is now URL-driven: a single-profile view lives at the per-profile
   // route (`/accounts/$id/profiles/$profileId`), not a localStorage scope. Map
@@ -65,7 +65,7 @@ const setUp = (
   const focusId = scope !== undefined && scope !== 'all' ? scope : null;
   const queryClient = createQueryClient();
   // Bypass root loader.
-  queryClient.setQueryData(['auth', 'onboarding-status'], { masterExists: true });
+  queryClient.setQueryData(['auth', 'onboarding-status'], { masterExists: true, demoMode });
   // accountScopeRoute.beforeLoad ensures the accounts list; seed it so the
   // active account resolves instead of 404ing the scope.
   queryClient.setQueryData(['accounts'], [TEST_ACCOUNT]);
@@ -489,6 +489,17 @@ describe('Home route /', () => {
       'href',
       `/accounts/${ACCOUNT_ID}/api-key`,
     );
+  });
+
+  it('drops the api-key link from the awaiting hint in the demo but keeps the explanation', async () => {
+    // `GET /api-key` 403s for the demo operator. The hint itself is why the profile is idle, and that is true for a visitor too — only the destination goes.
+    setUp(
+      aggregate([row({ profileId: 'h2d', name: 'p', lastTickAt: null, apiKeyConfigured: false })]),
+      { demoMode: true },
+    );
+    const hint = await screen.findByTestId('profile-card-h2d-awaiting-hint');
+    expect(hint).toHaveTextContent('Awaiting first tick');
+    expect(screen.queryByTestId('profile-card-h2d-awaiting-hint-link')).toBeNull();
   });
 
   it('renders the key-error variant when apiKeyConfigured AND lastTickError set', async () => {

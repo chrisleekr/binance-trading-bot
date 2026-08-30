@@ -11,7 +11,3 @@ export const citext = customType<{ data: string; driverData: string }>({
 export const numeric38_18 = customType<{ data: string; driverData: string }>({
   dataType: () => 'numeric(38, 18)',
 });
-
-export const numeric20_10 = customType<{ data: string; driverData: string }>({
-  dataType: () => 'numeric(20, 10)',
-});

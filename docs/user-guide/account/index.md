@@ -1,10 +1,10 @@
-# Manage account
+# Account
 
-![Account settings page](../../assets/screenshots/user-guide/account-manage.png)
+![Account page](../../assets/screenshots/user-guide/account-manage.png)
 
-_The Account settings page. Name, Binance environment, shortcuts, and the per-account kill switch. Seeded demo data, not a real account._
+_The Account page. Name, Binance environment, shortcuts, and the per-account kill switch. Seeded demo data, not a real account._
 
-An **account** is one Binance account the bot trades: one API key pair, one environment (testnet or live), and the profiles that run under it. The **Manage account** page (header "Account settings") is where you name it, see its environment, reach its wallet shortcuts, emergency-stop it, or delete it.
+An **account** is one Binance account the bot trades: one API key pair, one environment (testnet or live), and the profiles that run under it. The **Account** page is where you name it, see its environment, reach its wallet shortcuts, emergency-stop it, or delete it.
 
 ## Name
 

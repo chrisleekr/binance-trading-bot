@@ -201,7 +201,8 @@ describe('fanOutBounded', () => {
       // 2/3/4 should have reached their final line; the rejection waited
       // for `Promise.all(workers)`. Wall clock must reflect the 20ms wait.
       expect(settledAfterStart).toBe(3);
-      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(20);
+      // One millisecond of slack, because `setTimeout` is not a floor on the wall clock. The timer subsystem schedules against a monotonic clock and rounds its delay internally, while `Date.now()` reads the wall clock, so a timer that waited its full delay can still be observed as 19ms elapsed. Nothing about the code under test changed when this began failing; the surrounding suite stopped being CPU-starved enough to overshoot the timer and mask it. The bound still sits far above the ~2ms a neutered `tick` reports, which is the regression this line exists to catch.
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(19);
     });
   });
 });

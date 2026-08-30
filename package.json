@@ -61,6 +61,7 @@
     "@app/contracts": "workspace:*",
     "@app/core": "workspace:*",
     "@app/db": "workspace:*",
+    "@app/discovery": "workspace:*",
     "@app/money": "workspace:*",
     "@app/notify": "workspace:*",
     "@app/strategy-core": "workspace:*",

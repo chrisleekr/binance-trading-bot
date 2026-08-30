@@ -18,16 +18,20 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMemo, useRef, useState } from 'react';
 
 import { CoinIcon } from '@/features/profile/components/coin-icon';
-import { isHeldPosition, toFinite, unrealisedPnlOf } from '@/features/profile/lib/unrealised-pnl';
+import {
+  isManagedPosition,
+  toFinite,
+  unrealisedPnlOf,
+} from '@/features/profile/lib/unrealised-pnl';
 import { balanceUsdValue, totalUsdValue } from '@/features/profile/lib/balance-value';
-import { PnlValue, PNL_TONE } from '@/shared/components/pnl-value';
+import { PnlPercent, PnlValue } from '@/shared/components/pnl-value';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Switch } from '@/shared/components/ui/switch';
 import { assetName } from '@/shared/lib/asset-names';
-import { cn } from '@/shared/lib/cn';
-import { formatBalanceAmount, formatPercent, formatPrice, signOf } from '@/shared/lib/format';
+import { formatBalanceAmount, formatBalanceMoney, formatPrice } from '@/shared/lib/format';
 import { deriveBase } from '@/shared/lib/symbol-quote';
+import { Select } from '@/shared/components/ui/select';
 
 import type { ProfileDashboardResponse } from '@app/contracts';
 
@@ -76,6 +80,7 @@ function BalanceRow({
   readonly dataIndex?: number;
 }): React.JSX.Element {
   const value = balanceUsdValue(balance);
+  // Plain `unrealisedPnlOf`: a refused symbol never reaches here, because `positionByAsset` below is built with the refusal-aware predicate and so never holds one. Reaching for the refusal-aware P/L too would be a guard behind its own gate.
   const pnl = position ? unrealisedPnlOf(position) : null;
   const pct = position ? positionPercent(position) : null;
   return (
@@ -104,7 +109,7 @@ function BalanceRow({
         <span className="text-xs text-muted-fg">{formatBalanceAmount(balance.locked)} locked</span>
         {value != null ? (
           <span className="text-xs text-muted-fg" data-testid={`balance-value-${balance.asset}`}>
-            ≈ {formatUsd(value)} {quoteAsset}
+            ≈ {formatBalanceMoney(String(value))} {quoteAsset}
           </span>
         ) : null}
         {position ? (
@@ -119,9 +124,11 @@ function BalanceRow({
                 className="text-xs"
               />
               {pct != null ? (
-                <span className={cn('ml-1', PNL_TONE[signOf(String(pct))])}>
-                  {formatPercent(pct, { sign: true })}
-                </span>
+                <PnlPercent
+                  value={String(pct)}
+                  className="ml-1"
+                  testId={`balance-pnl-percent-${balance.asset}`}
+                />
               ) : null}
             </span>
           </>
@@ -135,20 +142,11 @@ function isZero(balance: AssetBalance): boolean {
   return Number(balance.free) === 0 && Number(balance.locked) === 0;
 }
 
-/** Format a USD value at 2dp with thousands separators. */
-function formatUsd(value: number): string {
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
 /**
- * Full-wallet balances card for the profile-detail page. Search filters by
- * asset symbol; the hide-zero toggle (default on) drops assets with no free
- * and no locked amount; the sort select orders by estimated USD value or by
- * asset name; the list scrolls inside a fixed-height box so the card never
- * dominates the page.
+ * Full-wallet balances card for the profile-detail page. Search filters by asset symbol; the hide-zero toggle drops empty assets by default; the sort select orders by estimated quote-asset value or asset name; and the fixed-height list keeps the card bounded.
+ *
+ * @param props - Wallet balances, profile symbols, and the quote asset that gives estimated values their unit.
+ * @returns The searchable, sortable wallet balances card.
  */
 export function AccountBalancesPanel({
   balances,
@@ -171,7 +169,8 @@ export function AccountBalancesPanel({
     if (!quoteAsset) return m;
     for (const s of symbols) {
       const base = deriveBase(s.symbol, quoteAsset);
-      if (base != null && isHeldPosition(s)) m.set(base, s);
+      // The whole cost-basis block goes, not just the P/L. The wallet balance above is real either way — the coin IS in the wallet — but an "Avg 100 USDT" line beside it would assert a cost basis the strategy explicitly declined to adopt, which is the same false holding the dashboard row was fixed to stop claiming.
+      if (base != null && isManagedPosition(s)) m.set(base, s);
     }
     return m;
   }, [symbols, quoteAsset]);
@@ -216,7 +215,7 @@ export function AccountBalancesPanel({
         <p className="text-sm text-muted-fg">
           Est. value{' '}
           <span className="font-mono" data-testid="balance-est-value">
-            ≈ {formatUsd(estimatedValue)} {quoteAsset}
+            ≈ {formatBalanceMoney(String(estimatedValue))} {quoteAsset}
           </span>
           {unpricedNonZero > 0 ? (
             <>
@@ -239,16 +238,16 @@ export function AccountBalancesPanel({
           data-testid="balance-search"
           className="h-9 max-w-48"
         />
-        <select
+        <Select
+          variant="sm"
           aria-label="Sort balances"
           data-testid="balance-sort"
-          className="h-9 rounded-xs border border-border bg-surface-alt px-2 text-sm"
           value={sort}
           onChange={(e) => setSort(e.target.value as SortKey)}
         >
           <option value="value">Value high → low</option>
           <option value="asset">Asset A → Z</option>
-        </select>
+        </Select>
         <div className="flex items-center gap-2">
           <Switch id="hide-zero" checked={hideZero} onCheckedChange={setHideZero} />
           <Label htmlFor="hide-zero" className="text-sm text-muted-fg">

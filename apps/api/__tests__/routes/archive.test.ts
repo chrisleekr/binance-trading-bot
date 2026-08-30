@@ -1,3 +1,4 @@
+import { isPlainDecimalString } from '@app/money';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 import { recordPoolCheckouts } from '../_pool-checkouts.js';
@@ -34,7 +35,8 @@ describeIfInfra('archive router — trade-archive backfill', () => {
       { method: 'POST', headers: headers(fx.alice.userId), body: JSON.stringify({}) },
     );
     expect(res.status).toBe(202);
-    expect(typeof (await res.json()).scheduledAt).toBe('string');
+    const accepted = (await res.json()) as { scheduledAt: string };
+    expect(typeof accepted.scheduledAt).toBe('string');
     expect(addSpy).toHaveBeenCalledTimes(1);
     const [name, data] = addSpy.mock.calls[0] ?? [];
     expect(name).toBe('backfill-trade-archive');
@@ -88,8 +90,8 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
     await fx.di.pool.query(
       `insert into trade_archive
          (profile_id, symbol, base_asset, quote_asset, total_buy_quote,
-          total_sell_quote, profit, profit_percent, breakdown, orders, fees, source, archived_at)
-       values ($1,$2,$3,'USDT','100','105',$4,'5','{}'::jsonb,$5::jsonb,'{}'::jsonb,$6, now())`,
+          total_sell_quote, profit, breakdown, orders, fees, source, archived_at)
+       values ($1,$2,$3,'USDT','100','105',$4,'{}'::jsonb,$5::jsonb,'{}'::jsonb,$6, now())`,
       [
         fx.alice.profileId,
         symbol,
@@ -132,15 +134,16 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      items: { symbol: string; exitIntent: string }[];
-      byIntent: { quoteAsset: string; intent: string }[];
-      bySource: { quoteAsset: string; source: string }[];
+      items: { symbol: string; exitIntent: string; feeBasis: string }[];
+      byIntent: { quoteAsset: string; intent: string; feeBasis: string }[];
+      bySource: { quoteAsset: string; source: string; feeBasis: string }[];
     };
 
     const intentBySymbol = Object.fromEntries(body.items.map((i) => [i.symbol, i.exitIntent]));
     expect(intentBySymbol['WLDUSDT']).toBe('grid-stop-loss');
     expect(intentBySymbol['BTCUSDT']).toBe('grid-sell');
     expect(intentBySymbol['ETHUSDT']).toBe('unknown');
+    expect(body.items.every((item) => item.feeBasis === 'unknown')).toBe(true);
 
     // byIntent carries the trader metrics, not just net P/L: the stop-loss bucket
     // is a pure loss, the grid-sell bucket a pure win.
@@ -181,11 +184,79 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
         profitSum: '-2',
         grossProfit: '3',
         grossLoss: '5',
+        feeBasis: 'unknown',
       }),
     );
     expect(body.bySource).toContainEqual(
-      expect.objectContaining({ source: 'manual', tradeCount: 1, wins: 0, losses: 0 }),
+      expect.objectContaining({
+        source: 'manual',
+        tradeCount: 1,
+        wins: 0,
+        losses: 0,
+        feeBasis: 'unknown',
+      }),
     );
+  });
+
+  it('projects a complete nonzero fee through the row and its isolated quote rollup', async () => {
+    await fx.di.pool.query(
+      `insert into trade_archive
+         (profile_id, symbol, base_asset, quote_asset, total_buy_quote,
+          total_sell_quote, profit, breakdown, orders, fees, fees_quote,
+          fee_basis, source, archived_at)
+       values ($1,'ETHBTC','ETH','BTC','1','1.1','0.1','{}'::jsonb,$2::jsonb,
+          '{"BTC":"0.01","BNB":"0.00000036"}'::jsonb,'0.01','exact','manual',now())`,
+      [fx.alice.profileId, JSON.stringify([{ side: 'SELL', intent: 'grid-sell' }])],
+    );
+    const res = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/trade-archive`,
+      { method: 'GET', headers: headers(fx.alice.userId) },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      items: {
+        symbol: string;
+        totalBuyQuote: string;
+        totalSellQuote: string;
+        profit: string;
+        fees: Record<string, string>;
+        feesQuote: string;
+        netProfit: string;
+        feeBasis: string;
+      }[];
+      bySource: {
+        quoteAsset: string;
+        source: string;
+        netProfit: string;
+        feeBasis: string;
+      }[];
+    };
+    const item = body.items.find((candidate) => candidate.symbol === 'ETHBTC');
+    expect(item?.feeBasis).toBe('exact');
+    expect(Number(item?.feesQuote)).toBe(0.01);
+    expect(Number(item?.netProfit)).toBe(0.09);
+
+    // Every money field on the row is interpolated verbatim by the SPA. decimal.js flips `toString()` to exponential once the value's decimal exponent reaches -7, meaning any magnitude below 1e-6, so a plainly-stored `0.00000036` commission reaches the operator as `3.6e-7` unless the projection guarantees the wire grammar.
+    expect(item?.fees['BNB']).toBe('0.00000036');
+    const moneyStrings = [
+      item?.totalBuyQuote,
+      item?.totalSellQuote,
+      item?.profit,
+      item?.netProfit,
+      item?.feesQuote,
+      ...Object.values(item?.fees ?? {}),
+    ];
+    // The length pin catches a fees map that lost an entry; the fixed-arity fields above cannot shrink it, so a dropped one arrives as `undefined` and is caught by the `typeof` check instead. Both guards are needed because the two failures look identical from the assertion below.
+    expect(moneyStrings).toHaveLength(7);
+    for (const value of moneyStrings) {
+      expect(typeof value).toBe('string');
+      expect(isPlainDecimalString(value ?? '')).toBe(true);
+    }
+    const rollup = body.bySource.find(
+      (bucket) => bucket.quoteAsset === 'BTC' && bucket.source === 'manual',
+    );
+    expect(rollup?.feeBasis).toBe('exact');
+    expect(Number(rollup?.netProfit)).toBe(0.09);
   });
 
   it("treats malformed orders JSONB as 'unknown' without throwing the list", async () => {
@@ -196,15 +267,15 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
     await fx.di.pool.query(
       `insert into trade_archive
          (profile_id, symbol, base_asset, quote_asset, total_buy_quote,
-          total_sell_quote, profit, profit_percent, breakdown, orders, fees, archived_at)
-       values ($1,'MLFUSDT','MLF','USDT','100','105','7','5','{}'::jsonb,'{}'::jsonb,'{}'::jsonb, now())`,
+          total_sell_quote, profit, breakdown, orders, fees, archived_at)
+       values ($1,'MLFUSDT','MLF','USDT','100','105','7','{}'::jsonb,'{}'::jsonb,'{}'::jsonb, now())`,
       [fx.alice.profileId],
     );
     await fx.di.pool.query(
       `insert into trade_archive
          (profile_id, symbol, base_asset, quote_asset, total_buy_quote,
-          total_sell_quote, profit, profit_percent, breakdown, orders, fees, archived_at)
-       values ($1,'BADUSDT','BAD','USDT','100','105','11','5','{}'::jsonb,$2::jsonb,'{}'::jsonb, now())`,
+          total_sell_quote, profit, breakdown, orders, fees, archived_at)
+       values ($1,'BADUSDT','BAD','USDT','100','105','11','{}'::jsonb,$2::jsonb,'{}'::jsonb, now())`,
       [fx.alice.profileId, JSON.stringify([{ intent: 'x' }])],
     );
 
@@ -245,8 +316,8 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
       await fx.di.pool.query(
         `insert into trade_archive
            (profile_id, symbol, base_asset, quote_asset, total_buy_quote,
-            total_sell_quote, profit, profit_percent, breakdown, orders, fees, archived_at)
-         values ($1,$2,$3,'USDT','100','105',$4,'5','{}'::jsonb,$5::jsonb,'{}'::jsonb, now())`,
+            total_sell_quote, profit, breakdown, orders, fees, archived_at)
+         values ($1,$2,$3,'USDT','100','105',$4,'{}'::jsonb,$5::jsonb,'{}'::jsonb, now())`,
         [fx.bob.profileId, symbol, symbol.replace('USDT', ''), profit, JSON.stringify(orders)],
       );
     };
@@ -418,9 +489,9 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
     await fx.di.pool.query(
       `insert into trade_archive
          (profile_id, symbol, base_asset, quote_asset, total_buy_quote,
-          total_sell_quote, profit, profit_percent, breakdown, orders, fees,
+          total_sell_quote, profit, breakdown, orders, fees,
           missing_cost_basis, archived_at)
-       values ($1,'NOCBUSDT','NOCB','USDT','0','50','0','0','{}'::jsonb,'[]'::jsonb,'{}'::jsonb,
+       values ($1,'NOCBUSDT','NOCB','USDT','0','50','0','{}'::jsonb,'[]'::jsonb,'{}'::jsonb,
                2, now())`,
       [fx.bob.profileId],
     );
@@ -541,8 +612,8 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
       await fx.di.pool.query(
         `insert into trade_archive
            (profile_id, symbol, base_asset, quote_asset, total_buy_quote,
-            total_sell_quote, profit, profit_percent, breakdown, orders, fees, archived_at)
-         values ($1,$2,$3,'USDT','100','105','5','5','{}'::jsonb,'[]'::jsonb,'{}'::jsonb,$4::timestamptz)`,
+            total_sell_quote, profit, breakdown, orders, fees, archived_at)
+         values ($1,$2,$3,'USDT','100','105','5','{}'::jsonb,'[]'::jsonb,'{}'::jsonb,$4::timestamptz)`,
         [fx.bob.profileId, symbol, symbol.replace('USDT', ''), at],
       );
     };

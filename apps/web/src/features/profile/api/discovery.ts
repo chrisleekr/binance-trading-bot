@@ -20,17 +20,17 @@ export const fetchDiscoveryDashboard = (profileId: string): Promise<DiscoveryDas
  * GET the period-ranged discovery scoreboard (realised P/L, win rate, trades for
  * the selected D/W/M/All window). `tz` resolves the period boundaries against
  * the operator's local clock; it is stable per browser so it is not in the
- * cache key. Backs the Home KPI strip's toggle (#504).
+ * cache key. Backs the Home KPI strip's toggle.
  */
 const fetchDiscoveryScoreboard = (
   profileId: string,
   period: ClosedTradesPeriod,
   tz: string,
 ): Promise<DiscoveryScoreboardResponse> => {
-  const search = new URLSearchParams({ period, tz });
   return apiFetch(
-    accountPath(`/profiles/${profileId}/discovery-scoreboard?${search.toString()}`),
+    accountPath(`/profiles/${profileId}/discovery-scoreboard`),
     DiscoveryScoreboardResponse,
+    { method: 'GET', query: { period, tz } },
   );
 };
 
@@ -83,13 +83,13 @@ export const profileSymbolsQueryOptions = (profileId: string) => ({
   queryFn: () => fetchProfileSymbols(profileId),
 });
 
-/** Pin an auto-discovered symbol to `manual` so discovery stops reaping it. */
+/** Pin a symbol so discovery stops reaping it. Sets the pin only; the row keeps whatever provenance it was created with. */
 export const pinSymbol = (profileId: string, symbol: string): Promise<ProfileSymbolResponse> =>
   apiFetch(accountPath(`/profiles/${profileId}/symbols/${symbol}/pin`), ProfileSymbolResponse, {
     method: 'POST',
   });
 
-/** Return a manual symbol to discovery (`source='auto'`) — the inverse of pin. */
+/** Clear a symbol's pin so discovery may rotate it out again — the inverse of pin, and likewise provenance-preserving. */
 export const unpinSymbol = (profileId: string, symbol: string): Promise<ProfileSymbolResponse> =>
   apiFetch(accountPath(`/profiles/${profileId}/symbols/${symbol}/unpin`), ProfileSymbolResponse, {
     method: 'POST',

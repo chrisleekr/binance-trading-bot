@@ -83,10 +83,9 @@ describe('reviveAvgEntryPriceForTarget (persist-side wrapper)', () => {
     // these cases exercise the revive path they are about.
     walletQuantity: '0.5' as string | null,
     stepSize: '0.00001000',
-    // `apps/worker/tsconfig.json` compiles `src/**` only, so nothing type-checks this factory: a target missing one of these reads `undefined` at runtime and disarms the value bound while every case here still passes. Named explicitly, and null by default so these cases keep exercising the increment bound alone.
+    // Named explicitly, and null by default so these cases keep exercising the increment bound alone. `tsconfig.test.json` type-checks this factory, so an omitted field fails to compile, but a bound is still only as armed as the price and floor each case overrides.
     minNotional: null as string | null,
     referencePrice: null as string | null,
-    unreservedWalletTotal: null as string | null,
     preReconcileHeldQuantity: null as string | null,
     ...overrides,
   });
@@ -275,7 +274,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: null,
         stateAvgEntryPrice: '213.1',
@@ -296,7 +294,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
         stepSize: '0.01',
         minNotional: '5',
         referencePrice: '0.1158',
-        unreservedWalletTotal: '0.01184',
       }),
     ).toBe(true);
   });
@@ -312,25 +309,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
         stepSize: '0.01',
         minNotional: '5',
         referencePrice: '1',
-        unreservedWalletTotal: '4',
-      }),
-    ).toBe(false);
-  });
-
-  it('does not prune a deeply-reserved claim whose tradeable sliver is below the scaled floor', () => {
-    // The DEEP-RESERVE BAND: the operator holds 50 ENA worth USD 5.79 and reserves 49.7, leaving 0.3 tradeable and worth USD 0.03474 — under the scaled floor of USD 0.05. This is the only band where valuing the pre-reserve total and quietly valuing `walletQuantity` disagree, so it is the case that pins the threading; a shallower reserve clears the floor by more than 10x and reads identically either way.
-    //
-    // It runs in the opposite direction from the sub-notional prune above, and both directions are needed: a DROPPED field disarms the bound and can only be caught by a case demanding a DELETE, while a MIS-WIRED field substitutes a smaller number and can only be caught by a case forbidding one.
-    expect(
-      isPhantomLedgerRow({
-        preReconcileHeldQuantity: null,
-        ledgerAvgEntryPrice: '0.4587',
-        stateAvgEntryPrice: '0.4587',
-        walletQuantity: '0.3',
-        stepSize: '0.01',
-        minNotional: '5',
-        referencePrice: '0.1158',
-        unreservedWalletTotal: '50',
       }),
     ).toBe(false);
   });
@@ -342,7 +320,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: null,
         stateAvgEntryPrice: null,
@@ -357,7 +334,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: null,
         stateAvgEntryPrice: '213.1',
@@ -378,7 +354,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '213.1',
         stateAvgEntryPrice: '213.1',
@@ -397,7 +372,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '213.1',
         stateAvgEntryPrice: '213.1',
@@ -412,7 +386,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '213.1',
         stateAvgEntryPrice: '213.1',
@@ -427,7 +400,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: null,
         stateAvgEntryPrice: null,
@@ -442,7 +414,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
@@ -457,7 +428,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
@@ -472,7 +442,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
@@ -486,7 +455,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
@@ -501,7 +469,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
@@ -516,7 +483,6 @@ describe('isPhantomLedgerRow (pure decision)', () => {
       isPhantomLedgerRow({
         minNotional: null,
         referencePrice: null,
-        unreservedWalletTotal: null,
         preReconcileHeldQuantity: null,
         ledgerAvgEntryPrice: '68000',
         stateAvgEntryPrice: null,
@@ -555,7 +521,6 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
       minNotional: null,
       referencePrice: null,
       preReconcileHeldQuantity: null,
-      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -585,7 +550,6 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
       minNotional: null,
       referencePrice: null,
       preReconcileHeldQuantity: null,
-      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -611,7 +575,6 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
       minNotional: null,
       referencePrice: null,
       preReconcileHeldQuantity: null,
-      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -634,7 +597,6 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
       minNotional: null,
       referencePrice: null,
       preReconcileHeldQuantity: null,
-      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -655,7 +617,6 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
       minNotional: null,
       referencePrice: null,
       preReconcileHeldQuantity: null,
-      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'BTCUSDT',
@@ -678,7 +639,6 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
       minNotional: null,
       referencePrice: null,
       preReconcileHeldQuantity: null,
-      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'TAOUSDT',
@@ -708,7 +668,6 @@ describe('reviveAvgEntryPriceForTarget — phantom-ledger prune (#262)', () => {
       minNotional: null,
       referencePrice: null,
       preReconcileHeldQuantity: null,
-      unreservedWalletTotal: null,
       userId: 'u1',
       profileId: 'p1',
       symbol: 'TAOUSDT',

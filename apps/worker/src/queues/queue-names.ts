@@ -120,7 +120,7 @@ export const QUEUE_SPECS: Record<QueueName, QueueSpec> = {
   // a ~110 s upper bound. A lock shorter than that fires false stalls. The
   // cron is self-rescheduling (no fixed scheduler), so a stall no longer
   // backlogs duplicates, but the generous lock keeps a healthy slow run from
-  // false-stalling and discarding its work (#361).
+  // false-stalling and discarding its work.
   //
   // attempts 1: the self-rescheduling loop's next run IS the retry, so a
   // BullMQ-level retry is redundant and only re-runs the same fetch fan-out

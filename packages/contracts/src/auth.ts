@@ -8,10 +8,8 @@ import { z } from 'zod';
 export const OnboardingStatus = z.object({
   masterExists: z.boolean(),
   /**
-   * True on a public "Live demo" deployment (`LIVE_DEMO=1`): no login is
-   * required; credential, notifier, backup/restore, account-creation,
-   * retention-change, and diagnosis-start routes are locked; and trading stays
-   * interactive on testnet. Drives the persistent banner and hidden 403 links.
+   * True on a public "Live demo" deployment (`LIVE_DEMO=1`): no login is required; credential, notifier, backup/restore, account-creation, account-rename/delete, retention-change, diagnosis-start, fee-reconciliation, and archive-backfill routes are locked; and trading stays interactive on testnet. Drives the persistent banner and hidden 403 links.
+   *
    * Defaults false so a client predating the field keeps today's behaviour.
    */
   demoMode: z.boolean().default(false),

@@ -25,6 +25,7 @@ import { FormActions } from '@/shared/components/form-actions';
 import { NavCard } from '@/shared/components/nav-card';
 import { Page, PageHeader } from '@/shared/components/page';
 import { Panel } from '@/shared/components/panel';
+import { t } from '@/shared/lib/i18n';
 import { Badge } from '@/shared/components/ui/badge';
 import { Button } from '@/shared/components/ui/button';
 import {
@@ -106,7 +107,7 @@ function AccountSettingsPage(): React.JSX.Element {
 
   return (
     <Page>
-      <PageHeader title="Account settings" meta={account.data?.name} />
+      <PageHeader title={t('nav.manage_account')} meta={account.data?.name} />
 
       <Panel title="Name" description="What this account is called across the app.">
         <form
@@ -214,7 +215,7 @@ function AccountSettingsPage(): React.JSX.Element {
 }
 
 export const accountSettingsRoute = createRoute({
-  staticData: { title: 'Account settings' },
+  staticData: { title: t('nav.manage_account') },
   getParentRoute: () => accountScopeRoute,
   path: 'settings',
   component: AccountSettingsPage,

@@ -172,7 +172,8 @@ describeIfDb('scopeProfile + profileRepo', () => {
     expect(symbols).toHaveLength(1);
     const [brandKey] = symbols;
     expect(brandKey).toBeDefined();
-    expect((scope as Record<symbol, unknown>)[brandKey as symbol]).toBe(true);
+    if (!brandKey) throw new Error('expected the profile scope brand');
+    expect(Reflect.get(scope, brandKey)).toBe(true);
   });
 
   it('scopeProfile throws ProfileNotOwnedError when the operator does not own the profile', async () => {

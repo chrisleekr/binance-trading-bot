@@ -7,7 +7,7 @@
 // elect a pod that doesn't know the account exists (missed fills) or keep
 // streaming a disabled one. This loop closes that gap: every pod re-reads the
 // enabled set on an interval and converges membership, so a runtime change
-// propagates fleet-wide within one interval (#579).
+// propagates fleet-wide within one interval.
 //
 // Membership only — opening/closing the account user-data stream is
 // subscription-ownership's job. This loop calls `ownership.reconcile()` after

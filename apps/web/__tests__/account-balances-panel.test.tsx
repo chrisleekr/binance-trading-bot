@@ -1,5 +1,4 @@
-// AccountBalancesPanel — hide-zero default, search filter, count, empty state,
-// USD valuation, value sort.
+// AccountBalancesPanel covers hide-zero default, search, count, empty state, quote-asset valuation, and value sort.
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -96,6 +95,14 @@ describe('AccountBalancesPanel', () => {
     expect(screen.getByTestId('balance-est-value')).toHaveTextContent('≈ 42,200.25 USDT');
   });
 
+  it('keeps a sub-cent BTC quote value visible with the correct asset suffix', () => {
+    const btcQuoted = [bal('ETH', '0.009', '0', '0.5')];
+    render(<AccountBalancesPanel balances={btcQuoted} symbols={[]} quoteAsset="BTC" />);
+
+    expect(screen.getByTestId('balance-value-ETH')).toHaveTextContent('≈ 0.0045 BTC');
+    expect(screen.getByTestId('balance-est-value')).toHaveTextContent('≈ 0.0045 BTC');
+  });
+
   it('leaves an asset unpriced when the profile does not trade its USDT pair', async () => {
     const user = userEvent.setup();
     render(<AccountBalancesPanel balances={balances} symbols={symbols} quoteAsset="USDT" />);
@@ -152,9 +159,7 @@ describe('AccountBalancesPanel', () => {
   });
 });
 
-// Binance-style rows (issue #641): every held asset shows a coin icon + full
-// name and a USD value from its backend-supplied usdPrice; actively-traded
-// assets additionally show the bot's avg-entry price + unrealized PnL.
+// Binance-style rows show each held asset's icon, name, and quote-asset value; actively traded assets also show the bot's average entry price and unrealized P/L.
 type PricedBalance = AssetBalance & { usdPrice: string | null };
 
 const pbal = (
@@ -200,7 +205,7 @@ describe('AccountBalancesPanel — Binance-style rows (#641)', () => {
     expect(screen.getByText('Ethereum')).toBeInTheDocument();
   });
 
-  it('shows a USD value for every priced asset and none for an unpriced one (C2/C3)', () => {
+  it('shows a quote-asset value for every priced asset and none for an unpriced one (C2/C3)', () => {
     render(<AccountBalancesPanel balances={priced} symbols={tradedSymbols} quoteAsset="USDT" />);
     expect(screen.getByTestId('balance-value-ETH')).toBeInTheDocument();
     expect(screen.getByTestId('balance-value-USDT')).toBeInTheDocument();
@@ -215,6 +220,10 @@ describe('AccountBalancesPanel — Binance-style rows (#641)', () => {
     // (2000 − 1600) × 1.5 = +600, +25%.
     expect(pnl).toHaveTextContent('+');
     expect(pnl).toHaveTextContent('25');
+    // The cell above holds the amount AND the percent, so a substring match on it would pass for `+25%`, `25.00%` or a percent rendered in the wrong tone. The percent carries its own testid, so assert the exact text and the tone on the element that actually renders it.
+    const percent = screen.getByTestId('balance-pnl-percent-ETH');
+    expect(percent.textContent).toBe('+25.00%');
+    expect(percent).toHaveClass('ml-1', 'font-mono', 'text-success');
     // Avg-entry cost basis surfaced on the row.
     expect(screen.getByTestId('balance-row-ETH')).toHaveTextContent('1,600');
   });
@@ -242,5 +251,18 @@ describe('AccountBalancesPanel — Binance-style rows (#641)', () => {
     const pnl = screen.getByTestId('balance-pnl-ETH');
     expect(pnl).not.toHaveTextContent('%');
     expect(pnl).not.toHaveTextContent('-100');
+  });
+
+  it('keeps the wallet balance but drops the cost-basis block for a refused position seed', () => {
+    // The coin IS in the wallet, so the balance and its quote value stay — that half must not regress. What goes is the strategy's cost-basis context: the refusal says nothing sellable backs that entry price, so an "Avg 1,600 USDT" line and a P/L computed from it would both assert a position the bot is not running.
+    const refused: DashboardSymbol = {
+      ...symPos('ETHUSDT', '2000', '1600', '1.5'),
+      positionSeedRefusal: { code: 'no-sellable-position', since: '2026-08-27T00:00:00Z' },
+    };
+    render(<AccountBalancesPanel balances={priced} symbols={[refused]} quoteAsset="USDT" />);
+
+    expect(screen.getByTestId('balance-row-ETH')).toBeInTheDocument();
+    expect(screen.getByTestId('balance-value-ETH')).toHaveTextContent('≈ 3,000.00 USDT');
+    expect(screen.queryByTestId('balance-pnl-ETH')).not.toBeInTheDocument();
   });
 });

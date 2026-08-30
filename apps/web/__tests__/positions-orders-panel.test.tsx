@@ -106,6 +106,35 @@ describe('<PositionsOrdersPanel>', () => {
     expect(order).toHaveTextContent('120');
   });
 
+  it('omits a refused position seed while still listing its resting order', async () => {
+    // "Your money now" means positions the strategy is actually running. The cost-basis row survives a refused seed by design and carries both an entry price and a quantity, so an unfiltered panel lists it here and prices it — a gain on something that will never be sold, beside the real ones. The order is the control: it is a live order on the exchange either way, so its presence proves the row reached the panel and only the POSITION was withheld.
+    useSymbolRows.mockReturnValue(
+      merged([
+        row(
+          sym({
+            symbol: 'XPLUSDT',
+            avgEntryPrice: '0.0860',
+            currentPrice: '0.0893',
+            quantity: '169.8',
+            positionSeedRefusal: { code: 'no-sellable-position', since: '2026-08-27T00:00:00Z' },
+            openOrders: [
+              {
+                id: 'o1',
+                symbol: 'XPLUSDT',
+                side: 'BUY',
+                raw: { origQty: '120', price: '0.0850', type: 'LIMIT' },
+              },
+            ],
+          }),
+        ),
+      ]),
+    );
+    await renderPanel();
+
+    expect(screen.queryByTestId('money-position-XPLUSDT')).not.toBeInTheDocument();
+    expect(screen.getByTestId('money-order-o1')).toBeInTheDocument();
+  });
+
   it('trims the order quantity to match the positions panel (no 8-decimal padding)', async () => {
     // Binance ships origQty zero-padded ("82.70000000"); render it trimmed via
     // formatAmount so it reads like the positions panel ("82.7"), not raw.

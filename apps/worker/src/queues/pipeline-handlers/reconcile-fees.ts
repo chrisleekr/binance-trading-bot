@@ -1,9 +1,12 @@
 import type { Logger } from 'pino';
-import { Decimal } from '@app/money';
 import { profileRepo, type Database } from '@app/db';
 import type { BinanceRestClient } from '@app/binance';
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
-import { valueCommissionInQuote } from './archive-grid-trade.js';
+import {
+  createCommissionRateResolver,
+  resolveFeesFromTradesWithRates,
+  type FeeOrderEvidence,
+} from './archive-grid-trade.js';
 
 // One pass reconciles at most this many archive rows. A profile accrues far fewer
 // closed trades than this in practice; the cap bounds a single job's Binance reads.
@@ -18,30 +21,47 @@ export interface ReconcileFeesHandlerDeps {
   ) => Promise<BinanceRestClient | null>;
 }
 
-/** Parse the Binance order ids out of an archive row's `orders` jsonb array. */
-const orderIdsOf = (orders: unknown): ReadonlySet<number> => {
-  const ids = new Set<number>();
-  if (!Array.isArray(orders)) return ids;
-  for (const o of orders) {
-    const raw = (o as { binanceOrderId?: unknown }).binanceOrderId;
-    const n = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : Number.NaN;
-    if (Number.isFinite(n)) ids.add(n);
-  }
-  return ids;
+/**
+ * Parse the order identity, fill totals, side, and application-owned BUY fee proof out of archived JSON without trusting malformed members.
+ *
+ * @param orders - Legacy-compatible archive JSON, which may not be an array or may contain malformed members.
+ * @returns Conservative order evidence that can be matched against Binance account trades.
+ */
+const feeOrdersOf = (orders: unknown): FeeOrderEvidence[] => {
+  if (!Array.isArray(orders)) return [];
+  return orders.map((candidate) => {
+    const order =
+      typeof candidate === 'object' && candidate !== null
+        ? (candidate as Record<string, unknown>)
+        : {};
+    const raw =
+      typeof order['raw'] === 'object' && order['raw'] !== null
+        ? (order['raw'] as Record<string, unknown>)
+        : {};
+    const binanceOrderId = order['binanceOrderId'];
+    const side = order['side'];
+    const executedQty = order['executedQty'] ?? order['qty'] ?? raw['executedQty'];
+    const cummulativeQuoteQty = order['cummulativeQuoteQty'] ?? raw['cummulativeQuoteQty'];
+    return {
+      binanceOrderId:
+        typeof binanceOrderId === 'string' || typeof binanceOrderId === 'number'
+          ? String(binanceOrderId)
+          : '',
+      side: side === 'BUY' || side === 'SELL' ? side : null,
+      executedQty: typeof executedQty === 'string' ? executedQty : null,
+      cummulativeQuoteQty: typeof cummulativeQuoteQty === 'string' ? cummulativeQuoteQty : null,
+      baseCommissionNetted:
+        typeof order['baseCommissionNetted'] === 'string' ? order['baseCommissionNetted'] : null,
+    };
+  });
 };
 
 /**
- * Operator-triggered fee reconciliation: backfill `trade_archive.fees_quote` (and
- * the per-asset `fees` audit record) with real Binance commission for rows that
- * were never valued — rows archived before the fee column shipped, or whose
- * forward fee lookup degraded to zero. For each row it matches the symbol's
- * recent `myTrades` by the order ids stored in the row's `orders`, exactly as the
- * archive path does, and values commission via the SHARED {@link
- * valueCommissionInQuote} so the two paths cannot drift. Same `limit: 1000`
- * recent-page semantics as the archive path: a round-trip older than the last
- * 1000 trades for its symbol matches nothing and is left untouched (counted as
- * `unreconciled`), never overwritten with a spurious zero. Net-of-fee P/L reads
- * `fees_quote` directly, so corrected rows surface on the next dashboard read.
+ * Reconcile rows marked explicitly incomplete by applying the same raw-fee, quote-adjustment, and evidence rule as forward archive and backfill. Missing or partial fill evidence leaves the row untouched because replacing an existing subtotal with another partial set could lose previously known fees. A fully covered row can still update as incomplete when a third-asset amount has no execution-time quote rate.
+ *
+ * @param deps - Reconciliation dependencies for the scoped repository, Binance client, and logs.
+ * @param ids - Ownership-proven identifiers for the one profile being reconciled.
+ * @returns Nothing after the bounded reconciliation pass is logged.
  */
 export const handleReconcileFees = async (
   deps: ReconcileFeesHandlerDeps,
@@ -60,16 +80,16 @@ export const handleReconcileFees = async (
     return;
   }
 
-  // myTrades is per-symbol and config-independent within the run; fetch once per
-  // symbol. The ticker price cache spans all rows (BNB→quote etc.).
+  // myTrades is per-symbol and config-independent within the run; fetch once per symbol.
   const tradesBySymbol = new Map<string, Awaited<ReturnType<BinanceRestClient['getMyTrades']>>>();
-  const priceCache = new Map<string, Decimal | null>();
+  // One resolver for the whole pass, mirroring the myTrades memo beside it: the rates cannot change inside one job, and a batch of 500 rows would otherwise spend a weight-20 call per row on the same symbol.
+  const resolveCommissionRates = createCommissionRateResolver(client, deps.logger);
   let updated = 0;
   let unreconciled = 0;
 
   for (const row of rows) {
-    const orderIds = orderIdsOf(row.orders);
-    if (orderIds.size === 0) {
+    const expectedOrders = feeOrdersOf(row.orders);
+    if (expectedOrders.length === 0) {
       unreconciled += 1;
       continue;
     }
@@ -87,52 +107,70 @@ export const handleReconcileFees = async (
       tradesBySymbol.set(row.symbol, trades);
     }
 
-    const sums = new Map<string, Decimal>();
-    let feesQuote = new Decimal(0);
-    const matchedIds = new Set<number>();
-    let unpriced = 0;
-    for (const t of trades) {
-      if (!orderIds.has(t.orderId)) continue;
-      matchedIds.add(t.orderId);
-      sums.set(
-        t.commissionAsset,
-        (sums.get(t.commissionAsset) ?? new Decimal(0)).add(new Decimal(t.commission)),
-      );
-      const quoteValue = await valueCommissionInQuote(
-        client,
-        t,
-        row.baseAsset,
-        row.quoteAsset,
-        priceCache,
-      );
-      if (quoteValue === null) unpriced += 1;
-      else feesQuote = feesQuote.add(quoteValue);
-    }
-    // No matching trade on the recent page (round-trip older than 1000 trades, or
-    // a thin page): leave the row untouched rather than stamp a fabricated zero.
-    if (matchedIds.size === 0) {
+    const resolved = await resolveFeesFromTradesWithRates(
+      trades,
+      expectedOrders,
+      row.symbol,
+      row.baseAsset,
+      row.quoteAsset,
+      resolveCommissionRates,
+    );
+    // No matching trade on the recent page leaves the row untouched rather than stamping a fabricated zero.
+    if (resolved.matchedOrderIds === 0) {
       unreconciled += 1;
       continue;
     }
-    // Mirror the archive path's no-silent-failure guards: a row where only SOME
-    // orders matched the page is a partial under-count, and a commission asset
-    // that could not be priced into quote is left out of feesQuote — both warn
-    // (with counts) so the under-count is visible, never silent.
-    if (matchedIds.size < orderIds.size) {
+    // Mirror the archive path's no-silent-failure guards before deciding whether this evidence can safely replace the stored row.
+    if (resolved.missingOrderIds > 0) {
       deps.logger.warn(
-        { ...logCtx, archiveId: row.id, matched: matchedIds.size, expected: orderIds.size },
+        {
+          ...logCtx,
+          archiveId: row.id,
+          matched: resolved.matchedOrderIds,
+          expected: expectedOrders.length,
+        },
         'pipeline_reconcile_fees_partial',
       );
     }
-    if (unpriced > 0) {
+    if (resolved.mismatchedOrders > 0 || resolved.malformedOrders > 0) {
       deps.logger.warn(
-        { ...logCtx, archiveId: row.id, unpricedTrades: unpriced },
+        {
+          ...logCtx,
+          archiveId: row.id,
+          mismatchedOrders: resolved.mismatchedOrders,
+          malformedOrders: resolved.malformedOrders,
+        },
+        'pipeline_reconcile_fees_order_evidence_incomplete',
+      );
+    }
+    if (resolved.unpricedTrades > 0) {
+      deps.logger.warn(
+        { ...logCtx, archiveId: row.id, unpricedTrades: resolved.unpricedTrades },
         'pipeline_reconcile_fees_unpriced',
       );
     }
-    const fees: Record<string, string> = {};
-    for (const [asset, total] of sums) fees[asset] = total.toString();
-    await p.tradeArchive.updateFees(row.id, fees, feesQuote.toString());
+    if (resolved.unprovenBaseBuyOrders > 0) {
+      deps.logger.warn(
+        { ...logCtx, archiveId: row.id, unprovenBaseBuyOrders: resolved.unprovenBaseBuyOrders },
+        'pipeline_reconcile_fees_base_buy_unproven',
+      );
+    }
+    if (resolved.malformedTrades > 0) {
+      deps.logger.warn(
+        { ...logCtx, archiveId: row.id, malformedTrades: resolved.malformedTrades },
+        'pipeline_reconcile_fees_malformed',
+      );
+    }
+    if (
+      resolved.missingOrderIds > 0 ||
+      resolved.mismatchedOrders > 0 ||
+      resolved.malformedOrders > 0 ||
+      resolved.malformedTrades > 0
+    ) {
+      unreconciled += 1;
+      continue;
+    }
+    await p.tradeArchive.updateFees(row.id, resolved.fees, resolved.feesQuote, resolved.feeBasis);
     updated += 1;
   }
 

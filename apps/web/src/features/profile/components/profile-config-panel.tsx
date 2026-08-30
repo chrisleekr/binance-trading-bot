@@ -51,6 +51,7 @@ import {
 import { fetchExchangeInfo } from '@/features/symbol/api/exchange-info';
 import { queryDefaults } from '@/shared/lib/query-client';
 import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
+import { Select } from '@/shared/components/ui/select';
 
 /**
  * Self-contained profile-config editor. Renders the load/error/ready states for
@@ -204,7 +205,7 @@ export function ProfileConfigPanel({
             title="Strategy"
             description="Which packaged strategy this profile runs. Switching resets strategy state and auto-pauses the profile."
           >
-            <select
+            <Select
               id="strategy-select"
               aria-label="Strategy"
               value={currentKey}
@@ -212,14 +213,14 @@ export function ProfileConfigPanel({
                 const next = e.currentTarget.value;
                 if (next !== currentKey) setPendingStrategy(next);
               }}
-              className="h-11 w-full rounded-xs border border-border bg-surface-alt px-3 py-2 text-sm text-fg focus-visible:border-focus focus-visible:outline-none"
+              className="w-full"
             >
               {(strategies.data ?? []).map((s) => (
                 <option key={`${s.name}@${s.version}`} value={`${s.name}@${s.version}`}>
                   {s.displayName} ({s.name}@{s.version})
                 </option>
               ))}
-            </select>
+            </Select>
           </Panel>
 
           {/* Lint + per-symbol feasibility of the SAVED config; re-runs when the

@@ -96,8 +96,10 @@ export type MetricName =
   | 'strategy_metric_total'
   | 'cron_overrun_total'
   | 'discovery_asset_policy_abort_total'
+  | 'discovery_reap_outcome_total'
   | 'reconcile_position_removed_total'
   | 'reconcile_value_bound_disarmed_total'
+  | 'pipeline_apply_seed_gate_stood_down_total'
   | 'archive_recovery_sweep_profiles_total';
 
 /**
@@ -396,6 +398,14 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     help: 'Discovery profile cycles abandoned because the stablecoin/fiat classification could not be established, by cause. Any non-zero rate means the asset-policy veto is not protecting admission for that profile. It is raised only where the classification itself is the fault — including the feed being unreachable or unreadable — and never for a Binance or Redis failure elsewhere in the cycle, which is what keeps it alertable on its own. `cause` is what separates a standing fault from a transient: the `product-feed-unreachable` label alone can be one failed fetch.',
     labelNames: ['profileId', 'cause'],
   },
+  // Rotation is how discovery keeps the symbol set current, and every one of its refusals was invisible: the repo already named four reasons and the cron collapsed them to a boolean, while the cron's own wallet guard refused with a bare `continue`. A profile that had quietly stopped rotating — an operator who pinned everything, a stuck position, a credential that no longer reads balances — looked exactly like one with nothing to rotate. A counter, not a gauge: refusals are events to be rated over a window, and the interesting quantity is the refusal SHARE, which is why the success (`removed`) rides the same series and gives the ratio its denominator.
+  //
+  // Cardinality is deliberate on both labels. `profileId` is in because the fault is per-profile and the operator's remedy is per-profile; it is bounded by the profiles the single operator created, which is tens at the outside. `symbol` is out: it would make the series count the tradable universe, thousands per profile and unbounded over time as coins list and delist, and it would buy nothing an operator acts on — the reason is what routes the fix, and the profile's own page already names the symbols.
+  discovery_reap_outcome_total: {
+    kind: 'counter',
+    help: "Discovery rotation attempts by outcome. `removed` is the only success and shares the series so the refusal share has a denominator. `pinned` is the operator's own choice and needs nothing. `held` is a position or resting order the cycle has not closed. `not-found` means discovery and the bindings table disagree about what is bound. `wallet-held` is the exchange-wallet guard refusing to abandon a coin the wallet still holds, which is the guard working on evidence. `hold-unproven` is that same guard refusing because it could establish nothing about the position: no Binance credentials resolved, the account fetch failed, the symbol-info cache is unprimed, or the symbol's minQty/balance would not parse. Those four have different fixes and the metric does not separate them — the cron's `cron discovery: ...held-guard` warns name the specific one, so read those before chasing any of them.",
+    labelNames: ['profileId', 'outcome'],
+  },
   // The reconciler owns two deletes — the sub-notional flatten and the phantom-ledger prune — and both empty a position and drop its cost basis. Their only trace was one warn inside a boot's worth of them, which no rule can watch. `heldBefore` is a two-value bucket rather than the quantity: it separates "deleted a position the strategy believed it held" from "converged a row that was already empty", which are a page and a routine convergence respectively, and bucketing keeps the series cardinality at 2 where the raw quantity would be unbounded.
   reconcile_position_removed_total: {
     kind: 'counter',
@@ -405,7 +415,13 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
   // Every dust VALUE bound stands down when an input is missing, because these bounds only ever REMOVE a position. That is the right failure direction and it is also silent: a disarmed pass tallies the same `no-op` as a healthy converged one, so "checked, the holding is real" and "could not check" are indistinguishable. Labelled by the input that was absent, since a missing price is a cache or REST problem while a missing NOTIONAL filter is an exchange-info refresh problem.
   reconcile_value_bound_disarmed_total: {
     kind: 'counter',
-    help: 'Reconcile passes that reached a dust value bound without the inputs to evaluate it, by the missing input.',
+    help: 'Passes that reached a dust value bound without the inputs to evaluate it, by the missing input. Emitted by the periodic reconcile doors and by the operator-triggered apply-avg-entry-price job.',
+    labelNames: ['profileId', 'symbol', 'reason'],
+  },
+  // The apply-avg-entry-price gate degrades rather than refusing when one of its inputs never resolved, and that degrade is otherwise one warn line in a worker the operator has no reason to be reading — while the write it lets through is sized from the recorded quantity as though the rule had judged it. Labelled by the input that failed because each routes a different remedy: an expired or IP-rejected key, a stale exchange-info refresh, a corrupt cache blob, and an unreachable Binance are four different fixes.
+  pipeline_apply_seed_gate_stood_down_total: {
+    kind: 'counter',
+    help: 'Operator apply-avg-entry-price jobs whose seed gate could not evaluate one of its inputs and fell back to the recorded quantity, by the input that failed. Every reason is seeded at zero on BOTH arms, so any apply job for a (profileId, symbol) arms all four children and a later stand-down on those labels is an observable rise. The seed does not rescue the case where the very first job for those labels is itself the stand-down: seed and increment share one synchronous block, so no scrape lands between them and the fired series is still born holding 1. A rule over this counter therefore needs the offset-subtraction form ReconcileValueBoundDisarmed uses, not increase().',
     labelNames: ['profileId', 'symbol', 'reason'],
   },
   // The sweep walks profiles serially, so a run that stalled on the third of ten profiles reported the same tail log as a run where the other seven had nothing to repair. Outcome is a closed set of swept | failed | timeout | checkout | unswept: `timeout` separates a profile whose query hit the per-profile budget from one whose query simply errored, and `checkout` separates the account-wide shape — the pool was empty before this profile's work began, so every profile in the pass fails identically — because the three need different responses. No profileId label: the count is a fleet-level health signal and the per-profile identity already rides the warn log.

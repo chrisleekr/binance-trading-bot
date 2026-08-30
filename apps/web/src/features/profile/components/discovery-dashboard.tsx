@@ -23,7 +23,12 @@ import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 import { Switch } from '@/shared/components/ui/switch';
 import { AutoForm } from '@/shared/forms';
 import { useTimezone } from '@/shared/context/timezone-context';
-import { formatWinRate } from '@/shared/lib/format';
+import {
+  formatBalanceMoney,
+  formatPercent,
+  formatSignedAmount,
+  formatWinRate,
+} from '@/shared/lib/format';
 import { formatClock, formatInstant } from '@/shared/lib/format-time';
 import { glossEntryBlocker } from '@/shared/lib/gloss-entry-blocker';
 import {
@@ -51,16 +56,33 @@ import type {
   StoredDiscoveryConfig,
 } from '@app/contracts';
 
-const fmtAmount = (s: string): string => {
+// The gainer score is a PERCENT, not money: it keeps the 2-dp house style and its own `%`. Money on this page goes through the shared formatters instead, which is why the two are named apart — a single local "format a number" helper is what let a BTC-quoted balance render as 0.00 here while the Home strip showed it in full.
+const fmtGainerPercent = (s: string): string => {
   const n = Number(s);
-  return Number.isFinite(n) ? n.toFixed(2) : s;
-};
-const fmtSigned = (s: string): string => {
-  const n = Number(s);
-  if (!Number.isFinite(n)) return s;
-  return `${n >= 0 ? '+' : ''}${n.toFixed(2)}`;
+  return Number.isFinite(n) ? formatPercent(n, { sign: true }) : s;
 };
 const toneClass = (s: string): string => (Number(s) >= 0 ? 'text-up' : 'text-down');
+
+/**
+ * Value and denominator note for the Win rate tile.
+ *
+ * A ratio with no denominator is unreadable: 75% over 4 trades and over 400 trades are not the same claim, and 0 of 0 is not a 0% win rate at all. A fee-incomplete scoreboard cannot state the rate honestly, so it says so instead of showing a number.
+ *
+ * @param scoreboard - Scoreboard slice carrying the fee tier, the trade count, and the ratio itself.
+ * @returns The tile's `value`, plus a `note` naming the trade count only when an actual rate is shown.
+ */
+function winRateTile(scoreboard: {
+  readonly feeBasis: string;
+  readonly tradeCount: number;
+  readonly winRate: number;
+}): { value: string; note?: string } {
+  if (scoreboard.feeBasis === 'unknown') return { value: 'Unavailable' };
+  if (scoreboard.tradeCount === 0) return { value: '—' };
+  return {
+    value: formatWinRate(scoreboard.winRate),
+    note: `of ${scoreboard.tradeCount} trade${scoreboard.tradeCount === 1 ? '' : 's'}`,
+  };
+}
 
 /** Humanise a scan period given in ms: 900000 -> "15 min", 3600000 -> "1 h". */
 const fmtPeriod = (ms: number): string => {
@@ -68,16 +90,30 @@ const fmtPeriod = (ms: number): string => {
   return min < 60 ? `${min} min` : `${Math.round(min / 60)} h`;
 };
 
+/**
+ * One scoreboard/gauge figure with its label.
+ *
+ * @param label - The operator-facing name of the figure.
+ * @param value - The already-formatted figure. Formatting is the caller's job because a money tile and a count tile have different precision rules.
+ * @param unit - Quote asset the figure is denominated in, shown beside it. Omit for counts and percentages, which are unitless; a bare money figure is ambiguous on an account that runs both a USDT and a BTC-quoted profile.
+ * @param tone - Semantic colour utility for the value, e.g. `text-up` / `text-down`.
+ * @param note - Supporting line under the value, e.g. the denominator a ratio was computed over.
+ * @param testId - Test hook for the tile wrapper.
+ * @returns The tile element.
+ */
 function Tile({
   label,
   value,
+  unit,
   tone,
+  note,
   testId,
 }: {
   readonly label: string;
   readonly value: string;
-  /** Semantic colour utility for the value, e.g. `text-up` / `text-down`. */
+  readonly unit?: string;
   readonly tone?: string;
+  readonly note?: string;
   readonly testId?: string;
 }): React.JSX.Element {
   return (
@@ -85,7 +121,9 @@ function Tile({
       <span className="text-xs text-muted-fg">{label}</span>
       <span className={`font-mono text-lg font-semibold tabular-nums${tone ? ` ${tone}` : ''}`}>
         {value}
+        {unit ? <span className="ml-1 text-xs font-normal text-muted-fg">{unit}</span> : null}
       </span>
+      {note ? <span className="text-xs text-muted-fg">{note}</span> : null}
     </div>
   );
 }
@@ -167,7 +205,7 @@ const passedLine = (c: DiscoveryCandidate): string | null =>
     ? `passed ${c.passed.map((f) => FILTER_LABEL[f]).join(', ')}`
     : null;
 
-/** Auto symbols (held or being dropped) the operator can pin or eject. */
+/** Rotatable coins (held or being dropped) the operator can pin or eject. */
 const isHeld = (d: DiscoveryDisposition): boolean =>
   d === 'added' || d === 'kept' || d === 'faded-held' || d === 'faded-removed';
 
@@ -187,7 +225,7 @@ function PositionStatus({
   if (costBasis !== undefined) {
     return (
       <span className="w-full text-xs text-fg" data-testid="position-status">
-        ● holding · ≈ {fmtAmount(costBasis)} {quoteAsset} cost
+        ● holding · ≈ {formatBalanceMoney(costBasis)} {quoteAsset} cost
       </span>
     );
   }
@@ -284,7 +322,7 @@ function DiscoveryUniverse({
                 <span className="font-mono font-medium">{c.symbol}</span>
                 {c.gainerScore !== null ? (
                   <span className="font-mono text-xs text-muted-fg tabular-nums">
-                    {fmtSigned(c.gainerScore)}%
+                    {fmtGainerPercent(c.gainerScore)}
                   </span>
                 ) : null}
                 <Badge
@@ -506,15 +544,11 @@ function DiscoveryConfigEditor({
 }
 
 /**
- * The operator's pinned (manual) symbols: coins they added or pinned, which
- * the bot trades and discovery will not rotate out. Discovery_config holds no
- * symbol list, so without this the roster is invisible here — the source of the
- * "where are my pinned symbols?" confusion, since "Manual (pinned)" is the very
- * label the P/L-by-source band uses. Each row offers Unpin (hand back to
- * discovery) and Remove (detach the binding). Auto symbols live in the
- * live-universe list below, so this filters to `manual` only.
+ * The operator's pinned symbols: the coins discovery will not rotate out. Discovery_config holds no symbol list, so without this the roster is invisible here — the source of the "where are my pinned symbols?" confusion. Each row offers Unpin (hand back to discovery) and Remove (detach the binding). Rotatable symbols live in the live-universe list below, so this filters on `pinned` alone.
+ *
+ * It filters on the PIN, not on where the coin came from. Those are different questions, and a row can be pinned without the operator having chosen it: the rollout inferred a pin for every pre-split operator-added binding and has no timestamp to prove it was deliberate. Such a row is badged "unverified" so the operator can confirm or unpin it, rather than being presented as a choice they made.
  */
-function ManualSymbols({ profileId }: { readonly profileId: string }): React.JSX.Element | null {
+function PinnedSymbols({ profileId }: { readonly profileId: string }): React.JSX.Element | null {
   const queryClient = useQueryClient();
   const query = useQuery(profileSymbolsQueryOptions(profileId));
   const [removing, setRemoving] = useState<string | null>(null);
@@ -541,31 +575,42 @@ function ManualSymbols({ profileId }: { readonly profileId: string }): React.JSX
   // is a secondary list, so stay silent until it loads (mirrors the dashboard's
   // own error-is-null stance).
   if (query.isLoading || query.isError || !query.data) return null;
-  const manual = query.data.filter((s) => s.source === 'manual');
+  const pinned = query.data.filter((s) => s.pinned);
+  // A tooltip is the one place a phone operator cannot reach, and this badge asks them to act. Carry the sentence in the panel copy instead, and only when a row wears the badge.
+  const hasUnverified = pinned.some((s) => s.pinnedAt === null);
 
   return (
     <Panel
       title={
         <>
-          Pinned symbols <span className="text-muted-fg">({manual.length})</span>
+          Pinned symbols <span className="text-muted-fg">({pinned.length})</span>
         </>
       }
-      description={`Coins you added or pinned. The bot trades these and discovery won't rotate them out. These are what "Manual (pinned)" counts in your P/L by source.`}
+      description={`The bot trades these and discovery won't rotate them out. Where each coin came from is shown separately in your P/L by source.${hasUnverified ? ' A coin marked unverified was pinned when pins were split out from where a coin came from — nobody recorded choosing it, so unpin it if you did not.' : ''}`}
       testId="manual-symbols"
     >
-      {manual.length === 0 ? (
+      {pinned.length === 0 ? (
         <p className="text-sm text-muted-fg" data-testid="manual-symbols-empty">
           No pinned symbols. Pin a coin from the live universe below, or add one from the dashboard.
         </p>
       ) : (
         <ul className="divide-y divide-border">
-          {manual.map((s) => (
+          {pinned.map((s) => (
             <li
               key={s.symbol}
               className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2"
               data-testid={`manual-${s.symbol}`}
             >
               <span className="font-mono font-medium">{s.symbol}</span>
+              {s.pinnedAt === null && (
+                <span
+                  className="rounded tint-warning px-1.5 py-0.5 text-xs"
+                  title="Pinned by the rollout, not by a recorded choice."
+                  data-testid={`manual-unverified-${s.symbol}`}
+                >
+                  unverified
+                </span>
+              )}
               <div className="ml-auto flex gap-1">
                 <Button
                   type="button"
@@ -705,28 +750,64 @@ export function DiscoveryDashboard({
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4" data-testid="discovery-scoreboard">
             <Tile
-              label="Realized P/L (auto)"
-              value={fmtSigned(scoreboard.realizedProfit)}
-              tone={toneClass(scoreboard.realizedProfit)}
+              label="Net P/L (auto)"
+              value={
+                scoreboard.feeBasis !== 'unknown'
+                  ? formatSignedAmount(scoreboard.netProfit)
+                  : 'Unavailable'
+              }
+              {...(scoreboard.feeBasis !== 'unknown'
+                ? { unit: quoteAsset, tone: toneClass(scoreboard.netProfit) }
+                : {})}
               testId="discovery-net-pl"
             />
             <Tile
-              label="7-day P/L"
-              value={fmtSigned(scoreboard.realizedProfit7d)}
-              tone={toneClass(scoreboard.realizedProfit7d)}
+              label="7-day Net P/L"
+              value={
+                scoreboard.feeBasis7d !== 'unknown'
+                  ? formatSignedAmount(scoreboard.netProfit7d)
+                  : 'Unavailable'
+              }
+              {...(scoreboard.feeBasis7d !== 'unknown'
+                ? { unit: quoteAsset, tone: toneClass(scoreboard.netProfit7d) }
+                : {})}
             />
             <Tile label="Trades" value={String(scoreboard.tradeCount)} />
-            <Tile label="Win rate" value={formatWinRate(scoreboard.winRate)} />
+            <Tile label="Win rate" {...winRateTile(scoreboard)} />
           </div>
 
+          {scoreboard.feeBasis === 'unknown' || scoreboard.feeBasis7d === 'unknown' ? (
+            <p className="text-xs text-muted-fg" data-testid="discovery-fees-incomplete">
+              Net results are unavailable because a commission is unaccounted for. Recorded P/L
+              remains available in Trade history.
+            </p>
+          ) : scoreboard.feeBasis === 'estimated' || scoreboard.feeBasis7d === 'estimated' ? (
+            /* A figure shown with no caveat is a figure claimed as measured. The tier below the top one has to say so in words here for the same reason the rollup line marks it: withholding was the old behaviour and showing it plainly would be the opposite mistake, not the fix. */
+            <p className="text-xs text-muted-fg" data-testid="discovery-fees-estimated">
+              A commission in these totals was reconstructed from Binance's rate table rather than
+              the charge it reported, so the Net figures are estimates.
+            </p>
+          ) : null}
+
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3" data-testid="discovery-gauge">
-            <Tile label="Deployed" value={fmtAmount(gauge.deployedQuote)} />
+            {/* Same formatter as the Home scoped KPI strip, which renders these two exact fields: two local "round to 2dp" helpers is how the same number came to read 0.00 here and in full there. */}
             <Tile
-              label="Exposure cap"
-              value={gauge.maxAccountExposureQuote ? fmtAmount(gauge.maxAccountExposureQuote) : '—'}
+              label="Deployed"
+              value={formatBalanceMoney(gauge.deployedQuote)}
+              unit={quoteAsset}
             />
             <Tile
-              label="Auto symbols"
+              label="Exposure cap"
+              value={
+                gauge.maxAccountExposureQuote
+                  ? formatBalanceMoney(gauge.maxAccountExposureQuote)
+                  : '—'
+              }
+              {...(gauge.maxAccountExposureQuote ? { unit: quoteAsset } : {})}
+            />
+            {/* Same number the Home strip shows, so it carries the same label: every UNPINNED binding, whatever created it. The pinned set is the panel below. */}
+            <Tile
+              label="In rotation"
               value={String(gauge.autoSymbolCount)}
               testId="discovery-auto-count"
             />
@@ -756,7 +837,7 @@ export function DiscoveryDashboard({
 
       <DiscoveryFunnelPanel profileId={profileId} />
 
-      <ManualSymbols profileId={profileId} />
+      <PinnedSymbols profileId={profileId} />
 
       <DiscoveryConfigEditor profileId={profileId} config={config} />
 

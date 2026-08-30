@@ -14,7 +14,7 @@ import type { AnyStrategy, ResolvedStrategy, StrategyRegistry } from '@app/strat
 // api and worker can never disagree on whether a strategy is registered. It
 // is intentionally NOT keyed by `name@version`: keying on the stored version
 // returned `null` for a profile whose strategy had since bumped, silently
-// 422'ing operator controls on a live profile (issue #407).
+// 422'ing operator controls on a live profile.
 export interface ApiStrategyRegistry {
   list(): readonly AnyStrategy[];
   get(name: string): AnyStrategy | undefined;

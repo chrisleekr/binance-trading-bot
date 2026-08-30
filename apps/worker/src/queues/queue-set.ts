@@ -37,6 +37,8 @@ const MAX_ERROR_MESSAGE_LEN = 600;
 // error can echo its DSN. Targeted at the `user:password@` segment only, so
 // ordinary diagnostic text (the whole point of folding the cause) is untouched.
 const CREDENTIAL_URI = /(\/\/[^\s/:@]*:)[^\s/@]+@/g;
+// Ceiling on the pre-close handshake wait in closeAll. Sized against the caller's 10s drain deadline: long enough that a healthy connection always settles inside it, short enough that an unreachable Redis leaves the closes their own budget.
+const READY_WAIT_MS = 2_000;
 
 /**
  * Folds a bounded `cause` chain into one diagnostic message after redacting each isolated message, so a Drizzle bind tail cannot consume a later driver cause when the parts are joined and a cyclic or pathological chain cannot grow the DLQ record without limit.
@@ -124,6 +126,23 @@ export const createQueueSet = ({ connection, logger }: CreateQueueSetOptions): Q
   };
 
   const closeAll = async (): Promise<void> => {
+    // Let every connection finish handshaking before any of them is closed. BullMQ's RedisConnection.close() awaits its own pending init ONLY when that connection already reached 'ready'; one still mid-handshake is disconnected outright, and ioredis's close handler then flushes the commands the handshake had in flight (the version INFO, the per-queue meta HMSET) by rejecting them with "Connection is closed.". Those rejections carry no `.command`, so they surface with no frame naming their writer and nothing left to await them. Boot opens one connection per queue plus one per registered worker and awaits none of them, so a shutdown close to boot cuts a variable handful mid-flight.
+    //
+    // Settled rather than awaited for success: a connection whose init genuinely failed must close like any other, not turn shutdown into a throw.
+    //
+    // Bounded rather than unbounded, because the two shutdowns this has to serve pull in opposite directions. A long-running worker's connections are long since settled, so the wait costs nothing and closes the race above. A worker that took SIGTERM during a Redis outage shortly after boot has connections that never reached 'ready', and ioredis retries a failed handshake indefinitely: waiting on that burns the caller's whole 10s drain deadline and converts an exit that used to be fast and clean into a timed-out one that deliberately skips destructive teardown. The bound buys the first case without paying for the second. 2s is the trade: far above any healthy handshake, and small enough against the 10s budget that the closes themselves still have 8s.
+    let readyTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.allSettled([...workers, ...Object.values(queues)].map((c) => c.waitUntilReady())),
+        new Promise<void>((resolve) => {
+          readyTimer = setTimeout(resolve, READY_WAIT_MS);
+        }),
+      ]);
+    } finally {
+      // Cleared, not unref'd. An unref'd timer does not hold the loop open, so were it ever the last live handle the process would exit with this await unresolved and none of the closes below running; that it cannot be today rests entirely on the caller arming a ref'd drain timer in another file, which is not a property this function should depend on. Clearing also releases the handle the moment the handshakes settle rather than leaving it armed for the full wait after a fast drain.
+      if (readyTimer !== undefined) clearTimeout(readyTimer);
+    }
     await Promise.all(workers.map((w) => w.close()));
     await Promise.all(Object.values(queues).map((q) => q.close()));
   };

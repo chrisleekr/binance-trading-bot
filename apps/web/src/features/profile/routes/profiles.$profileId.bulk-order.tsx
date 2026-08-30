@@ -1,6 +1,4 @@
-// /profiles/$profileId/bulk-order — place several orders across the profile's
-// symbols at once. A real page (one full-screen surface model across the app),
-// reached from the profile Manage card's More set.
+// /profiles/$profileId/bulk-order — place several orders across the profile's symbols at once. A real page (one full-screen surface model across the app), reached from the sidebar's expanded profile or the phone's Profiles sheet.
 
 import { createRoute } from '@tanstack/react-router';
 

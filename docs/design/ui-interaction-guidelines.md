@@ -54,9 +54,27 @@ A status column shows read-only state. Actions go in their **own** trailing colu
 
 When an action is unavailable, prefer **disabled with a reason** over hidden. A control that silently vanishes on some rows reads as broken; `RowActions` shows a disabled item with muted subtext ("Pinned as the live baseline") so "why can't I?" is never a mystery.
 
+## Wide tables become a compact list below `md`
+
+A table wide enough to need sideways scrolling on a 375 px phone is not usable there — the operator drags left and right to read one row. Below `md` such a table renders instead as a compact list: one two-line row per record (identity plus the number that matters, then the reason and the timestamp), with the full figures one tap away in a sheet. `TradeArchivePanel` + `ArchiveCompactList` is the worked example.
+
+- **Both variants mount; CSS swaps them.** The compact list sits in an `md:hidden` wrapper, the table in `hidden md:block`. Never `matchMedia` — a JS breakpoint re-renders the whole list on every resize and disagrees with the CSS breakpoint during hydration.
+- **The testids MUST be disjoint.** Both variants are in the DOM at once, so a shared `data-testid` makes every singular `getByTestId` throw on multiple matches, including tests written before the compact variant existed. Namespace them (`archive-*` table, `archive-card-*` list, `archive-detail-*` sheet) and check that no prefix locator cross-matches — `archive-card-profit-` does not prefix-match `archive-profit-`, and that is load-bearing.
+- **The loading branch splits too**, one placeholder per variant, each inside the same wrapper as the surface it stands in for. One skeleton cannot be the right shape at both widths.
+- **Portalled children escape the wrapper.** A Radix `Sheet` or `Dialog` opened from the compact list renders into `<body>`, outside `md:hidden`, so the breakpoint does not hide it and it survives a resize past `md`. Close it before anything reads the desktop surface.
+- **Prove the swap in Playwright, not in the unit lane.** happy-dom loads no stylesheet, so a unit test can only assert the visibility classes are present. Whether `display:none` actually removed a variant from the accessibility tree is a browser fact, so assert it at a real viewport — counting a role that both variants render under the same accessible name catches a dropped `hidden` immediately.
+
 ## Touch targets: 44px minimum
 
-Per core invariant 3, every view must be fully usable on a 375×667 phone. Interactive controls are **≥44×44 px** — `Button` `size="default"` (h-11) or `size="icon"` (44×44). Do not use `size="sm"` (36px) for a primary or destructive action; it's below the touch floor (Apple HIG 44pt). `sm` is for dense, secondary controls only. Source: [WCAG 2.2 — Target Size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).
+Per core invariant 3, every view must be fully usable on a 375×667 phone. Interactive controls are **≥44×44 px** — `Button` `size="default"` (h-11) or `size="icon"` (44×44), `Select` `variant="default"` (h-11). Do not use the dense tier (`Button` `size="sm"`, `Select` `variant="sm"` — both 36px) for a primary or destructive action; it's below the touch floor (Apple HIG 44pt). The dense tier is for secondary controls only. Source: [WCAG 2.2 — Target Size](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html).
+
+## Selects get their height from `Select`, never from a `className`
+
+A dropdown is `Select` from `@/shared/components/ui/select` — a native `<select>` carrying the shared chrome and, by default, the 44px tap target. It renders the real element on purpose: the platform picker is keyboard-reachable, screen-reader-readable, and immune to the scroll traps a hand-built listbox introduces inside the shell's scroll container, and every e2e drives it with `selectOption`.
+
+The height rides `variant`, not `size`, because `<select>` already owns a native `size` attribute (visible row count) and a variant of that name would collide with it in the props type. `variant="default"` (h-11) is anything that commits a value, moves money, or edits config; `variant="sm"` (h-9) is a dense secondary filter that only re-renders data already on screen — a rows-per-page control, a log level, a chart range. Choosing the dense tier is a decision a reviewer can see at the call site, which is the point of making it explicit rather than a default.
+
+`className` on a `Select` is for layout only — width and margins. A height class there is what the component exists to prevent: before it, most selects carried no height at all and rendered at the browser's ~26-34px default, under the floor every `Button` already met. A `vitest` guard parses `apps/web/src` and refuses both spellings of the mistake — a raw `<select>` outside the component, and a `<Select>` re-sizing itself through `className` in any of the forms this codebase writes (a quoted class list, `cn(...)`, a template literal) — because a scan that knew only the first would match nothing once the call sites converted and pass forever. Parsing is what lets prose about a `<select>` stay prose: comments and strings are absent from a syntax tree. It reads the class strings written in the attribute itself, so a height that arrives through a constant or any other computed value is beyond it; that is a review question, not a gated one.
 
 ## Colour is never the only signal
 
@@ -66,7 +84,7 @@ Pair colour with a glyph, icon, or text label. Red-only / green-only state fails
 
 The shell owns the only scroll surface (`h-svh … overflow-hidden`) and the document never scrolls, so a loading branch with no height leaves **nothing under the thumb to drag**. Combined with `overscroll-behavior: none`, which suppresses even the rubber-band, a phone reads that as a frozen app rather than a loading one — the app was unscrollable for 9–16 s per route on a slow link.
 
-A loading branch renders a placeholder from `@/shared/components/page-skeleton`, never a bare `<p>Loading…</p>`:
+A loading branch renders a placeholder from `@/shared/components/page-skeleton`, never a bare `<p>Loading…</p>`. A surface whose loaded body is too layout-specific for the shapes below mirrors its own markup instead, wrapped in the exported `LoadingStatus` so it still carries exactly one announcement — `ArchiveCompactSkeleton` is the worked example:
 
 | Surface | Use |
 | --- | --- |
@@ -105,6 +123,20 @@ Rules:
 "The reader's own scrolling" is measured against gestures, not scroll events. A scroll event is not proof a human scrolled: when content shrinks, the browser clamps `scrollTop` and emits one too, and that event is dispatched _before_ the animation frame the correction runs in. Standing down for it would disable the shim for the exact reflow it exists to absorb, and re-anchor at the drifted position — turning a one-frame clamp into permanent drift.
 
 `e2e/tests/scroll-stability.spec.ts` measures this: it parks each route's anchored scroller (the one marked `data-scroll-anchor`, so the probe cannot drift onto an inner panel that no poll touches) at the bottom, **blocks the shim's corrections**, and asserts zero drift, zero subtree teardowns and zero attempted corrections while the page polls. Blocking the shim is the point — with it live, the drift is repaired a frame later and the page looks stable on Blink and desktop WebKit, which is why the defect survived review. The spec needs a running stack (`E2E_USER_EMAIL` / `E2E_USER_PASSWORD` / `E2E_ACCOUNT_ID` / `E2E_PROFILE_ID`); CI runs only the no-stack smoke subset, so it does not gate merges today.
+
+## A pane that scrolls must say so
+
+Overlay scrollbars hide the track until the user is already scrolling, which is the one moment the affordance is redundant. That is unconditional on iOS, and it is what macOS does under its default "Automatically based on mouse or trackpad" setting whenever no mouse is attached — a trackpad-only Mac, which is most laptops. Plug a mouse in and the scrollbars turn persistent, so the gap is intermittent rather than universal, which is worse: it is invisible on the reviewer's desk setup and present on the operator's. A list clipped by its container therefore reads as a list that simply ends, and nothing on screen contradicts that reading. This is what stranded the desktop sidebar's ACCOUNT and SYSTEM sections behind an expanded profile — the rail was one scroll container with no visible scrollbar, so the rows below the fold were not merely out of view, they were unannounced.
+
+The fix has two halves, and only the second is reusable. Structurally, a rail or panel with pinned chrome around a growing list is a flex column of three nested layers, and each layer wants a different thing:
+
+- **The section that absorbs the leftover height** gets `flex-1` and a real floor — `min-h-[5.5rem]`, enough for one row plus the section's own chrome. Not `min-h-0` here: that lets the section shrink to zero on a short viewport, and a section that SHRANK leaves the outer container's fallback `overflow-y-auto` with nothing to reveal, so its content becomes unreachable rather than merely scrolled away. Every sibling section is `shrink-0`.
+- **The wrapper inside it** is the usual `min-h-0 flex-1` clamp. `min-h-0` is correct and load-bearing at this layer, and at the shell layers above it (`apps/web/src/app/app-shell.tsx`) — the prohibition above is about the section that owns the floor, nothing else.
+- **The scroller itself** is `h-full overflow-y-auto`. Without the clamp on its parent it grows to fit its content instead of scrolling, and nothing overflows at all.
+
+For the affordance itself, `useOverflowEdges` (`apps/web/src/shared/lib/use-overflow-edges.ts`) reports `{ top, bottom }` — whether content is hidden past each edge — and callers render a gradient fade over the edges that are live. It takes TWO refs, the scroller and a stable wrapper around its contents, because content growth is invisible to the obvious single-ref version: expanding a row inside a flex-sized scroller fires no `scroll` event and does not change the scroller's own border box, so a `ResizeObserver` watching only the scroller never runs. Watching the inner wrapper is what catches it, and the wrapper must be rendered unconditionally or it stops being observed at the moment the list grows.
+
+Two details are load-bearing. The predicates carry 1px of slack (`scrollTop > 1`, `scrollTop + clientHeight < scrollHeight - 1`) because fractional layout heights routinely leave a scroll a hair short of its own end, which would pin the bottom fade on permanently. And the fades are conditionally mounted rather than rendered at zero opacity, so a list that fits carries no decoration over its first and last rows at all — an always-present gradient dimming the top row of a short list is a worse artefact than the missing scrollbar it was meant to replace.
 
 ## Before adding an interactive element
 

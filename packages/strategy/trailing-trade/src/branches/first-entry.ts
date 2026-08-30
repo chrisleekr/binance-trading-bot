@@ -64,7 +64,7 @@ export type ForcedEntryResult =
       // return to the window low (or the entry order is already resting). The
       // auto-trigger-buy caller keeps its timer armed and re-checks next tick
       // rather than discarding the forced re-entry; the one-shot trigger-buy
-      // override has nothing to keep, so it reports a skip (#369).
+      // override has nothing to keep, so it reports a skip.
       readonly kind: 'wait';
     }
   | {
@@ -160,7 +160,7 @@ export const emitForcedFirstEntry = (
         // is a true `open-buy` skip and the timer should clear. If instead a
         // `lowest-price` basis simply has not reached the window low yet,
         // surface a `wait` so the timer caller keeps re-checking rather than
-        // discarding the forced re-entry and mislabelling it `open-buy` (#369).
+        // discarding the forced re-entry and mislabelling it `open-buy`.
         return hasOpenBuyForSymbol(input.openOrders, input.market.symbol)
           ? { kind: 'skip', reason: 'open-buy' }
           : { kind: 'wait' };

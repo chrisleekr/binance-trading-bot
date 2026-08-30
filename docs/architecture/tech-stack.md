@@ -40,7 +40,7 @@ The web app is **build-only** — there is no web container. The api serves the 
 | `ROLE` | Runs | Notes |
 | --- | --- | --- |
 | `all` | api + live worker + study, in one process and one event loop | The default. Fewest moving parts; the worker-tuning defaults are conservative because everything shares a loop. |
-| `api` | HTTP api + SPA + database migrations | Only this role migrates; the others set `SKIP_MIGRATIONS=1` so runners never race. |
+| `api` | HTTP api + SPA | Every application role runs the advisory-locked migration runner before boot. |
 | `worker` | The live trading loop only | **Single replica today.** Multi-replica scale-out is merged but dormant. |
 | `study` | The backtest replay consumer only | Split it out to keep a long backtest off the trading loop. |
 

@@ -11,6 +11,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { ONBOARDING_STATUS_QUERY_KEY } from '@/features/auth/api/auth';
 import { diagnosisRunsQueryKey } from '@/features/profile/api/diagnosis';
 import { createQueryClient } from '@/shared/lib/query-client';
 import { ProfileManageSheet } from '@/features/profile/components/profile-manage-sheet';
@@ -42,9 +43,11 @@ const aggregate = (): DashboardAggregateResponse => ({
   ],
 });
 
-const setUp = (): void => {
+const setUp = (demoMode = false): void => {
   const qc = createQueryClient();
   qc.setQueryData(['dashboard-aggregate'], aggregate());
+  // Where `useDemoMode` reads from; seeded rather than fetched, the query being staleTime-Infinity.
+  qc.setQueryData(ONBOARDING_STATUS_QUERY_KEY, { masterExists: true, demoMode });
   // The investigation drawer stays mounted (closed) alongside the manage sheet
   // and rehydrates the newest run; an empty history keeps it off the network and
   // on the confirm step.
@@ -105,6 +108,20 @@ describe('ProfileManageSheet', () => {
     // state mid-handover; what matters is that it is released on close, which
     // the next test asserts.
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
+
+  it('hands over a drawer with no start control in the live demo', async () => {
+    // The second entry point into the same drawer. Both are asserted because the demo guard belongs to the drawer, not to whichever caller opened it, and only one of the two is covered by investigate-button.test.tsx.
+    setUp(true);
+    await userEvent.click(await screen.findByTestId('open-manage-sheet'));
+    await userEvent.click(await screen.findByTestId('profile-manage-investigate'));
+
+    expect(await screen.findByTestId('investigate-sheet')).toBeInTheDocument();
+    // Text, not presence: a missing i18n key renders as the key itself and would satisfy a node-only check.
+    expect(await screen.findByTestId('investigate-demo-unavailable')).toHaveTextContent(
+      /turned off in the live demo/,
+    );
+    expect(screen.queryByTestId('diagnosis-start')).toBeNull();
   });
 
   it('returns the page to the operator when the investigation drawer closes', async () => {

@@ -38,6 +38,7 @@ import {
   triggerSell,
 } from '@/features/symbol/api/symbol';
 import { queryDefaults } from '@/shared/lib/query-client';
+import { Select } from '@/shared/components/ui/select';
 
 import { asDecimalString, type DecimalString, type ManualOrderRequest } from '@app/contracts';
 
@@ -305,46 +306,44 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
     <section className="space-y-3" data-testid="manual-trade-panel">
       <h2 className="text-sm font-semibold text-fg">Manual trade</h2>
       <form className="space-y-3" onSubmit={onReview} aria-label="Manual trade form">
-        {/* min-w-0 on each column lets the flex items shrink below their
-            content width; w-full on the native selects then fits them to the
-            narrow right rail instead of overflowing the card on desktop. */}
-        <div className="flex gap-2">
-          <Label className="flex min-w-0 flex-1 flex-col gap-1 text-xs">
+        {/* Two-column grid, not three equal flex columns: three columns in a 288px rail leave ~90px each, which cannot show "Coin (quantity)" at any breakpoint. Side and Type are two short words and fit the top row; Size-by takes the full width below. min-w-0 stays because it is what lets a select shrink inside its track rather than pushing the card wider than the rail. */}
+        <div className="grid grid-cols-2 gap-2">
+          <Label className="flex min-w-0 flex-col gap-1 text-xs">
             <span>Side</span>
-            <select
+            <Select
               data-testid="manual-side"
-              className="h-9 w-full min-w-0 rounded-xs border border-border bg-surface-alt px-2 text-sm"
+              className="w-full min-w-0"
               value={form.side}
               onChange={(e) => setForm({ ...form, side: e.target.value as ManualForm['side'] })}
             >
               <option value="BUY">BUY</option>
               <option value="SELL">SELL</option>
-            </select>
+            </Select>
           </Label>
-          <Label className="flex min-w-0 flex-1 flex-col gap-1 text-xs">
+          <Label className="flex min-w-0 flex-col gap-1 text-xs">
             <span>Type</span>
-            <select
+            <Select
               data-testid="manual-type"
-              className="h-9 w-full min-w-0 rounded-xs border border-border bg-surface-alt px-2 text-sm"
+              className="w-full min-w-0"
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value as ManualType, price: '' })}
             >
               <option value="MARKET">MARKET</option>
               <option value="LIMIT">LIMIT</option>
-            </select>
+            </Select>
           </Label>
-          <Label className="flex min-w-0 flex-1 flex-col gap-1 text-xs">
+          <Label className="col-span-2 flex min-w-0 flex-col gap-1 text-xs">
             <span>Size by</span>
-            <select
+            <Select
               data-testid="manual-sizing"
               title="Choose whether you enter how much cash to spend (quote, e.g. USDT) or how much coin to trade (quantity, e.g. BTC)."
-              className="h-9 w-full min-w-0 rounded-xs border border-border bg-surface-alt px-2 text-sm"
+              className="w-full min-w-0"
               value={form.sizing}
               onChange={(e) => setForm({ ...form, sizing: e.target.value as ManualSizing })}
             >
               <option value="quoteAmount">Cash (quote)</option>
               <option value="quantity">Coin (quantity)</option>
-            </select>
+            </Select>
           </Label>
         </div>
 

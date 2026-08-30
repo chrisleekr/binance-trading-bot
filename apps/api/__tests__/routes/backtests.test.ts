@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { profileRepo } from '@app/db';
 import { BacktestParamsSchema } from '@app/contracts';
-import { buildStrategyRegistry } from '@app/strategy-registry';
-import { createApiStrategyRegistry } from '../../src/strategies/registry.js';
 import { signatureForRun } from '../../src/backtest-signature.js';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
@@ -394,9 +392,7 @@ describeIfInfra('backtests routes', () => {
   it('re-running an identical backtest dedups to the existing completed run without enqueuing', async () => {
     const fresh = await setupApp();
     try {
-      // A real strategy registry + a full profile config so the route can parse
-      // the config and compute the server-side backtest signature.
-      fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
+      // A full profile config, so the route can parse it and compute the server-side backtest signature. The fixture seeds `config = '{}'`, which the real schema rejects, and a config that cannot be parsed signs as null.
       const plugin = fresh.di.strategies.get('trailing-trade');
       if (!plugin) throw new Error('trailing-trade not registered');
       const fullConfig = plugin.defaultConfig as Record<string, unknown>;
@@ -533,13 +529,9 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('a re-run with parentRunId set still dedups to the existing run and stamps no lineage', async () => {
-    // C1 reaches the create path because the empty fixture registry yields a null
-    // signature (no dedup). With a real registry the signature is computable, so
-    // an identical config+market dedups — and dedup wins over lineage: the
-    // existing run is reused and its parent_run_id stays null (no new stamp).
+    // C1 reaches the create path because the fixture seeds an empty profile config the real schema rejects, so its signature is null and nothing dedups. Hand the route a config that parses and the signature is computable, so an identical config+market dedups — and dedup wins over lineage: the existing run is reused and its parent_run_id stays null (no new stamp).
     const fresh = await setupApp();
     try {
-      fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
       const plugin = fresh.di.strategies.get('trailing-trade');
       if (!plugin) throw new Error('trailing-trade not registered');
       const fullConfig = plugin.defaultConfig as Record<string, unknown>;
@@ -777,7 +769,6 @@ describeIfInfra('backtests routes', () => {
   // Drive a finished run on the real strategy's default config, so the manual
   // prompt/parse routes resolve a schema + a valid base config to patch.
   const completeRunWithRegistry = async (fresh: ApiFixture): Promise<string> => {
-    fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
     const plugin = fresh.di.strategies.get('trailing-trade');
     const defaultConfig = plugin?.defaultConfig as Record<string, unknown>;
     const params = { ...validParams, strategyConfigOverride: defaultConfig };
@@ -873,7 +864,6 @@ describeIfInfra('backtests routes', () => {
   it('improve-config prompt carries prior same-market runs, excludes the current run by signature, and strips non-headline metrics', async () => {
     const fresh = await setupApp();
     try {
-      fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
       const plugin = fresh.di.strategies.get('trailing-trade');
       const defaultConfig = plugin?.defaultConfig as Record<string, unknown>;
       const params = { ...validParams, strategyConfigOverride: defaultConfig };
@@ -934,7 +924,6 @@ describeIfInfra('backtests routes', () => {
   it('improve-config prompt downsamples the equity/drawdown curves and includes the exit-reason mix', async () => {
     const fresh = await setupApp();
     try {
-      fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
       const plugin = fresh.di.strategies.get('trailing-trade');
       const defaultConfig = plugin?.defaultConfig as Record<string, unknown>;
       const params = { ...validParams, strategyConfigOverride: defaultConfig };
@@ -1018,7 +1007,6 @@ describeIfInfra('backtests routes', () => {
   it('improve-config prompt carries the live-gate checklist and data-coverage warnings', async () => {
     const fresh = await setupApp();
     try {
-      fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
       const plugin = fresh.di.strategies.get('trailing-trade');
       const defaultConfig = plugin?.defaultConfig as Record<string, unknown>;
       const params = { ...validParams, strategyConfigOverride: defaultConfig };
@@ -1105,7 +1093,6 @@ describeIfInfra('backtests routes', () => {
   it('improve-config prompt marks the finest strategy interval as having no finer detail available', async () => {
     const fresh = await setupApp();
     try {
-      fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
       const plugin = fresh.di.strategies.get('trailing-trade');
       const defaultConfig = plugin?.defaultConfig as Record<string, unknown>;
       // 1m is the finest supported interval, so no finer detail interval exists and
@@ -1291,7 +1278,6 @@ describeIfInfra('backtests routes', () => {
   it('improve-config/parse merges a partial override onto the profile config', async () => {
     const fresh = await setupApp();
     try {
-      fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
       const plugin = fresh.di.strategies.get('trailing-trade');
       if (!plugin) throw new Error('trailing-trade not registered');
       const fullConfig = plugin.defaultConfig as Record<string, unknown>;
@@ -1350,7 +1336,6 @@ describeIfInfra('backtests routes', () => {
   it('improve-config/parse recovers when stored params no longer parse (raw fallback)', async () => {
     const fresh = await setupApp();
     try {
-      fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
       const plugin = fresh.di.strategies.get('trailing-trade');
       if (!plugin) throw new Error('trailing-trade not registered');
       const fullConfig = plugin.defaultConfig as Record<string, unknown>;
@@ -1402,7 +1387,6 @@ describeIfInfra('backtests routes', () => {
   it('improve-config/prompt returns 409 when the profile config no longer matches the schema', async () => {
     const fresh = await setupApp();
     try {
-      fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
       const p = await profileRepo(
         fresh.di.db,
         fresh.alice.userId,
@@ -1695,10 +1679,9 @@ describeIfInfra('backtests routes', () => {
     }
   });
 
-  it('createBacktest ?force=true bypasses dedup and creates a fresh run', async () => {
+  it('createBacktest ?force preserves absent/false dedup, accepts true/bare, and rejects invalid values', async () => {
     const fresh = await setupApp();
     try {
-      fresh.di.strategies = createApiStrategyRegistry(buildStrategyRegistry());
       const plugin = fresh.di.strategies.get('trailing-trade');
       if (!plugin) throw new Error('trailing-trade not registered');
       const fullConfig = plugin.defaultConfig as Record<string, unknown>;
@@ -1735,8 +1718,20 @@ describeIfInfra('backtests routes', () => {
       expect(dedupBody.deduped).toBe(true);
       expect(dedupBody.runId).toBe(body1.runId);
 
-      // ?force=true (the "Run fresh anyway" choice) creates a new run despite the
-      // identical signature.
+      // An explicit false remains the dedup path; validation must not coerce the non-empty string "false" to true.
+      const notForced = await fresh.app.request(
+        `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests?force=false`,
+        {
+          method: 'POST',
+          headers: { 'x-test-user-id': fresh.alice.userId, 'content-type': 'application/json' },
+          body: JSON.stringify(params),
+        },
+      );
+      expect(notForced.status).toBe(202);
+      const notForcedBody = (await notForced.json()) as { runId: string; deduped?: boolean };
+      expect(notForcedBody).toEqual({ runId: body1.runId, deduped: true });
+
+      // The explicit true form creates a new run despite the identical signature.
       const forced = await fresh.app.request(
         `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests?force=true`,
         {
@@ -1749,6 +1744,30 @@ describeIfInfra('backtests routes', () => {
       const forcedBody = (await forced.json()) as { runId: string; deduped?: boolean };
       expect(forcedBody.deduped).toBe(false);
       expect(forcedBody.runId).not.toBe(body1.runId);
+
+      const bareForce = await fresh.app.request(
+        `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests?force`,
+        {
+          method: 'POST',
+          headers: { 'x-test-user-id': fresh.alice.userId, 'content-type': 'application/json' },
+          body: JSON.stringify(params),
+        },
+      );
+      expect(bareForce.status).toBe(202);
+      const bareForceBody = (await bareForce.json()) as { runId: string; deduped?: boolean };
+      expect(bareForceBody.deduped).toBe(false);
+      expect(bareForceBody.runId).not.toBe(body1.runId);
+      expect(bareForceBody.runId).not.toBe(forcedBody.runId);
+
+      const invalid = await fresh.app.request(
+        `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests?force=yes`,
+        {
+          method: 'POST',
+          headers: { 'x-test-user-id': fresh.alice.userId, 'content-type': 'application/json' },
+          body: JSON.stringify(params),
+        },
+      );
+      expect(invalid.status).toBe(422);
     } finally {
       await fresh.cleanup();
     }

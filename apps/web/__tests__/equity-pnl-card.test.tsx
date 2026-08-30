@@ -24,8 +24,15 @@ describe('toSeries (profit vs hold)', () => {
       series: [],
       holdWindowPct: null,
       latestNetPnl: null,
+      // Nothing plotted is nothing to distrust, matching how the rollup fold reports an empty bucket.
+      feeBasis: 'exact',
     });
-    expect(toSeries([], 'btc')).toEqual({ series: [], holdWindowPct: null, latestNetPnl: null });
+    expect(toSeries([], 'btc')).toEqual({
+      series: [],
+      holdWindowPct: null,
+      latestNetPnl: null,
+      feeBasis: 'exact',
+    });
   });
 
   it('projects the BTC-hold counterfactual from the first deployed point cost and BTC move', () => {
@@ -182,11 +189,50 @@ describe('toSeries (profit vs hold)', () => {
     expect(out.series[0]?.netPnl).toBe(0);
     expect(out.latestNetPnl).toBe(20);
   });
+
+  it('reports the window at its WEAKEST point tier, not its newest', () => {
+    // The green line is one claim about the whole window, so a single unaccounted point taints it. Ordered weak-then-strong on purpose: a fold that just took the last value would read `exact` here and certify a curve built partly on a total known to be short.
+    const out = toSeries(
+      [
+        pt({ positionCostQuote: '100', feeBasis: 'unknown' }),
+        pt({ positionCostQuote: '100', feeBasis: 'exact' }),
+      ],
+      'btc',
+    );
+    expect(out.feeBasis).toBe('unknown');
+  });
+
+  it('reports estimated when that is the weakest tier plotted', () => {
+    // The other half: without it, a fold hardwired to `unknown` would satisfy the case above and mark every reconstructed curve as unaccounted for, which is the tier whose whole meaning is that a charge is MISSING.
+    const out = toSeries(
+      [
+        pt({ positionCostQuote: '100', feeBasis: 'exact' }),
+        pt({ positionCostQuote: '100', feeBasis: 'estimated' }),
+      ],
+      'btc',
+    );
+    expect(out.feeBasis).toBe('estimated');
+  });
+
+  it('ignores the tier of points dropped before the anchor', () => {
+    // The fold runs over the PLOTTED window, not the raw response. A pre-deployment point is not on the line, so its evidence cannot be what the line is marked for.
+    const out = toSeries(
+      [
+        pt({ positionCostQuote: '0', feeBasis: 'unknown' }),
+        pt({ positionCostQuote: '100', feeBasis: 'exact' }),
+      ],
+      'btc',
+    );
+    expect(out.feeBasis).toBe('exact');
+  });
 });
 
 const PROFILE_ID = '4d2f9f4a-1c9c-4e5f-9a1d-3b6f7c8e0a2c';
 
-const snapshotsResponse = (benchmarkMode: 'btc' | 'basket'): Response =>
+const snapshotsResponse = (
+  benchmarkMode: 'btc' | 'basket',
+  feeBasis: 'exact' | 'estimated' | 'unknown' = 'exact',
+): Response =>
   new Response(
     JSON.stringify({
       profileId: PROFILE_ID,
@@ -201,6 +247,7 @@ const snapshotsResponse = (benchmarkMode: 'btc' | 'basket'): Response =>
           positionCostQuote: '100',
           benchmarkAsset: 'BTC',
           benchmarkPriceQuote: '100',
+          feeBasis,
         },
       ],
     }),
@@ -229,10 +276,13 @@ const profileResponse = (benchmarkMode: 'btc' | 'basket'): Response =>
 describe('EquityPnlCard benchmark selector', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  const renderCard = (mode: 'btc' | 'basket'): ReturnType<typeof vi.fn> => {
+  const renderCard = (
+    mode: 'btc' | 'basket',
+    feeBasis: 'exact' | 'estimated' | 'unknown' = 'exact',
+  ): ReturnType<typeof vi.fn> => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === 'PATCH') return profileResponse('basket');
-      return snapshotsResponse(mode);
+      return snapshotsResponse(mode, feeBasis);
     });
     vi.stubGlobal('fetch', fetchMock);
     render(
@@ -250,6 +300,20 @@ describe('EquityPnlCard benchmark selector', () => {
     // query to resolve and flip it to the profile's stored mode.
     await waitFor(() => expect(select.value).toBe('basket'));
     expect(screen.getByText('Profit vs holding your basket')).toBeInTheDocument();
+  });
+
+  it('marks the headline when the plotted window rests on an unaccounted charge', async () => {
+    // The point is no longer withheld server-side, so this marker is the ONLY thing standing between a curve built on a total known to be short and a reader taking it as a certified Net P/L. It reuses the archive rollup's wording so the two surfaces mean the same thing by the same phrase.
+    renderCard('btc', 'unknown');
+    expect(await screen.findByTestId('equity-fee-basis')).toHaveTextContent('fees not accounted');
+  });
+
+  it('leaves the headline unmarked when every plotted point is exact', async () => {
+    // Without this the marker could be unconditional, which trains the operator to ignore it.
+    renderCard('btc');
+    await screen.findByTestId<HTMLSelectElement>('equity-benchmark-mode');
+    await waitFor(() => expect(screen.getByText(/Net P\/L/)).toBeInTheDocument());
+    expect(screen.queryByTestId('equity-fee-basis')).toBeNull();
   });
 
   it('PATCHes the profile when the operator changes the benchmark', async () => {

@@ -248,7 +248,7 @@ function GridTable({
               key={i}
               className={'space-y-0.5 px-3 py-2 text-xs ' + (active ? 'bg-accent/15' : '')}
               data-testid={`grid-row-${i}`}
-              aria-current={active ? 'true' : undefined}
+              aria-current={active ? 'page' : undefined}
             >
               <div className="flex items-center justify-between">
                 <span className="font-semibold">#{i + 1}</span>

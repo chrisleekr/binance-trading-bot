@@ -1,8 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 
+import { API_KEY_DESTINATION } from '@/features/account/lib/api-key-destination';
+import { useDemoMode } from '@/features/auth/api/auth';
 import { dashboardAggregateQueryOptions } from '@/features/dashboard/api/dashboard';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
+import { visibleInDemo } from '@/shared/lib/demo-visibility';
 import { formatLastTick, formatTickLatency } from '@/shared/lib/format-tick';
 import { t } from '@/shared/lib/i18n';
 
@@ -21,6 +24,7 @@ export function SymbolTickChips({
   readonly profileId: string;
 }): React.JSX.Element | null {
   const accountId = useActiveAccountId() ?? '';
+  const demoMode = useDemoMode();
   const { data } = useQuery({
     ...dashboardAggregateQueryOptions(accountId),
     enabled: accountId !== '',
@@ -61,16 +65,25 @@ export function SymbolTickChips({
       />
       {needsApiKey ? (
         // Sibling of the chip span — nesting it would make a screen reader
-        // concatenate the link copy into the chip's accessible name.
-        <Link
-          to="/accounts/$accountId/api-key"
-          params={{ accountId }}
-          aria-label={t('symbol.tick.configure_key.aria', { profileName: row.name })}
-          className="text-xs text-accent underline"
-          data-testid="symbol-tick-chip-api-key-link"
-        >
-          {t('symbol.tick.configure_key')}
-        </Link>
+        // concatenate the link copy into the chip's accessible name. The demo
+        // operator keeps the "no key" chip, which is the true state, but not the
+        // link into the page that 403s for them.
+        visibleInDemo(API_KEY_DESTINATION, demoMode) ? (
+          <Link
+            to="/accounts/$accountId/api-key"
+            params={{ accountId }}
+            aria-label={t('symbol.tick.configure_key.aria', { profileName: row.name })}
+            className="text-xs text-accent underline"
+            data-testid="symbol-tick-chip-api-key-link"
+          >
+            {t('symbol.tick.configure_key')}
+          </Link>
+        ) : (
+          // Same words, no destination: the operator still learns the profile has no key, which is the whole point of the chip.
+          <span className="text-xs text-muted-fg" data-testid="symbol-tick-chip-api-key-hint">
+            {t('symbol.tick.configure_key')}
+          </span>
+        )
       ) : (
         <TickChip
           label={t('symbol.tick.latency')}

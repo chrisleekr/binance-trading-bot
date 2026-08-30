@@ -13,6 +13,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import { accounts } from './accounts.js';
 import { profiles } from './profiles.js';
+import { numeric38_18 } from './_types.js';
 
 export const orders = pgTable(
   'orders',
@@ -40,6 +41,8 @@ export const orders = pgTable(
     meta: jsonb('meta'),
     status: text('status').notNull(),
     raw: jsonb('raw').notNull(),
+    // Exact application-owned BUY base commission subtracted from the quantity used by cost basis. NULL means no such amount is proven; vendor JSON cannot populate it.
+    baseCommissionNetted: numeric38_18('base_commission_netted'),
     // Cost-basis-matched realised P/L of a SELL fill, written once by the
     // fill-adopter from the position's avg entry price at fill time. NULL on
     // BUY rows and on a SELL with no known cost basis (the archiver never
@@ -60,7 +63,7 @@ export const orders = pgTable(
     check('orders_side_chk', sql`${table.side} in ('BUY','SELL')`),
     // `intent` is an open, strategy-owned string (no CHECK): each strategy
     // names its own intents, so a second strategy's orders are not rejected
-    // at insert. Dropping the closed enum also retired the #352 drift class
+    // at insert. Dropping the closed enum also retired the drift class
     // where the CHECK and the contract diverged and crashed the executor.
     uniqueIndex('orders_one_live_per_intent')
       .on(table.profileId, table.symbol, table.intent)

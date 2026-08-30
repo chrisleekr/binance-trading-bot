@@ -10,8 +10,8 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import type { SymbolSource } from '@app/contracts';
-import { numeric20_10, numeric38_18 } from './_types.js';
+import type { FeeBasis, SymbolSource } from '@app/contracts';
+import { numeric38_18 } from './_types.js';
 import { profiles } from './profiles.js';
 
 export const tradeArchive = pgTable(
@@ -29,7 +29,6 @@ export const tradeArchive = pgTable(
     totalBuyQuote: numeric38_18('total_buy_quote').notNull(),
     totalSellQuote: numeric38_18('total_sell_quote').notNull(),
     profit: numeric38_18('profit').notNull(),
-    profitPercent: numeric20_10('profit_percent').notNull(),
     // Strategy-specific quote decomposition, keyed by `"<intent>:<side>"`
     // (TT: `grid-buy:BUY`, `manual:SELL`, ...). Generic so any strategy's
     // intents archive honestly without dedicated columns.
@@ -49,16 +48,11 @@ export const tradeArchive = pgTable(
     fees: jsonb('fees')
       .notNull()
       .default(sql`'{}'::jsonb`),
-    // The cycle's commissions valued in the quote asset (each commission asset
-    // converted at archive time: quote 1:1, base at the fill price, others at a
-    // ticker lookup). Lets every analytics surface report net P/L
-    // (`profit - feesQuote`) and fee drag. Mirrors migration 0043 (documentation
-    // only; the hand-written SQL owns the DDL and the best-effort backfill).
+    // The additional quote adjustment on top of cost-basis `profit`: quote commission 1:1, base SELL at fill price, and a proven fee-net base BUY at zero. Third-asset fees stay raw and unvalued without an execution-time quote rate. Mirrors migration 0043; the hand-written SQL owns the DDL.
     feesQuote: numeric38_18('fees_quote').notNull().default('0'),
-    // Source of the symbol when this cycle was archived: `manual` (operator-
-    // added) or `auto` (discovery-rotated). Lets the net-edge scoreboard isolate
-    // discovery-attributed realized PnL. Defaults `manual` so pre-discovery rows
-    // and every non-discovery archive stamp honestly.
+    // How well `feesQuote` is known: `exact` valued from evidence dated to the fill, `estimated` reconstructed from a source that is not, `unknown` missing a charge outright so the total under-states what was paid. Numeric zero is valid at all three, which is exactly why the tier cannot be inferred from the number. Defaults to the weakest so a row written without one is never read as certified. Mirrors migration 0093; the hand-written SQL owns the DDL.
+    feeBasis: text('fee_basis').$type<FeeBasis>().notNull().default('unknown'),
+    // Provenance of the symbol when this cycle was archived: `manual` (operator-added), `auto` (discovery-rotated), or `unknown` (the binding was gone by archive time, or the system re-created it, so neither claim is true). Lets the net-edge scoreboard isolate discovery-attributed realized PnL. Defaults `manual` so pre-discovery rows and every non-discovery archive stamp honestly.
     source: text('source').$type<SymbolSource>().notNull().default('manual'),
     // How many SELL fills in this cycle had no cost basis (`realized_pnl` NULL).
     // Those contribute nothing to `profit`, so a positive count means the row's
@@ -110,7 +104,11 @@ export const tradeArchive = pgTable(
       table.archivedAt.desc(),
       table.id.desc(),
     ),
-    check('trade_archive_source_chk', sql`${table.source} in ('manual', 'auto')`),
+    check('trade_archive_source_chk', sql`${table.source} in ('manual', 'auto', 'unknown')`),
+    check(
+      'trade_archive_fee_basis_chk',
+      sql`${table.feeBasis} in ('exact', 'estimated', 'unknown')`,
+    ),
   ],
 );
 

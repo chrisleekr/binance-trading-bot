@@ -16,7 +16,7 @@
  * A resolved, ready-to-send notifier: the provider name plus its full merged
  * (config + secrets) shape that `NotifyProvider.send({config, payload})`
  * expects. Owned here rather than in the executor — the `notify` Decision
- * variant was removed (#207), so this module is the sole producer, consumed by
+ * variant was removed, so this module is the sole producer, consumed by
  * the alive digest / discovery / orphan-detect crons and the emergency-notify
  * path.
  */

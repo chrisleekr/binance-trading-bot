@@ -9,7 +9,7 @@ import { Link } from '@tanstack/react-router';
 
 import { useSymbolRows } from '@/features/dashboard/lib/use-symbol-rows';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
-import { isHeldPosition, unrealisedPnlOf } from '@/features/profile/lib/unrealised-pnl';
+import { isManagedPosition, managedUnrealisedPnlOf } from '@/features/profile/lib/unrealised-pnl';
 import { orderDisplayPrice, orderQty } from '@/features/symbol/lib/order-raw';
 import { deriveQuote } from '@/shared/lib/symbol-quote';
 import { formatAmount, formatPrice } from '@/shared/lib/format';
@@ -24,7 +24,8 @@ export function PositionsOrdersPanel({
 }): React.JSX.Element | null {
   const accountId = useActiveAccountId() ?? '';
   const merged = useSymbolRows(rows);
-  const positions = merged.items.filter((r) => isHeldPosition(r.sym));
+  // A refused seed is not one of "your money now": nothing sellable backs it, so listing it here would put a position the strategy will never exit beside the ones it is running.
+  const positions = merged.items.filter((r) => isManagedPosition(r.sym));
   const orders = merged.items.flatMap((r) =>
     r.sym.openOrders.map((order) => ({ profileId: r.profileId, symbol: r.sym.symbol, order })),
   );
@@ -54,7 +55,7 @@ export function PositionsOrdersPanel({
           ) : (
             <ul className="space-y-1">
               {positions.map((r) => {
-                const pnl = unrealisedPnlOf(r.sym);
+                const pnl = managedUnrealisedPnlOf(r.sym);
                 return (
                   <li
                     key={`${r.profileId}:${r.sym.symbol}`}

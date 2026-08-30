@@ -79,7 +79,7 @@ describeIfInfra('client IP derivation (#688)', () => {
 
     // Rightmost (trusted proxy) is constant; leftmost (client-controlled) rotates
     // every request. Bucketing on the rightmost hop means all 6 share one counter.
-    const fire = (leftmost: string): Promise<Response> =>
+    const fire = async (leftmost: string): Promise<Response> =>
       app.fetch(
         new Request('http://test.local/api/auth/sign-in', {
           method: 'POST',

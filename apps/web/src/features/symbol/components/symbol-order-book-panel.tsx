@@ -17,6 +17,7 @@ import { fetchSymbolOrderBook, symbolOrderBookQueryKey } from '@/features/symbol
 import { groupingSteps, groupLevels } from '@/features/symbol/lib/order-book-group';
 import { TableSkeleton } from '@/shared/components/page-skeleton';
 import { formatAmount, formatPrice } from '@/shared/lib/format';
+import { Select } from '@/shared/components/ui/select';
 
 import type { OrderBook, OrderBookLevel } from '@app/contracts';
 
@@ -249,9 +250,9 @@ export function SymbolOrderBookPanel({
         {hasDepth && steps.length > 0 ? (
           <label className="flex items-center gap-1 text-xs text-muted-fg">
             Group
-            <select
+            <Select
+              variant="sm"
               data-testid="order-book-group"
-              className="rounded-xs border border-border bg-surface-alt px-1 py-0.5 text-xs"
               value={String(effectiveStep)}
               onChange={(e) => setStep(Number(e.target.value))}
             >
@@ -260,7 +261,7 @@ export function SymbolOrderBookPanel({
                   {s}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         ) : null}
       </div>

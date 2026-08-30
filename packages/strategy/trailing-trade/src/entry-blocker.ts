@@ -73,7 +73,7 @@ export interface EntryBlockerContext {
     readonly reason: 'discovery-no-stop';
     readonly context: Readonly<Record<string, unknown>>;
   } | null;
-  // Discovery anti-chase vetoes (#473): the price is within the configured
+  // Discovery anti-chase vetoes: the price is within the configured
   // distance of the 24h high (chase) or the window is still falling (knife).
   // Both are discovery-entry-only and pre-empt a bullish-technicals entry.
   readonly chaseGuardVeto: ChaseGuardVeto | null;

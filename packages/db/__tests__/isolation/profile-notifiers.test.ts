@@ -1,4 +1,5 @@
 import { inArray } from 'drizzle-orm';
+import { asProfileNotifierId } from '@app/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { profileRepo, type ProfileRepo } from '../../src/repo/index.js';
 import { profileNotifiers } from '../../src/schema/profile-notifiers.js';
@@ -72,11 +73,12 @@ describeIfDb('profile-notifiers account-scoped reads and writes', () => {
   it('setEnabled flips the owner-scoped row on the happy path', async () => {
     const slackRow = await ap.profileNotifiers.findByProvider('slack');
     if (!slackRow) throw new Error('seeded Alice slack row missing');
-    await ap.profileNotifiers.setEnabled(slackRow.id, false);
+    const notifierId = asProfileNotifierId(slackRow.id);
+    await ap.profileNotifiers.setEnabled(notifierId, false);
     const after = await ap.profileNotifiers.findByProvider('slack');
     expect(after?.enabled).toBe(false);
     // Restore for any later test.
-    await ap.profileNotifiers.setEnabled(slackRow.id, true);
+    await ap.profileNotifiers.setEnabled(notifierId, true);
   });
 
   it('upsertByProvider replaces the owner-scoped row in place', async () => {

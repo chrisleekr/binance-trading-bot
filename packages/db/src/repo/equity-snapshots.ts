@@ -28,12 +28,14 @@ export async function record(
  *
  * `quoteAsset` is required because the caller labels the whole series with ONE currency. A profile's quote can be changed, and rows recorded under the old one stay on disk (they were correct when written), so an unfiltered read hands the chart two currencies on one axis under the newer label. They are filtered out rather than deleted: the operator switching back makes that history readable again, and nothing is lost meanwhile.
  *
+ * Deliberately NOT filtered by `feeBasis`. A snapshot's realised leg is an ALL-TIME cumulative fold, so its tier is the weakest any cycle the profile ever closed carries, and closing further cycles can only weaken it. One path lifts a tier at all — the operator-triggered fee reconciliation — and it repairs archive rows, never the snapshots already stamped from them, so no snapshot's tier ever improves once written. Withholding `unknown` here therefore does not defer a point until better evidence arrives, it blanks the whole curve permanently for any account that has one historical cycle Binance billed in an asset nobody valued. The tier travels with each row instead, so the decision to mark or withhold is made where the line is drawn.
+ *
  * @param scope - Ownership-proven profile scope.
  * @param quoteAsset - The currency to read the series in, normally the profile's current one. Rows recorded under any other quote are omitted.
  * @param from - Inclusive lower bound on `captured_at`.
  * @param to - Inclusive upper bound on `captured_at`.
  * @param limit - Maximum rows; the NEWEST are kept when the range holds more.
- * @returns The matching rows, oldest-first for direct plotting. Empty when the profile has no series in this quote.
+ * @returns Every matching row, oldest-first for direct plotting, each carrying its own `feeBasis`. Empty only when the profile has no series in this quote.
  */
 export async function listForProfileInRange(
   scope: ProfileScope,

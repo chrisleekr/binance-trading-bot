@@ -16,10 +16,7 @@ import {
 type ManageView = 'closed' | 'manage' | 'investigate';
 
 /**
- * Moves the per-profile admin actions off the overview scroll into a right
- * slide-over. The overview keeps a single "Manage profile" affordance; the full
- * action grid (configure / analyze / operate / danger) opens on demand. Reuses
- * the existing ProfileManageCard verbatim as the sheet body.
+ * Moves the per-profile operations off the overview scroll into a right slide-over. The overview keeps a single "Manage profile" affordance; the actions that have no page of their own open on demand. Navigation is deliberately not here — the sidebar and the mobile Profiles sheet own that, and they can show which section you are in, which a modal cannot.
  *
  * The Investigate drawer opens from inside that grid, so one three-way state
  * governs both rather than a boolean each. Both are Radix modal dialogs: nesting
@@ -54,7 +51,7 @@ export function ProfileManageSheet({
         >
           <SheetHeader>
             <SheetTitle>Manage profile</SheetTitle>
-            <SheetDescription>Configure, analyze, and operate this profile.</SheetDescription>
+            <SheetDescription>Run a diagnosis or reconcile fees for this profile.</SheetDescription>
           </SheetHeader>
           <div className="mt-4">
             <ProfileManageCard profileId={profileId} onInvestigate={() => setView('investigate')} />

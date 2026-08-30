@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createQueryClient } from '@/shared/lib/query-client';
 import { rootRoute } from '@/app/__root';
+import { settingsRoute } from '@/features/account/routes/settings';
 import { backupRestoreRoute } from '@/features/account/routes/settings.backup-restore';
 
 // Matches the global test-setup default active account; the aggregate cache is
@@ -54,14 +55,19 @@ const setUp = (
   const indexStub = stub('/');
   const onboardingStub = stub('/onboarding');
   const loginStub = stub('/login');
-  const settingsStub = stub('/settings');
+  // The real settings layout, not a stub: backup-restore nests under it, and
+  // that parent is what the breadcrumb names as this page's ancestor.
+  const settingsIndexStub = createRoute({
+    getParentRoute: () => settingsRoute,
+    path: '/',
+    component: () => null,
+  });
   const router = createRouter({
     routeTree: rootRoute.addChildren([
       indexStub,
       onboardingStub,
       loginStub,
-      settingsStub,
-      backupRestoreRoute,
+      settingsRoute.addChildren([settingsIndexStub, backupRestoreRoute]),
     ]),
     context: { queryClient },
     history: createMemoryHistory({ initialEntries: ['/settings/backup-restore'] }),

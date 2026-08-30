@@ -800,7 +800,7 @@ export const sellEmissionOrSkip = (
   // drowns real alerts. Reserve WARN for genuinely-actionable skips:
   // `invalid-filters` means exchange-info is malformed. Dust states
   // (`min-qty`, `min-notional`) are informational — operator may want to know
-  // but no action required. See #265.
+  // but no action required.
   return {
     kind: 'skip',
     skipReason,

@@ -42,7 +42,14 @@ import { Decimal } from '@app/money';
 import { isRateLimitError } from '@app/binance';
 import type { BinanceMode, MyTradeDto, PriceTickerDto } from '@app/binance';
 
-import { GLOBAL_KEYS, profileRepo, repo, type Database, type ProfileScope } from '@app/db';
+import {
+  GLOBAL_KEYS,
+  profileRepo,
+  repo,
+  POSITION_SEED_REFUSED,
+  type Database,
+  type ProfileScope,
+} from '@app/db';
 import { unwrapId, type AccountId, type ProfileId, type UserId } from '@app/contracts';
 import {
   isBelowMinNotional,
@@ -54,11 +61,14 @@ import type { ActiveProfile } from 'profile-manager/profile-manager.js';
 import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
 import type { ChainByKey } from 'lib/chain-by-key.js';
 import type { MetricsSink } from 'metrics/catalog.js';
-import { reserveAdjustedBalance } from 'lib/reserve.js';
 import { runStateMigration } from 'state/migrate-state.js';
 import { mutateSymbolState, type MutateSymbolStateDeps } from 'state/version-aware-mutate.js';
 import { openPositionFromFills } from 'queues/pipeline-handlers/open-position-from-fills.js';
-import { reviveAvgEntryPriceForTarget, type ReviveAction } from './revive-avg-entry-price.js';
+import {
+  isPhantomLedgerRow,
+  reviveAvgEntryPriceForTarget,
+  type ReviveAction,
+} from './revive-avg-entry-price.js';
 
 /**
  * Pure reconciliation core. No I/O — the caller passes the wallet
@@ -79,8 +89,6 @@ export interface ReconcileInput {
   readonly stepSize: string;
   readonly minNotional: string | null;
   readonly referencePrice: string | null;
-  /** `free + locked` for the base asset BEFORE the operator's base-asset RESERVE was drained out of it, or null, which DISARMS the dust value bounds rather than substituting the reserve-adjusted total — the one number guaranteed to read a fully-reserved holding as worthless. Only the dust VALUE bounds read it, and only they should: a reserve is an operator policy about what the STRATEGY may trade, while `minNotional` is a fact about what the EXCHANGE will accept, so "is this holding real or is it residue?" has to be asked of the coins the operator actually owns. Sizing and adoption keep reading the reserve-adjusted `walletFree`/`walletLocked`, unchanged. Required-but-nullable, not optional: an omitted field is one a forwarding hop can drop silently, and a silently-dropped bound input is exactly how an earlier fix here shipped as a no-op. */
-  readonly unreservedWalletTotal: string | null;
 }
 
 export type ReconcileAction =
@@ -112,17 +120,11 @@ export const reconcileHeldQuantity = (input: ReconcileInput): ReconcileResult =>
   const wallet = free.plus(locked);
   const minNotional = input.minNotional == null ? null : safe(input.minNotional);
   const referencePrice = input.referencePrice == null ? null : safe(input.referencePrice);
-  // Every VALUE bound below is asked of the operator's own balance, not of the slice the strategy is allowed to trade. The reserve is drained upstream, so `walletFree`/`walletLocked` already exclude coins the operator told the bot to hold and never sell; valuing that number would read a fully-reserved holding as dust and delete its cost basis over a figure the operator can undo by lowering the reserve.
-  //
-  // Null therefore DISARMS the bound rather than falling back, the same rule `referencePrice` and `minNotional` already follow and for the same reason: these bounds only ever REMOVE a position, so a missing input has to mean "do not act", never "act on whatever number is nearest". Here the nearest number is the worst one available — the reserve-adjusted balance is precisely the figure that reads a fully-reserved holding as dust, so a forwarding hop that dropped the field would re-arm the deletion this field exists to prevent.
-  const unreserved = input.unreservedWalletTotal == null ? null : safe(input.unreservedWalletTotal);
+  // Every VALUE bound below reads `wallet`, the `free + locked` total parsed above. A leg that would not parse can never reach one: the guard above returns `no-op` for the whole symbol first. `referencePrice` and `minNotional` are the inputs that can still go missing on their own, and each DISARMS its bound rather than falling back, because these bounds only ever REMOVE a position, so a missing input has to mean "do not act", never "act on whatever number is nearest". Either kind of silent skip is invisible from the outside, which is what `valueBoundDisarmReason` exists to surface.
 
   if (input.heldQuantity === null) {
     // Both bounds, and the crumb share test does not apply: there is no prior position to be a share OF, and seeding is precisely where a written-off crumb comes back. The fill fold flattens an unsellable residue; without this the very next reconcile pass reads the same untradeable balance off the wallet and re-creates the position, so the symbol never leaves the operator's dashboard. Refusing to seed can leave a genuinely-owned sub-notional balance untracked, which is the accepted cost: no strategy can place a sell for it either, so tracking it only manufactures a position nothing can close.
-    if (
-      wallet.lt(step) ||
-      (unreserved !== null && isBelowMinNotional(unreserved, referencePrice, minNotional))
-    ) {
+    if (wallet.lt(step) || isBelowMinNotional(wallet, referencePrice, minNotional)) {
       return { action: 'no-op', nextHeldQuantity: null };
     }
     return { action: 'seed-from-wallet', nextHeldQuantity: wallet.toFixed() };
@@ -140,8 +142,7 @@ export const reconcileHeldQuantity = (input: ReconcileInput): ReconcileResult =>
   //
   // The bound is `isValuelessResidue`, not `isUnsellableDust`: a converged position is its own denominator, so the share test computes exactly 1 and can never fire.
   if (
-    unreserved !== null &&
-    isValuelessResidue(unreserved, referencePrice, minNotional) &&
+    isValuelessResidue(wallet, referencePrice, minNotional) &&
     (held === null || (held.gt(0) && isValuelessResidue(held, referencePrice, minNotional)))
   ) {
     return { action: 'flatten-sub-notional-dust', nextHeldQuantity: null };
@@ -160,15 +161,8 @@ export const reconcileHeldQuantity = (input: ReconcileInput): ReconcileResult =>
   // Adopt the smaller — safest behaviour: never let sell sizing exceed
   // either source.
   if (wallet.lt(held)) {
-    // The tracked position is the denominator the crumb share test needs, so the full dust rule applies here: writing an untradeable crumb back would pin the symbol to a position no sell can ever close. But the two halves of that rule are asked of DIFFERENT balances, and handing both `wallet` is what the invariant above forbids.
-    //
-    // The INCREMENT half is legitimately an adjusted-balance question: no order can be placed for less than one step of the slice the strategy is allowed to trade, so a surplus under one step really is untradeable however much the operator reserves behind it.
-    //
-    // The VALUE half is not. `isUnsellableDust`'s closing clause is `isCrumb && isBelowMinNotional(remaining, …)`, and asked of `wallet` it reads a heavily-reserved holding as a crumb: 100 units at price 1 against a 99.5 reserve and a floor of 5 leaves a 0.5 surplus that is 0.5% of the claim and worth 0.5, so both tests pass and a position worth 100 is nulled over operator policy. The same inputs without the reserve are a plain no-op. So the value pair is asked of `unreserved`, like every other value bound in this module, with the claim still supplying the share denominator.
-    if (
-      wallet.lt(step) ||
-      (unreserved !== null && isUnsellableDust(unreserved, held, referencePrice, null, minNotional))
-    ) {
+    // The tracked position is the denominator the crumb share test needs, so the full dust rule applies here: writing an untradeable crumb back would pin the symbol to a position no sell can ever close. Both halves ask the same `free + locked` total: the INCREMENT half because no order can be placed for less than one step, the VALUE half because a balance can clear that step and still be worth a fraction of one minimum order. The claim supplies the share denominator.
+    if (wallet.lt(step) || isUnsellableDust(wallet, held, referencePrice, null, minNotional)) {
       return { action: 'adopt-wallet-smaller', nextHeldQuantity: null };
     }
     return { action: 'adopt-wallet-smaller', nextHeldQuantity: wallet.toFixed() };
@@ -197,8 +191,6 @@ export interface ReconcileTarget {
   readonly referencePrice: string | null;
   readonly walletFree: string;
   readonly walletLocked: string;
-  /** `free + locked` for the base asset BEFORE the operator's base-asset RESERVE was drained out of it, or null, which DISARMS the dust value bounds rather than substituting the reserve-adjusted total — the one number guaranteed to read a fully-reserved holding as worthless. Only the dust VALUE bounds read it, and only they should: a reserve is an operator policy about what the STRATEGY may trade, while `minNotional` is a fact about what the EXCHANGE will accept, so "is this holding real or is it residue?" has to be asked of the coins the operator actually owns. Sizing and adoption keep reading the reserve-adjusted `walletFree`/`walletLocked`, unchanged. Required-but-nullable, not optional: an omitted field is one a forwarding hop can drop silently, and a silently-dropped bound input is exactly how an earlier fix here shipped as a no-op. */
-  readonly unreservedWalletTotal: string | null;
   readonly state: unknown;
 }
 
@@ -266,7 +258,6 @@ export const reconcileHeldQuantityForTarget = async (
     stepSize: target.stepSize,
     minNotional: target.minNotional,
     referencePrice: target.referencePrice,
-    unreservedWalletTotal: target.unreservedWalletTotal,
   });
   if (result.action === 'no-op') return 'no-op';
 
@@ -282,7 +273,6 @@ export const reconcileHeldQuantityForTarget = async (
     stepSize: target.stepSize,
     minNotional: target.minNotional,
     referencePrice: target.referencePrice,
-    unreservedWalletTotal: target.unreservedWalletTotal,
     action: result.action,
   };
 
@@ -513,12 +503,12 @@ export const readTickerPrice = async (redis: Redis, symbol: string): Promise<str
 /**
  * Which input a dust VALUE bound was missing on a pass that actually reached one.
  *
- * Named per input because the remedies differ: no price is a cold miniTicker cache or a failed REST fallback, no NOTIONAL filter is a stale exchange-info refresh, and no pre-reserve total is a forwarding hop that dropped the field.
+ * Named per input because the remedies differ: no price is a cold miniTicker cache or a failed REST fallback, no NOTIONAL filter is a stale exchange-info refresh, and no wallet total is a balance leg Binance returned that would not parse as a finite decimal.
  */
 export const VALUE_BOUND_DISARM_REASONS = [
   'no-reference-price',
   'no-min-notional',
-  'no-unreserved-total',
+  'no-wallet-total',
 ] as const;
 
 export type ValueBoundDisarmReason = (typeof VALUE_BOUND_DISARM_REASONS)[number];
@@ -527,6 +517,8 @@ export type ValueBoundDisarmReason = (typeof VALUE_BOUND_DISARM_REASONS)[number]
  * Whether this pass consulted a dust value bound it could not evaluate.
  *
  * The bounds standing down on a missing input is correct and stays: they only ever DELETE a position, so an absent input has to mean "do not act". What is wrong is that standing down is invisible — a disarmed pass tallies the same `no-op` as a healthy converged one, so "checked, the holding is real" and "could not check" are indistinguishable from outside, and a symbol can sit unprotected for weeks while its sweep reports success.
+ *
+ * `no-wallet-total` is the same silence by a different route: an unparseable balance leg makes {@link reconcileHeldQuantity} return `no-op` for the whole symbol before any value bound is consulted, so that pass reports success without having judged anything at all.
  *
  * Reported only when there was something a bound could have acted on. A symbol with no claim and an empty wallet reaches no bound at all, and counting it would emit one series per idle symbol per boot and bury the case this exists to surface.
  *
@@ -539,21 +531,18 @@ export const valueBoundDisarmReason = (input: {
   readonly walletLocked: string;
   readonly minNotional: string | null;
   readonly referencePrice: string | null;
-  readonly unreservedWalletTotal: string | null;
 }): ValueBoundDisarmReason | null => {
   const wallet = walletTotal(input);
   // The claim is tested by VALUE, matching how `heldBefore` buckets it, because a body storing `heldQuantity: '0'` is a shape this repo really produces and a nullness test reads it as a live position. That would report a disarm and warn for every idle zero-claim symbol on any pass without a price, which is exactly the noise this function's "only when a bound could have acted" rule exists to prevent. An UNPARSEABLE claim stays reportable: a bound could not judge that either, and silence would hide it.
   const claim = input.heldQuantity === null ? null : safe(input.heldQuantity);
   const claimIsLive = input.heldQuantity !== null && (claim === null || claim.gt(0));
   if (!claimIsLive && (wallet === null || wallet.lte(0))) return null;
-  // Each input is judged the way `reconcileHeldQuantity` judges it, not merely for nullness, because a present-but-unusable value disarms the bound just as completely as a missing one and is harder to notice. `safe` rejects a non-finite string, and `isBelowMinNotional` skips on a non-positive price or floor exactly as it skips on a null one — so a `minNotional` of `'Infinity'` or a `referencePrice` of `'0'` would otherwise stand every bound down while this function reported a clean pass, which is precisely the blind spot the counter exists to close. A zero `unreservedWalletTotal` is NOT such a case: an empty wallet is a real answer the bound acts on.
+  // Each input is judged the way `reconcileHeldQuantity` judges it, not merely for nullness, because a present-but-unusable value disarms the bound just as completely as a missing one and is harder to notice. `safe` rejects a non-finite string, and `isBelowMinNotional` skips on a non-positive price or floor exactly as it skips on a null one — so a `minNotional` of `'Infinity'` or a `referencePrice` of `'0'` would otherwise stand every bound down while this function reported a clean pass, which is precisely the blind spot the counter exists to close. A zero wallet total is NOT such a case: an empty wallet is a real answer the bound acts on.
   const price = input.referencePrice === null ? null : safe(input.referencePrice);
   if (price === null || price.lte(0)) return 'no-reference-price';
   const floor = input.minNotional === null ? null : safe(input.minNotional);
   if (floor === null || floor.lte(0)) return 'no-min-notional';
-  if (input.unreservedWalletTotal === null || safe(input.unreservedWalletTotal) === null) {
-    return 'no-unreserved-total';
-  }
+  if (wallet === null) return 'no-wallet-total';
   return null;
 };
 
@@ -620,35 +609,26 @@ export const resolveSweepPrices = async (
 };
 
 /**
- * The three wallet figures a {@link ReconcileSymbolTarget} carries, derived in one place so the boot sweep and the mid-run reconfigure door cannot answer the same question differently.
- *
- * Two balances, not one, because they serve opposite purposes. `walletFree`/`walletLocked` are reserve-ADJUSTED: sizing and adoption may see only the tradeable surplus, so a fully-reserved holding reconciles flat and the strategy trades on top of it. `unreservedWalletTotal` is RAW, and this is the last point at which the operator's real balance still exists — a reserve is operator policy about what the STRATEGY may trade, while `minNotional` is a fact about what the EXCHANGE will accept, so the dust VALUE bounds have to ask "is this residue?" of the coins the operator actually owns. Handing them the adjusted total instead reads a deeply-reserved holding as worthless and deletes a real position.
+ * The wallet legs a {@link ReconcileSymbolTarget} carries, derived in one place so the boot sweep and the mid-run reconfigure door cannot answer the same question differently.
  *
  * Both legs are parsed through `safe`, never `new Decimal` directly. This runs in the per-symbol loop of {@link runHeldQuantityReconciliation}, where the only `try` covers `getAccount` itself, so a throw here would abort the sweep for every remaining symbol AND every remaining profile over one malformed balance string. A bad leg therefore disarms rather than throws, which is the rule the rest of this module already follows.
  *
- * An unparseable leg is passed through UNCHANGED rather than defaulted to `'0'`, because zero is a real answer: it reads as an empty wallet, and an empty wallet is what arms the phantom prune. Handing the raw value on lets `reconcileHeldQuantity`'s own parse guard return `no-op` and write nothing. `unreservedWalletTotal` goes null on the same input, which disarms the dust value bounds and is reported by {@link valueBoundDisarmReason}.
+ * An unparseable leg is passed through UNCHANGED rather than defaulted to `'0'`, because zero is a real answer: it reads as an empty wallet, and an empty wallet is what arms the phantom prune. Handing the raw value on lets `reconcileHeldQuantity`'s own parse guard return `no-op` for the whole symbol before any dust value bound is consulted, and {@link valueBoundDisarmReason} is what makes that otherwise-silent skip visible.
  *
  * @param balance - The account balance row for this symbol's base asset, absent when Binance reports no holding at all, which counts as zero rather than as unknown.
- * @param reserve - The per-symbol floor the operator wants held back, or null when the symbol carries no reserve row.
- * @returns The reserve-adjusted free and locked legs plus the pre-reserve total; on an unparseable or non-finite leg, the legs are returned verbatim and the total is null.
+ * @returns The free and locked legs, normalised through `safe`; on an unparseable or non-finite leg, both are returned verbatim.
  */
 export const resolveWalletFields = (
   balance: { free: string; locked: string } | undefined,
-  reserve: string | null,
-): Pick<ReconcileSymbolTarget, 'walletFree' | 'walletLocked' | 'unreservedWalletTotal'> => {
+): Pick<ReconcileSymbolTarget, 'walletFree' | 'walletLocked'> => {
   const rawFree = balance?.free ?? '0';
   const rawLocked = balance?.locked ?? '0';
   const free = safe(rawFree);
   const locked = safe(rawLocked);
   if (free === null || locked === null) {
-    return { walletFree: rawFree, walletLocked: rawLocked, unreservedWalletTotal: null };
+    return { walletFree: rawFree, walletLocked: rawLocked };
   }
-  const adjusted = reserveAdjustedBalance(free, locked, reserve);
-  return {
-    walletFree: adjusted.free.toFixed(),
-    walletLocked: adjusted.locked.toFixed(),
-    unreservedWalletTotal: free.plus(locked).toFixed(),
-  };
+  return { walletFree: free.toFixed(), walletLocked: locked.toFixed() };
 };
 
 /**
@@ -667,8 +647,6 @@ export interface ReconcileSymbolTarget {
   readonly referencePrice: string | null;
   readonly walletFree: string;
   readonly walletLocked: string;
-  /** `free + locked` for the base asset BEFORE the operator's base-asset RESERVE was drained out of it, or null, which DISARMS the dust value bounds rather than substituting the reserve-adjusted total — the one number guaranteed to read a fully-reserved holding as worthless. Only the dust VALUE bounds read it, and only they should: a reserve is an operator policy about what the STRATEGY may trade, while `minNotional` is a fact about what the EXCHANGE will accept, so "is this holding real or is it residue?" has to be asked of the coins the operator actually owns. Sizing and adoption keep reading the reserve-adjusted `walletFree`/`walletLocked`, unchanged. Required-but-nullable, not optional: an omitted field is one a forwarding hop can drop silently, and a silently-dropped bound input is exactly how an earlier fix here shipped as a no-op. */
-  readonly unreservedWalletTotal: string | null;
 }
 
 export interface ReconcileSymbolResult {
@@ -737,14 +715,12 @@ export const ensureCostBasisFromTrades = async (
 
   const referencePrice = target.referencePrice == null ? null : safe(target.referencePrice);
   const minNotional = target.minNotional == null ? null : safe(target.minNotional);
-  const unreserved = unreservedTotal(target);
   const valueLogCtx = {
     userId: unwrapId(target.userId),
     profileId: unwrapId(target.profileId),
     symbol: target.symbol,
     walletFree: target.walletFree,
     walletLocked: target.walletLocked,
-    unreservedWalletTotal: target.unreservedWalletTotal,
     minNotional: target.minNotional,
     referencePrice: target.referencePrice,
   };
@@ -762,7 +738,7 @@ export const ensureCostBasisFromTrades = async (
     // Gated at the RESIDUE bar, not at the full floor, and the difference is a disposal that cannot recover. Seeding from a ledger row is not creating a position out of nothing: the row is a durable statement that the position EXISTS, so refusing to seed it abandons a known position, which is delete-grade harm and earns the delete-grade bar. A handoff target holding USD 4 against a USD 5 floor is a real position; refuse it at the full floor and `assertTargetSeeded` throws, the disposal retries, refuses again, and dead-letters with the source already disabled and its orders cancelled.
     //
     // The row is DELETED here rather than left for the phantom prune, because the prune provably cannot reach it. This branch runs only when there is no state body at all, and that is the normal shape of a handoff target, not an edge: a disposal moves `profile_symbols` and `avg_entry_prices` and never `symbol_states`. The reviver returns early on a non-object state before it ever consults its value bound, so a row declined here would survive every later pass and block the next disposal's seeding check forever. A symbol with NO ledger row is explicitly a legal, non-blocking state for that check, so deleting is what makes this branch's own claim true rather than an appeal to a pass that will not run.
-    if (unreserved !== null && isValuelessResidue(unreserved, referencePrice, minNotional)) {
+    if (isValuelessResidue(wallet, referencePrice, minNotional)) {
       await scope.avgEntryPrices.remove(target.symbol);
       deps.logger.info(
         valueLogCtx,
@@ -793,7 +769,7 @@ export const ensureCostBasisFromTrades = async (
   // Nothing durable says this position exists, so the walk below would CREATE one out of a wallet balance alone — and the increment is only half of what makes a balance tradeable. A balance can be several LOT_SIZE steps wide and still be worth a fraction of one minimum order, in which case no strategy can ever place a sell for it and adopting it manufactures a position nothing can close: the symbol keeps its slot on the dashboard, the entry gate believes it is already in a trade, and every later reconcile pass finds a held quantity matching the wallet and no reason to touch it. Refusing costs an untracked balance the bot could not have traded anyway.
   //
   // The full `minNotional` here, against the residue bar on the ledger branch above, because the two branches carry opposite risks: declining to create a position out of nothing costs a blind spot, while declining to seed a row that already exists abandons a position someone recorded.
-  if (unreserved !== null && isBelowMinNotional(unreserved, referencePrice, minNotional)) {
+  if (isBelowMinNotional(wallet, referencePrice, minNotional)) {
     deps.logger.info(
       valueLogCtx,
       'ensureCostBasis: wallet balance is worth less than one minimum order; refusing to adopt it as a position',
@@ -857,15 +833,6 @@ export const ensureCostBasisFromTrades = async (
   return 'reconstructed-from-trades';
 };
 
-/**
- * The balance the dust VALUE bounds are entitled to judge: the operator's own holding, before their base-asset reserve was drained out of the bot's view.
- *
- * @param target - Any reconcile target carrying the pre-reserve total, when the caller could separate it from the reserve.
- * @returns The pre-reserve `free + locked` as a Decimal, or null when the target carries no usable figure — on which every bound reading it stands down rather than substituting the reserve-adjusted balance, the one number guaranteed to mis-classify a reserved holding.
- */
-const unreservedTotal = (target: { unreservedWalletTotal: string | null }): Decimal | null =>
-  target.unreservedWalletTotal == null ? null : safe(target.unreservedWalletTotal);
-
 const walletTotal = (target: { walletFree: string; walletLocked: string }): Decimal | null => {
   const free = safe(target.walletFree);
   const locked = safe(target.walletLocked);
@@ -912,7 +879,7 @@ export const reconcileSymbol = async (
     });
   };
 
-  // One sink for both deletes. The reconciler's sub-notional flatten and the reviver's phantom prune are the same assertion — nothing backs this position — reached from two directions, so they must not be able to drift onto different rows.
+  // One sink for both deletes. The reconciler's sub-notional flatten and the reviver's phantom prune are the same assertion — nothing backs this position — reached from two directions, so they must not be able to drift onto different rows. Closing the symbol's seed refusal rides inside `remove` itself, where every deleter reaches it.
   const removeLedgerRow = async (_u: string, _p: string, sym: string): Promise<void> => {
     await scope.avgEntryPrices.remove(sym);
   };
@@ -929,12 +896,11 @@ export const reconcileSymbol = async (
       referencePrice: target.referencePrice,
       walletFree: target.walletFree,
       walletLocked: target.walletLocked,
-      unreservedWalletTotal: target.unreservedWalletTotal,
       state: currentState,
     },
   );
 
-  // #266: short-circuit when the upstream reconciler already skipped on
+  // Short-circuit when the upstream reconciler already skipped on
   // schemaVersion. The reviver's gate would otherwise fire the same skip
   // with an "after migration; investigate" WARN that misleads operators
   // into chasing a phantom regression — no migration was attempted here.
@@ -944,7 +910,7 @@ export const reconcileSymbol = async (
   }
   // Revive `state.avgEntryPrice` from the ledger when the state forgot the
   // position (missed fill-adoption, mid-tick crash, manual order). Also
-  // prunes phantom ledger rows (#262): a row backed by zero wallet balance
+  // prunes phantom ledger rows: a row backed by zero wallet balance
   // is DELETEd here before any revive can rehydrate from it.
   const ledgerRow = await scope.avgEntryPrices.findBySymbol(target.symbol);
   const reviveAction = await reviveAvgEntryPriceForTarget(
@@ -969,10 +935,41 @@ export const reconcileSymbol = async (
       stepSize: target.stepSize,
       minNotional: target.minNotional,
       referencePrice: target.referencePrice,
-      unreservedWalletTotal: target.unreservedWalletTotal,
       preReconcileHeldQuantity,
     },
   );
+
+  // The recurring pass is the only thing that can falsify a standing refusal WITHOUT a delete, and that case is not exotic: the operator tops the coin up, or the strategy buys back in, and the row that was backed by nothing is suddenly backed by a real holding. No apply job runs for that, so left alone the refusal would outlive its own reason and label a genuine position "not held" forever, withholding a real P/L to avoid having fabricated one.
+  //
+  // Asked as the prune's OWN question rather than inferred from its verdict, because `reviveAction === 'no-op'` covers two opposite readings: the prune ran and kept the row, and the reviver returned before the prune because there was no state body to read. The second is exactly the shape a refusal leaves behind — a dust wallet never gets a state body written — so reading `no-op` as evidence would clear the refusal on the very symbols it is about.
+  //
+  // And every input the question needs must be present. The prune is deliberately fail-CLOSED on a missing one: it only ever DELETES, so it declines to act when it cannot judge. That `false` means "did not decide", not "position is backed" — reading it as proof is how a cold ticker cache would silently re-arm the fabricated P/L this condition exists to prevent.
+  const settledState =
+    currentState && typeof currentState === 'object' ? position.readPosition(currentState) : null;
+  const backedByRealPosition =
+    ledgerRow !== null &&
+    settledState !== null &&
+    target.referencePrice !== null &&
+    target.minNotional !== null &&
+    safe(target.stepSize) !== null &&
+    !isPhantomLedgerRow({
+      ledgerAvgEntryPrice: ledgerRow.avgEntryPrice,
+      stateAvgEntryPrice: settledState.avgEntryPrice,
+      walletQuantity: walletTotal(target)?.toFixed() ?? null,
+      stepSize: target.stepSize,
+      minNotional: target.minNotional,
+      referencePrice: target.referencePrice,
+      preReconcileHeldQuantity,
+    });
+  if (backedByRealPosition) {
+    await scope.conditionStates.recordCondition({
+      condition: POSITION_SEED_REFUSED,
+      symbol: target.symbol,
+      code: null,
+      now: new Date(),
+      msg: `${target.symbol}: a sellable balance now backs the cost basis`,
+    });
+  }
 
   const labels = { profileId: unwrapId(target.profileId), symbol: target.symbol };
   // Bucketed, never the raw quantity: the operational question is whether the bot deleted a position it BELIEVED it held or merely converged a row that was already empty. The first is a page and the second is routine, and a quantity label would put an unbounded value space on a counter for a two-state distinction.
@@ -1011,7 +1008,6 @@ export const reconcileSymbol = async (
     walletLocked: target.walletLocked,
     minNotional: target.minNotional,
     referencePrice: target.referencePrice,
-    unreservedWalletTotal: target.unreservedWalletTotal,
   });
   if (disarmed !== null) {
     deps.metrics.record('reconcile_value_bound_disarmed_total', 1, {
@@ -1108,7 +1104,7 @@ export const runHeldQuantityReconciliation = async (
     // Heal the legacy per-profile `(state, strategy_version)` row in
     // lockstep before the per-symbol path runs. After the cutover the
     // reconciler reads per-symbol bodies, but the profile-level columns
-    // still back legacy consumers (#264 inverse), keeping this step
+    // still back legacy consumers, keeping this step
     // gated on the registered strategy avoids a divergence window.
     // The returned profile is not consumed here: per-symbol rows are
     // the source of truth for the wallet reconcile.
@@ -1133,15 +1129,6 @@ export const runHeldQuantityReconciliation = async (
       continue;
     }
 
-    // Per-symbol reserve floors (base units) the operator wants the bot to
-    // always hold. Subtracted from the wallet BEFORE adoption so the reconciler
-    // claims only the tradeable surplus as the position, never the reserve — a
-    // fully-reserved holding then reconciles flat and the bot trades on top.
-    // One read per profile; a symbol with no row defaults to no reserve.
-    const reserveBySymbol = new Map<string, string | null>(
-      (await scope.profileSymbols.listForProfile()).map((r) => [r.symbol, r.reserveBaseQuantity]),
-    );
-
     const sweptSymbols = active.symbols.filter(
       (symbol) => !only?.symbols || only.symbols.includes(symbol),
     );
@@ -1163,9 +1150,8 @@ export const runHeldQuantityReconciliation = async (
       } catch {
         continue;
       }
-      const { walletFree, walletLocked, unreservedWalletTotal } = resolveWalletFields(
+      const { walletFree, walletLocked } = resolveWalletFields(
         account.balances.find((b) => b.asset === info.baseAsset),
-        reserveBySymbol.get(symbol) ?? null,
       );
       // Values a wallet crumb against `minNotional`. Best-effort: a symbol neither the live cache nor the REST fallback could price leaves this null, which skips the value bound rather than letting a bad price flatten a real position.
       const referencePrice = priceBySymbol.get(symbol) ?? null;
@@ -1178,28 +1164,38 @@ export const runHeldQuantityReconciliation = async (
       // the hazard `mutateSymbolState`'s contract names. Wrapping both
       // writes in one `chain.run` also keeps them atomic against that fill
       // rather than two separately-locked windows.
-      const { action, reviveAction } = await deps.chain.run(
-        `${unwrapId(active.profileId)}:${symbol}`,
-        async () => {
-          const symbolTarget: ReconcileSymbolTarget = {
-            userId: active.userId,
-            profileId: active.profileId,
-            symbol,
-            baseAsset: info.baseAsset,
-            stepSize: info.filters.stepSize,
-            minNotional: info.filters.minNotional ?? null,
-            referencePrice,
-            walletFree,
-            walletLocked,
-            unreservedWalletTotal,
-          };
-          // Seed the ledger from trade history FIRST so a held-but-unpriced
-          // position (a fresh adopt, or a fill never observed) has a row for
-          // the revive below to restore avgEntryPrice from.
-          await ensureCostBasisFromTrades(deps, scope, positionAdapter, rest, symbolTarget);
-          return reconcileSymbol(deps, scope, positionAdapter, symbolTarget);
-        },
-      );
+      // Per-symbol containment, matching the reconfigure loop. One symbol's write failing must not abandon the rest of the sweep: the pass is fleet-wide, so an abort here silently skips every remaining symbol and profile in the boot, and the failure most likely to happen is the least important one — the condition write that rides along with a ledger delete.
+      let action: ReconcileAction;
+      let reviveAction: ReviveAction;
+      try {
+        ({ action, reviveAction } = await deps.chain.run(
+          `${unwrapId(active.profileId)}:${symbol}`,
+          async () => {
+            const symbolTarget: ReconcileSymbolTarget = {
+              userId: active.userId,
+              profileId: active.profileId,
+              symbol,
+              baseAsset: info.baseAsset,
+              stepSize: info.filters.stepSize,
+              minNotional: info.filters.minNotional ?? null,
+              referencePrice,
+              walletFree,
+              walletLocked,
+            };
+            // Seed the ledger from trade history FIRST so a held-but-unpriced
+            // position (a fresh adopt, or a fill never observed) has a row for
+            // the revive below to restore avgEntryPrice from.
+            await ensureCostBasisFromTrades(deps, scope, positionAdapter, rest, symbolTarget);
+            return reconcileSymbol(deps, scope, positionAdapter, symbolTarget);
+          },
+        ));
+      } catch (err) {
+        deps.logger.warn(
+          { userId: unwrapId(active.userId), profileId: unwrapId(active.profileId), symbol, err },
+          'reconcileHeldQuantity: per-symbol reconcile failed; continuing the sweep',
+        );
+        continue;
+      }
       tally[action] += 1;
       reviveTally[reviveAction] += 1;
     }

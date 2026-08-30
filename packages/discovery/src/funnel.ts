@@ -7,7 +7,7 @@ import type { DiscoveryDiff } from './types.js';
  * resolved diff outcome. A single-row observability projection: it answers "where
  * did the universe collapse this cycle" without re-reading every per-candidate row.
  *
- * The funnel has TWO segments with DIFFERENT denominators (issue #636):
+ * The funnel has TWO segments with DIFFERENT denominators:
  *
  * - Ticker segment (`universe` … `changeBand`): survivor counts over the FULL
  *   quote-matched ticker set — every symbol the cron saw this cycle, not just the

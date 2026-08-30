@@ -6,6 +6,7 @@ import {
   decodeWsEventStreamFields,
   encodeWsEventStreamFields,
 } from '../src/ws-events.js';
+import { asDecimalString } from '../src/decimal.js';
 
 const base = { seq: 1, ts: '2026-05-29T00:00:00.000Z' } as const;
 
@@ -87,7 +88,7 @@ describe('events-stream field codec', () => {
       seq: 1,
       topic: 'symbol-state',
       ts: base.ts,
-      payload: { symbol: 'BTCUSDT', currentPrice: '5' },
+      payload: { symbol: 'BTCUSDT', currentPrice: asDecimalString('5') },
     },
     { seq: 2, topic: 'orders', ts: base.ts, payload: { orderId: 7, status: 'FILLED' } },
     { seq: 3, topic: 'logs', ts: base.ts, payload: { symbol: null, level: 'info', msg: 'hi' } },

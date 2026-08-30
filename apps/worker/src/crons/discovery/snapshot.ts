@@ -4,7 +4,7 @@ import type { Logger } from 'pino';
 import type { DiscoveryUniverseSnapshotPayload } from '@app/db';
 
 /**
- * Best-effort discovery-snapshot write (#436). A snapshot is pure observability
+ * Best-effort discovery-snapshot write. A snapshot is pure observability
  * for a future backtest, so a write failure must NOT churn the symbol set or
  * abort the cycle: it is logged at warn and swallowed, never rethrown. Extracted
  * from the cron port so the swallow path is unit-testable without a live Postgres.

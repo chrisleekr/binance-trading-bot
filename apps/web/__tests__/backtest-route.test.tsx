@@ -9,6 +9,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BacktestStatus } from '@app/contracts';
+
 // Capture the route's WebSocket frame handler so a test can drive a
 // backtest-complete frame directly (no live socket in the test env).
 const socketMock = vi.hoisted(() => ({ onMessage: null as ((f: unknown) => void) | null }));
@@ -715,7 +717,7 @@ describe('/profiles/$profileId/backtest', () => {
     expect(posted).toBe(false);
   });
 
-  it('shows the headline and a full bar when a run is done', async () => {
+  it('shows the headline and drops the progress bar when a run is done', async () => {
     const RUN_ID = '22222222-2222-4222-8222-222222222222';
     const { queryClient } = setUp((url, init) => {
       const b = base(url);
@@ -751,7 +753,9 @@ describe('/profiles/$profileId/backtest', () => {
     await user.click(screen.getByText('Run backtest'));
 
     await waitFor(() => expect(screen.getByText('12.34%')).toBeInTheDocument());
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+    // A finished run has no progress left to report; a bar frozen at 100% is
+    // chrome a screen reader still announces as a live progress indicator.
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     await waitFor(() => {
       const listInvalidations = invalidate.mock.calls.filter(([filters]) => {
         const key = (filters as { queryKey?: readonly unknown[] } | undefined)?.queryKey;
@@ -994,7 +998,7 @@ describe('/profiles/$profileId/backtest', () => {
     // in the active-run results panel, never in a Past-runs row, so they are
     // unambiguous evidence the run's RESULT rendered (not just a list row).
     expect(await screen.findByText(`Run ${RUN_ID.slice(0, 8)} — done`)).toBeInTheDocument();
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     // A run is active, so the config section shows its active-branch heading
     // (the empty-state "Configure a backtest" branch is covered elsewhere).
     expect(screen.getByRole('heading', { name: 'Adjust & re-run' })).toBeInTheDocument();
@@ -1052,7 +1056,7 @@ describe('/profiles/$profileId/backtest', () => {
 
     // The History list row renders, but the anchored-run result heading must not,
     // and the URL must not be rewritten to the run's Results.
-    await screen.findByRole('tab', { name: 'History', selected: true });
+    await screen.findByRole('tab', { name: 'Past runs', selected: true });
     expect(screen.queryByText(`Run ${RUN_ID.slice(0, 8)} — done`)).toBeNull();
     const search = router.state.location.search as Record<string, unknown>;
     expect(search.view).toBe('history');
@@ -1192,7 +1196,7 @@ describe('/profiles/$profileId/backtest', () => {
     // Choosing "load existing" anchors to the already-completed run.
     await user.click(within(dialog).getByTestId('backtest-dedup-load-existing'));
     expect(await screen.findByText(`Run ${EXISTING_ID.slice(0, 8)} — done`)).toBeInTheDocument();
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 
   it('re-requests with ?force=true and navigates when "run fresh anyway" is chosen (#557 C9)', async () => {
@@ -1384,7 +1388,8 @@ describe('/profiles/$profileId/backtest', () => {
     expect(screen.getByLabelText('Max Purchase Amount').closest('details')).toHaveAttribute('open');
     // Picking a past run shows the run's result inline (above the config) while
     // the config form is reseeded on the same surface (asserted above).
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100');
+    expect(screen.getByRole('heading', { name: /^Run .*done/ })).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 
   it('seeds untouched sections from the merged config when a run carried a partial override', async () => {
@@ -1568,10 +1573,12 @@ describe('/profiles/$profileId/backtest', () => {
     await user.click(await within(pastRuns).findByRole('button', { name: /^Load/ }));
     // Selecting the run shows its result inline, where the recommendation appears.
     const rsiToggle = await screen.findByTestId('backtest-rec-toggle-indicator-rsi');
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Run .*done/ })).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     // Staging a suggestion does not load or run anything yet.
     await user.click(rsiToggle);
-    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Run .*done/ })).toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     // Pressing the load button seeds the config section for a re-run the operator
     // triggers themselves (never straight to live) and says so — the gate stays in the loop.
     await user.click(screen.getByTestId('backtest-rec-load-selected'));
@@ -1982,10 +1989,6 @@ describe('/profiles/$profileId/backtest', () => {
     // Raising rows-per-page sends an explicit limit.
     await user.selectOptions(within(pastRuns).getByTestId('bt-runs-page-size'), '25');
     await waitFor(() => expect(listUrls.some((u) => u.includes('limit=25'))).toBe(true));
-
-    // The Manual type filter sends `kind`, orthogonal to the outcome filter.
-    await user.click(within(pastRuns).getByTestId('bt-runs-kind-manual'));
-    await waitFor(() => expect(listUrls.some((u) => u.includes('kind=manual'))).toBe(true));
   });
 
   it('shows the run result inline when a run is launched', async () => {
@@ -2680,5 +2683,185 @@ describe('/profiles/$profileId/backtest', () => {
       await screen.findByText('Not comparable — different market window.'),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('backtest-compare-deltas')).toBeNull();
+  });
+
+  // Two runs that differ ONLY in when they happened: same coin, same window, same outcome. Today every visible token on the two rows is identical, so the list cannot tell the operator which one they are looking at, and both "Load" buttons announce the same name to a screen reader.
+  const TWIN_A = 'aa111111-1111-4111-8111-111111111111';
+  const TWIN_B = 'bb222222-2222-4222-8222-222222222222';
+  const twinRow = (runId: string, createdAt: string) => ({
+    runId,
+    status: 'done',
+    progress: 100,
+    symbols: ['BTCUSDT'],
+    createdAt,
+    finishedAt: createdAt,
+    totalReturnPct: 1.5,
+  });
+  // Newest first, the order the API already returns.
+  const twinRuns = [
+    twinRow(TWIN_B, '2026-05-11T09:30:00.000Z'),
+    twinRow(TWIN_A, '2026-05-10T05:00:00.000Z'),
+  ];
+  const twinResponder = (url: string, init?: RequestInit): Response => {
+    const b = base(url);
+    if (b) return b;
+    const method = init?.method ?? 'GET';
+    if (url.includes(`/backtests/${TWIN_A}`))
+      return json(runDetailBody(TWIN_A, 'done', { result: doneResult() }));
+    if (url.includes(`/backtests/${TWIN_B}`))
+      return json(runDetailBody(TWIN_B, 'done', { result: doneResult() }));
+    // Match the list read with its query string too: switching a filter refetches
+    // with `?filter=…`, and a 404 there would unmount the toolbar under the test.
+    if (url.includes('/backtests') && method === 'GET') return runsList(twinRuns);
+    if (url.includes('/candles')) return json([]);
+    return new Response('not found', { status: 404 });
+  };
+
+  /** The Past-runs row owning a run's Load button. */
+  const runRow = (runId: string): HTMLElement => {
+    const row = screen.getByTestId(`backtest-load-${runId}`).closest('li');
+    if (!row) throw new Error(`no row for run ${runId}`);
+    return row;
+  };
+
+  it('states when each past run happened, to the minute', async () => {
+    setUp(twinResponder);
+    await screen.findByTestId(`backtest-load-${TWIN_A}`);
+    // "Window period" is the data range tested; it says nothing about WHEN the run was executed, which is the only thing separating these two rows.
+    expect(runRow(TWIN_A)).toHaveTextContent('2026-05-10');
+    expect(runRow(TWIN_A)).toHaveTextContent('05:00');
+    expect(runRow(TWIN_B)).toHaveTextContent('2026-05-11');
+    expect(runRow(TWIN_B)).toHaveTextContent('09:30');
+  });
+
+  it('labels each stacked date on mobile without hiding the label from assistive tech', async () => {
+    // Below sm the header row is gone and the two dates stack bare, so each cell carries its own label. Asserted as a CLASS CONTRACT: happy-dom computes no layout and applies no media query, so nothing here observes the breakpoint. What it does pin is the token — `sm:sr-only` keeps the label in the accessibility tree at every width, while `sm:hidden` (`display: none`) deletes it above sm and hands a screen-reader user on a laptop the same two unlabelled dates.
+    setUp(twinResponder);
+    await screen.findByTestId(`backtest-load-${TWIN_A}`);
+    const row = runRow(TWIN_A);
+    for (const label of ['Window', 'Run at']) {
+      const span = within(row)
+        .getAllByText(label, { exact: false, selector: 'span' })
+        .find((el) => el.textContent?.trim() === label);
+      expect(span, `no in-cell "${label}" label on the row`).toBeDefined();
+      expect(span).toHaveClass('sm:sr-only');
+      expect(span).not.toHaveClass('sm:hidden');
+    }
+  });
+
+  it('gives runs that share a symbol and window distinct content and distinct accessible names', async () => {
+    setUp(twinResponder);
+    await screen.findByTestId(`backtest-load-${TWIN_A}`);
+    expect(runRow(TWIN_A).textContent).not.toBe(runRow(TWIN_B).textContent);
+    const loadNames = screen
+      .getAllByRole('button', { name: /^Load/ })
+      .map((b) => b.getAttribute('aria-label') ?? '');
+    expect(loadNames).toHaveLength(2);
+    expect(new Set(loadNames).size).toBe(2);
+  });
+
+  it('keeps the accessible names distinct for two runs launched in the same minute', async () => {
+    // `formatInstant` resolves only to the minute, so a timestamp alone puts the collision straight back for the realistic case: a re-run fired seconds after the first.
+    const SAME_A = 'ee555555-5555-4555-8555-555555555555';
+    const SAME_B = 'ff666666-6666-4666-8666-666666666666';
+    setUp((url, init) => {
+      const b = base(url);
+      if (b) return b;
+      const method = init?.method ?? 'GET';
+      if (url.includes('/backtests') && method === 'GET')
+        return runsList([
+          twinRow(SAME_B, '2026-05-10T05:00:41.000Z'),
+          twinRow(SAME_A, '2026-05-10T05:00:03.000Z'),
+        ]);
+      if (url.includes('/candles')) return json([]);
+      return new Response('not found', { status: 404 });
+    });
+    await screen.findByTestId(`backtest-load-${SAME_A}`);
+    const loadNames = screen
+      .getAllByRole('button', { name: /^Load/ })
+      .map((b) => b.getAttribute('aria-label') ?? '');
+    expect(loadNames).toHaveLength(2);
+    expect(new Set(loadNames).size).toBe(2);
+  });
+
+  it('renders past runs newest-first, in the order the API returned them', async () => {
+    // Characterization pin: this was already green before the change. The API orders by run time descending over a composite cursor, so the list must NOT re-sort client-side — a local sort would disagree with the cursor and silently drop or repeat rows at a page boundary.
+    setUp(twinResponder);
+    await screen.findByTestId(`backtest-load-${TWIN_A}`);
+    const newest = runRow(TWIN_B);
+    const oldest = runRow(TWIN_A);
+    expect(newest.compareDocumentPosition(oldest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('states when the run happened in the Results-tab run header', async () => {
+    setUp(twinResponder, `/accounts/${ACCOUNT_ID}/profiles/p1/backtest?run=${TWIN_A}`);
+    const header = await screen.findByRole('heading', { name: /^Run .*done/ });
+    const panel = header.closest('section');
+    expect(panel).not.toBeNull();
+    // "Run aa111111 — done" answers which run and what state, never when. An id prefix is not a timestamp, and the operator has no other anchor here.
+    expect(panel).toHaveTextContent('2026-05-10');
+    expect(panel).toHaveTextContent('05:00');
+  });
+
+  it('names the progressbar so a screen reader hears what is progressing', async () => {
+    const RUNNING = 'cc333333-3333-4333-8333-333333333333';
+    setUp((url, init) => {
+      const b = base(url);
+      if (b) return b;
+      const method = init?.method ?? 'GET';
+      if (url.endsWith('/backtests') && method === 'GET')
+        return runsList([listRow(RUNNING, 'running')]);
+      if (url.endsWith(`/backtests/${RUNNING}`)) return json(runDetailBody(RUNNING, 'running'));
+      if (url.includes('/candles')) return json([]);
+      return new Response('not found', { status: 404 });
+    }, `/accounts/${ACCOUNT_ID}/profiles/p1/backtest?run=${RUNNING}`);
+    const bar = await screen.findByRole('progressbar');
+    // The full composed name, not a loose substring: the name resolves off the run heading, so `/run/i` alone is also satisfied by the bare word "running" and would survive losing both the run identity and any mention of progress.
+    expect(bar).toHaveAccessibleName(`Run ${RUNNING.slice(0, 8)} — running`);
+  });
+
+  // Derived from the contract's own enum rather than a hand-typed list, so adding a sixth status fails here instead of silently inheriting whichever branch the render happens to fall through to. `queued` matters as much as the terminal three: it is the only state where the bar must appear with no progress yet, and a fix that keys the bar on `running` alone leaves a just-submitted run looking inert.
+  const STATUSES_WITH_BAR = new Set(['queued', 'running']);
+  it.each(BacktestStatus.options.map((s) => [s, STATUSES_WITH_BAR.has(s)] as const))(
+    'shows the progress bar for %s: %s',
+    async (status, expectBar) => {
+      const TERMINAL = 'dd444444-4444-4444-8444-444444444444';
+      setUp((url, init) => {
+        const b = base(url);
+        if (b) return b;
+        const method = init?.method ?? 'GET';
+        if (url.endsWith('/backtests') && method === 'GET')
+          return runsList([listRow(TERMINAL, status)]);
+        if (url.endsWith(`/backtests/${TERMINAL}`)) return json(runDetailBody(TERMINAL, status));
+        if (url.includes('/candles')) return json([]);
+        return new Response('not found', { status: 404 });
+      }, `/accounts/${ACCOUNT_ID}/profiles/p1/backtest?run=${TERMINAL}`);
+      expect(
+        await screen.findByRole('heading', { name: `Run ${TERMINAL.slice(0, 8)} — ${status}` }),
+      ).toBeInTheDocument();
+      if (expectBar) {
+        expect(screen.getByRole('progressbar')).toBeInTheDocument();
+      } else {
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+      }
+    },
+  );
+
+  it('gives the toolbar "All" chip an explicit accessible name and a programmatic selected state', async () => {
+    setUp(twinResponder);
+    await screen.findByTestId('bt-runs-filter-all');
+    const outcomeAll = screen.getByTestId('bt-runs-filter-all');
+    // A chip reading only "All" names nothing on its own, and which one is active is signalled visually by a colour variant, so both the name and the on/off state have to be programmatic.
+    expect(outcomeAll).toHaveAccessibleName('All outcomes');
+    expect(outcomeAll).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('flips the pressed state onto the filter the operator selects', async () => {
+    setUp(twinResponder);
+    await screen.findByTestId('bt-runs-filter-all');
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('bt-runs-filter-profit'));
+    expect(screen.getByTestId('bt-runs-filter-profit')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('bt-runs-filter-all')).toHaveAttribute('aria-pressed', 'false');
   });
 });

@@ -11,6 +11,7 @@ import {
   signOf,
 } from '@/shared/lib/format';
 import { formatInstant, humaniseAge } from '@/shared/lib/format-time';
+import { Select } from '@/shared/components/ui/select';
 
 /** Tailwind tone class from a decimal-string's sign. */
 const tradeTone = (pnl: string): string => {
@@ -202,13 +203,13 @@ export function BacktestRoundTrips({
           </div>
           <label className="flex items-center gap-1.5 text-xs text-muted-fg">
             Rows per page
-            <select
+            <Select
+              variant="sm"
               value={pageSize}
               onChange={(e) => {
                 setPageSize(Number(e.target.value));
                 setPage(1);
               }}
-              className="rounded-md border border-border bg-bg-elevated px-2 py-1 text-xs text-fg"
               data-testid="bt-trades-page-size"
             >
               {PAGE_SIZES.map((n) => (
@@ -216,7 +217,7 @@ export function BacktestRoundTrips({
                   {n}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         </div>
 

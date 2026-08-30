@@ -10,8 +10,8 @@ const CHECKER = join(REPO_ROOT, 'scripts/ci/check-worker-integration-honesty.ts'
 const INTEGRATION_DIR = join(REPO_ROOT, 'apps/worker/__tests__/integration');
 const INTEGRATION_REL = 'apps/worker/__tests__/integration';
 
-/** The whole point of the lane is that all eleven suites execute; a report carrying fewer is a broken include glob, which `passWithNoTests: true` would otherwise render green. */
-const EXPECTED_INTEGRATION_FILES = 11;
+/** The whole point of the lane is that all twelve suites execute; a report carrying fewer is a broken include glob, which `passWithNoTests: true` would otherwise render green. */
+const EXPECTED_INTEGRATION_FILES = 12;
 
 /** Collection-time marker the gated `describe` title carries when its suite is skipped. No vitest API puts a skip reason into an artifact — the junit reporter emits a bare `<skipped/>` keyed on `task.mode`, and `ctx.skip(note)`'s note reaches only the default reporter — so the reason has to ride the suite title, where the json reporter's `assertionResults[].ancestorTitles` preserves it. */
 const SKIP_MARKER = ' — skipped: ';
@@ -126,7 +126,7 @@ describe('worker integration lane honesty', () => {
     const result = check(fullReport());
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain('worker-integration: 11 integration files, 0 skipped');
+    expect(result.stdout).toContain('worker-integration: 12 integration files, 0 skipped');
   });
 
   // The deliverable of the whole lane: a stand-down that is visible AND says what it was missing. junit emits a bare <skipped/>, so without the title there is no artifact CI keeps that carries a reason.
@@ -140,7 +140,7 @@ describe('worker integration lane honesty', () => {
     );
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain('worker-integration: 11 integration files, 1 skipped');
+    expect(result.stdout).toContain('worker-integration: 12 integration files, 1 skipped');
     expect(result.stdout).toContain(
       `  ${INTEGRATION_REL}/resolve-profile.test.ts: TESTCONTAINERS=1 or DATABASE_TEST_URL required`,
     );
@@ -151,7 +151,7 @@ describe('worker integration lane honesty', () => {
     const result = check(fullReport({ 'resolve-profile.test.ts': { skipReason: null } }));
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain('worker-integration: 11 integration files, 1 skipped');
+    expect(result.stdout).toContain('worker-integration: 12 integration files, 1 skipped');
     expect(result.stdout).toContain(`  ${INTEGRATION_REL}/resolve-profile.test.ts: no skip reason`);
   });
 
@@ -168,7 +168,7 @@ describe('worker integration lane honesty', () => {
     const strict = check(report, 0, ['--forbid-skips']);
     expect(strict.status).not.toBe(0);
     expect(strict.stderr).toContain(
-      'worker-integration: 1 of 11 integration files stood down in a lane that supplies Postgres and Redis itself',
+      'worker-integration: 1 of 12 integration files stood down in a lane that supplies Postgres and Redis itself',
     );
   });
 
@@ -178,7 +178,7 @@ describe('worker integration lane honesty', () => {
     const result = check(report);
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain('worker-integration: 11 integration files, 1 skipped');
+    expect(result.stdout).toContain('worker-integration: 12 integration files, 1 skipped');
     expect(result.stdout).toContain(
       `  ${INTEGRATION_REL}/resolve-profile.test.ts: collected no test cases`,
     );
@@ -251,11 +251,11 @@ describe('worker integration lane honesty', () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain(
-      'worker-integration: report contained 10 of 11 expected integration files',
+      'worker-integration: report contained 11 of 12 expected integration files',
     );
   });
 
-  // Without this the eleven above is a number the checker asserts against itself.
+  // Without this the twelve above is a number the checker asserts against itself.
   it('pins the expected file count to what the integration directory actually holds', () => {
     const source = existsSync(CHECKER) ? readFileSync(CHECKER, 'utf8') : '';
     const pinned = /EXPECTED_INTEGRATION_FILES = (\d+)/.exec(source)?.[1];

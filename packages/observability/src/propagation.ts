@@ -1,6 +1,6 @@
 // W3C TraceContext propagation helpers for arbitrary key/value carriers.
 //
-// `BullMQInstrumentation` (wired into `startOtel` in #34) auto-injects/extracts
+// `BullMQInstrumentation` (wired into `startOtel`) auto-injects/extracts
 // `traceparent` for every BullMQ `add()` and `process()` call, so producers and
 // consumers that go through BullMQ get propagation for free. These helpers exist
 // for the few code paths that enqueue *outside* BullMQ — anywhere a span needs

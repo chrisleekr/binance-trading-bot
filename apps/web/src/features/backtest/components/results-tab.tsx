@@ -5,6 +5,8 @@
 
 import { type BacktestPhase } from '@app/contracts';
 import { Button } from '@/shared/components/ui/button';
+import { useTimezone } from '@/shared/context/timezone-context';
+import { formatInstant } from '@/shared/lib/format-time';
 import { BacktestResults } from '@/features/backtest/components/backtest-results';
 import { BacktestPriceCharts } from '@/features/backtest/components/backtest-price-charts';
 import { BacktestApplyConfig } from '@/features/backtest/components/backtest-apply-config';
@@ -22,6 +24,7 @@ const PHASE_LABEL: Record<BacktestPhase, string> = {
 
 export function ResultsTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element {
   const { profileId, setTab } = wb;
+  const timeZone = useTimezone();
   const {
     activeRunId,
     status,
@@ -109,6 +112,12 @@ export function ResultsTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
               Adjust &amp; re-run
             </Button>
           </div>
+          {/* An id prefix says WHICH run, never WHEN. Without this the header of a re-run is indistinguishable from the header of the run it replaced. */}
+          {activeRunData?.createdAt ? (
+            <p className="text-xs text-muted-fg" data-testid="bt-run-started">
+              Run at {formatInstant(activeRunData.createdAt, timeZone)}
+            </p>
+          ) : null}
           {(status === 'queued' || status === 'running') && progressDetail && (
             <p className="text-xs text-muted-fg" data-testid="bt-progress-detail">
               {PHASE_LABEL[progressDetail.phase]}
@@ -119,17 +128,20 @@ export function ResultsTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
               {etaLabel ? ` · ~${etaLabel} left` : ''}
             </p>
           )}
-          <div className="h-2 w-full overflow-hidden rounded-md border border-border bg-surface-alt">
-            <div
-              className="h-full bg-primary transition-[width]"
-              style={{ width: `${status === 'done' ? 100 : progress}%` }}
-              role="progressbar"
-              aria-labelledby="bt-progress-h"
-              aria-valuenow={status === 'done' ? 100 : progress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            />
-          </div>
+          {/* A finished run has nothing left to progress. A bar frozen at 100% is chrome a screen reader still announces as a live progress indicator, and it competes with the result for attention. Written as the positive list of in-flight statuses so a sixth `BacktestStatus` fails CLOSED (no bar) instead of silently reviving it, and so the empty 0% bar stops rendering while `status` is still undefined. */}
+          {status === 'queued' || status === 'running' ? (
+            <div className="h-2 w-full overflow-hidden rounded-md border border-border bg-surface-alt">
+              <div
+                className="h-full bg-primary transition-[width]"
+                style={{ width: `${progress}%` }}
+                role="progressbar"
+                aria-labelledby="bt-progress-h"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              />
+            </div>
+          ) : null}
           {status === 'error' && (
             <p className="text-sm text-down">
               {activeRunData?.error ?? 'Backtest failed. Review your parameters and try again.'}

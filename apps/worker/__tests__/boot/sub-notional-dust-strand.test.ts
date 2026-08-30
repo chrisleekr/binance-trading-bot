@@ -2,22 +2,20 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 
-import { Decimal } from '@app/money';
 import type { MyTradeDto } from '@app/binance';
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
 import type { ProfileScope } from '@app/db';
-import { isBelowMinNotional } from '@app/strategy-core';
 import { TTStateSchema, trailingTradePositionAdapter } from '@app/strategy-trailing-trade';
 
 import {
   ensureCostBasisFromTrades,
   reconcileHeldQuantity,
+  resolveWalletFields,
   type BinanceAccountClient,
   type ReconcileOrchestratorDeps,
   type ReconcileSymbolTarget,
 } from '../../src/boot/reconcile-held-quantity.js';
 import { isPhantomLedgerRow } from '../../src/boot/revive-avg-entry-price.js';
-import { reserveAdjustedBalance } from '../../src/lib/reserve.js';
 import { openPositionFromFills } from '../../src/queues/pipeline-handlers/open-position-from-fills.js';
 
 // The live ENAUSDT strand, in the exchange's own numbers. The wallet holds 0.01184 ENA of untracked dust that predates the cycle: 1.18 LOT_SIZE steps wide, so every increment-only bound waves it through, and worth USD 0.00137 against a USD 5 NOTIONAL floor, so no sell can ever be placed for it.
@@ -53,7 +51,6 @@ describe('sub-notional dust strand: the converged row no pass can clear', () => 
       heldQuantity: ENA.wallet,
       walletFree: ENA.wallet,
       walletLocked: '0',
-      unreservedWalletTotal: ENA.wallet,
       stepSize: ENA.stepSize,
       minNotional: ENA.minNotional,
       referencePrice: ENA.referencePrice,
@@ -68,7 +65,6 @@ describe('sub-notional dust strand: the converged row no pass can clear', () => 
       ledgerAvgEntryPrice: '0.4587',
       stateAvgEntryPrice: '0.4587',
       walletQuantity: ENA.wallet,
-      unreservedWalletTotal: ENA.wallet,
       stepSize: ENA.stepSize,
       minNotional: ENA.minNotional,
       referencePrice: ENA.referencePrice,
@@ -149,7 +145,6 @@ describe('sub-notional dust strand: what the value bound must never touch', () =
       heldQuantity: SMALLEST_LEGAL.wallet,
       walletFree: SMALLEST_LEGAL.wallet,
       walletLocked: '0',
-      unreservedWalletTotal: SMALLEST_LEGAL.wallet,
       stepSize: SMALLEST_LEGAL.stepSize,
       minNotional: SMALLEST_LEGAL.minNotional,
       referencePrice: SMALLEST_LEGAL.referencePrice,
@@ -162,7 +157,6 @@ describe('sub-notional dust strand: what the value bound must never touch', () =
         ledgerAvgEntryPrice: '10000',
         stateAvgEntryPrice: '10000',
         walletQuantity: SMALLEST_LEGAL.wallet,
-        unreservedWalletTotal: SMALLEST_LEGAL.wallet,
         stepSize: SMALLEST_LEGAL.stepSize,
         minNotional: SMALLEST_LEGAL.minNotional,
         referencePrice: SMALLEST_LEGAL.referencePrice,
@@ -173,7 +167,6 @@ describe('sub-notional dust strand: what the value bound must never touch', () =
       heldQuantity: null,
       walletFree: SMALLEST_LEGAL.wallet,
       walletLocked: '0',
-      unreservedWalletTotal: SMALLEST_LEGAL.wallet,
       stepSize: SMALLEST_LEGAL.stepSize,
       minNotional: SMALLEST_LEGAL.minNotional,
       referencePrice: SMALLEST_LEGAL.referencePrice,
@@ -188,7 +181,6 @@ describe('sub-notional dust strand: what the value bound must never touch', () =
         heldQuantity: '0',
         walletFree: '0',
         walletLocked: '0',
-        unreservedWalletTotal: '0',
         stepSize: '0.01',
         minNotional: '5',
         referencePrice: '0.11',
@@ -196,39 +188,23 @@ describe('sub-notional dust strand: what the value bound must never touch', () =
     ).toEqual({ action: 'no-op', nextHeldQuantity: '0' });
   });
 
-  it('does not null a real position because the operator reserved most of it', () => {
-    // The surplus the strategy may trade is 0.5 of a 100-unit holding worth 100, against a floor of 5. Asked of the reserve-ADJUSTED wallet the crumb share is 0.5% and the value 0.5, so the dust rule would fire and delete the claim over operator policy. The value half has to read the pre-reserve total, where the holding is the whole 100 and no bound applies.
-    const reserved = reconcileHeldQuantity({
-      heldQuantity: '100',
-      walletFree: '0.5',
-      walletLocked: '0',
-      unreservedWalletTotal: '100',
-      stepSize: '0.01',
-      minNotional: '5',
-      referencePrice: '1',
-    });
-    expect(reserved).toEqual({ action: 'adopt-wallet-smaller', nextHeldQuantity: '0.5' });
-
-    // Same shape with the reserve lifted: still not dust, so the two answers agree.
+  it('does not null a real position because the FREE leg alone reads as a crumb', () => {
+    // 0.5 free of a 100-unit holding worth 100 against a floor of 5, the rest resting on the book as an exit order. Asked of `free` alone the crumb share is 0.5% and the value 0.5, so the dust rule would fire and delete the claim. Both halves read `free + locked`, where the holding is the whole 100 and no bound applies.
     expect(
       reconcileHeldQuantity({
+        ...resolveWalletFields({ free: '0.5', locked: '99.5' }),
         heldQuantity: '100',
-        walletFree: '100',
-        walletLocked: '0',
-        unreservedWalletTotal: '100',
         stepSize: '0.01',
         minNotional: '5',
         referencePrice: '1',
       }),
     ).toEqual({ action: 'no-op', nextHeldQuantity: '100' });
 
-    // The genuine crumb is still caught: the pre-reserve total IS the crumb when nothing is reserved.
+    // The genuine crumb is still caught: with nothing locked, `free + locked` IS the crumb.
     expect(
       reconcileHeldQuantity({
+        ...resolveWalletFields({ free: ENA.wallet, locked: '0' }),
         heldQuantity: '421.30',
-        walletFree: ENA.wallet,
-        walletLocked: '0',
-        unreservedWalletTotal: ENA.wallet,
         stepSize: ENA.stepSize,
         minNotional: ENA.minNotional,
         referencePrice: ENA.referencePrice,
@@ -243,7 +219,6 @@ describe('sub-notional dust strand: what the value bound must never touch', () =
         heldQuantity: '100',
         walletFree: '100',
         walletLocked: '0',
-        unreservedWalletTotal: '100',
         stepSize: '0.01',
         minNotional: 'Infinity',
         referencePrice: '1',
@@ -257,7 +232,6 @@ describe('sub-notional dust strand: what the value bound must never touch', () =
       heldQuantity: ENA.wallet,
       walletFree: ENA.wallet,
       walletLocked: '0',
-      unreservedWalletTotal: ENA.wallet,
       stepSize: ENA.stepSize,
       minNotional: ENA.minNotional,
       referencePrice: null,
@@ -270,7 +244,6 @@ describe('sub-notional dust strand: what the value bound must never touch', () =
         ledgerAvgEntryPrice: '0.4587',
         stateAvgEntryPrice: '0.4587',
         walletQuantity: ENA.wallet,
-        unreservedWalletTotal: ENA.wallet,
         stepSize: ENA.stepSize,
         minNotional: ENA.minNotional,
         referencePrice: null,
@@ -281,7 +254,6 @@ describe('sub-notional dust strand: what the value bound must never touch', () =
       heldQuantity: null,
       walletFree: ENA.wallet,
       walletLocked: '0',
-      unreservedWalletTotal: ENA.wallet,
       stepSize: ENA.stepSize,
       minNotional: ENA.minNotional,
       referencePrice: null,
@@ -303,54 +275,6 @@ describe('sub-notional dust strand: what the value bound must never touch', () =
     );
     expect(action).toBe('reconstructed-from-trades');
     expect(upsert).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps a real position the operator reserve alone drove sub-notional', () => {
-    // The operator reserves 45 of their 50 ENA ("hold 45, trade on top"). The reserve is drained from the wallet BEFORE any bound sees it, so the value bound is handed 5 ENA worth USD 0.579 while the coins actually backing the position are worth USD 5.79 — above the floor. Flattening or pruning here would delete a real cost basis over a number the operator created and can undo by lowering the reserve.
-    //
-    // Note what this depth does and does not discriminate. Against a bare `minNotional` bound it is decisive: the surplus reads USD 0.579 < USD 5 and the position dies. Against the shipped residue bound it is not, because 0.579 clears the 1%-scaled USD 0.05 floor more than 10x over with either wiring — the DEEP-reserve cases in `reconcile-held-quantity.test.ts` and `revive-avg-entry-price.test.ts` carry that half, where the surplus falls under the scaled floor too. Both belts are wanted: this one holds if the scaling is ever removed.
-    const adjusted = reserveAdjustedBalance(new Decimal('50'), new Decimal('0'), '45');
-    expect(adjusted.free.toFixed()).toBe('5');
-    // The raw holding clears the floor; only the post-reserve view does not.
-    expect(
-      isBelowMinNotional(
-        new Decimal('50'),
-        new Decimal(ENA.referencePrice),
-        new Decimal(ENA.minNotional),
-      ),
-    ).toBe(false);
-    expect(
-      isBelowMinNotional(
-        adjusted.free,
-        new Decimal(ENA.referencePrice),
-        new Decimal(ENA.minNotional),
-      ),
-    ).toBe(true);
-
-    const converged = reconcileHeldQuantity({
-      heldQuantity: adjusted.free.toFixed(),
-      walletFree: adjusted.free.toFixed(),
-      walletLocked: adjusted.locked.toFixed(),
-      // The 50 the operator holds, not the 5 the reserve left tradeable — the field's whole purpose is that the bounds judge the operator's coins rather than the slice the strategy may trade.
-      unreservedWalletTotal: '50',
-      stepSize: ENA.stepSize,
-      minNotional: ENA.minNotional,
-      referencePrice: ENA.referencePrice,
-    });
-    expect(converged.nextHeldQuantity).toBe('5');
-
-    expect(
-      isPhantomLedgerRow({
-        preReconcileHeldQuantity: null,
-        ledgerAvgEntryPrice: '0.4587',
-        stateAvgEntryPrice: '0.4587',
-        walletQuantity: adjusted.free.plus(adjusted.locked).toFixed(),
-        unreservedWalletTotal: '50',
-        stepSize: ENA.stepSize,
-        minNotional: ENA.minNotional,
-        referencePrice: ENA.referencePrice,
-      }),
-    ).toBe(false);
   });
 });
 
@@ -378,7 +302,6 @@ const enaTarget = (o?: Partial<ReconcileSymbolTarget>): ReconcileSymbolTarget =>
   referencePrice: ENA.referencePrice,
   walletFree: ENA.wallet,
   walletLocked: '0',
-  unreservedWalletTotal: ENA.wallet,
   ...o,
 });
 

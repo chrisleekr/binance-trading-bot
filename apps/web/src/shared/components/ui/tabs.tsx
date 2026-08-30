@@ -12,7 +12,9 @@ export const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      'inline-flex h-9 items-center justify-center rounded-xs border border-border bg-bg-elevated p-0.5',
+      // min-h-11, not a fixed h-9: the triggers inside are the app's densest
+      // touch targets and a phone needs 44px on each one.
+      'inline-flex min-h-11 items-center justify-center rounded-xs border border-border bg-bg-elevated p-0.5',
       className,
     )}
     {...props}
@@ -27,7 +29,7 @@ export const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-center rounded-xs px-3 py-1 text-sm font-medium whitespace-nowrap text-muted-fg transition-colors data-[state=active]:bg-accent data-[state=active]:text-accent-fg',
+      'inline-flex min-h-10 min-w-11 items-center justify-center rounded-xs px-3 py-1 text-sm font-medium whitespace-nowrap text-muted-fg transition-colors data-[state=active]:bg-accent data-[state=active]:text-accent-fg',
       className,
     )}
     {...props}

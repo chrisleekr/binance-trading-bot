@@ -25,7 +25,13 @@
 //      live profile with no cached state if the process dies between them.)
 
 import type { Logger } from 'pino';
-import type { AccountId, ProfileDeleteDisposition, ProfileId, UserId } from '@app/contracts';
+import type {
+  AccountId,
+  ProfileDeleteDisposition,
+  ProfileId,
+  SymbolSource,
+  UserId,
+} from '@app/contracts';
 import { asProfileId, isRestingStatus, unwrapId } from '@app/contracts';
 import type { NotifyProviderRegistry } from '@app/notify';
 import {
@@ -122,8 +128,11 @@ export interface DisposalPosition {
   readonly avgEntryPrice: string | null;
   readonly quantity: string | null;
   readonly overrideConfig: unknown;
-  /** The operator's ringfenced base quantity. Dropping it lets the target sell coins the operator explicitly held back. */
-  readonly reserveBaseQuantity: string | null;
+  /** Provenance of the source binding, carried verbatim. A handoff moves a position between profiles; it does not re-author the binding, so re-stamping it `manual` would credit the operator with a coin discovery chose. */
+  readonly source: SymbolSource;
+  /** Whether the source binding was protected from discovery rotation, and when that was chosen. Both travel together: dropping the pin would let discovery reap a coin the operator ringfenced the moment it lands on the target, and dropping only the stamp would make a deliberate pin read as a backfilled one. */
+  readonly pinned: boolean;
+  readonly pinnedAt: Date | null;
 }
 
 export interface DisposalTargets {
@@ -369,14 +378,11 @@ const handoffPositions = async (
     for (const position of positions) {
       await src.profileSymbols.remove(position.symbol);
       await tgt.profileSymbols.upsert(position.symbol, position.baseAsset, {
-        source: 'manual',
+        source: position.source,
+        pinned: position.pinned,
+        pinnedAt: position.pinnedAt,
         ...(position.overrideConfig != null
           ? { overrideConfig: position.overrideConfig as Record<string, unknown> }
-          : {}),
-        // The reserve travels WITH the position. Without it the target reads the whole
-        // wallet line as tradeable and can sell coins the operator ringfenced.
-        ...(position.reserveBaseQuantity !== null
-          ? { reserveBaseQuantity: position.reserveBaseQuantity }
           : {}),
       });
       // A held-but-unpriced position has no ledger row to move; the target's reconcile
@@ -629,7 +635,10 @@ export const handleDisposeProfile = async (
         avgEntryPrice: ledger?.avgEntryPrice ?? null,
         quantity: ledger?.quantity ?? null,
         overrideConfig: binding?.overrideConfig ?? null,
-        reserveBaseQuantity: binding?.reserveBaseQuantity ?? null,
+        // A position whose binding is already gone has no provenance left to read. `unknown` is the honest answer, and unpinned is the safe one: the target rotates it like any other coin rather than inheriting a protection nobody granted.
+        source: binding?.source ?? 'unknown',
+        pinned: binding?.pinned ?? false,
+        pinnedAt: binding?.pinnedAt ?? null,
       };
     }),
     disposition,

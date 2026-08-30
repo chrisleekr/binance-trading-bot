@@ -28,9 +28,10 @@ export const stopProfile = (profileId: string): Promise<unknown> =>
   apiFetch(accountPath(`/profiles/${profileId}/stop`), NoBody, { method: 'POST' });
 
 /**
- * Reconcile fees from Binance — `POST /profiles/:id/reconcile-fees` (202).
- * Enqueues a worker job that backfills `trade_archive.fees_quote` with real
- * commission for trades whose fees were never valued, so net-of-fee P/L is honest.
+ * Enqueue `POST /profiles/:id/reconcile-fees` so the worker retries incomplete Binance fee evidence. Rows remain unavailable when the required historical valuation cannot be proven.
+ *
+ * @param profileId - Profile whose incomplete archive rows should be retried.
+ * @returns The completed API request after the reconciliation job is accepted.
  */
 export const reconcileProfileFees = (profileId: string): Promise<unknown> =>
   apiFetch(accountPath(`/profiles/${profileId}/reconcile-fees`), NoBody, { method: 'POST' });
@@ -50,10 +51,8 @@ export const deleteProfile = (
   profileId: string,
   disposition?: 'cancel-orders' | 'handoff',
   toProfileId?: string,
-): Promise<unknown> => {
-  const query =
-    disposition === undefined
-      ? ''
-      : `?disposition=${disposition}${toProfileId ? `&toProfileId=${encodeURIComponent(toProfileId)}` : ''}`;
-  return apiFetch(accountPath(`/profiles/${profileId}${query}`), NoBody, { method: 'DELETE' });
-};
+): Promise<unknown> =>
+  apiFetch(accountPath(`/profiles/${profileId}`), NoBody, {
+    method: 'DELETE',
+    query: { disposition, toProfileId },
+  });

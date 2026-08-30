@@ -1,4 +1,5 @@
 import { Decimal } from '@app/money';
+import type { FeeBasis } from '@app/contracts';
 import type { EquitySnapshotPayload } from '@app/db';
 
 /** One held position as the projection ships it (decimal-strings, may be null). */
@@ -16,6 +17,8 @@ export interface ComputeEquityInput {
   readonly priceOf: (symbol: string) => string | null;
   /** Cumulative realised net-of-fee profit for the profile (trade archive). */
   readonly realizedNetQuote: string;
+  /** How well the fee component of `realizedNetQuote` is known. Carried through unchanged: the unrealised legs are marked from live tickers and add no fee evidence either way, so the row is exactly as trustworthy as its realised input was. */
+  readonly feeBasis: FeeBasis;
   /** The benchmark asset symbol (e.g. 'BTC') and its current quote price, null if absent. */
   readonly benchmarkAsset: string;
   readonly benchmarkPriceQuote: string | null;
@@ -34,7 +37,7 @@ const ZERO = new Decimal(0);
  *
  * Every leg is counted in `input.quoteAsset` and nothing else. The realised leg arrives pre-filtered, and a position is admitted only when its symbol settles in that same asset, because the two are ADDED: an `ETHUSDT` holding marked at a USDT price would otherwise land in a BTC-denominated row, which is the cross-currency defect this snapshot exists to report rather than commit. A quote change deliberately keeps old-quote holdings alive rather than force-selling them, so this is the normal path after one, not a corrupt state. Such a leg is EXCLUDED, never converted: there is no rate source here, and inventing one would put market risk inside an accounting number.
  *
- * @param input - One profile's snapshot inputs. `quoteAsset` is both the denomination of every figure returned AND the admission test each position must pass, so it governs which legs exist at all, not just the label; `positions` is the raw avg-entry ledger, which may still hold symbols from a previous quote; `priceOf` resolves a cached ticker or null; `realizedNetQuote` arrives already counted in `quoteAsset`; `benchmarkAsset` and `benchmarkPriceQuote` carry the passive buy-and-hold comparator.
+ * @param input - One profile's snapshot inputs. `quoteAsset` is both the denomination of every figure returned AND the admission test each position must pass, so it governs which legs exist at all, not just the label; `positions` is the raw avg-entry ledger, which may still hold symbols from a previous quote; `priceOf` resolves a cached ticker or null; `realizedNetQuote` arrives already counted in `quoteAsset` and `feeBasis` says how well its fees were known; `benchmarkAsset` and `benchmarkPriceQuote` carry the passive buy-and-hold comparator.
  * @returns The row to persist: realised, position value, and position cost all counted in `quoteAsset`, their sum as `netPnlQuote`, and `benchmarkPrices` holding only the admitted legs that had a real cached price.
  */
 export const computeEquitySnapshot = (input: ComputeEquityInput): EquitySnapshotPayload => {
@@ -76,6 +79,7 @@ export const computeEquitySnapshot = (input: ComputeEquityInput): EquitySnapshot
     positionCostQuote: positionCost.toString(),
     benchmarkAsset: input.benchmarkAsset,
     benchmarkPriceQuote: benchmarkPrice.toString(),
+    feeBasis: input.feeBasis,
     benchmarkPrices,
   };
 };

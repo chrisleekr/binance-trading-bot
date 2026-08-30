@@ -1,11 +1,7 @@
 // The `backtest` queue's run callback: load the durable run + profile, replay
 // the strategy over the window, and build the ledger entry the caller persists.
 //
-// This is backtest DOMAIN logic, not boot wiring — it re-validates stored
-// params, assembles the per-symbol reserve overlay, and stamps the ledger
-// signature. It lives here rather than inline in the worker entrypoint so
-// `index.ts` stays the orchestrator it declares itself to be, and so a
-// ledger-shape change edits a backtest module instead of the boot file.
+// This is backtest DOMAIN logic, not boot wiring — it re-validates stored params, replays the window, and stamps the ledger signature. It lives here rather than inline in the worker entrypoint so `index.ts` stays the orchestrator it declares itself to be, and so a ledger-shape change edits a backtest module instead of the boot file.
 
 import type { Logger } from 'pino';
 import type { BinanceRestClient } from '@app/binance';
@@ -75,16 +71,6 @@ export const createRunBacktestJob =
     // API validated it, so parse defensively rather than trusting the jsonb — a
     // malformed row fails cleanly instead of deref-ing deep in the engine.
     const params = BacktestParamsSchema.parse(run.params);
-    // Per-symbol base reserves (profile_symbols), so backtest sell-sizing
-    // mirrors the live per-tick reserve overlay. Absent → null (no reserve).
-    const reserveBySymbol = new Map(
-      await Promise.all(
-        params.symbols.map(
-          async (s) =>
-            [s, (await p.profileSymbols.findForSymbol(s))?.reserveBaseQuantity ?? null] as const,
-        ),
-      ),
-    );
     const { result, configFingerprint } = await runProfileBacktest(
       {
         db: deps.db,
@@ -101,7 +87,6 @@ export const createRunBacktestJob =
         params,
         strategyName: profile.strategyName,
         profileConfig: profile.config,
-        reserveBySymbol,
         onProgress,
         shouldCancel,
       },

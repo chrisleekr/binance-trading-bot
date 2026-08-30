@@ -9,10 +9,9 @@
 // landmark and its p-4 padding, so a route-level <main> nests a second landmark
 // and doubles the horizontal padding. The container only owns vertical rhythm.
 
-import { Link, type LinkProps } from '@tanstack/react-router';
-import { ChevronLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { Breadcrumb } from '@/shared/components/breadcrumb';
 import { cn } from '@/shared/lib/cn';
 
 export function Page({
@@ -25,40 +24,10 @@ export function Page({
   return <div className={cn('space-y-6', className)}>{children}</div>;
 }
 
-interface BackLinkProps {
-  // Reuse the router's own typed route union (NonNullable: a back link always
-  // has a concrete destination) so a route rename propagates here.
-  readonly to: NonNullable<LinkProps['to']>;
-  readonly params?: LinkProps['params'];
-  readonly children?: ReactNode;
-}
-
-/**
- * The single back-navigation control. Fixed label ("Back" unless overridden),
- * fixed chevron, fixed styling — the destination is the only thing a caller
- * varies. Sits on its own row above the title so a long title can never
- * collide with it on a narrow screen.
- */
-export function BackLink({ to, params, children = 'Back' }: BackLinkProps): React.JSX.Element {
-  // Spread params only when present so a param-free target never passes
-  // `params={undefined}` (rejected under exactOptionalPropertyTypes).
-  const target = params === undefined ? { to } : { to, params };
-  return (
-    <Link
-      {...target}
-      className="inline-flex items-center gap-0.5 text-sm text-muted-fg hover:text-fg"
-    >
-      <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-      {children}
-    </Link>
-  );
-}
-
 export function PageHeader({
   title,
   meta,
   description,
-  back,
   actions,
 }: {
   title: ReactNode;
@@ -66,14 +35,13 @@ export function PageHeader({
   meta?: ReactNode;
   /** One-line context shown under the title. */
   description?: ReactNode;
-  /** A <BackLink>, rendered on its own row above the title. */
-  back?: ReactNode;
   /** Right-aligned controls on the title row, e.g. status pill + Manage button. */
   actions?: ReactNode;
 }): React.JSX.Element {
   return (
     <header className="space-y-1">
-      {back}
+      {/* The trail is derived from the active route, so a page states its own address without its route file having to name its ancestors. Replaces the former per-page `back` slot, which said a step existed but never where it led. */}
+      <Breadcrumb />
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <h1 className="text-xl font-semibold text-fg">{title}</h1>

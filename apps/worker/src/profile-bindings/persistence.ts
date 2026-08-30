@@ -157,7 +157,7 @@ export interface ProfilePersistence {
    */
   readonly recordNotifierGap: (entry: { topic: string; symbol?: string }) => Promise<void>;
   /**
-   * Cross-symbol KV writes (tracker #267). `setKv` upserts a strategy-owned
+   * Cross-symbol KV writes. `setKv` upserts a strategy-owned
    * namespaced key into the per-profile store; `deleteKv` removes it
    * (idempotent). Scoped to this profile via the bound {@link ProfileRepo}.
    */

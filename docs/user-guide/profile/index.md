@@ -6,17 +6,19 @@ A **profile** is one independent trading setup inside an account: its own strate
 
 _A profile in focus on the dashboard: status, health, KPIs, equity curve, and its symbols. Click any screenshot to zoom. Seeded demo data, not a real account._
 
-This section documents every tab you see when you open a profile, in the order they appear in the sidebar. Each page lists the exact fields and labels the app shows, so you can configure with the doc open beside the screen.
+This section documents every section you see when you open a profile, in the order they appear in the sidebar. Each page lists the exact fields and labels the app shows, so you can configure with the doc open beside the screen.
 
-## The profile tabs
+## The profile sections
 
-Open the **Manage profile** sheet from the profile dashboard to reach every tab. The sheet groups them under **Configure**, **Analyze**, and **Operate** — the same grouping used below.
+Selecting a profile in the sidebar expands it into its own sections, so every one of them is a single click from any page inside that profile, and the sidebar shows which one you are on. On a phone the same list is under **Profiles** in the bottom bar. A breadcrumb above each page's heading names the profile and the section, and every ancestor in it is a link.
+
+The **Manage profile** sheet on the profile dashboard is for the two actions that have no page of their own: **Investigate** and **Reconcile fees**. It no longer lists the sections — the sidebar and the phone's **Profiles** sheet both show which section you are on, which a slide-over cannot.
 
 ![Manage profile slide-over](../../assets/screenshots/user-guide/manage-profile-sheet.png)
 
-_The "Manage profile" sheet is the launcher for every profile tab, plus the Investigate and Reconcile fees actions. Seeded demo data, not a real account._
+_The "Manage profile" sheet, opened from the profile dashboard. Seeded demo data, not a real account._
 
-| Tab | What you set there |
+| Section | What you set there |
 | --- | --- |
 | **[Strategy](strategy.md)** | Which strategy runs and all of its config knobs. |
 | **[Risk](risk.md)** | Account-wide safety limits: daily loss cap, max positions, exposure. |
@@ -26,13 +28,13 @@ _The "Manage profile" sheet is the launcher for every profile tab, plus the Inve
 | **[Backtest](backtest.md)** | Replay the strategy over history before trading it. |
 | **[History](history.md)** | The profile's past orders and actions, read-only. |
 | **[Bulk order](bulk-order.md)** | Place one manual order across every coin in the profile. |
-| **[General](general.md)** | Rename, enable, stop, reconcile fees, and delete the profile. |
+| **[Profile settings](general.md)** | Rename, enable, stop, and delete the profile. |
 
 ## Investigate — "why isn't it trading?"
 
 The profile page carries an **Investigate** button in the top-right, next to the status chip and **Manage profile**. It answers the question you would otherwise answer by reading logs: what, right now, is stopping this profile from buying.
 
-From one of the tabs in the table above, open **Manage profile** and choose **Investigate** under _Analyze_ — the button itself is not repeated on every tab, because the check always looks at the whole profile rather than the settings page you happen to have open.
+From one of the sections in the table above, open **Manage profile** in the page header and choose **Investigate**. The button itself is not repeated inline on every section, because the check always looks at the whole profile rather than the settings page you happen to have open.
 
 Pressing it opens a panel that explains what the check does before it runs anything. It is **read-only** — nothing is paused, bought, sold, or changed. Confirm with **Investigate**, or with **Skip the live re-scan** if you would rather not spend request budget (see below).
 
@@ -51,7 +53,7 @@ The check then runs in the background as a checklist, in the order that matters,
 11. Does every held coin have a way out?
 12. Which setting is responsible?
 
-The order is the ranking: the first step that finds something owns the headline, because a stopped engine makes every later answer meaningless. Every finding is still listed, and each one that traces back to a setting carries a link that opens the right tab with that field expanded and highlighted.
+The order is the ranking: the first step that finds something owns the headline, because a stopped engine makes every later answer meaningless. Every finding is still listed, and each one that traces back to a setting carries a link that opens the right section with that field expanded and highlighted.
 
 **"Nothing is blocking it, your settings are just strict" is a valid answer.** When nothing is provable the report says so rather than inventing a cause.
 
@@ -63,4 +65,4 @@ Durations in the report ("blocked for 19 days") stay exact however short your [l
 
 ## Enabling a profile
 
-A new profile starts **disabled** and holds no positions. You configure the strategy and risk, optionally check the [Live gate](live-gate.md), then enable it from the [General](general.md) tab. While enabled, the worker ticks the profile's coins and places orders per the strategy. Disabling stops new decisions but, by design, leaves any resting Binance orders in place — see [General](general.md) for the difference between disabling, stopping, and deleting.
+A new profile starts **disabled** and holds no positions. You configure the strategy and risk, optionally check the [Live gate](live-gate.md), then enable it from the [Profile settings](general.md) section. While enabled, the worker ticks the profile's coins and places orders per the strategy. Disabling stops new decisions but, by design, leaves any resting Binance orders in place — see [Profile settings](general.md) for the difference between disabling, stopping, and deleting.

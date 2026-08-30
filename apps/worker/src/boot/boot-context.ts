@@ -144,7 +144,7 @@ export interface BootContext {
    */
   readonly subscriptionOwnership: SubscriptionOwnership;
   /**
-   * Periodic fleet-global enabled-set converge (#579). index.ts start()s it
+   * Periodic fleet-global enabled-set converge. index.ts start()s it
    * after `subscriptionOwnership` and stop()s it before, so a reconcile pass
    * never re-elects ownership after ownership has been torn down.
    */

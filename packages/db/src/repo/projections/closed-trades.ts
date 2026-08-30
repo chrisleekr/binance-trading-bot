@@ -1,4 +1,4 @@
-import type { ClosedTradesPeriod, ClosedTradesResponse, DecimalString } from '@app/contracts';
+import { DecimalString, type ClosedTradesPeriod, type ClosedTradesResponse } from '@app/contracts';
 
 import type { ProfileScope } from '../_scoped.js';
 import * as tradeArchive from '../trade-archive.js';
@@ -34,8 +34,8 @@ export const getClosedTradesForPeriod = async (
     tz: args.tz,
     from: args.from.toISOString(),
     to: args.to.toISOString(),
-    totalProfit: totalProfit as DecimalString,
-    totalProfitPercent: totalProfitPercent as DecimalString,
+    totalProfit: DecimalString.parse(totalProfit),
+    totalProfitPercent: DecimalString.parse(totalProfitPercent),
     tradeCount,
   };
 };

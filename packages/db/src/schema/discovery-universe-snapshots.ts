@@ -3,7 +3,7 @@ import { index, jsonb, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { profiles } from './profiles.js';
 
 /**
- * Append-only, profile-scoped point-in-time discovery universe series (#436).
+ * Append-only, profile-scoped point-in-time discovery universe series.
  * One row per discovery cycle so a window accumulates for a later net-edge
  * backtest of the dynamic universe. The discovery cron persists what it already
  * computed; this is pure observability and never feeds the selection.
@@ -29,7 +29,7 @@ export const discoveryUniverseSnapshots = pgTable(
 );
 
 /**
- * Per-cycle filter-funnel counts (#629). Structurally identical to
+ * Per-cycle filter-funnel counts. Structurally identical to
  * `@app/discovery`'s `DiscoveryFunnel`, redeclared here so the storage schema
  * stays self-contained: `@app/db` depends only on `@app/contracts` + `@app/core`,
  * and adding a `@app/db → @app/discovery` edge for one jsonb sub-shape is not

@@ -141,7 +141,7 @@ export const buildFleet = ({
     metrics: metricsRegistry,
   });
 
-  // Periodic fleet-global membership converge (#579). Re-reads the enabled set
+  // Periodic fleet-global membership converge. Re-reads the enabled set
   // and converges profileManager, then re-elects ownership so a runtime
   // subscribe/unsubscribe that a single-consumer pipeline job applied on one pod
   // propagates to every pod. index.ts start()s this after ownership and stop()s

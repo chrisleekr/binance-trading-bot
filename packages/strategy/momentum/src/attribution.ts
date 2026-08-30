@@ -92,7 +92,7 @@ export const momentumReasonAttribution: ReasonAttribution = {
   // holds less base than the bot's tracked position does.
   'base-short-of-tracked-position': {
     setting: 'Protective stop',
-    note: 'the wallet holds none of this coin free, so no protective stop can be placed — the coins were moved or withdrawn, or a base reserve is holding them; the stop arms itself once they are back',
+    note: 'the wallet holds none of this coin free, so no protective stop can be placed — the coins were moved, withdrawn, or locked in another order; the stop arms itself once they are back',
     gloss: 'No coins are free to place the protective stop against',
     kind: 'sizing',
   },

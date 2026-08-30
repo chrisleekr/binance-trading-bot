@@ -39,6 +39,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
 import { assertOrderFeasibleForProfile, withDiagnostics } from 'lib/order-feasibility.js';
 import { HttpError } from 'middleware/error.js';
+import { requireNotDemo } from 'middleware/require-not-demo.js';
 import { requireUser } from 'middleware/require-user.js';
 import { signatureForRun } from 'backtest-signature.js';
 import { requireOwnedProfile, scopeOf } from 'route-helpers.js';
@@ -237,12 +238,18 @@ const BacktestListQuery = z.object({
   filter: BacktestRunListFilter.optional(),
 });
 
+const CreateBacktestQuery = z.object({
+  // Preserve the existing bare `?force` shortcut while rejecting misspellings that would otherwise bypass dedup silently. The web sends `true`; `false` is the explicit opt-out.
+  force: z.enum(['', 'true', 'false']).optional(),
+});
+
 const createRouteDef = createRoute({
   method: 'post',
   path: '/profiles/{profileId}/backtests',
   tags: ['backtests'],
   request: {
     params: ProfileIdParam,
+    query: CreateBacktestQuery,
     body: { content: { 'application/json': { schema: BacktestParamsSchema } } },
   },
   responses: {
@@ -251,6 +258,10 @@ const createRouteDef = createRoute({
       content: { 'application/json': { schema: BacktestCreatedSchema } },
     },
     404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
+    422: {
+      description: 'VALIDATION_FAILED',
+      content: { 'application/json': { schema: ErrorEnvelope } },
+    },
   },
 });
 
@@ -426,6 +437,11 @@ export const backtestsRouter = (di: DI): ApiHono => {
   const app = createApiHono();
   app.use('/profiles/*/backtests', requireUser());
   app.use('/profiles/*/backtests/*', requireUser());
+  // The advisor is the only surface here that spends money OUTSIDE Binance, and a demo box injects the sole operator id for every anonymous visitor, so requireUser() gates nothing: starting a variant would bill the operator's stored AI-provider credential on a stranger's click. Testnet trading stays open because that is what a visitor came to see; this cannot, because no testnet exists for a model invoice. `manual` spends no credential — it is blocked because the operator disabled the advisor as one feature, and half a feature that writes suggestion rows from an anonymous paste is worse than none.
+  //
+  // Two method-scoped registrations, not one `app.use`: `use` registers as ALL, so it would swallow `GET .../advisor` and `GET .../advisor/manual/prompt` — the reads the demo deliberately keeps open so saved suggestions stay legible. `manual` carries its own line rather than riding the `:variant` pattern that happens to match it today: it is a separate static route, and a guard reaching it only by pattern coincidence would fall off silently the day either path is reshaped.
+  app.on('POST', '/profiles/:profileId/backtests/:runId/advisor/:variant', requireNotDemo(di));
+  app.on('POST', '/profiles/:profileId/backtests/:runId/advisor/manual', requireNotDemo(di));
 
   app.openapi(createRouteDef, async (c) => {
     const profileId = asProfileId(c.req.valid('param').profileId);
@@ -440,7 +456,7 @@ export const backtestsRouter = (di: DI): ApiHono => {
     // backtestSignature) is the "Run fresh anyway" choice from the dedup dialog:
     // skip the dedup short-circuit and always create + enqueue a new run. A bare
     // `?force` (empty value) counts; only an explicit `?force=false` opts out.
-    const forceParam = c.req.query('force');
+    const forceParam = c.req.valid('query').force;
     const force = forceParam !== undefined && forceParam !== 'false';
 
     // Same completion-signature seam the worker stamps on a finished run, so a
@@ -782,6 +798,8 @@ export const backtestsRouter = (di: DI): ApiHono => {
             fromMs: params.fromMs,
             toMs: params.toMs,
             totalReturnPct: (r.result as BacktestResult | null)?.metrics.totalReturnPct ?? null,
+            // Present on every row, null on the ones that have none: a missing key reads as "this server does not send fingerprints", which is not the same answer as "this run has no fingerprint yet".
+            configFingerprint: r.configFingerprint,
           };
         }),
         nextCursor,

@@ -4,12 +4,7 @@ import { Decimal } from '@app/money';
 import type { MyTradeDto } from '@app/binance';
 
 /**
- * One reconstructed order, grouped from the fills of a single Binance
- * `orderId`. The archive row's `orders` jsonb is not surfaced by the API, so
- * this exists for the audit/detail record and to carry `tradeIds` — the
- * backfill's idempotency marker (re-run skips a round-trip whose closing
- * trade id is already present). `clientOrderId`/`raw` are null because
- * `myTrades` never returns them and the ghost orders have no local row.
+ * One reconstructed order grouped from the fills of one Binance `orderId`. The archive keeps it as audit evidence and uses `tradeIds` as the backfill idempotency marker. `clientOrderId` and `raw` are null because `myTrades` does not return them and the ghost orders have no local row.
  */
 export interface ReconstructedOrderSummary {
   readonly orderId: string;
@@ -18,63 +13,87 @@ export interface ReconstructedOrderSummary {
   readonly intent: string;
   readonly side: 'BUY' | 'SELL';
   readonly status: 'FILLED';
-  readonly qty: string;
+  readonly executedQty: string;
+  readonly cummulativeQuoteQty: string;
+  readonly baseCommissionNetted: string | null;
   readonly tradeIds: number[];
   readonly closedAt: string;
   readonly raw: null;
 }
 
 /**
- * A completed buy-then-emptied cycle. Quote totals and `profit` are GROSS
- * (fees ride alongside in `fees`, per commission asset), matching the forward
- * archive's shape. `breakdown` uses `backfill:BUY`/`backfill:SELL` keys (no
- * strategy intent is recoverable from trade history). `closingTradeId` is the
- * last fill's trade id, stamped for idempotency; `closedAtMs` drives the
- * archive row's `archivedAt` so historic P/L lands at its real trade time.
+ * A completed buy-then-emptied cycle. Quote totals and `profit` use the archive's Recorded basis; the I/O-owning handler resolves raw fees, the additional adjustment, and completeness separately. `breakdown` uses `backfill:BUY` and `backfill:SELL` because strategy intent is not recoverable from trade history. `closingTradeId` is the idempotency marker, and `closedAtMs` places historic P/L at the closing fill's time.
  */
 export interface ReconstructedRoundTrip {
   readonly closingTradeId: number;
-  /**
-   * Binance order id of the fill that flattened the cycle. The re-run guard
-   * keys on this rather than on any order in the cycle: a BUY order whose
-   * partial fills straddle a flat-out belongs to two cycles, and matching on
-   * any shared order would drop the second one as a duplicate.
-   */
+  /** Binance order id of the fill that flattened the cycle. The re-run guard keys on this rather than any order in the cycle because BUY partial fills can straddle a flat-out and legitimately belong to two cycles. */
   readonly closingBinanceOrderId: string;
   readonly closedAtMs: number;
   readonly totalBuyQuote: string;
   readonly totalSellQuote: string;
   readonly profit: string;
-  readonly profitPercent: string;
   readonly breakdown: Record<string, string>;
-  readonly fees: Record<string, string>;
   readonly orders: ReconstructedOrderSummary[];
 }
 
 const BACKFILL_BUY = 'backfill:BUY';
 const BACKFILL_SELL = 'backfill:SELL';
 
-const buildRoundTrip = (fills: readonly MyTradeDto[]): ReconstructedRoundTrip => {
+/**
+ * Return the positive BUY commission that reduced received base quantity. Invalid commission text stays unproven here and is rejected by the shared fee resolver before completeness can become true.
+ *
+ * @param fill - Binance trade used by the reconstruction walk.
+ * @param baseAsset - Symbol base asset whose BUY commission reduces wallet quantity.
+ * @returns A positive base commission, or zero when none is proven.
+ */
+const buyBaseCommission = (fill: MyTradeDto, baseAsset: string): Decimal => {
+  if (!fill.isBuyer || fill.commissionAsset !== baseAsset) return new Decimal(0);
+  try {
+    const commission = new Decimal(fill.commission);
+    return commission.isFinite() && commission.gt(0) ? commission : new Decimal(0);
+  } catch {
+    return new Decimal(0);
+  }
+};
+
+/**
+ * Build one closed cycle's Recorded cashflow and synthetic order evidence. A BUY receives base-fee proof only when the cycle's exact net base quantity returned to zero.
+ *
+ * @param fills - Ordered fills belonging to one completed cycle.
+ * @param baseAsset - Symbol base asset used to identify quantity-reducing BUY fees.
+ * @returns The archive-ready cycle summary and idempotency markers.
+ */
+const buildRoundTrip = (
+  fills: readonly MyTradeDto[],
+  baseAsset: string,
+): ReconstructedRoundTrip => {
   let totalBuyQuote = new Decimal(0);
   let totalSellQuote = new Decimal(0);
-  const feeSums = new Map<string, Decimal>();
+  let netBaseQuantity = new Decimal(0);
   // Group fills into one synthetic order per Binance orderId (a single order
   // fills as one or more trades). All fills of an order share a side.
   const byOrder = new Map<number, MyTradeDto[]>();
   for (const f of fills) {
     const quote = new Decimal(f.quoteQty);
-    if (f.isBuyer) totalBuyQuote = totalBuyQuote.add(quote);
-    else totalSellQuote = totalSellQuote.add(quote);
-    feeSums.set(
-      f.commissionAsset,
-      (feeSums.get(f.commissionAsset) ?? new Decimal(0)).add(f.commission),
-    );
+    const qty = new Decimal(f.qty);
+    if (f.isBuyer) {
+      totalBuyQuote = totalBuyQuote.add(quote);
+      netBaseQuantity = netBaseQuantity.add(qty.sub(buyBaseCommission(f, baseAsset)));
+    } else {
+      totalSellQuote = totalSellQuote.add(quote);
+      netBaseQuantity = netBaseQuantity.sub(qty);
+    }
     const group = byOrder.get(f.orderId);
     if (group) group.push(f);
     else byOrder.set(f.orderId, [f]);
   }
   const orders: ReconstructedOrderSummary[] = [...byOrder.entries()].map(([orderId, group]) => {
-    const qty = group.reduce((sum, f) => sum.add(f.qty), new Decimal(0));
+    const executedQty = group.reduce((sum, f) => sum.add(f.qty), new Decimal(0));
+    const quoteQty = group.reduce((sum, f) => sum.add(f.quoteQty), new Decimal(0));
+    const baseCommission = group.reduce(
+      (sum, fill) => sum.add(buyBaseCommission(fill, baseAsset)),
+      new Decimal(0),
+    );
     const closedAtMs = group.reduce((m, f) => Math.max(m, f.time), 0);
     return {
       orderId: String(orderId),
@@ -83,16 +102,17 @@ const buildRoundTrip = (fills: readonly MyTradeDto[]): ReconstructedRoundTrip =>
       intent: 'backfill',
       side: group[0]?.isBuyer ? 'BUY' : 'SELL',
       status: 'FILLED',
-      qty: qty.toString(),
+      executedQty: executedQty.toString(),
+      cummulativeQuoteQty: quoteQty.toString(),
+      // Exact net-base closure proves the lower SELL proceeds already carry this BUY base fee once.
+      baseCommissionNetted:
+        netBaseQuantity.isZero() && baseCommission.gt(0) ? baseCommission.toString() : null,
       tradeIds: group.map((f) => f.id),
       closedAt: new Date(closedAtMs).toISOString(),
       raw: null,
     };
   });
   const profit = totalSellQuote.sub(totalBuyQuote);
-  const profitPercent = totalBuyQuote.isZero()
-    ? new Decimal(0)
-    : profit.div(totalBuyQuote).mul(100);
   // Fills arrive sorted, so the last one is the closing fill.
   const closing = fills[fills.length - 1];
   return {
@@ -102,41 +122,25 @@ const buildRoundTrip = (fills: readonly MyTradeDto[]): ReconstructedRoundTrip =>
     totalBuyQuote: totalBuyQuote.toString(),
     totalSellQuote: totalSellQuote.toString(),
     profit: profit.toString(),
-    profitPercent: profitPercent.toString(),
     breakdown: {
       [BACKFILL_BUY]: totalBuyQuote.toString(),
       [BACKFILL_SELL]: totalSellQuote.toString(),
     },
-    fees: Object.fromEntries([...feeSums].map(([asset, total]) => [asset, total.toString()])),
     orders,
   };
 };
 
 /**
- * Walk fills oldest-first tracking running base quantity (BUY adds, SELL
- * subtracts) and emit a round-trip each time the position empties back to
- * ~zero. The epsilon is relative to the round-trip's peak position so
- * base-asset fee residue and stepSize dust don't keep a finished cycle open,
- * while a genuine partial sell (which leaves a large remainder) does not
- * close it early.
+ * Walk fills oldest-first using wallet quantity: BUY adds executed quantity minus a base-asset commission, and SELL subtracts executed quantity. A relative epsilon tolerates step-size dust, but exact zero is still required before a BUY base fee is certified as already present in Recorded cashflow. Orphan sells, meaningful overshoots, and trailing open positions are dropped because they lack a complete cost basis.
  *
- * Two cases yield un-costed base, where no honest P/L can be reconstructed,
- * so they are dropped and surfaced (never silently emitted as profit):
- *  - `skippedOrphanSells`: a SELL while flat (its matching BUYs predate the
- *    supplied history).
- *  - `droppedOvershootCycles`: a cycle whose SELLs draw the running quantity
- *    meaningfully below zero (sold more base than this cycle bought — the
- *    surplus came from a pre-history position). Counting the oversized sell's
- *    proceeds as profit would inflate realised P/L, so the whole cycle is
- *    discarded.
- *
- * A trailing open position (bought but not fully sold) is also dropped: it has
- * no realised P/L yet. The close epsilon is relative to the cycle's peak so
- * base-asset fee dust does not keep a finished cycle open; a zero-peak cycle
- * (only zero-qty fills) can never emit.
+ * @param fills - Binance account trades for one symbol; order does not matter.
+ * @param baseAsset - Symbol base asset used to net BUY commissions from wallet quantity.
+ * @param epsilonRatio - Maximum residual relative to peak quantity treated as step-size dust.
+ * @returns Reconstructed cycles plus counts of history gaps that were dropped.
  */
 export const reconstructRoundTrips = (
   fills: readonly MyTradeDto[],
+  baseAsset: string,
   epsilonRatio = 0.01,
 ): {
   roundTrips: ReconstructedRoundTrip[];
@@ -157,7 +161,7 @@ export const reconstructRoundTrips = (
   };
   for (const f of sorted) {
     if (f.isBuyer) {
-      running = running.add(f.qty);
+      running = running.add(new Decimal(f.qty).sub(buyBaseCommission(f, baseAsset)));
       if (running.gt(peak)) peak = running;
       current.push(f);
       continue;
@@ -176,7 +180,7 @@ export const reconstructRoundTrips = (
       droppedOvershootCycles += 1;
       reset();
     } else if (!peak.isZero() && running.lte(epsilon)) {
-      roundTrips.push(buildRoundTrip(current));
+      roundTrips.push(buildRoundTrip(current, baseAsset));
       reset();
     }
   }

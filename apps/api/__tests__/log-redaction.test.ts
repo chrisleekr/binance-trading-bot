@@ -10,7 +10,7 @@ class CaptureStream extends Writable implements DestinationStream {
     this.buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     cb();
   }
-  write(chunk: Buffer | string): boolean {
+  override write(chunk: Buffer | string): boolean {
     this.buffer += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
     return true;
   }

@@ -40,15 +40,51 @@ describe('profitFactorFromGross', () => {
 describe('summarizeClosedTrades', () => {
   it('collapses rows into one net-of-fee summary, classified on net', () => {
     const s = summarizeClosedTrades([
-      { quoteAsset: 'USDT', source: 'discovery', profit: '10', feesQuote: '1', orders: [] }, // net +9 win
-      { quoteAsset: 'USDT', source: 'manual', profit: '2', feesQuote: '3', orders: [] }, // net -1 loss
-      { quoteAsset: 'USDT', source: 'manual', profit: '0', feesQuote: '0', orders: [] }, // breakeven
+      {
+        quoteAsset: 'USDT',
+        source: 'discovery',
+        profit: '10',
+        feesQuote: '1',
+        feeBasis: 'exact',
+        orders: [],
+      }, // net +9 win
+      {
+        quoteAsset: 'USDT',
+        source: 'manual',
+        profit: '2',
+        feesQuote: '3',
+        feeBasis: 'exact',
+        orders: [],
+      }, // net -1 loss
+      {
+        quoteAsset: 'USDT',
+        source: 'manual',
+        profit: '0',
+        feesQuote: '0',
+        feeBasis: 'exact',
+        orders: [],
+      }, // breakeven
     ]);
     expect(s.tradeCount).toBe(3);
     expect(s.wins).toBe(1);
     expect(s.losses).toBe(1);
     expect(s.grossProfit).toBe('9');
     expect(s.grossLoss).toBe('1');
+    expect(s.feeBasis).toBe('exact');
+  });
+
+  it('marks the summary incomplete when any row has incomplete fee accounting', () => {
+    const summary = summarizeClosedTrades([
+      {
+        quoteAsset: 'USDT',
+        source: 'manual',
+        profit: '1',
+        feesQuote: '0',
+        feeBasis: 'unknown',
+        orders: [],
+      },
+    ]);
+    expect(summary.feeBasis).toBe('unknown');
   });
 
   it('returns an all-zero summary for no trades', () => {

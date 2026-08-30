@@ -73,7 +73,7 @@ const buildStubStrategy = (): Strategy =>
     tick: () => ({ nextState: { schemaVersion: '1.0.0' }, decisions: [], logs: [], metrics: [] }),
   }) as unknown as Strategy;
 
-type ReapOutcome = 'removed' | 'not-found' | 'not-auto' | 'held';
+type ReapOutcome = 'removed' | 'not-found' | 'pinned' | 'held';
 
 interface HarnessOpts {
   /**
@@ -149,8 +149,8 @@ const buildHarness = (opts: HarnessOpts) => {
   const loadOpenOrders = vi.fn(async () => []);
   const loadWindow = vi.fn(async () => []);
 
-  const reapAutoIfFlat = vi.fn(async (): Promise<ReapOutcome> => {
-    if (opts.reapThrows) throw new Error('reapAutoIfFlat: transient postgres failure');
+  const reapUnpinnedIfFlat = vi.fn(async (): Promise<ReapOutcome> => {
+    if (opts.reapThrows) throw new Error('reapUnpinnedIfFlat: transient postgres failure');
     return opts.reapResult ?? 'removed';
   });
   const appendActionLog = vi.fn<NonNullable<TickHandlerDeps['appendActionLog']>>(async () => {
@@ -199,7 +199,6 @@ const buildHarness = (opts: HarnessOpts) => {
     candleInterval: '1h',
     technicalsConfig: { useOnlyWithinMin: 2, ifExpires: 'do-not-buy', intervals: [] },
     needsAccountDeployedQuote: false,
-    reserveBaseQuantity: null,
   } as unknown as ProfileTickContext;
 
   const deps = {
@@ -229,7 +228,7 @@ const buildHarness = (opts: HarnessOpts) => {
     // pre-check still degrades to a graceful skip.
     ...(opts.unwired
       ? {}
-      : { reapAutoIfFlat, appendActionLog, enqueueReconfigure, notPermittedThrottle }),
+      : { reapUnpinnedIfFlat, appendActionLog, enqueueReconfigure, notPermittedThrottle }),
   } as unknown as TickHandlerDeps;
 
   const handler = createTickHandler(deps);
@@ -264,7 +263,7 @@ const buildHarness = (opts: HarnessOpts) => {
   return {
     tick,
     symbolInfoCache,
-    reapAutoIfFlat,
+    reapUnpinnedIfFlat,
     appendActionLog,
     enqueueReconfigure,
     notPermittedThrottle,
@@ -300,7 +299,7 @@ describe('tick handler — an unpermitted symbol retires itself instead of alert
     // The binding delete, the per-symbol state teardown and the discovery-hash
     // clear are ONE structural operation inside the repo fn, so the handler's
     // whole obligation is to invoke it with the proven scope and the symbol.
-    expect(h.reapAutoIfFlat).toHaveBeenCalledWith(
+    expect(h.reapUnpinnedIfFlat).toHaveBeenCalledWith(
       expect.objectContaining({ operatorId: OPERATOR, accountId: ACCOUNT, profileId: PROFILE }),
       SYMBOL,
     );
@@ -310,6 +309,10 @@ describe('tick handler — an unpermitted symbol retires itself instead of alert
     // The two self-heals share one trunk, so the cause is what keeps their
     // records apart — swap the copy and this row starts lying about why.
     expect(h.ctxOf(h.infoLogs())[0]).toMatchObject({ source: 'symbol-not-permitted' });
+    // The reap fires on any unpinned binding, so the operator copy must name the pin, not a provenance the row may not have.
+    expect((h.infoLogs()[0]?.[1] as { msg?: string })?.msg).toBe(
+      `${SYMBOL}: this account has no Binance permission to trade it — the coin was not pinned and held nothing, so the bot stopped tracking it`,
+    );
   });
 
   it('C2: a retirement enqueues reconfigure-profile exactly once with { userId, accountId, profileId }', async () => {
@@ -325,8 +328,8 @@ describe('tick handler — an unpermitted symbol retires itself instead of alert
     });
   });
 
-  it('C2b: a non-retiring outcome (held, not-auto, not-found) never enqueues a reconfigure', async () => {
-    for (const reapResult of ['held', 'not-auto', 'not-found'] as const) {
+  it('C2b: a non-retiring outcome (held, pinned, not-found) never enqueues a reconfigure', async () => {
+    for (const reapResult of ['held', 'pinned', 'not-found'] as const) {
       const h = buildHarness(notPermitted({ reapResult }));
       await h.tick();
 
@@ -335,7 +338,7 @@ describe('tick handler — an unpermitted symbol retires itself instead of alert
   });
 
   it('C3: a manually pinned binding is NOT retired — every per-symbol surface is untouched and the warn names the unpin', async () => {
-    const h = buildHarness(notPermitted({ reapResult: 'not-auto' }));
+    const h = buildHarness(notPermitted({ reapResult: 'pinned' }));
     const { result, thrown } = await h.tick();
 
     expect(thrown).toBeUndefined();
@@ -412,7 +415,7 @@ describe('tick handler — an unpermitted symbol retires itself instead of alert
       expect(thrown).toBeUndefined();
       // A real tick ran: not the throttled skip shape the retire path returns.
       expect(result).toMatchObject({ symbol: SYMBOL, throttled: false });
-      expect(h.reapAutoIfFlat).not.toHaveBeenCalled();
+      expect(h.reapUnpinnedIfFlat).not.toHaveBeenCalled();
       expect(h.enqueueReconfigure).not.toHaveBeenCalled();
       expect(h.appendActionLog).not.toHaveBeenCalled();
     });
@@ -442,7 +445,7 @@ describe('tick handler — an unpermitted symbol retires itself instead of alert
     await h.tick();
 
     // The reap is consulted every tick (the position may have been flattened)…
-    expect(h.reapAutoIfFlat).toHaveBeenCalledTimes(2);
+    expect(h.reapUnpinnedIfFlat).toHaveBeenCalledTimes(2);
     // …but the operator hears about it once per window, keyed per (profile, symbol).
     expect(h.notPermittedThrottle.allow).toHaveBeenCalledTimes(2);
     expect(h.notPermittedThrottle.allow).toHaveBeenCalledWith(`${PROFILE}:${SYMBOL}`);
@@ -469,7 +472,7 @@ describe('tick handler — an unpermitted symbol retires itself instead of alert
     expect(h.symbolInfoCache.get).toHaveBeenCalledWith(SYMBOL, 'test');
     expect(thrown).toBeUndefined();
     expect(result).toMatchObject({ symbol: SYMBOL, decisionCount: 0, throttled: true });
-    expect(h.reapAutoIfFlat).toHaveBeenCalledTimes(1);
+    expect(h.reapUnpinnedIfFlat).toHaveBeenCalledTimes(1);
     expect(h.enqueueReconfigure).toHaveBeenCalledTimes(1);
   });
 
@@ -539,7 +542,7 @@ describe('tick handler — an unpermitted symbol retires itself instead of alert
       expect(thrown).toBeUndefined();
       // The halt's own noop skip, not the retire path's.
       expect(result).toMatchObject({ symbol: SYMBOL, decisionCount: 0, throttled: true });
-      expect(h.reapAutoIfFlat).not.toHaveBeenCalled();
+      expect(h.reapUnpinnedIfFlat).not.toHaveBeenCalled();
       expect(h.enqueueReconfigure).not.toHaveBeenCalled();
       expect(h.appendActionLog).not.toHaveBeenCalled();
       // Not even read: the pre-check is gated before its symbol-info lookup.

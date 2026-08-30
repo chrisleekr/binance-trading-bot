@@ -1,4 +1,9 @@
-import { BenchmarkMode, type EquitySnapshotPoint } from '@app/contracts';
+import {
+  BenchmarkMode,
+  weakestFeeBasis,
+  type EquitySnapshotPoint,
+  type FeeBasis,
+} from '@app/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CartesianGrid,
@@ -17,6 +22,7 @@ import { formatMoneyAmount, formatPercent } from '@/shared/lib/format';
 import { formatDate, formatInstant } from '@/shared/lib/format-time';
 import { useTimezone } from '@/shared/context/timezone-context';
 import { LoadingRows } from '@/shared/components/page-skeleton';
+import { Select } from '@/shared/components/ui/select';
 
 interface ChartPoint {
   tsMs: number;
@@ -57,19 +63,27 @@ const basketReturn = (
  * Both lines anchor to the first point where capital was deployed (position cost
  * > 0), not the worker's first boot, so the comparison starts when money was put
  * in. When nothing was ever deployed the hold line stays flat at 0.
+ *
+ * `feeBasis` is the weakest tier any PLOTTED point carries, because the green line is one claim about the whole window and a reader has to be told about its worst evidence. It is folded here rather than filtered server-side: a snapshot's realised leg is an all-time cumulative fold whose tier no forward path lifts, so withholding the weak points would empty the card permanently instead of deferring it. Each point's tier is frozen at capture, so reconciling fees repairs the archive without clearing this marker for points already recorded — it stands until they age out of the window. An empty window is `exact` — there is nothing there to distrust.
  */
 export const toSeries = (
   points: readonly EquitySnapshotPoint[] | undefined,
   mode: BenchmarkMode,
-): { series: ChartPoint[]; holdWindowPct: number | null; latestNetPnl: number | null } => {
+): {
+  series: ChartPoint[];
+  holdWindowPct: number | null;
+  latestNetPnl: number | null;
+  feeBasis: FeeBasis;
+} => {
   if (!points || points.length === 0) {
-    return { series: [], holdWindowPct: null, latestNetPnl: null };
+    return { series: [], holdWindowPct: null, latestNetPnl: null, feeBasis: 'exact' };
   }
   const deployedIdx = points.findIndex((p) => Number(p.positionCostQuote) > 0);
   const startIdx = deployedIdx === -1 ? 0 : deployedIdx;
   const anchor = points[startIdx];
   const last = points.at(-1);
-  if (!anchor || !last) return { series: [], holdWindowPct: null, latestNetPnl: null };
+  if (!anchor || !last)
+    return { series: [], holdWindowPct: null, latestNetPnl: null, feeBasis: 'exact' };
   const windowed = points.slice(startIdx);
   const cost0 = Number(anchor.positionCostQuote);
   const netPnl0 = Number(anchor.netPnlQuote);
@@ -96,7 +110,12 @@ export const toSeries = (
   });
   const lastReturn = holdReturn(last);
   const holdWindowPct = lastReturn === null ? null : lastReturn * 100;
-  return { series, holdWindowPct, latestNetPnl: Number(last.netPnlQuote) };
+  const feeBasis = windowed.reduce<FeeBasis>(
+    // `?? 'unknown'` rather than a bare read: the tier is defaulted at the contract boundary, but a point that never went through it leaves it undefined, and reading that silence as proof is the direction this whole tier exists to close.
+    (weakest, p) => weakestFeeBasis(weakest, p.feeBasis ?? 'unknown'),
+    'exact',
+  );
+  return { series, holdWindowPct, latestNetPnl: Number(last.netPnlQuote), feeBasis };
 };
 
 const useEquitySnapshots = (profileId: string) =>
@@ -111,7 +130,7 @@ export function EquityPnlCard({ profileId }: { profileId: string }): React.JSX.E
   const queryClient = useQueryClient();
   const { data, isPending, isError } = useEquitySnapshots(profileId);
   const mode: BenchmarkMode = data?.benchmarkMode ?? 'btc';
-  const { series, holdWindowPct, latestNetPnl } = toSeries(data?.points, mode);
+  const { series, holdWindowPct, latestNetPnl, feeBasis } = toSeries(data?.points, mode);
   const quote = data?.quoteAsset ?? '';
   const holdLabel = mode === 'basket' ? 'your basket' : 'BTC';
 
@@ -136,17 +155,17 @@ export function EquityPnlCard({ profileId }: { profileId: string }): React.JSX.E
           </h2>
           <label className="flex items-center gap-1 text-xs text-muted-fg">
             <span className="sr-only">Benchmark</span>
-            <select
+            <Select
+              variant="sm"
               data-testid="equity-benchmark-mode"
               aria-label="Benchmark to compare against"
-              className="rounded-xs border border-border bg-surface-alt px-1.5 py-0.5 text-xs focus-visible:border-focus focus-visible:ring-1 focus-visible:ring-focus focus-visible:outline-none"
               value={mode}
               disabled={setMode.isPending}
               onChange={(e) => setMode.mutate(BenchmarkMode.parse(e.target.value))}
             >
               <option value="btc">vs BTC</option>
               <option value="basket">vs my basket</option>
-            </select>
+            </Select>
           </label>
         </div>
         {latestNetPnl !== null ? (
@@ -157,6 +176,11 @@ export function EquityPnlCard({ profileId }: { profileId: string }): React.JSX.E
             >
               {formatMoneyAmount(String(latestNetPnl))} {quote}
             </span>
+            {feeBasis !== 'exact' ? (
+              <span className="text-muted-fg" data-testid="equity-fee-basis">
+                {feeBasis === 'unknown' ? ' · fees not accounted' : ' · estimated'}
+              </span>
+            ) : null}
             {holdWindowPct !== null ? (
               <span className="text-muted-fg">
                 {mode === 'basket' ? ' · Basket this window ' : ' · BTC this window '}

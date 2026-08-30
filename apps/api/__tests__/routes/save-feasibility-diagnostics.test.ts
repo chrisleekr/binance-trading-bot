@@ -107,21 +107,21 @@ describeIfInfra('save-time order-feasibility diagnostics', () => {
 
   const base = (): string => `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}`;
 
-  const saveConfig = (config: unknown): Promise<Response> =>
+  const saveConfig = async (config: unknown): Promise<Response> =>
     fx.app.request(base(), {
       method: 'PATCH',
       headers: headers(),
       body: JSON.stringify({ config }),
     });
 
-  const bindSymbol = (): Promise<Response> =>
+  const bindSymbol = async (): Promise<Response> =>
     fx.app.request(`${base()}/symbols`, {
       method: 'POST',
       headers: headers(),
       body: JSON.stringify({ symbol: SYMBOL }),
     });
 
-  const launchBacktest = (): Promise<Response> =>
+  const launchBacktest = async (): Promise<Response> =>
     fx.app.request(`${base()}/backtests`, {
       method: 'POST',
       headers: headers(),
@@ -313,7 +313,7 @@ describeIfInfra('save-time order-feasibility diagnostics', () => {
 
     const bound = await readBody(await bindSymbol());
     expect(Object.keys(bound).sort()).toEqual(
-      ['symbol', 'overrideConfig', 'source', 'reserveBaseQuantity'].sort(),
+      ['symbol', 'overrideConfig', 'source', 'pinned', 'pinnedAt'].sort(),
     );
 
     const launched = await readBody(await launchBacktest());

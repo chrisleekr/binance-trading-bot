@@ -48,7 +48,7 @@ A self-hosted app that trades on **Binance** for you, following rules you set. Y
 
     ---
 
-    Every screen and field, mirroring the app sidebar: dashboard, profile tabs,
+    Every screen and field, mirroring the app sidebar: dashboard, profile sections,
     account, and system settings.
 
 -   :material-lightbulb-on:{ .lg .middle } **[Concepts](concepts/index.md)**

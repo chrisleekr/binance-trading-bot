@@ -17,6 +17,7 @@ interface DashboardSymbol {
   symbol: string;
   enabled: boolean;
   entryBlocker: { reason: string; detail?: Record<string, unknown> } | null;
+  positionSeedRefusal?: { code: string; since: string } | null;
 }
 
 describeIfInfra('dashboard router — entry-blocker enrichment', () => {
@@ -43,6 +44,12 @@ describeIfInfra('dashboard router — entry-blocker enrichment', () => {
         'BLOCKEDUSDT',
         JSON.stringify({ entryBlocker: { reason: 'awaiting-trigger-price', detail: {} } }),
       ],
+    );
+    // An open position-seed refusal for BLOCKEDUSDT only: the worker read the operator's cost basis and declined to hand it to the strategy, and the cost-basis row survives that by design.
+    await fx.di.pool.query(
+      `insert into condition_states (profile_id, condition, symbol, code, since)
+       values ($1, 'position-seed-refused', 'BLOCKEDUSDT', 'no-sellable-position', now())`,
+      [fx.alice.profileId],
     );
     // Disable PAUSEDUSDT via the disable-action key the projection reads.
     await fx.di.redis
@@ -83,6 +90,34 @@ describeIfInfra('dashboard router — entry-blocker enrichment', () => {
     const paused = (await fetchSymbols()).find((s) => s.symbol === 'PAUSEDUSDT');
     expect(paused?.enabled).toBe(false);
     expect(paused?.entryBlocker).toBe(null);
+  });
+
+  it('surfaces an open position-seed refusal on the symbol it belongs to', async () => {
+    const symbols = await fetchSymbols();
+    expect(symbols.find((s) => s.symbol === 'BLOCKEDUSDT')?.positionSeedRefusal).toMatchObject({
+      code: 'no-sellable-position',
+    });
+    // Only that symbol: a refusal is per-(profile, symbol), and painting one across the profile tells the operator healthy coins are not held.
+    expect(symbols.find((s) => s.symbol === 'WATCHUSDT')?.positionSeedRefusal).toBe(null);
+  });
+
+  it('reads every open refusal in exactly one query (no N+1)', async () => {
+    // The dashboard is the hottest route in the app and it already batches the blocker read for the same reason. A per-symbol condition lookup would add one round trip per coin to every poll.
+    await fx.di.redis
+      .raw()
+      .del(`tenant:${fx.alice.accountId}:profile:${fx.alice.profileId}:dashboard:cache`);
+    const querySpy = vi.spyOn(fx.di.pool, 'query');
+    try {
+      const symbols = await fetchSymbols();
+      expect(symbols.length).toBeGreaterThanOrEqual(3);
+      const conditionQueries = querySpy.mock.calls.filter((call) => {
+        const text = typeof call[0] === 'string' ? call[0] : (call[0] as { text?: string }).text;
+        return typeof text === 'string' && text.includes('condition_states');
+      });
+      expect(conditionQueries).toHaveLength(1);
+    } finally {
+      querySpy.mockRestore();
+    }
   });
 
   it('reads all symbol states in exactly one query (no N+1)', async () => {

@@ -8,6 +8,7 @@
 import type { Job } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
+import { Decimal } from '@app/money';
 import type { NotifyProviderRegistry } from '@app/notify';
 import { BinanceApiError, type BinanceMode, type BinanceRestClient } from '@app/binance';
 import {
@@ -15,26 +16,39 @@ import {
   asProfileId,
   asUserId,
   ProfileDeleteDisposition,
+  unwrapId,
   type AccountId,
   type ProfileId,
   type UserId,
 } from '@app/contracts';
-import { accountRepo, profileRepo, ProfileNotOwnedError, repo, type Database } from '@app/db';
-import { Decimal } from '@app/money';
+import {
+  accountRepo,
+  profileRepo,
+  ProfileNotOwnedError,
+  repo,
+  NO_SELLABLE_POSITION,
+  POSITION_SEED_REFUSED,
+  type Database,
+} from '@app/db';
 import type { Clock, StrategyRegistry } from '@app/strategy-core';
 import type { LiveExecutor } from 'executor/live-executor.js';
 import type { ChainByKey } from 'lib/chain-by-key.js';
 import type { MetricsSink } from 'metrics/catalog.js';
-import { reserveAdjustedBalance } from 'lib/reserve.js';
 import type { StatePort } from 'state/state-port.js';
 import { mutateSymbolState, type MutateSymbolStateDeps } from 'state/version-aware-mutate.js';
 import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
 import {
   ensureCostBasisFromTrades,
-  resolveSweepPrices,
+  reconcileHeldQuantity,
   reconcileSymbol,
+  resolveSweepPrices,
   resolveWalletFields,
+  valueBoundDisarmReason,
+  VALUE_BOUND_DISARM_REASONS,
+  type ReconcileResult,
+  type ValueBoundDisarmReason,
 } from 'boot/reconcile-held-quantity.js';
+import { isPhantomLedgerRow } from 'boot/revive-avg-entry-price.js';
 import { buildBinanceClient } from 'profile-bindings/binance-client.js';
 import type { ProfileManager } from 'profile-manager/profile-manager.js';
 import { resolveTechnicalsIntervals } from 'profile-manager/technicals-intervals.js';
@@ -95,8 +109,8 @@ export interface PipelineWorkerDeps {
   readonly symbolStateDeps: MutateSymbolStateDeps;
   // Re-elect user-data stream ownership after a subscribe/unsubscribe changes
   // the active set. profileManager no longer opens the stream on enable, so
-  // this converges it promptly instead of waiting for ownership's own interval
-  // (#579). Optional: tests that don't exercise stream ownership omit it.
+  // this converges it promptly instead of waiting for ownership's own interval.
+  // Optional: tests that don't exercise stream ownership omit it.
   readonly reconcileOwnership?: () => Promise<void>;
   // Retires the profile's own metric children on teardown, and carries the reconcile counters for the mid-run reconfigure sweep below. Required, not optional: those counters are the only record that a reconcile deleted a position, and an omittable sink drops them silently.
   readonly metrics: MetricsSink;
@@ -293,7 +307,7 @@ const handleSubscribe = async (
   deps.evictProfileContext?.(ids.profileId);
   // Best-effort kick to open the account's user-data stream promptly: enable
   // only registers membership + market subs, so ownership must re-elect to open
-  // the stream (#579). This is a latency optimisation, not the guarantee — if an
+  // the stream. This is a latency optimisation, not the guarantee — if an
   // ownership pass is already in-flight the kick is a no-op, and the periodic
   // enabled-set reconciler opens the stream within one interval regardless (a
   // fill in that window is backfilled by the stream's onResync on open).
@@ -396,14 +410,14 @@ const handleReconfigureProfile = async (
  * @param ids - The owning operator, account, and profile this reconfigure belongs to.
  * @param mode - The account's Binance environment, selecting which cached exchangeInfo keyspace the symbol filters are read from.
  * @param strategyName - The profile's strategy, resolved to its position adapter; an unknown name skips the whole sweep.
- * @param symbolRows - The profile's current bindings WITH their reserve floors, passed in rather than re-read because the caller has already loaded them in this same job.
+ * @param symbolRows - The profile's current bindings, passed in rather than re-read because the caller has already loaded them in this same job.
  */
 const reconcileSymbolsAfterReconfigure = async (
   deps: PipelineWorkerDeps,
   ids: { userId: UserId; accountId: AccountId; profileId: ProfileId },
   mode: BinanceMode,
   strategyName: string,
-  symbolRows: readonly { symbol: string; reserveBaseQuantity: string | null }[],
+  symbolRows: readonly { symbol: string }[],
 ): Promise<void> => {
   if (symbolRows.length === 0) return;
   const position = deps.strategies.get(strategyName)?.position;
@@ -431,7 +445,7 @@ const reconcileSymbolsAfterReconfigure = async (
     const symbol = row.symbol;
     // Symbol filters differ per Binance mode, so read the keyspace matching this
     // profile's mode — a test-mode profile reconciling against production
-    // stepSize records the wrong adopted quantity (#582).
+    // stepSize records the wrong adopted quantity.
     const infoRaw = await deps.redis.get(buildSymbolInfoKey(symbol, mode));
     if (infoRaw === null) continue;
     let info: { baseAsset: string; filters: { stepSize: string; minNotional?: string } };
@@ -448,11 +462,8 @@ const reconcileSymbolsAfterReconfigure = async (
       stepSize: info.filters.stepSize,
       minNotional: info.filters.minNotional ?? null,
       referencePrice: priceBySymbol.get(symbol) ?? null,
-      // The per-symbol floor the operator wants held back, drained through the same helper the boot sweep uses. Without it the same profile reconciles to two different held quantities depending on which door it came through, and the reconfigure door is the one an operator walks through immediately after setting a reserve: the bot would adopt the reserved coins as a position and sell them.
-      ...resolveWalletFields(
-        account.balances.find((b) => b.asset === info.baseAsset),
-        row.reserveBaseQuantity,
-      ),
+      // Through the same helper the boot sweep uses, so the same profile cannot reconcile to two different held quantities depending on which door it came through.
+      ...resolveWalletFields(account.balances.find((b) => b.asset === info.baseAsset)),
     };
     try {
       await deps.chain.run(`${ids.profileId}:${symbol}`, async () => {
@@ -466,8 +477,237 @@ const reconcileSymbolsAfterReconfigure = async (
 };
 
 /**
- * Apply an operator's manual average-entry-price write to the running strategy
- * (#496). The api writes the `avg_entry_prices` ledger row (the durable backing
+ * Every input whose absence stands the apply-avg-entry-price seed gate down.
+ *
+ * A tuple rather than a bare union because the counter's children are seeded by iterating it, and the reason type is DERIVED from it below. A reason the gate can return but the loop never iterates would produce a labelled child born at its own first increment, which `increase()` reads as no change — a counter that is present, looks healthy, and can never alert. Deriving the type is what makes that state fail to compile instead.
+ */
+export const APPLY_SEED_GATE_STAND_DOWN_REASONS = [
+  'no-client',
+  'no-symbol-info',
+  'bad-symbol-info',
+  'getaccount-failed',
+] as const;
+
+/** The input the seed gate could not resolve, constrained to the reasons the counter actually seeds. */
+export type ApplySeedGateStandDownReason = (typeof APPLY_SEED_GATE_STAND_DOWN_REASONS)[number];
+
+/** What the seed rule decided at the apply-avg-entry-price door. `applied` carries the two answers that decide the write — `phantom` is the boot prune's verdict on whether this wallet may back a position at all, and `result` is the reconciler's verdict on how much of it to write — alongside `walletTotal`, the `free + locked` total the prune judged, which is what the caller sizes from when the reconciler names no quantity, and whichever dust value bound could not be evaluated. `stood-down` names the input that never resolved, and carries the cause where there was one, so an expired key, an IP-allowlist rejection and a socket timeout stay distinguishable. */
+type ApplySeedGate =
+  | {
+      readonly kind: 'applied';
+      readonly result: ReconcileResult;
+      readonly phantom: boolean;
+      readonly walletTotal: string | null;
+      readonly disarmed: ValueBoundDisarmReason | null;
+    }
+  | {
+      readonly kind: 'stood-down';
+      readonly reason: ApplySeedGateStandDownReason;
+      readonly err?: unknown;
+    };
+
+/**
+ * Parse a `LOT_SIZE` increment into a usable bound, or report that it is not one.
+ *
+ * The increment is the only bound that never disarms, so it is the one input whose absence cannot be allowed to pass silently. A zero, negative, non-finite, or unparseable step makes both the reconciler and the prune return their "nothing to judge" answers, which are indistinguishable from a healthy verdict at the call site.
+ *
+ * @param raw - The `stepSize` string as it came out of the cached symbol-info blob, untrusted as to format and sign.
+ * @returns The step when it is a finite positive number, or null when it cannot bound anything.
+ */
+const safeStep = (raw: unknown): Decimal | null => {
+  if (typeof raw !== 'string') return null;
+  try {
+    const parsed = new Decimal(raw);
+    return parsed.isFinite() && parsed.gt(0) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Total the two wallet legs into the single quantity the phantom bound reads, or report that they cannot be totalled.
+ *
+ * `resolveWalletFields` deliberately passes an unparseable leg through verbatim so the reconciler's own parse guard can stand the whole symbol down, which means the legs reaching here are not guaranteed to be numbers. Null and zero are opposite answers to `isPhantomLedgerRow` — zero is an empty wallet and arms the prune, null means the question was never answered — so an unparseable leg must not collapse to `'0'`.
+ *
+ * @param free - The spendable leg as `resolveWalletFields` left it, already normalised when it parsed and verbatim when it did not.
+ * @param locked - The leg held against resting orders, on the same terms; it counts toward the position because a resting sell has not left the wallet.
+ * @returns The `free + locked` total as a decimal string, or null when either leg is unparseable or the sum is not finite.
+ */
+const sumWalletLegs = (free: string, locked: string): string | null => {
+  try {
+    const total = new Decimal(free).plus(locked);
+    return total.isFinite() ? total.toFixed() : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Read an operator's recorded ledger quantity as the reconciler's CLAIM, or as no claim at all.
+ *
+ * Only a positive, parseable quantity is a durable statement that a position exists, and that statement is what earns the residue bar. Zero is how the rest of the repo spells "no position" — the flatten arm, the disarm reporter, and the api's own sizing all read it that way — and an unparseable body states no quantity either. Both must fall through to the cold-seed floor rather than present as a claim, because a claim of nothing would otherwise pin the wallet to `adopt-state-smaller` and write that nothing back as the position.
+ *
+ * @param quantity - The `avg_entry_prices.quantity` string exactly as the api recorded it, untrusted as to sign and format.
+ * @returns The same string when it is a finite positive number, or null when it states no position for the rule to size. Only zero and a negative value change the outcome here — a negative claim would otherwise be written back verbatim as the position size. `NaN`, `Infinity` and an unparseable body are rejected to keep the contract honest rather than because this door can tell the difference: the reconciler's own parse rejects each of them downstream and the wallet fallback converges to the same quantity.
+ */
+const positiveClaim = (quantity: string): string | null => {
+  try {
+    const parsed = new Decimal(quantity);
+    return parsed.isFinite() && parsed.gt(0) ? quantity : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Ask the reconciler whether the wallet behind this symbol backs a position worth sizing.
+ *
+ * The third door onto one decision. Boot adoption and the reconfigure reconcile both refuse a balance under one LOT_SIZE step or worth less than one minimum order, because no sell could ever clear it and a position built on one can only sit on the dashboard forever. This door used to size straight off `free + locked`, so an operator correcting a cost basis rebuilt the exact position the other two had just written off. Calling the same pure function is what makes the three provably one rule rather than three that happen to agree today.
+ *
+ * Two questions, because sizing a position and deciding one may exist at all are different decisions with different bars, and this door is the only one that has to make both at once.
+ *
+ * SIZE comes from the reconciler, asked under the operator's recorded quantity as the claim. That quantity is a durable statement that the position exists, and handing it over is what routes a wallet smaller than the record to the rule's own "adopt the smaller" arm instead of letting the flatten arm delete a basis the api accepted seconds ago. A quantity that is absent, zero, or negative states no position, so it is normalised to no claim and the reconciler reads the wallet cold instead. That verdict may still name no quantity, and where the prune keeps the row anyway the wallet total is what gets written.
+ *
+ * EXISTENCE comes from `isPhantomLedgerRow`, the predicate the boot prune uses to decide whether to DELETE this very row, and asking that one rather than inventing a bar here is what makes the refusal durable. The bar has to match the prune's exactly: refuse anything the prune would keep and the row survives while the write does not, so the next boot revives the cost basis onto a position with no quantity and no pass can heal it; refuse less than the prune and this door writes a position the next boot deletes the basis out from under. The reconciler alone cannot supply this bar — on the ordinary path the api sized the ledger quantity from the same wallet, so claim and wallet agree, `diff.lte(step)` short-circuits, and a holding below one LOT_SIZE step is adopted as a position no sell can ever round up to.
+ *
+ * Every input is resolved the way the reconfigure door resolves it — the mode-scoped cached symbolInfo blob for the filters, `resolveSweepPrices` for the valuation — so no new dependency is threaded through the worker for this.
+ *
+ * @param deps - The worker dependency bag, for the Binance client factory, the symbolInfo/ticker cache, and the logger `resolveSweepPrices` reports a failed REST fallback through.
+ * @param ctx - The operator, account, profile and symbol this job is applying, which together select both the credentials and the cache keys.
+ * @param mode - The account's Binance environment, selecting which cached exchangeInfo keyspace the symbol filters come from; testnet filters live in their own keyspace and a mode-blind read would judge a test account against production increments.
+ * @param heldQuantity - The operator's recorded ledger quantity as the rule's CLAIM, already normalised so that a non-positive or unparseable record arrives as null rather than as a claim of nothing. Being non-null is what selects the reconciler's claim branches over its cold-seed floor, so this argument decides how the wallet is SIZED; whether a position may exist at all is settled separately by the prune bound.
+ * @param ledgerAvgEntryPrice - The cost basis the operator just recorded, which is what makes the row a claim the prune bound can be asked about at all; the bound answers "no position to prune" for a row that prices nothing.
+ * @returns The sizing verdict, whether the row is one the prune would delete, and any disarmed bound, or the name of the input that could not be resolved.
+ */
+const resolveApplySeedGate = async (
+  deps: PipelineWorkerDeps,
+  ctx: { userId: UserId; accountId: AccountId; profileId: ProfileId; symbol: string },
+  mode: BinanceMode,
+  heldQuantity: string | null,
+  ledgerAvgEntryPrice: string,
+): Promise<ApplySeedGate> => {
+  let client: BinanceRestClient | null;
+  try {
+    client = await deps.resolveBinanceClient(ctx.userId, ctx.accountId);
+  } catch (err) {
+    return { kind: 'stood-down', reason: 'no-client', err };
+  }
+  if (!client) return { kind: 'stood-down', reason: 'no-client' };
+  let infoRaw: string | null;
+  try {
+    infoRaw = await deps.redis.get(buildSymbolInfoKey(ctx.symbol, mode));
+  } catch (err) {
+    // A cache read that throws is the filters being unavailable, which is what `no-symbol-info` already means. Letting it escape would dead-letter the operator's write over an unreachable Redis, and this whole gate exists to degrade instead of reject.
+    return { kind: 'stood-down', reason: 'no-symbol-info', err };
+  }
+  if (infoRaw === null) return { kind: 'stood-down', reason: 'no-symbol-info' };
+  // `minNotional` is normalised to null here rather than carried as optional: the reconciler and the disarm reporter both take `string | null`, and an absent floor and an explicit null mean the same thing to them.
+  let info: { baseAsset: string; filters: { stepSize: string; minNotional: string | null } };
+  try {
+    const parsed = JSON.parse(infoRaw) as {
+      baseAsset: string;
+      filters: { stepSize: string; minNotional?: string };
+    };
+    // Parsed AND read under one try. `null`, `123` and `{}` are all valid JSON, so a shape-wrong blob parses cleanly and throws on the FIELD read instead — and a field read sitting outside the catch escapes the handler entirely, dead-lettering an operator's write where the whole point of this arm is to degrade to the recorded quantity.
+    info = {
+      baseAsset: parsed.baseAsset,
+      filters: {
+        stepSize: parsed.filters.stepSize,
+        minNotional: parsed.filters.minNotional ?? null,
+      },
+    };
+  } catch (err) {
+    return { kind: 'stood-down', reason: 'bad-symbol-info', err };
+  }
+  // A cast is not validation. A blob whose fields are merely the wrong TYPE parses and reads without throwing, and an unparseable `stepSize` makes the reconciler return a no-op carrying the claim — the exact silent pass this gate exists to close, arrived at from a different direction.
+  // A cast is not validation and neither is a `typeof`: the exchange-info refresh caches a zeroed filter set for an incomplete-filter pair, and a `stepSize` of `'0'` sends BOTH the increment bound and the prune down their own `step.lte(0)` stand-downs with nothing reporting it, so the door writes the recorded quantity as though the rule had judged it. Validate the value.
+  const step = safeStep(info.filters.stepSize);
+  if (typeof info.baseAsset !== 'string' || step === null) {
+    return { kind: 'stood-down', reason: 'bad-symbol-info' };
+  }
+  let balance: { free: string; locked: string } | undefined;
+  try {
+    const account = await client.getAccount();
+    // Read inside the same try because `getAccount` is an unvalidated cast over the REST payload: a response without `balances` is the call having failed to produce an account, not a separate kind of fault, and it belongs in the same arm.
+    balance = account.balances.find((b) => b.asset === info.baseAsset);
+  } catch (err) {
+    return { kind: 'stood-down', reason: 'getaccount-failed', err };
+  }
+  let priceBySymbol: ReadonlyMap<string, string>;
+  try {
+    priceBySymbol = await resolveSweepPrices(deps, client, [ctx.symbol]);
+  } catch (err) {
+    // Valuation is the one input whose absence the rule already handles: a null `referencePrice` disarms the value bound and reports itself as `no-reference-price`. Degrading to that is strictly better than standing the whole gate down, because the increment bound is unaffected and still binds. The cause is carried because that one reason has two remedies that could not be further apart — a cold ticker cache heals itself on the next tick, an unreachable Redis does not — and the disarm counter alone cannot tell an operator which they are looking at.
+    deps.logger.warn({ ...ctx, err }, 'pipeline_apply_avg_entry_price_price_unresolved');
+    priceBySymbol = new Map();
+  }
+  const input = {
+    ...resolveWalletFields(balance),
+    heldQuantity,
+    stepSize: info.filters.stepSize,
+    minNotional: info.filters.minNotional,
+    referencePrice: priceBySymbol.get(ctx.symbol) ?? null,
+  };
+  const walletTotal = sumWalletLegs(input.walletFree, input.walletLocked);
+  const result = reconcileHeldQuantity(input);
+  // The prune has to be asked about the claim the NEXT pass will judge, which is the quantity this door is about to write, NOT the one it read off the ledger. The prune's value arm needs the claim to be valueless too, so asking it under a larger recorded quantity disarms that arm for a wallet the very next reconcile pass flattens — and flatten DELETES the cost-basis row and pages `heldBefore="nonzero"`, both caused by this door's own write. Asking under the written quantity converges the two.
+  const nextClaim = result.nextHeldQuantity ?? walletTotal;
+  // Every answer comes off the SAME input object. A disarm reported against inputs other than the ones the verdicts were reached on would be worse than no signal at all, since its whole purpose is saying whether those verdicts were actually judged.
+  return {
+    kind: 'applied',
+    result,
+    // The bound that decides whether a position may exist at all, asked of the very door that will later re-read this row. A leg that would not parse leaves the wallet total unknown, and this bound stands down rather than reading that as an empty wallet — `isPhantomLedgerRow` treats a null total as "the operator holds none of this coin", which is a definitive answer this input cannot support.
+    phantom:
+      walletTotal !== null &&
+      isPhantomLedgerRow({
+        ledgerAvgEntryPrice,
+        stateAvgEntryPrice: null,
+        walletQuantity: walletTotal,
+        stepSize: input.stepSize,
+        minNotional: input.minNotional,
+        referencePrice: input.referencePrice,
+        preReconcileHeldQuantity: nextClaim,
+      }),
+    walletTotal,
+    disarmed: valueBoundDisarmReason(input),
+  };
+};
+
+/**
+ * Open or close the "the cost basis you recorded is not backing a position" condition for one symbol.
+ *
+ * A refusal that is only logged is invisible to the operator: the api accepted the write, the row is still projected, and nothing on screen distinguishes it from a position the bot actually holds. This is the apply job's only writer for that condition, and every exit of the job that resolved a profile passes through it — the profile-missing return is the one exception, and it is not a strand because a profile that no longer exists takes its condition rows with it. Deleting the cost-basis row closes the refusal a second time, inside the repo, where all six deleters reach it and this job does not run at all. `recordCondition` compares against the stored row before writing, so an exit with nothing open costs one read.
+ *
+ * @param scope - The profile repo whose condition store owns the row.
+ * @param symbol - The coin the refusal is about; conditions are per-symbol, and a profile-level row would name the wrong subject.
+ * @param code - The reason the seed was refused, or null to record that it no longer applies.
+ * @param now - The instant to stamp, injected from the worker clock so the span's start is not a wall-clock read inside the handler.
+ * @param detail - Optional context stored beside the code, shown to whoever reads the condition rather than the worker log.
+ * @returns Nothing; the write is fire-and-await, and a failure surfaces as a job error rather than a silent miss.
+ */
+const recordSeedRefusal = async (
+  scope: Awaited<ReturnType<typeof profileRepo>>,
+  symbol: string,
+  code: string | null,
+  now: Date,
+  detail?: unknown,
+): Promise<void> => {
+  await scope.conditionStates.recordCondition({
+    condition: POSITION_SEED_REFUSED,
+    symbol,
+    code,
+    now,
+    ...(detail === undefined ? {} : { detail }),
+    msg:
+      code === null
+        ? `${symbol}: cost basis applied to the position`
+        : `${symbol}: cost basis recorded but no sellable position backs it`,
+  });
+};
+
+/**
+ * Apply an operator's manual average-entry-price write to the running strategy.
+ * The api writes the `avg_entry_prices` ledger row (the durable backing
  * boot-revive + the dashboard read from) and enqueues this job; a plain tick
  * never copies the ledger into `state.avgEntryPrice`, and the boot/reconfigure
  * revive deliberately refuses to overwrite a populated state, so neither path
@@ -478,8 +718,10 @@ const reconcileSymbolsAfterReconfigure = async (
  *   via the position capability's `applyFill('buy')` — the same primitive the
  *   fill-adopter and boot cost-basis seeding use, so the body is byte-shape
  *   identical to a real entry (sets avgEntryPrice + heldQuantity, resets the
- *   trailing high-water mark). Held qty is the reserve-adjusted wallet truth
- *   (#498), falling back to the ledger quantity when the wallet can't be read.
+ *   trailing high-water mark). Held qty is wallet truth put through the same
+ *   seed rule boot adoption and the reconfigure reconcile apply, so a wallet
+ *   that backs nothing sellable is refused here too; it falls back to the
+ *   ledger quantity when the rule's own inputs can't be resolved.
  * - Ledger absent (DELETE): clear the position so the strategy stops sizing
  *   sells against a basis the operator removed.
  *
@@ -505,6 +747,8 @@ const handleApplyAvgEntryPrice = async (
       { ...ctx, strategyName: profile.strategyName },
       'pipeline_apply_avg_entry_price_no_position',
     );
+    // A strategy with no position capability cannot be holding one, so an older refusal about this symbol is no longer a statement about anything. Left open it would strand: this job is the only writer, and it now returns here on every future run for the profile.
+    await recordSeedRefusal(scope, ctx.symbol, null, new Date(deps.clock.nowMs()));
     return;
   }
 
@@ -519,40 +763,91 @@ const handleApplyAvgEntryPrice = async (
         position.clearPosition(live),
       ),
     );
+    // Kept even though `avgEntryPrices.remove` clears at every deleter: this branch is reached whenever the row is ABSENT, which is a superset of "this job's own api call deleted it", and it is what makes the claim above — every exit that resolved a profile writes this condition — true rather than nearly true.
+    await recordSeedRefusal(scope, ctx.symbol, null, new Date(deps.clock.nowMs()));
     deps.logger.info(ctx, 'pipeline_apply_avg_entry_price_cleared');
     return;
   }
 
-  // Size held qty from reserve-adjusted wallet truth (matches boot adoption and
-  // per-tick sell-sizing). The ledger quantity (written by the api) is the
-  // fallback when the wallet can't be read; the operator's correction is the
-  // PRICE, so a slightly stale qty is healed by the next reconcile/tick anyway.
-  let heldQuantity = ledger.quantity;
-  const client = await deps.resolveBinanceClient(ctx.userId, ctx.accountId).catch(() => null);
-  // Mode-scoped, like every other symbol-info read: testnet's filters live in a
-  // separate keyspace, so a mode-blind read resolves a test account's baseAsset
-  // from production's snapshot.
+  // Size held qty from wallet truth, but only once the whole seed rule has been applied to it. The operator's correction is the PRICE, so a slightly stale quantity is healed by the next reconcile or tick anyway; a quantity no sell could ever clear is not, and writing one here rebuilt positions the boot and reconfigure doors had already written off.
   const mode =
     (await repo.accounts.binanceModeById(deps.db, ctx.accountId)) === 'live' ? 'live' : 'test';
-  const infoRaw = client ? await deps.redis.get(buildSymbolInfoKey(ctx.symbol, mode)) : null;
-  if (client && infoRaw !== null) {
-    try {
-      const info = JSON.parse(infoRaw) as { baseAsset: string };
-      const account = await client.getAccount();
-      const bal = account.balances.find((b) => b.asset === info.baseAsset);
-      const reserve = (await scope.profileSymbols.findForSymbol(ctx.symbol))?.reserveBaseQuantity;
-      const adjusted = reserveAdjustedBalance(
-        new Decimal(bal?.free ?? '0'),
-        new Decimal(bal?.locked ?? '0'),
-        reserve ?? null,
-      );
-      heldQuantity = adjusted.free.plus(adjusted.locked).toFixed();
-    } catch (err) {
+  const gate = await resolveApplySeedGate(
+    deps,
+    ctx,
+    mode,
+    positiveClaim(ledger.quantity),
+    ledger.avgEntryPrice,
+  );
+
+  let heldQuantity = ledger.quantity;
+  let sizedFrom: 'rule' | 'wallet' | 'ledger' = 'ledger';
+  const labels = { profileId: unwrapId(ctx.profileId), symbol: ctx.symbol };
+  // Seeded on BOTH arms, unlike the value-bound seed below. That one is incremented on the applied arm, so seeding immediately before its own increment suffices. This one is incremented on the OTHER arm, so a profile whose gate always resolves cleanly would never have its children created at all, and every stand-down it ever reaches would be a series born at its own first write.
+  //
+  // What the hoist buys, precisely: ANY apply job for a `(profileId, symbol)` — clean or not — arms all four children at zero, so once a profile has run one, a later stand-down on those labels is an observable rise. It does not rescue the case where the very first job for those labels is itself the stand-down: the seed and the increment share one synchronous block with no await between them, so no scrape can land in the gap and that series is still born holding 1. A rule over this counter therefore has to subtract its own value at an offset, the way `ReconcileValueBoundDisarmed` does, rather than reach for `increase()`.
+  for (const reason of APPLY_SEED_GATE_STAND_DOWN_REASONS) {
+    deps.metrics.record('pipeline_apply_seed_gate_stood_down_total', 0, { ...labels, reason });
+  }
+  if (gate.kind === 'stood-down') {
+    deps.metrics.record('pipeline_apply_seed_gate_stood_down_total', 1, {
+      ...labels,
+      reason: gate.reason,
+    });
+    // Falling back to the recorded quantity, not refusing. A bound that could not be evaluated must never be the thing that rejects an operator's write: the failure the gate exists to prevent is a position fabricated out of an untradeable balance, and applying what the operator actually recorded fabricates nothing.
+    deps.logger.warn(
+      { ...ctx, reason: gate.reason, err: gate.err },
+      'pipeline_apply_avg_entry_price_gate_unavailable',
+    );
+  } else {
+    // Zero-seed BEFORE any increment, and unconditionally. A prom-client child does not exist until its first write and is born holding that write's value, so an unseeded labelled counter's first incident appears as a series that has always read 1 — which `increase()` reads as no change, leaving every rule over it silent forever. Seeding in the same pass is enough, because the child only has to exist at 0 immediately before the increment lands on it.
+    for (const reason of VALUE_BOUND_DISARM_REASONS) {
+      deps.metrics.record('reconcile_value_bound_disarmed_total', 0, { ...labels, reason });
+    }
+    if (gate.disarmed !== null) {
+      deps.metrics.record('reconcile_value_bound_disarmed_total', 1, {
+        ...labels,
+        reason: gate.disarmed,
+      });
       deps.logger.warn(
-        { ...ctx, err },
-        'pipeline_apply_avg_entry_price_wallet_read_failed_using_ledger_qty',
+        { ...labels, reason: gate.disarmed, action: gate.result.action },
+        'pipeline_apply_avg_entry_price_value_bound_disarmed',
       );
     }
+    // EXISTENCE is the prune's question alone. The reconciler's own null verdicts do not all agree with it: `adopt-wallet-smaller`'s null arm refuses through `isUnsellableDust`, which measures the wallet as a SHARE of the claim and then against the FULL minimum order, so a real holding worth half an order under a stale hundred-fold claim reads as a crumb there while the prune — which judges the wallet absolutely — keeps it. Refusing on that arm left the row alive with nothing written, which is the exact strand this gate exists to prevent, so only `phantom` may refuse.
+    if (gate.phantom) {
+      // Nothing sellable backs this symbol, so there is no position to hand the strategy — and nothing is written, not even a cleared body. The `avg_entry_prices` row stays exactly as the operator submitted it: deleting a record the api accepted seconds ago would leave the two surfaces contradicting each other. Leaving it is safe only because the refusal is at the residue bar, which is the same bar the phantom prune deletes at, so the row this door declines is the row that pass removes — refusing higher up would strand a priced row no pass can reach.
+      deps.logger.warn(
+        {
+          ...ctx,
+          action: gate.result.action,
+          phantom: gate.phantom,
+          ledgerQuantity: ledger.quantity,
+        },
+        'pipeline_apply_avg_entry_price_no_sellable_position',
+      );
+      // Durable, because the log line is not a surface the operator has any reason to be reading, and this refusal is the only thing that distinguishes the projected ledger row from a position the bot actually holds.
+      await recordSeedRefusal(
+        scope,
+        ctx.symbol,
+        NO_SELLABLE_POSITION,
+        new Date(deps.clock.nowMs()),
+        {
+          ledgerQuantity: ledger.quantity,
+          avgEntryPrice: ledger.avgEntryPrice,
+        },
+      );
+      return;
+    }
+    // The reconciler now only SIZES. Where it declines to name a quantity but the prune keeps the row, the wallet is the size the prune just vouched for; where the wallet itself could not be totalled, nothing was judged at all and the operator's recorded quantity stands, which is the same stand-down the unresolvable-input arms take.
+    heldQuantity = gate.result.nextHeldQuantity ?? gate.walletTotal ?? ledger.quantity;
+    // Derived at the same expression that picks the quantity, because `action` alone is misleading once the ladder falls through: a reader seeing `adopt-wallet-smaller` beside a quantity would conclude the rule sized it, when that verdict is precisely the one that declined to name a number.
+    sizedFrom =
+      gate.result.nextHeldQuantity !== null
+        ? 'rule'
+        : gate.walletTotal !== null
+          ? 'wallet'
+          : 'ledger';
   }
 
   await deps.chain.run(key, () =>
@@ -564,8 +859,17 @@ const handleApplyAvgEntryPrice = async (
       }),
     ),
   );
+  await recordSeedRefusal(scope, ctx.symbol, null, new Date(deps.clock.nowMs()));
   deps.logger.info(
-    { ...ctx, avgEntryPrice: ledger.avgEntryPrice, heldQuantity },
+    {
+      ...ctx,
+      avgEntryPrice: ledger.avgEntryPrice,
+      heldQuantity,
+      // Null when the gate stood down, which is the difference between "the rule judged this quantity" and "the rule never ran", and the only place that distinction survives into the log.
+      action: gate.kind === 'applied' ? gate.result.action : null,
+      // Which of the three sources actually produced the number beside it. `action` cannot carry this: the verdict that declines to name a quantity is still an action, so it reads identically whether the rule sized the position or the ladder fell past it.
+      sizedFrom,
+    },
     'pipeline_apply_avg_entry_price_set',
   );
 };
@@ -608,8 +912,8 @@ const handleUnsubscribe = async (
   // never outlive an active subscription (symmetric with the subscribe path).
   deps.evictProfileContext?.(ids.profileId);
   // Best-effort kick to close the account's user-data stream promptly: disable
-  // dropped membership, so ownership re-elects to close the departed stream
-  // (#579). A no-op if an ownership pass is already in-flight; the periodic
+  // dropped membership, so ownership re-elects to close the departed stream.
+  // A no-op if an ownership pass is already in-flight; the periodic
   // reconciler closes it within one interval regardless. Best-effort: a kick
   // failure must not DLQ the teardown job.
   await deps.reconcileOwnership?.().catch((err: unknown) => {
@@ -646,7 +950,7 @@ const handleVerifyKey = async (
   } catch (err) {
     // Only a PERMANENT Binance verdict is the verify-key RESULT (bad secret,
     // missing permission, non-allowlisted IP): persist 'failed' so the operator
-    // sees why the key does not work instead of it silently looking bound (#366).
+    // sees why the key does not work instead of it silently looking bound.
     // A transient upstream (5xx/429/-1003/...) or a non-Binance error (network,
     // buildBinanceClient) is NOT a verdict: rethrow so BullMQ retries on its
     // budget instead of recording a false permanent failure that would survive

@@ -32,6 +32,7 @@ import { buildSymbolStateKey } from '../../src/executor/redis-namespace.js';
 const repoMocks = vi.hoisted(() => ({
   avgEntryPricesFindBySymbol: vi.fn(),
   avgEntryPricesUpsert: vi.fn(),
+  conditionRecordCondition: vi.fn(async () => ({ changed: false, sinceMs: null })),
   avgEntryPricesRemove: vi.fn(),
   appliedFillsTryRecord: vi.fn(),
   profileFindById: vi.fn(),
@@ -41,6 +42,7 @@ const repoMocks = vi.hoisted(() => ({
   profileSymbolsUpsert: vi.fn(),
   actionLogsAppend: vi.fn(),
   ordersMarkFilled: vi.fn(),
+  ordersStampBaseCommissionNetted: vi.fn(),
   ordersStampRealizedPnl: vi.fn(),
   ordersFindByBinanceOrderId: vi.fn(),
   manualOrdersFindByBinanceOrderId: vi.fn(),
@@ -58,6 +60,8 @@ const testRepo = {
     upsert: repoMocks.avgEntryPricesUpsert,
     remove: repoMocks.avgEntryPricesRemove,
   },
+  // A buy fill proves the coin is really held, so the adopter closes any open seed refusal on it.
+  conditionStates: { recordCondition: repoMocks.conditionRecordCondition },
   appliedFills: { tryRecord: repoMocks.appliedFillsTryRecord },
   profile: { findById: repoMocks.profileFindById },
   symbolStates: { findBySymbol: repoMocks.symbolStatesFindBySymbol },
@@ -68,6 +72,7 @@ const testRepo = {
   actionLogs: { append: repoMocks.actionLogsAppend },
   orders: {
     markFilledByBinanceOrderId: repoMocks.ordersMarkFilled,
+    stampBaseCommissionNetted: repoMocks.ordersStampBaseCommissionNetted,
     stampRealizedPnl: repoMocks.ordersStampRealizedPnl,
     findByBinanceOrderId: repoMocks.ordersFindByBinanceOrderId,
   },
@@ -214,6 +219,7 @@ const reset = (): { ledger: { row: LedgerRow | null } } => {
   });
 
   repoMocks.ordersMarkFilled.mockResolvedValue(1);
+  repoMocks.ordersStampBaseCommissionNetted.mockResolvedValue(1);
   repoMocks.ordersStampRealizedPnl.mockResolvedValue(1);
   repoMocks.ordersFindByBinanceOrderId.mockResolvedValue({ symbol: SYMBOL, profileId: PROFILE_ID });
   repoMocks.manualOrdersFindByBinanceOrderId.mockResolvedValue(null);
@@ -271,6 +277,52 @@ describe('fill-adopter: base-asset commission is netted out of the held quantity
     );
 
     expect(repoMocks.avgEntryPricesUpsert).toHaveBeenCalledTimes(1);
+    expectQty(repoMocks.avgEntryPricesUpsert.mock.calls[0]?.[1]?.quantity, BUY_NET_QTY);
+    expectQty(readState(store)['heldQuantity'], BUY_NET_QTY);
+    expect(repoMocks.ordersStampBaseCommissionNetted).toHaveBeenCalledWith(
+      SYMBOL,
+      4001n,
+      BUY_COMMISSION,
+    );
+  });
+
+  it('fails the fill transaction when its base-commission proof matches no order', async () => {
+    reset();
+    repoMocks.ordersStampBaseCommissionNetted.mockResolvedValueOnce(0);
+    const { adopter, store } = makeAdopter();
+
+    await expect(
+      adopter.adopt(
+        mkFill({
+          orderId: 4009,
+          tradeId: 4009,
+          commissions: { [BASE_ASSET]: BUY_COMMISSION },
+        }),
+      ),
+    ).rejects.toThrow('base-commission proof did not match one order');
+
+    expect(repoMocks.ordersMarkFilled).not.toHaveBeenCalled();
+    expect(repoMocks.persistSymbolState).not.toHaveBeenCalled();
+    expect(store.has(buildSymbolStateKey(ACCOUNT_ID, PROFILE_ID, SYMBOL))).toBe(false);
+  });
+
+  // The sibling of the case above, and the reason that one is gated rather than unconditional. The origin gate admits a fill on EITHER an `orders` row or a `manual_orders` one, but the stamp writes only `orders`, so a bot-manual BUY has no row to stamp BY CONSTRUCTION — indistinguishable, at the stamp, from the corrupt-ledger zero the case above fails on. Failing here would roll back the applied-fill ledger row, the cost basis and the symbol state for a fill that is perfectly well-formed, and the router only logs, so the position would stay lost until the boot reconcile sweep. The proof is worth less than the position: an unstamped base BUY already degrades honestly, because `resolveFeesFromTrades` reads the null back as an unproven charge and forces the archive row to `fee_basis = 'unknown'`.
+  it('adopts a bot-manual BUY that pays a base-asset commission, with no order row to stamp', async () => {
+    reset();
+    repoMocks.ordersFindByBinanceOrderId.mockResolvedValue(null);
+    repoMocks.manualOrdersFindByBinanceOrderId.mockResolvedValue({ symbol: SYMBOL });
+    const { adopter, store } = makeAdopter();
+
+    await adopter.adopt(
+      mkFill({
+        orderId: 4010,
+        tradeId: 4010,
+        commissions: { [BASE_ASSET]: BUY_COMMISSION },
+      }),
+    );
+
+    expect(repoMocks.ordersStampBaseCommissionNetted).not.toHaveBeenCalled();
+    // The commission is still netted out of the credited quantity: what the gate drops is the proof, never the arithmetic the proof attests to.
     expectQty(repoMocks.avgEntryPricesUpsert.mock.calls[0]?.[1]?.quantity, BUY_NET_QTY);
     expectQty(readState(store)['heldQuantity'], BUY_NET_QTY);
   });
@@ -344,6 +396,7 @@ describe('fill-adopter: base-asset commission is netted out of the held quantity
 
     expectQty(repoMocks.avgEntryPricesUpsert.mock.calls[0]?.[1]?.quantity, BUY_GROSS_QTY);
     expectQty(readState(store)['heldQuantity'], BUY_GROSS_QTY);
+    expect(repoMocks.ordersStampBaseCommissionNetted).not.toHaveBeenCalled();
   });
 
   it('keeps the full gross quantity when the report carries no commission fields', async () => {

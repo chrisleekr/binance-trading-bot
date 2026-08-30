@@ -155,7 +155,7 @@ export const createStatePort = (deps: StatePortDeps): StatePort => {
             // Fail-soft like the tick commit itself: a real DB/Redis error during
             // the latch merge (a persist throw, dropped connection) must NOT
             // reject the tick — that would DLQ it and re-run the strategy. Drop
-            // the latch (its documented fallback, same as the pre-#581 skip) and
+            // the latch (its documented fallback) and
             // let the tick continue. CAS misses and migration failures are
             // already handled inside the merge (bounded retry, then drop).
             try {

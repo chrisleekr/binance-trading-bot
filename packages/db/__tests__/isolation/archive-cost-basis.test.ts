@@ -135,7 +135,7 @@ describeIfDb('summarizeArchiveSince — cost-basis accounting', () => {
     expect(Number(s.profit)).toBe(0);
     expect(Number(s.totalBuyQuote)).toBe(0);
     expect(s.missingCostBasis).toBe(1);
-    expect(s.profitPercent).toBe('0');
+    expect(s).not.toHaveProperty('profitPercent');
 
     // The under-count must SURVIVE onto the archive row. `profit = 0` from an
     // un-costed SELL is indistinguishable from a genuine break-even once
@@ -149,7 +149,6 @@ describeIfDb('summarizeArchiveSince — cost-basis accounting', () => {
       totalSellQuote: s.totalSellQuote,
       breakdown: s.breakdown,
       profit: s.profit,
-      profitPercent: s.profitPercent,
       missingCostBasis: s.missingCostBasis,
       archivedAt: new Date('2026-06-14T10:05:00Z'),
       cycleEnd: new Date('2026-06-14T10:00:00Z'),
@@ -165,7 +164,6 @@ describeIfDb('summarizeArchiveSince — cost-basis accounting', () => {
       totalBuyQuote: '100',
       totalSellQuote: '110',
       profit: '10',
-      profitPercent: '10',
       archivedAt: new Date('2026-06-15T10:00:00Z'),
       cycleEnd: new Date('2026-06-15T10:00:00Z'),
     });

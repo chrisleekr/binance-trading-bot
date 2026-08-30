@@ -20,7 +20,7 @@
 // NOT the account user-data stream: opening/closing that stream is
 // `subscription-ownership`'s sole job, elected by HRW over listActive(). This
 // split is what lets `reconcile()` mirror the fleet-global enabled set on every
-// pod without every pod opening every account's user stream (#579).
+// pod without every pod opening every account's user stream.
 
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
 
@@ -94,7 +94,7 @@ export interface ProfileManager {
    * user-data stream is `subscription-ownership`'s job, driven off the
    * resulting {@link listActive}. Called on an interval so a subscribe/
    * unsubscribe that a single-consumer pipeline job applied on one pod
-   * propagates fleet-wide — the multi-replica prerequisite (#579). No-op churn
+   * propagates fleet-wide — the multi-replica prerequisite. No-op churn
    * at single replica where the pipeline job already applied the change.
    */
   reconcile(rows: readonly ProfileLoadRow[]): Promise<void>;

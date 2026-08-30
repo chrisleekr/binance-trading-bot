@@ -22,7 +22,7 @@ interface VitestReport {
 /** The lane owns every suite in this directory; a report carrying fewer of them collected less than the lane claims to cover. */
 const INTEGRATION_DIR = 'apps/worker/__tests__/integration/';
 
-const EXPECTED_INTEGRATION_FILES = 11;
+const EXPECTED_INTEGRATION_FILES = 12;
 
 /** Written into the suite title by `apps/worker/__tests__/integration/_infra-gate.ts`, since no vitest reporter carries a skip reason of its own. */
 const SKIP_MARKER = ' — skipped: ';

@@ -23,11 +23,11 @@
     "@app/strategy-core": "workspace:*",
     "@app/strategy-registry": "workspace:*",
     "@hono/swagger-ui": "~0.6.1",
-    "@hono/zod-openapi": "1.6.0",
+    "@hono/zod-openapi": "1.6.1",
     "better-auth": "~1.7.1",
     "bullmq": "5.58.6",
     "drizzle-orm": "~0.45.2",
-    "hono": "~4.13.3",
+    "hono": "~4.13.4",
     "ioredis": "~6.0.0",
     "pg": "~8.23.0",
     "pino": "~10.3.1",
@@ -35,7 +35,10 @@
     "@app/observability": "workspace:*"
   },
   "devDependencies": {
+    "@app/strategy-trailing-trade": "workspace:*",
     "@app/testcontainers": "workspace:*",
-    "@types/pg": "~8.23.1"
+    "@types/pg": "~8.23.1",
+    "typescript": "~7.0.2",
+    "vitest": "~4.1.11"
   }
 }

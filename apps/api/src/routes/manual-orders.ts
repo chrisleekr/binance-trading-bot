@@ -304,7 +304,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
     // record an audit row, then writeOverrideAndEnqueue so a tick actually
     // places the order. The previous handler only recorded override_actions
     // rows that no order-placement path ever read, so the operator's
-    // "sell everything" returned 202 while placing zero orders (#370).
+    // "sell everything" returned 202 while placing zero orders.
     //
     // One symbol's fan-out failure must not abort the rest: this is a panic
     // "sell everything" flow, so a Redis/queue blip on symbol k should not
@@ -400,7 +400,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
   });
 
   // Force-eject: an operator's deliberate "get me out of this auto coin now".
-  // Distinct from the automated defade-reap (#423 Decision 3): it (1) flattens
+  // Distinct from the automated defade-reap: it (1) flattens
   // the position via the same SELL override as trigger-sell, (2) stamps the
   // re-add cooldown immediately so discovery does not rotate it straight back
   // in before the sell settles, and (3) optionally blocklists it permanently.
@@ -454,7 +454,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
       avgEntryPrice: body.avgEntryPrice,
       quantity,
     });
-    // Force-set the strategy's running cost basis (#496): a plain tick never
+    // Force-set the strategy's running cost basis: a plain tick never
     // converges the ledger into state, so route through the dedicated job.
     await enqueueApplyAvgEntryPrice(di, p, symbol);
     c.set('auditEvent', {
@@ -470,7 +470,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
     await assertActionSupported(di, p, 'avg-entry-price');
     const scope = p.scope;
     await p.avgEntryPrices.remove(symbol);
-    // Clear the strategy's running cost basis (#496). Same job as the set path;
+    // Clear the strategy's running cost basis. Same job as the set path;
     // with the ledger row now gone the worker reads "absent" and clears state.
     await enqueueApplyAvgEntryPrice(di, p, symbol);
     c.set('auditEvent', {

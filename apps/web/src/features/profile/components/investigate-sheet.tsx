@@ -16,8 +16,10 @@ import {
   DiagnosisConfirm,
   DiagnosisRunBody,
 } from '@/features/profile/components/diagnosis-run-view';
+import { useDemoMode } from '@/features/auth/api/auth';
 import { useDiagnosisRunStatus } from '@/features/profile/lib/use-diagnosis-run-status';
 import { LoadingRows } from '@/shared/components/page-skeleton';
+import { t } from '@/shared/lib/i18n';
 import { Button } from '@/shared/components/ui/button';
 import {
   Sheet,
@@ -42,6 +44,10 @@ export function InvestigateSheet({
   // the previous report in the gap between the click and the 202.
   const [restarting, setRestarting] = useState(false);
   const { latest, isLive, isLoading, start } = useDiagnosisRunStatus(profileId);
+  // Starting a run POSTs a route that 403s for the demo operator, so the demo gets the past runs to read and a sentence saying why there is no button. A control that simply vanished would read as a bug on the one deployment nobody can ask about it.
+  const demoMode = useDemoMode();
+  // No report to show: either this profile has never been diagnosed, or the operator asked for a fresh run. Outside the demo both states offer the confirm form; inside it the demo notice answers first.
+  const awaitingRun = restarting || latest === undefined;
 
   return (
     <Sheet
@@ -69,17 +75,24 @@ export function InvestigateSheet({
         <div className="mt-4">
           {isLoading ? (
             <LoadingRows rows={4} />
-          ) : restarting || latest === undefined ? (
-            <DiagnosisConfirm
-              isStarting={start.isPending}
-              onConfirm={(liveProbe) => {
-                start.mutate(liveProbe, { onSuccess: () => setRestarting(false) });
-              }}
-            />
           ) : (
             <>
-              <DiagnosisRunBody run={latest} profileId={profileId} />
-              {isLive ? null : (
+              {awaitingRun ? null : <DiagnosisRunBody run={latest} profileId={profileId} />}
+              {demoMode ? (
+                <p
+                  className="mt-4 text-sm text-muted-fg"
+                  data-testid="investigate-demo-unavailable"
+                >
+                  {t('demo.investigate_unavailable')}
+                </p>
+              ) : awaitingRun ? (
+                <DiagnosisConfirm
+                  isStarting={start.isPending}
+                  onConfirm={(liveProbe) => {
+                    start.mutate(liveProbe, { onSuccess: () => setRestarting(false) });
+                  }}
+                />
+              ) : isLive ? null : (
                 <Button
                   variant="outline"
                   size="sm"

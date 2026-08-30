@@ -9,7 +9,7 @@
 //
 // These tests drive the REAL `createSymbolInfoCache` to the confirmed-absent path,
 // so the error they raise IS the production one rather than a look-alike, and
-// inject the optional deps (`reapAutoIfFlat`, `appendActionLog`, `delistThrottle`)
+// inject the optional deps (`reapUnpinnedIfFlat`, `appendActionLog`, `delistThrottle`)
 // so the reap/alert/throttle behaviour is asserted directly. Which call site takes
 // that first cache read is deliberately not pinned: the tradability pre-check now
 // reads ahead of the assembler and lets this error through untouched, and either
@@ -73,10 +73,9 @@ const profileBase = {
   candleInterval: '1h',
   technicalsConfig: { useOnlyWithinMin: 2, ifExpires: 'do-not-buy', intervals: [] },
   needsAccountDeployedQuote: false,
-  reserveBaseQuantity: null,
 };
 
-type ReapOutcome = 'removed' | 'not-found' | 'not-auto' | 'held';
+type ReapOutcome = 'removed' | 'not-found' | 'pinned' | 'held';
 
 interface HarnessOpts {
   /** `delisted` drives the real cache to a confirmed-absent (SymbolDelistedError)
@@ -130,7 +129,7 @@ const buildHarness = (opts: HarnessOpts) => {
           },
         };
 
-  const reapAutoIfFlat = vi.fn(async (): Promise<ReapOutcome> => opts.reapResult ?? 'removed');
+  const reapUnpinnedIfFlat = vi.fn(async (): Promise<ReapOutcome> => opts.reapResult ?? 'removed');
   const appendActionLog = vi.fn<NonNullable<TickHandlerDeps['appendActionLog']>>(
     async () => undefined,
   );
@@ -191,7 +190,7 @@ const buildHarness = (opts: HarnessOpts) => {
     ...(opts.unwired
       ? {}
       : {
-          reapAutoIfFlat,
+          reapUnpinnedIfFlat,
           appendActionLog,
           delistThrottle,
           ...(opts.omitEnqueueReconfigure ? {} : { enqueueReconfigure }),
@@ -226,7 +225,7 @@ const buildHarness = (opts: HarnessOpts) => {
 
   return {
     tick,
-    reapAutoIfFlat,
+    reapUnpinnedIfFlat,
     appendActionLog,
     delistThrottle,
     enqueueReconfigure,
@@ -251,11 +250,11 @@ describe('tick handler — a confirmed-absent symbol self-heals instead of dead-
     });
   });
 
-  it('C2: removed → reapAutoIfFlat(scope, symbol) is called and an info action_log is written', async () => {
+  it('C2: removed → reapUnpinnedIfFlat(scope, symbol) is called and an info action_log is written', async () => {
     const h = buildHarness({ mode: 'delisted', reapResult: 'removed' });
     await h.tick();
 
-    expect(h.reapAutoIfFlat).toHaveBeenCalledWith(
+    expect(h.reapUnpinnedIfFlat).toHaveBeenCalledWith(
       expect.objectContaining({ operatorId: OPERATOR, accountId: ACCOUNT, profileId: PROFILE }),
       SYMBOL,
     );
@@ -267,6 +266,10 @@ describe('tick handler — a confirmed-absent symbol self-heals instead of dead-
     expect((h.infoLogs()[0]?.[1] as { ctx?: { source?: string } })?.ctx).toMatchObject({
       source: 'symbol-delisted',
     });
+    // The reap fires on any unpinned binding, so the operator copy must name the pin, not a provenance the row may not have.
+    expect((h.infoLogs()[0]?.[1] as { msg?: string })?.msg).toBe(
+      `${SYMBOL}: delisted on Binance — the coin was not pinned and held nothing, so the bot stopped tracking it`,
+    );
   });
 
   it('C3: held is NOT removed and the warn alert is DEDUPED — two ticks (throttle [true,false]) warn once', async () => {
@@ -275,23 +278,23 @@ describe('tick handler — a confirmed-absent symbol self-heals instead of dead-
     await h.tick();
 
     // Reap consulted every tick, but a held binding is never removed…
-    expect(h.reapAutoIfFlat).toHaveBeenCalledTimes(2);
+    expect(h.reapUnpinnedIfFlat).toHaveBeenCalledTimes(2);
     expect(h.infoLogs()).toHaveLength(0);
     // …and the operator alert fires exactly once: the throttle gates the second tick.
     expect(h.delistThrottle.allow).toHaveBeenCalledTimes(2);
     expect(h.warnLogs()).toHaveLength(1);
   });
 
-  it('C3b: not-auto is a distinct (non-removing) outcome whose warn alert is likewise deduped', async () => {
+  it('C3b: pinned is a distinct (non-removing) outcome whose warn alert is likewise deduped', async () => {
     const h = buildHarness({
       mode: 'delisted',
-      reapResult: 'not-auto',
+      reapResult: 'pinned',
       throttleAllows: [true, false],
     });
     await h.tick();
     await h.tick();
 
-    expect(h.reapAutoIfFlat).toHaveBeenCalledTimes(2);
+    expect(h.reapUnpinnedIfFlat).toHaveBeenCalledTimes(2);
     expect(h.infoLogs()).toHaveLength(0);
     expect(h.warnLogs()).toHaveLength(1);
   });
@@ -301,7 +304,7 @@ describe('tick handler — a confirmed-absent symbol self-heals instead of dead-
     const { thrown } = await h.tick();
 
     expect(thrown).toBeInstanceOf(Error);
-    expect(h.reapAutoIfFlat).not.toHaveBeenCalled();
+    expect(h.reapUnpinnedIfFlat).not.toHaveBeenCalled();
   });
 
   it('C5: the reap runs DIRECTLY, never through a second chain.run for the same (profile, symbol) key', async () => {
@@ -309,7 +312,7 @@ describe('tick handler — a confirmed-absent symbol self-heals instead of dead-
     await h.tick();
 
     // Reap invoked directly by the catch branch…
-    expect(h.reapAutoIfFlat).toHaveBeenCalledTimes(1);
+    expect(h.reapUnpinnedIfFlat).toHaveBeenCalledTimes(1);
     // …and the tick opened exactly ONE chain.run (its own); a reentrant run for the
     // same key would deadlock, so the reap must not take the chain.
     expect(h.chainRuns).toEqual([`${PROFILE}:${SYMBOL}`]);
@@ -354,8 +357,8 @@ describe('tick handler — a confirmed-absent symbol self-heals instead of dead-
     });
   });
 
-  it('C9: non-removed outcomes (held, not-auto, not-found) never enqueue a reconfigure', async () => {
-    for (const reapResult of ['held', 'not-auto', 'not-found'] as const) {
+  it('C9: non-removed outcomes (held, pinned, not-found) never enqueue a reconfigure', async () => {
+    for (const reapResult of ['held', 'pinned', 'not-found'] as const) {
       const h = buildHarness({ mode: 'delisted', reapResult });
       await h.tick();
 

@@ -11,6 +11,7 @@
 import {
   AccountHealthResponse,
   AccountHealthWorker,
+  asDecimalString,
   asProfileId,
   type DecimalString,
   ErrorEnvelope,
@@ -182,7 +183,7 @@ export const accountHealthRouter = (di: DI): ApiHono => {
           profileId: profile.id,
           name: profile.name,
           lossQuote: realizedStr as DecimalString,
-          limitQuote: limit.toString() as DecimalString,
+          limitQuote: asDecimalString(limit),
         });
       }
     }
@@ -192,7 +193,7 @@ export const accountHealthRouter = (di: DI): ApiHono => {
       return {
         quoteAsset: quoteAsset as string,
         binanceMode: mode as 'test' | 'live',
-        realizedQuote: sum.toString() as DecimalString,
+        realizedQuote: asDecimalString(sum),
       };
     });
 

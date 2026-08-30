@@ -96,7 +96,10 @@ describeIfDb('getAggregateForAccount', () => {
   it('counts live orders and ships the position P/L inputs with the live price', async () => {
     const ap = await profileRepo(fx.db, fx.bob.userId, fx.bob.accountId, fx.bob.profileId);
     await ap.profileSymbols.upsert('BTCUSDT', 'BTC', { overrideConfig: null });
-    await ap.avgEntryPrices.upsert('BTCUSDT', { avgEntryPrice: '60000', quantity: '0.001' });
+    await ap.avgEntryPrices.upsert('BTCUSDT', {
+      avgEntryPrice: '9007199254740993.125000000000000001',
+      quantity: '0.123456789012345678',
+    });
     await ap.orders.insert({
       symbol: 'BTCUSDT',
       side: 'BUY',
@@ -108,17 +111,19 @@ describeIfDb('getAggregateForAccount', () => {
     });
 
     // Symbol-global ticker key the projection reads for each position.
-    const { redis } = makeRedisStub({ 'ticker:BTCUSDT': JSON.stringify({ price: '61000' }) });
+    const { redis } = makeRedisStub({
+      'ticker:BTCUSDT': JSON.stringify({ price: '61000.0000' }),
+    });
     const out = await getAggregateForAccount(bobScope, redis);
     expect(out.profiles[0]).toMatchObject({ openOrderCount: 1, openPositionCount: 1 });
     expect(out.profiles[0]?.positions).toHaveLength(1);
-    // Decimal columns round-trip through Postgres `numeric` at full scale;
-    // compare numerically rather than by string.
     const pos = out.profiles[0]?.positions[0];
-    expect(pos?.symbol).toBe('BTCUSDT');
-    expect(Number(pos?.avgEntryPrice)).toBe(60000);
-    expect(Number(pos?.quantity)).toBe(0.001);
-    expect(pos?.currentPrice).toBe('61000');
+    expect(pos).toEqual({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '9007199254740993.125000000000000001',
+      quantity: '0.123456789012345678',
+      currentPrice: '61000',
+    });
   });
 
   it('ships a position with a null currentPrice when no ticker is cached', async () => {

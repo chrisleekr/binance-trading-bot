@@ -18,5 +18,8 @@
     "@app/indicators": "workspace:*",
     "@app/strategy-core": "workspace:*",
     "decimal.js": "~10.6.0"
+  },
+  "devDependencies": {
+    "@app/contracts": "workspace:*"
   }
 }

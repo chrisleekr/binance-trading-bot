@@ -29,6 +29,7 @@ import {
 } from '@app/contracts';
 
 import { InvestigateButton } from '../src/features/profile/components/investigate-button.js';
+import { ONBOARDING_STATUS_QUERY_KEY } from '../src/features/auth/api/auth.js';
 import { createQueryClient } from '../src/shared/lib/query-client.js';
 
 const PID = '00000000-0000-4000-8000-0000000000c1';
@@ -69,7 +70,7 @@ interface Server {
  * Stub the API with a mutable server. Tests move the server forward by hand,
  * which is what makes "frozen worker ⇒ frozen UI" assertable at all.
  */
-const setUp = (initial: DiagnosisRun[] = []): Server => {
+const setUp = (initial: DiagnosisRun[] = [], demoMode = false): Server => {
   const server: Server = { runs: initial, posts: 0 };
   vi.stubGlobal(
     'fetch',
@@ -86,6 +87,8 @@ const setUp = (initial: DiagnosisRun[] = []): Server => {
   );
 
   const qc = createQueryClient();
+  // Where `useDemoMode` reads from; seeded rather than fetched, the query being staleTime-Infinity.
+  qc.setQueryData(ONBOARDING_STATUS_QUERY_KEY, { masterExists: true, demoMode });
   const root = createRootRoute({
     component: () => (
       <>
@@ -218,6 +221,33 @@ describe('<InvestigateButton>', () => {
       'The engine did not answer.',
     );
     expect(screen.queryByTestId('diagnosis-verdict')).toBeNull();
+  });
+
+  it('offers no way to start a run in the live demo, and says why', async () => {
+    // Starting one POSTs /profiles/:id/diagnosis/runs, which 403s for the demo operator: the control would have looked live and failed on click. Both halves are asserted — a control that vanishes with no explanation reads as a bug, and the explanation alone would pass if the drawer had simply failed to render.
+    const server = setUp([], true);
+    await openDrawer();
+
+    // Text, not presence: a missing i18n key renders as the key itself and would satisfy a node-only check.
+    expect(await screen.findByTestId('investigate-demo-unavailable')).toHaveTextContent(
+      /turned off in the live demo/,
+    );
+    expect(screen.queryByTestId('diagnosis-confirm')).toBeNull();
+    expect(screen.queryByTestId('diagnosis-start')).toBeNull();
+    expect(screen.queryByTestId('diagnosis-start-stored')).toBeNull();
+    expect(server.posts).toBe(0);
+  });
+
+  it('offers no rerun control over a finished run in the live demo', async () => {
+    // The second way in: a run already in history renders its result plus a "Check again" button, which posts the same guarded route.
+    setUp([run({ status: 'error', error: 'The engine did not answer.', finishedAtMs: 2 })], true);
+    await openDrawer();
+
+    // Text, not presence: a missing i18n key renders as the key itself and would satisfy a node-only check.
+    expect(await screen.findByTestId('investigate-demo-unavailable')).toHaveTextContent(
+      /turned off in the live demo/,
+    );
+    expect(screen.queryByTestId('investigate-again')).toBeNull();
   });
 
   it('links a finding to the exact field that armed it', async () => {

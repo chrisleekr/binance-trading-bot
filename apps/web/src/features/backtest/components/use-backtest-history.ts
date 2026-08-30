@@ -24,13 +24,6 @@ export const RUNS_FILTERS = [
 ] as const;
 export type RunFilter = (typeof RUNS_FILTERS)[number][0];
 
-/** Past-runs type filter; `all` omits the server-side `kind` param. */
-export const RUNS_KIND_FILTERS = [
-  ['all', 'All'],
-  ['manual', 'Manual'],
-] as const;
-export type RunKind = (typeof RUNS_KIND_FILTERS)[number][0];
-
 /** Rows-per-page choices for the Past-runs table (server-side `limit`). */
 export const RUNS_PAGE_SIZES = [BACKTEST_LIST_DEFAULT_PAGE_SIZE, 25, 50, 100] as const;
 
@@ -94,23 +87,14 @@ export function useBacktestHistory({
   // either resets to the first page (cursors from the old query don't apply).
   const [rowsPerPage, setRowsPerPage] = useState<number>(BACKTEST_LIST_DEFAULT_PAGE_SIZE);
   const [runFilter, setRunFilter] = useState<RunFilter>('all');
-  const [runKind, setRunKind] = useState<RunKind>('all');
 
   const runsFilterParam = runFilter === 'all' ? null : runFilter;
-  const runsKindParam = runKind === 'all' ? null : runKind;
   // Omit `limit` at the default page size so the canonical first-page URL stays
   // param-free. Larger sizes send it.
   const runsLimitParam = rowsPerPage === BACKTEST_LIST_DEFAULT_PAGE_SIZE ? null : rowsPerPage;
   const runs = useQuery({
-    queryKey: backtestListQueryKey(
-      profileId,
-      page.cursor,
-      runsLimitParam,
-      runsFilterParam,
-      runsKindParam,
-    ),
-    queryFn: () =>
-      fetchBacktestList(profileId, page.cursor, runsLimitParam, runsFilterParam, runsKindParam),
+    queryKey: backtestListQueryKey(profileId, page.cursor, runsLimitParam, runsFilterParam),
+    queryFn: () => fetchBacktestList(profileId, page.cursor, runsLimitParam, runsFilterParam),
   });
   const runItems = runs.data?.items ?? [];
   const runsNextCursor = runs.data?.nextCursor ?? null;
@@ -191,8 +175,6 @@ export function useBacktestHistory({
     runsTotal,
     runFilter,
     setRunFilter,
-    runKind,
-    setRunKind,
     rowsPerPage,
     setRowsPerPage,
     page,
@@ -213,7 +195,6 @@ export function useBacktestHistory({
     setPendingDedup,
     // Consumed by the run slice's launch optimistic write and page resets.
     runsFilterParam,
-    runsKindParam,
     runsLimitParam,
   };
 }

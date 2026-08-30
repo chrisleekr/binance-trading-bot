@@ -85,11 +85,12 @@ const setUp = (responder: (url: string, init?: RequestInit) => Response | Promis
 
 const sampleAssets = [
   // Eligible — above threshold, can transfer, not BNB/BTC.
+  // Full stored scale, not a round number: a fixture the formatter is a no-op on cannot tell a formatted column from an unformatted one, so REMOVING the formatter would leave this suite green.
   {
     asset: 'XRP',
     free: '10',
     locked: '0',
-    estimatedBTC: '0.0025',
+    estimatedBTC: '0.002500307064092664',
     canDustTransfer: true,
   },
   {
@@ -149,6 +150,11 @@ describe('DustTransferPage', () => {
     expect(screen.queryByLabelText('XLM')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('DOGE')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('BNB')).not.toBeInTheDocument();
+
+    // The per-row estimate is a tabular column, so it goes through `formatBalanceAmount`: capped at 8 fraction digits and padded to at least 4, which is what keeps 0.0001 aligned with 0.00012345. Asserting the absence of the raw string is the half that fails if the formatter is deleted.
+    const row = screen.getByLabelText('XRP').closest('li');
+    expect(row?.textContent).toContain('0.00250031 BTC');
+    expect(row?.textContent).not.toContain('0.002500307064092664');
   });
 
   it('renders the recent-conversions history with status labels and BNB received', async () => {
@@ -159,7 +165,7 @@ describe('DustTransferPage', () => {
             id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
             requestedAssets: ['XRP'],
             convertedAssets: ['XRP'],
-            bnbReceived: '0.5',
+            bnbReceived: '0.000307064092664099',
             status: 'done',
             createdAt: '2026-07-09T00:00:00.000Z',
             consumedAt: '2026-07-09T01:00:00.000Z',
@@ -189,7 +195,10 @@ describe('DustTransferPage', () => {
     expect(await screen.findByText(/Converted 1 asset/i)).toBeInTheDocument();
     expect(screen.getByText('Converting…')).toBeInTheDocument();
     expect(screen.getByText('Queued')).toBeInTheDocument();
-    expect(screen.getByText(/→ 0.5 BNB/)).toBeInTheDocument();
+    // `formatAmount`, not `formatBalanceAmount`: this is inline prose, not a column, so it caps the scale without padding it. Both halves are asserted, because the narrowed form alone would still pass if the raw eighteen-figure string were painted somewhere alongside it.
+    const received = screen.getByText(/Converted 1 asset/i).closest('li');
+    expect(received?.textContent).toContain('→ 0.00030706 BNB');
+    expect(received?.textContent).not.toContain('0.000307064092664099');
   });
 
   it('renders conversion timestamps in the operator timezone, not system-local (#619 C5)', async () => {
@@ -238,9 +247,34 @@ describe('DustTransferPage', () => {
       return value as HTMLElement;
     };
     await user.click(screen.getByLabelText('XRP'));
-    expect(preview().textContent).toBe('0.0025 BTC');
+    expect(preview().textContent).toBe('0.00250031 BTC');
     await user.click(screen.getByLabelText('ADA'));
-    expect(preview().textContent).toBe('0.004 BTC');
+    expect(preview().textContent).toBe('0.00400031 BTC');
+  });
+
+  it('formats the preview total through the same helper the rows use', async () => {
+    // Total and parts render from two different code paths today: each row goes through formatBalanceAmount, the total is the raw accumulator with its trailing zeros stripped. A total that lands on a whole number therefore reads `1 BTC` directly under two rows reading `0.4000 BTC` and `0.6000 BTC` — the same quantity, spelled three ways, on one line of a screen whose whole job is to say how much is about to move.
+    const wholeSum = [
+      { asset: 'XRP', free: '10', locked: '0', estimatedBTC: '0.4', canDustTransfer: true },
+      { asset: 'ADA', free: '15', locked: '0', estimatedBTC: '0.6', canDustTransfer: true },
+    ];
+    setUp((url) => {
+      if (url.endsWith('/profiles/p1/dust-transfer')) return json(wholeSum);
+      return json({}, 404);
+    });
+    const user = userEvent.setup();
+    await screen.findByLabelText('XRP', undefined, { timeout: 5000 });
+    const preview = (): HTMLElement => {
+      const selectedLabel = screen.getByText(/selected$/i);
+      const row = selectedLabel.parentElement;
+      if (!row) throw new Error('preview row missing');
+      const value = row.querySelector('span:last-child');
+      if (!value) throw new Error('preview value missing');
+      return value as HTMLElement;
+    };
+    await user.click(screen.getByLabelText('XRP'));
+    await user.click(screen.getByLabelText('ADA'));
+    expect(preview().textContent).toBe('1.00 BTC');
   });
 
   it('submits the selected asset symbols and shows the override-id banner', async () => {

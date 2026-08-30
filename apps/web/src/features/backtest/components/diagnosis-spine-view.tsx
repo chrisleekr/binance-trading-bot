@@ -8,6 +8,14 @@ const DIAGNOSIS_TAG: Record<DiagnosisItem['kind'], string> = {
   none: 'no cause',
 };
 
+// What the count on an item of each kind actually counts, so the figure is never announced as a bare number. Only `blocker` and `gate-fail` items ever carry a count; `segment` and `none` are listed to keep the map total over the union rather than reaching for a cast, and their wording is never rendered.
+const DIAGNOSIS_COUNT_NOUN: Record<DiagnosisItem['kind'], string> = {
+  blocker: 'blocked entries',
+  'gate-fail': 'failed checks',
+  segment: 'occurrences',
+  none: 'occurrences',
+};
+
 /**
  * The deterministic diagnosis spine: the ranked, provable causes for this run's
  * outcome, read first — above the metrics and the evidence. Each item is a fact
@@ -41,8 +49,13 @@ export function DiagnosisSpine({
                 {item.title}{' '}
                 <span className="text-xs text-muted-fg">· {DIAGNOSIS_TAG[item.kind]}</span>
               </span>
+              {/* The number sits visually beside its title but is not programmatically tied to it, so read alone it is just "900". The label carries the noun and the title; it lives on the number itself because a visually-hidden sibling would either duplicate the figure aloud or break the tabular alignment the column depends on. `role="img"` is what makes the label count: a bare span maps to ARIA `generic`, where naming is prohibited and assistive tech is expected to drop `aria-label` entirely. */}
               {item.count !== undefined ? (
-                <span className="shrink-0 font-mono text-xs text-muted-fg tabular-nums">
+                <span
+                  className="shrink-0 font-mono text-xs text-muted-fg tabular-nums"
+                  role="img"
+                  aria-label={`${item.count.toLocaleString()} ${DIAGNOSIS_COUNT_NOUN[item.kind]} — ${item.title}`}
+                >
                   {item.count.toLocaleString()}
                 </span>
               ) : null}

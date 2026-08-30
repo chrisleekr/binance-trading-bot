@@ -1,10 +1,10 @@
 # Bulk order
 
-![Bulk manual order tab](../../assets/screenshots/user-guide/profile-bulk-order.png)
+![Bulk order section](../../assets/screenshots/user-guide/profile-bulk-order.png)
 
-_The Bulk manual order tab. Place the same manual order across several symbols at once. Seeded demo data, not a real account._
+_The Bulk order section. Place the same manual order across several symbols at once. Seeded demo data, not a real account._
 
-The **Bulk order** tab (header "Bulk manual order") places the **same market order on every symbol this profile trades**, at once. It is a manual action, not part of the strategy — use it to enter or exit a whole basket by hand.
+The **Bulk order** section places the **same market order on every symbol this profile trades**, at once. It is a manual action, not part of the strategy — use it to enter or exit a whole basket by hand.
 
 !!! warning "There is no undo"
 

@@ -3,7 +3,7 @@ import { asProfileId, asUserId } from '@app/contracts';
 import { resolveBindings, type DecisionDeps } from './_types.js';
 
 /**
- * `set-kv` persists a cross-symbol KV entry (tracker #267) into the profile's
+ * `set-kv` persists a cross-symbol KV entry into the profile's
  * KV store via the bound persistence. The key is strategy-owned and namespaced;
  * the value is JSON-opaque. No exchange call. A persist failure is non-retryable
  * (a deterministic DB error repeats next tick) and fails loud — never a silent

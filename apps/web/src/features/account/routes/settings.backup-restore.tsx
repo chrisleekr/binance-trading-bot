@@ -8,7 +8,7 @@ import { createRoute } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
-import { BackLink, Page, PageHeader } from '@/shared/components/page';
+import { Page, PageHeader } from '@/shared/components/page';
 import { Panel } from '@/shared/components/panel';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
@@ -16,7 +16,7 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { getApiBaseUrl } from '@/shared/lib/api';
 import { BackupSettingsCard } from '@/features/account/components/backup-settings-card';
-import { rootRoute } from '@/app/__root';
+import { settingsRoute } from '@/features/account/routes/settings';
 
 const downloadBackup = (): void => {
   // Browser-driven download. The API returns a streaming pg_dump custom-format
@@ -78,7 +78,7 @@ function BackupRestorePage(): React.JSX.Element {
 
   return (
     <Page>
-      <PageHeader title="Backup & restore" back={<BackLink to="/settings" />} />
+      <PageHeader title="Backup & restore" />
 
       <Alert variant="warning">
         <AlertTitle>Plaintext API keys</AlertTitle>
@@ -155,7 +155,7 @@ function BackupRestorePage(): React.JSX.Element {
  */
 export const backupRestoreRoute = createRoute({
   staticData: { title: 'Backup & restore' },
-  getParentRoute: () => rootRoute,
-  path: '/settings/backup-restore',
+  getParentRoute: () => settingsRoute,
+  path: 'backup-restore',
   component: BackupRestorePage,
 });

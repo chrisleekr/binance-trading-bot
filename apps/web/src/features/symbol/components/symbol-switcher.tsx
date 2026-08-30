@@ -10,6 +10,7 @@ import {
   profileDashboardQueryKey,
 } from '@/features/profile/api/profile-dashboard';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
+import { Select } from '@/shared/components/ui/select';
 
 /**
  * Symbol picker for the symbol-detail header. Self-contained: owns the
@@ -38,10 +39,10 @@ export function SymbolSwitcher({
   if (symbols.length < 2 || !symbols.some((s) => s.symbol === symbol)) return null;
 
   return (
-    <select
+    <Select
       aria-label="Switch symbol"
       data-testid="symbol-switcher"
-      className="h-11 rounded-md border border-border bg-bg px-2 text-sm font-medium"
+      className="font-medium"
       value={symbol}
       onChange={(e) => {
         const next = e.target.value;
@@ -61,6 +62,6 @@ export function SymbolSwitcher({
           {s.symbol}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }

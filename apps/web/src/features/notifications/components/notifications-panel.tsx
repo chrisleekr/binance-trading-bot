@@ -18,7 +18,7 @@ import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { Switch } from '@/shared/components/ui/switch';
-import { ApiError } from '@/shared/lib/api';
+import { ApiError, errorMessage } from '@/shared/lib/api';
 import {
   fetchNotifyProviders,
   fetchNotifyProviderSavedConfig,
@@ -147,8 +147,8 @@ function ProviderEditor({
       });
     },
     onError: (err: unknown) => {
-      const message =
-        err instanceof ApiError ? `${err.code}: ${err.message}` : ((err as Error).message ?? '');
+      // Narrowed here rather than handed straight to errorMessage, which renders any non-Error as the literal "request failed". That is truthy, so it would displace the action-specific fallback below and tell the operator less than the old cast did about which action failed.
+      const message = err instanceof Error ? errorMessage(err) : '';
       setBanner({ kind: 'err', message: message || 'save failed' });
     },
   });
@@ -165,8 +165,8 @@ function ProviderEditor({
     },
     onError: (err: unknown, _next, ctx) => {
       if (ctx) setEnabled(ctx.prev);
-      const message =
-        err instanceof ApiError ? `${err.code}: ${err.message}` : ((err as Error).message ?? '');
+      // Narrowed for the same reason as the save handler: errorMessage's generic non-Error text is truthy and would swallow the action-specific fallback.
+      const message = err instanceof Error ? errorMessage(err) : '';
       setBanner({ kind: 'err', message: message || 'toggle failed' });
     },
     onSuccess: async (res) => {

@@ -6,8 +6,9 @@ import {
   type AvgEntryPriceRow,
 } from '../schema/avg-entry-prices.js';
 import { profiles } from '../schema/profiles.js';
+import { POSITION_SEED_REFUSED, recordCondition } from './condition-states.js';
 import type { Database } from './_db.js';
-import type { ProfileScope } from './_scoped.js';
+import { withTx, type ProfileScope } from './_scoped.js';
 
 export async function findBySymbol(
   scope: ProfileScope,
@@ -106,8 +107,28 @@ export async function sumDeployedQuoteForAccount(
   return row?.deployed ?? '0';
 }
 
+/**
+ * Drop the cost-basis row for one symbol, and with it any open "nothing sellable backs this" refusal.
+ *
+ * The refusal is a statement about THIS row, so the row's deletion is what falsifies it. Clearing here rather than at each caller is not tidiness: six call sites delete this row — the operator's DELETE in the api, two paths in the boot reconciler, a full-exit fill in the adopter, the grid reset, and the symbol-unbind teardown — and once the row is gone nothing re-examines the symbol, so a caller that forgets leaves a warning the operator can never clear and a seventh caller would have no way to know a checklist existed. `recordCondition` compares against the stored row first, so the ordinary case where nothing is open costs one indexed read.
+ *
+ * Both writes share one transaction. A clear that failed after the DELETE landed would leave the row gone and the refusal open, which is unclosable by construction — nothing re-examines a symbol with no row — so the two must not be able to half-happen. Three of the six callers run outside a transaction of their own; the ones already inside one nest as a savepoint.
+ *
+ * @param scope - The profile whose cost-basis row and condition rows both hang off `profileId`.
+ * @param symbol - The trading pair to forget, e.g. `BTCUSDT`.
+ * @returns Nothing; the transaction is awaited, so a caller that resolves has lost the row and the refusal together or neither.
+ */
 export async function remove(scope: ProfileScope, symbol: string): Promise<void> {
-  await scope.db
-    .delete(avgEntryPrices)
-    .where(and(eq(avgEntryPrices.profileId, scope.profileId), eq(avgEntryPrices.symbol, symbol)));
+  await scope.db.transaction(async (tx) => {
+    await tx
+      .delete(avgEntryPrices)
+      .where(and(eq(avgEntryPrices.profileId, scope.profileId), eq(avgEntryPrices.symbol, symbol)));
+    await recordCondition(withTx(scope, tx), {
+      condition: POSITION_SEED_REFUSED,
+      symbol,
+      code: null,
+      now: new Date(),
+      msg: `${symbol}: cost-basis row removed, refusal no longer applies`,
+    });
+  });
 }

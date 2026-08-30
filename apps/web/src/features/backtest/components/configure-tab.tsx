@@ -16,10 +16,8 @@ import { AutoForm } from '@/shared/forms';
 import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 import { SymbolPicker } from '@/features/backtest/components/symbol-picker';
 import { StrategyPreviewPanel } from '@/features/symbol/preview/strategy-preview-panel';
+import { Select } from '@/shared/components/ui/select';
 import type { BacktestWorkbench, ParamState } from './use-backtest-workbench';
-
-const selectClass =
-  'border-border bg-surface-alt focus-visible:border-focus focus-visible:ring-1 focus-visible:ring-focus h-11 w-full rounded-xs border px-3 py-2 text-sm focus-visible:outline-none';
 
 /** One-click backtest windows ending "now", labelled by length. */
 const WINDOW_PRESETS: readonly { readonly label: string; readonly days: number }[] = [
@@ -121,9 +119,9 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
           </div>
           <div className="space-y-1">
             <Label htmlFor="bt-detail-interval">Detail interval</Label>
-            <select
+            <Select
               id="bt-detail-interval"
-              className={selectClass}
+              className="w-full"
               value={params.detailInterval}
               onChange={setParam('detailInterval')}
             >
@@ -132,7 +130,7 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
                   {i}
                 </option>
               ))}
-            </select>
+            </Select>
             <p className="text-xs text-muted-fg">
               Finer candles used to simulate price movement inside each strategy candle, for more
               realistic fills. Must be the same as or finer than your{' '}

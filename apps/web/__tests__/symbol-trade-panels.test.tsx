@@ -537,3 +537,44 @@ describe('ForceTriggerPanel — interactions', () => {
     await waitFor(() => expect(screen.getByText(/already hold a position/i)).toBeInTheDocument());
   });
 });
+
+/**
+ * The element itself or the nearest ancestor carrying every Tailwind class in `tokens`, or null. Written as an attribute-token selector rather than `toHaveClass` because the layout classes sit on a WRAPPER of the control, and pinning which exact node holds them would over-specify the markup without proving anything more.
+ *
+ * @param el - The node to start from. It is its own first candidate, so a match on `el` itself counts.
+ * @param tokens - Tailwind class names that must ALL be present on one single element — the selectors are concatenated, so this is a conjunction, not a list of alternatives. Reading them as "either" would turn the assertion into one that can never fail.
+ * @returns The nearest element carrying every token, or null when no ancestor does.
+ */
+const layoutScope = (el: Element, tokens: readonly string[]): Element | null =>
+  el.closest(tokens.map((t) => `[class~="${t}"]`).join(''));
+
+describe('ManualTradePanel select layout', () => {
+  // WHAT THIS DOES NOT PROVE: happy-dom computes no layout — every box is zero-sized — and a native <select> paints its selected option inside a shadow DOM the test environment never builds. So this asserts the intended layout CONTRACT (which classes the row carries) and nothing about rendered width or clipping. The check that observes the real defect is the Playwright spec `e2e/tests/manual-trade-select-fit.spec.ts`, which measures the selected option's text against the control's client width in a real browser.
+  it('lays the three selects out on a grid, giving Size-by a full-width track', async () => {
+    renderManual(() => json({}, 404));
+    const sizing = await screen.findByTestId('manual-sizing');
+    // Three equal flex columns in a 288px rail give each select ~90px, which cannot show "Coin (quantity)" — the longest option — at any breakpoint.
+    const row = layoutScope(sizing, ['grid', 'grid-cols-2']);
+    expect(row).not.toBeNull();
+    expect(layoutScope(sizing, ['col-span-2'])).not.toBeNull();
+    // Side and Type share the first row and must not claim a full track.
+    expect(layoutScope(screen.getByTestId('manual-side'), ['col-span-2'])).toBeNull();
+    expect(layoutScope(screen.getByTestId('manual-type'), ['col-span-2'])).toBeNull();
+  });
+
+  it('keeps the overflow guard that lets a select shrink inside its track', async () => {
+    // Characterization pin: `min-w-0` was already on all three selects before the change, so this was green. It is here because `min-w-0` is what stops a select's intrinsic content width from pushing the card wider than its rail — the grid rework must not quietly drop it.
+    renderManual(() => json({}, 404));
+    for (const id of ['manual-side', 'manual-type', 'manual-sizing']) {
+      expect(await screen.findByTestId(id)).toHaveClass('min-w-0');
+    }
+  });
+
+  it('keeps the three native selects and their testids', async () => {
+    // Characterization pin: the three native selects and their testids were already in place, so this was green. It is here because the e2e suite drives them with `selectOption`, which only works against a real <select> — a custom listbox would pass a width test and break every operator journey that touches this form.
+    renderManual(() => json({}, 404));
+    for (const id of ['manual-side', 'manual-type', 'manual-sizing']) {
+      expect((await screen.findByTestId(id)).tagName).toBe('SELECT');
+    }
+  });
+});

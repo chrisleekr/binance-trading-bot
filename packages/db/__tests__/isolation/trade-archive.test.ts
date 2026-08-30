@@ -33,7 +33,6 @@ const seedTrade = (tag: string) => ({
   totalSellQuote: '62000',
   breakdown: { 'grid-buy:BUY': '60000', 'grid-sell:SELL': '62000' },
   profit: '2000',
-  profitPercent: '3.3333333333',
   orders: [
     { tag, side: 'BUY' as const },
     { tag, side: 'SELL' as const },
@@ -79,6 +78,7 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     const rows = await ap.tradeArchive.listForSymbol('BTCUSDT', 10);
     expect(rows.map((r) => r.profileId)).toEqual([fx.alice.profileId]);
     expect((rows[0]?.orders as { tag?: string }[] | undefined)?.[0]?.tag).toBe('alice-trade');
+    expect(rows[0]).not.toHaveProperty('profitPercent');
   });
 
   it('listForProfile returns only the owner-scoped rows on the happy path', async () => {
@@ -86,17 +86,18 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
     expect(rows.map((r) => r.profileId)).toEqual([fx.alice.profileId]);
   });
 
-  it('listWithUnvaluedFees finds zero-fee rows; updateFees backfills and drops them', async () => {
+  it('listWithUnvaluedFees finds explicit incompleteness and drops a complete zero', async () => {
     const inserted = await ap.tradeArchive.insert({
       ...seedTrade('alice-reconcile'),
       orders: [{ binanceOrderId: '12345', side: 'BUY' as const }],
     });
+    if (!inserted) throw new Error('expected the archive insert to succeed');
     const before = await ap.tradeArchive.listWithUnvaluedFees(100);
     const target = before.find((r) => r.id === inserted.id);
     expect(target).toBeDefined();
     expect((target?.orders as { binanceOrderId?: string }[])[0]?.binanceOrderId).toBe('12345');
 
-    expect(await ap.tradeArchive.updateFees(inserted.id, { USDT: '1.5' }, '1.5')).toBe(true);
+    expect(await ap.tradeArchive.updateFees(inserted.id, { USDT: '0' }, '0', 'exact')).toBe(true);
     const after = await ap.tradeArchive.listWithUnvaluedFees(100);
     expect(after.map((r) => r.id)).not.toContain(inserted.id);
   });
@@ -756,7 +757,6 @@ describeIfDb('trade_archive fabricated-seed purge predicate', () => {
       totalSellQuote: '110',
       breakdown: {},
       profit: '10',
-      profitPercent: '10',
     };
     // (a) fabricated: manual + empty orders → must be deleted.
     const fabricated = await ap.tradeArchive.insert({
@@ -779,6 +779,9 @@ describeIfDb('trade_archive fabricated-seed purge predicate', () => {
       orders: [{ side: 'SELL' }],
       archivedAt: new Date('2026-05-03T00:00:00Z'),
     });
+    if (!fabricated || !realManual || !auto) {
+      throw new Error('expected all migration-fixture archive inserts to succeed');
+    }
 
     // Execute the REAL migration artifact, not a hand-copied predicate, so this
     // safety test can never drift from what the migration actually runs. Anchor

@@ -7,6 +7,8 @@ import type { AdvisorVariant, ConfigSuggestion, ImproveConfigMode } from '@app/c
 
 import { Button } from '@/shared/components/ui/button';
 import { ApiError, errorMessage } from '@/shared/lib/api';
+import { t } from '@/shared/lib/i18n';
+import { useDemoMode } from '@/features/auth/api/auth';
 import {
   fetchImproveConfigPrompt,
   parseImproveConfigReply,
@@ -51,9 +53,25 @@ const VARIANTS = Object.keys(VARIANT_LABEL) as ImproveConfigMode[];
 
 // The copy every slot shows for the label above its result.
 const SLOT_LABEL: Record<AdvisorVariant, string> = { ...VARIANT_LABEL, manual: 'Run it myself' };
+const SLOT_ORDER = Object.keys(SLOT_LABEL) as AdvisorVariant[];
+
+// The demo switcher's own captions. SLOT_LABEL is a RESULT label: its `manual` entry reads “Run it myself”, which is the caption of the paste-a-reply opener the demo hides, and a read-only button promising an action that is not on screen is the same off-screen-knowledge violation `errorNote` exists to close.
+const SAVED_SLOT_LABEL: Record<AdvisorVariant, string> = {
+  ...VARIANT_LABEL,
+  manual: 'Pasted by hand',
+};
 
 const NOT_CONFIGURED_NOTE =
   'AI suggestions are not configured. Pick a provider in Account → AI assistant, or use “Run it myself” to copy the prompt into your AI chat.';
+
+// A persisted `error` row is still shown on a demo box, but both non-demo notes point at a control the demo hides — “Run it myself” and Regenerate. Telling a visitor to press a button that is not on screen is the off-screen-knowledge assumption the charter forbids, so the demo copy states the outcome and stops there.
+const errorNote = (errorReason: string | null, demoMode: boolean): string => {
+  if (errorReason === 'not-configured')
+    return demoMode ? 'AI suggestions are not configured on this demo box.' : NOT_CONFIGURED_NOTE;
+  return demoMode
+    ? 'The AI couldn’t generate suggestions for this run.'
+    : 'The AI couldn’t generate suggestions for this run. Try Regenerate.';
+};
 
 interface AdvisorViewState {
   readonly runId: string;
@@ -83,6 +101,8 @@ export function BacktestLlmAdvisor({
   onApply,
 }: BacktestLlmAdvisorProps): React.JSX.Element {
   const advisor = useAdvisorRunStatus(profileId, runId);
+  // Both writes are refused server-side on a demo box, so the controls are hidden rather than left to fail: a button that always errors reads as a broken app. The reads stay open, so everything below still renders.
+  const demoMode = useDemoMode();
 
   // A persisted row has no `mutation.variables`, so the shown slot is explicit state.
   const terminal = advisor.results
@@ -110,6 +130,10 @@ export function BacktestLlmAdvisor({
       didAutoSelect: true,
       variant: autoSelectedVariant,
     };
+    setViewState(currentView);
+  } else if (demoMode && viewState.variant === null && advisor.results.length > 0) {
+    // `openManual` clears the selection, and the only control that could restore it is the one the demo hides. Without this a visitor holding the paste panel open when demo mode came on would be left with the note and nothing under it — the single state where the note's promise that saved suggestions stay readable is false. Reachable only through that transition: the auto-select above covers every other path to a null selection.
+    currentView = { ...viewState, variant: autoSelectedVariant };
     setViewState(currentView);
   }
   const selectedVariant = currentView.variant;
@@ -181,6 +205,10 @@ export function BacktestLlmAdvisor({
   };
 
   const row = selectedVariant ? advisor.byVariant.get(selectedVariant) : undefined;
+  // Every slot that already holds a row, in the grid's own order. The demo switcher below is built from this, not from VARIANTS, so it offers only what can actually be shown.
+  const savedVariants = SLOT_ORDER.filter((v) => advisor.byVariant.has(v));
+  // Derived once and read at BOTH gates below. Nothing resets `manualOpen` when demo mode turns on, so a second gate spelled `!manualOpen` would keep suppressing the saved-result region after the panel itself is gone — the one state where the note's promise that saved suggestions stay readable is false.
+  const manualPanelOpen = manualOpen && !demoMode;
   const running =
     selectedVariant !== null &&
     (row?.status === 'running' ||
@@ -215,60 +243,88 @@ export function BacktestLlmAdvisor({
         </p>
       </div>
 
-      <p className="text-xs">
-        Pick how the AI reads this run. <strong>Safe</strong> suggests only high-confidence changes
-        and says HOLD when nothing beats holding. The others explore a bolder direction — hypotheses
-        to test, still gated by the out-of-sample gate. A saved variant opens instantly.
-      </p>
-      <p
-        role="note"
-        className="rounded-md border border-warning/40 bg-bg-elevated px-2.5 py-1.5 text-xs"
-      >
-        Explore variants suggest higher-variance changes, including larger position sizing, which
-        amplifies losses as well as gains. Treat every suggestion as a hypothesis to re-run, not a
-        fix.
-      </p>
+      {demoMode ? (
+        <>
+          <p className="text-sm text-muted-fg" data-testid="backtest-llm-demo-unavailable">
+            {t('demo.advisor_unavailable')}
+          </p>
+          {/* The hidden grid did two jobs: it starts a generation, and it is the only way to switch which saved slot is displayed. Hiding it whole would strand a visitor on whichever row is newest — an `error` row would then bury every good suggestion behind it and make the note above a lie. These buttons carry only the second job: `showVariant` is local state and issues no request, so nothing here can spend the operator's AI credit. */}
+          {savedVariants.length > 1 ? (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {savedVariants.map((v) => (
+                <Button
+                  key={v}
+                  type="button"
+                  variant={selectedVariant === v ? 'primary' : 'outline'}
+                  className="h-11 w-full"
+                  onClick={() => showVariant(v)}
+                  data-testid={`backtest-llm-show-${v}`}
+                >
+                  {SAVED_SLOT_LABEL[v]}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <p className="text-xs">
+            Pick how the AI reads this run. <strong>Safe</strong> suggests only high-confidence
+            changes and says HOLD when nothing beats holding. The others explore a bolder direction
+            — hypotheses to test, still gated by the out-of-sample gate. A saved variant opens
+            instantly.
+          </p>
+          <p
+            role="note"
+            className="rounded-md border border-warning/40 bg-bg-elevated px-2.5 py-1.5 text-xs"
+          >
+            Explore variants suggest higher-variance changes, including larger position sizing,
+            which amplifies losses as well as gains. Treat every suggestion as a hypothesis to
+            re-run, not a fix.
+          </p>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {VARIANTS.map((v) => {
-          const busy = isVariantBusy(v);
-          const saved = advisor.byVariant.get(v)?.status === 'done';
-          const active = selectedVariant === v;
-          return (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {VARIANTS.map((v) => {
+              const busy = isVariantBusy(v);
+              const saved = advisor.byVariant.get(v)?.status === 'done';
+              const active = selectedVariant === v;
+              return (
+                <Button
+                  key={v}
+                  type="button"
+                  variant={active ? 'primary' : 'outline'}
+                  className="h-11 w-full"
+                  disabled={busy}
+                  onClick={() => pickVariant(v)}
+                  data-testid={`backtest-llm-ask-${v}`}
+                >
+                  {busy ? (
+                    <>
+                      <Loader2 aria-hidden className="mr-1 h-3.5 w-3.5 animate-spin" />
+                      Generating…
+                    </>
+                  ) : (
+                    <>
+                      {saved ? <Check aria-hidden className="mr-1 h-3.5 w-3.5" /> : null}
+                      {VARIANT_LABEL[v]}
+                    </>
+                  )}
+                </Button>
+              );
+            })}
             <Button
-              key={v}
               type="button"
-              variant={active ? 'primary' : 'outline'}
+              variant={selectedVariant === 'manual' || manualOpen ? 'primary' : 'outline'}
               className="h-11 w-full"
-              disabled={busy}
-              onClick={() => pickVariant(v)}
-              data-testid={`backtest-llm-ask-${v}`}
+              disabled={promptMut.isPending}
+              onClick={openManual}
+              data-testid="backtest-llm-manual-open"
             >
-              {busy ? (
-                <>
-                  <Loader2 aria-hidden className="mr-1 h-3.5 w-3.5 animate-spin" />
-                  Generating…
-                </>
-              ) : (
-                <>
-                  {saved ? <Check aria-hidden className="mr-1 h-3.5 w-3.5" /> : null}
-                  {VARIANT_LABEL[v]}
-                </>
-              )}
+              {promptMut.isPending ? 'Building prompt…' : 'Run it myself'}
             </Button>
-          );
-        })}
-        <Button
-          type="button"
-          variant={selectedVariant === 'manual' || manualOpen ? 'primary' : 'outline'}
-          className="h-11 w-full"
-          disabled={promptMut.isPending}
-          onClick={openManual}
-          data-testid="backtest-llm-manual-open"
-        >
-          {promptMut.isPending ? 'Building prompt…' : 'Run it myself'}
-        </Button>
-      </div>
+          </div>
+        </>
+      )}
 
       {unavailable ? (
         <p className="text-xs text-down" data-testid="backtest-llm-error">
@@ -280,7 +336,8 @@ export function BacktestLlmAdvisor({
         </p>
       ) : null}
 
-      {manualOpen ? (
+      {/* The demo half of this gate is declared, not inherited: the panel's “Load the AI's answer” button POSTs to the guarded route, and being unreachable only because its opener is hidden is a transitive coincidence one refactor away from breaking. */}
+      {manualPanelOpen ? (
         <div className="space-y-2 border-t border-border pt-3" data-testid="backtest-llm-manual">
           <p className="text-xs text-muted-fg">
             Copy this prompt into your AI chat (e.g. <strong>claude.ai</strong>), then paste the
@@ -339,13 +396,13 @@ export function BacktestLlmAdvisor({
         </div>
       ) : null}
 
-      {selectedVariant !== null && !manualOpen ? (
+      {selectedVariant !== null && !manualPanelOpen ? (
         <div className="space-y-3 border-t border-border pt-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-muted-fg">
               Variant: <span className="font-medium text-fg">{SLOT_LABEL[selectedVariant]}</span>
             </span>
-            {selectedVariant !== 'manual' ? (
+            {selectedVariant !== 'manual' && !demoMode ? (
               <Button
                 type="button"
                 variant="outline"
@@ -370,9 +427,7 @@ export function BacktestLlmAdvisor({
             </div>
           ) : row?.status === 'error' ? (
             <p className="text-xs text-down" data-testid="backtest-llm-error">
-              {row.errorReason === 'not-configured'
-                ? NOT_CONFIGURED_NOTE
-                : 'The AI couldn’t generate suggestions for this run. Try Regenerate.'}
+              {errorNote(row.errorReason, demoMode)}
             </p>
           ) : row?.status === 'done' ? (
             <>

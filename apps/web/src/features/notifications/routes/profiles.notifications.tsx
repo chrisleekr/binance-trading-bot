@@ -1,6 +1,4 @@
-// /profiles/$profileId/notifications — the per-profile notifier editor. A real
-// page (one full-screen surface model across the app), reached from the profile
-// Manage card.
+// /profiles/$profileId/notifications — the per-profile notifier editor. A real page (one full-screen surface model across the app), reached from the sidebar's expanded profile or the phone's Profiles sheet, and deep-linkable.
 
 import { createRoute } from '@tanstack/react-router';
 

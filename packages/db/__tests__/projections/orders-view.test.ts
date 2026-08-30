@@ -25,8 +25,8 @@ describeIfDb('orders-view projections', () => {
     scope = ap.scope;
     disableKey = `tenant:${fx.alice.accountId}:profile:${fx.alice.profileId}:disable-action:BTCUSDT`;
     await ap.avgEntryPrices.upsert('BTCUSDT', {
-      avgEntryPrice: '60000',
-      quantity: '0.001',
+      avgEntryPrice: '9007199254740993.125000000000000001',
+      quantity: '0.123456789012345678',
     });
     await ap.orders.insert({
       symbol: 'BTCUSDT',
@@ -41,11 +41,13 @@ describeIfDb('orders-view projections', () => {
       symbol: 'BTCUSDT',
       baseAsset: 'BTC',
       quoteAsset: 'USDT',
-      totalBuyQuote: '60000',
-      totalSellQuote: '62000',
-      breakdown: { 'grid-buy:BUY': '60000', 'grid-sell:SELL': '62000' },
-      profit: '2000',
-      profitPercent: '3.33',
+      totalBuyQuote: '123456789012345678.123456789012345678',
+      totalSellQuote: '123456789012345679.234567890123456789',
+      breakdown: { 'grid-buy:BUY': '60000.0000', 'grid-sell:SELL': '62000.0000' },
+      fees: { USDT: '0.2500' },
+      feesQuote: '0.125000000000000001',
+      feeBasis: 'exact',
+      profit: '9007199254740993.125000000000000001',
       missingCostBasis: 1,
       orders: [{ side: 'BUY' as const }, { side: 'SELL' as const }],
       archivedAt: new Date('2026-05-11T00:00:00Z'),
@@ -60,8 +62,10 @@ describeIfDb('orders-view projections', () => {
     const { redis } = makeRedisStub();
     const state = await getSymbolState(scope, redis, 'BTCUSDT');
     expect(state.strategy.name).toBe('trailing-trade');
-    expect(Number(state.avgEntryPrice?.avgEntryPrice)).toBe(60000);
-    expect(Number(state.avgEntryPrice?.quantity)).toBe(0.001);
+    expect(state.avgEntryPrice).toMatchObject({
+      avgEntryPrice: '9007199254740993.125000000000000001',
+      quantity: '0.123456789012345678',
+    });
     expect(state.openOrders).toHaveLength(1);
     expect(state.disable).toBeNull();
     // A seeded state without an entryBlocker reads as null.
@@ -186,10 +190,25 @@ describeIfDb('orders-view projections', () => {
       missingCostBasis: 1,
       exitIntent: 'unknown',
     });
-    expect(Number(archive.items[0]?.totalBuyQuote)).toBe(60000);
-    expect(Number(archive.items[0]?.totalSellQuote)).toBe(62000);
-    expect(Number(archive.items[0]?.profitPercent)).toBe(3.33);
-    expect(Number(archive.items[0]?.netProfit)).toBe(2000);
+    expect(archive.items[0]).toMatchObject({
+      totalBuyQuote: '123456789012345678.123456789012345678',
+      totalSellQuote: '123456789012345679.234567890123456789',
+      profit: '9007199254740993.125000000000000001',
+      feesQuote: '0.125000000000000001',
+      netProfit: '9007199254740993',
+      breakdown: { 'grid-buy:BUY': '60000.0000', 'grid-sell:SELL': '62000.0000' },
+      fees: { USDT: '0.2500' },
+    });
+  });
+
+  it('rejects a non-finite constrained numeric instead of branding it for the wire', async () => {
+    const ap = await profileRepo(fx.db, fx.alice.userId, fx.alice.accountId, fx.alice.profileId);
+    await ap.avgEntryPrices.upsert('NANUSDT', { avgEntryPrice: 'NaN', quantity: '1' });
+    const { redis } = makeRedisStub();
+
+    await expect(getSymbolState(scope, redis, 'NANUSDT')).rejects.toThrow(
+      'expected decimal-string',
+    );
   });
 });
 

@@ -19,8 +19,32 @@ import {
 } from '../../../src/crons/discovery/asset-policy.js';
 import type { ProfileWakeContext } from '../../../src/crons/discovery/handler.js';
 import { readAccountPermissions } from '../../../src/lib/account-permissions.js';
+import {
+  DISCOVERY_REAP_OUTCOMES,
+  type DiscoveryReapOutcome,
+} from '../../../src/crons/discovery-reap.js';
+import { CATALOG } from '../../../src/metrics/catalog.js';
 
 const NOW = 1_700_000_000_000;
+
+const REAP_OUTCOME_METRIC = 'discovery_reap_outcome_total';
+
+/**
+ * A cycle that refused nothing. Built from the runtime array rather than a literal list so this file cannot drift from the outcomes the handler seeds: a value added to one and not the other is exactly the hole the seed exists to close, and a hand-copied list here would hide it.
+ */
+const zeroReapOutcomes = (): Record<DiscoveryReapOutcome, number> =>
+  Object.fromEntries(DISCOVERY_REAP_OUTCOMES.map((outcome) => [outcome, 0])) as Record<
+    DiscoveryReapOutcome,
+    number
+  >;
+
+/** A cycle result for the tests whose subject is not the tally: rotation counts default to zero and nothing was refused. Stated once so a field added to `DiscoveryCycleResult` is one edit here rather than one per fixture, which is how a producer's new field reaches a consumer that never reads it. */
+const cycleResult = (over: { added?: number; removed?: number } = {}) => ({
+  added: 0,
+  removed: 0,
+  ...over,
+  reapOutcomes: zeroReapOutcomes(),
+});
 
 /** exchangeInfo facts for one fixture symbol; base/quote are required, so a fixture states its own split. */
 const adm = (baseAsset: string, quoteAsset = 'USDT', status = 'TRADING'): SymbolAdmission => ({
@@ -91,7 +115,7 @@ describe('discoveryHandler', () => {
     listActive: () => [profile('1')],
     loadConfig: async () => ({ cfg: permissiveConfig(), quoteAsset: 'USDT', name: 'Alpha' }),
     shouldRun: async () => true,
-    runForProfile: vi.fn(async () => ({ added: 1, removed: 0 })),
+    runForProfile: vi.fn(async () => cycleResult({ added: 1 })),
     fetchAllTickers: vi.fn(async () => [ticker({ symbol: 'AAAUSDT' })]),
     fetchSymbolAdmission: vi.fn(
       async (_mode: string) => new Map<string, SymbolAdmission>([['AAAUSDT', adm('AAA')]]),
@@ -108,12 +132,12 @@ describe('discoveryHandler', () => {
   });
 
   it('skips a profile with no/disabled discovery config', async () => {
-    const runForProfile = vi.fn(async () => ({ added: 0, removed: 0 }));
+    const runForProfile = vi.fn(async () => cycleResult());
     await discoveryHandler(deps({ loadConfig: async () => null, runForProfile }))({} as Job);
     expect(runForProfile).not.toHaveBeenCalled();
 
     const disabled = DiscoveryConfigSchema.parse({ enabled: false });
-    const run2 = vi.fn(async () => ({ added: 0, removed: 0 }));
+    const run2 = vi.fn(async () => cycleResult());
     await discoveryHandler(
       deps({
         loadConfig: async () => ({ cfg: disabled, quoteAsset: 'USDT', name: 'Alpha' }),
@@ -124,13 +148,13 @@ describe('discoveryHandler', () => {
   });
 
   it('skips when the refresh period has not elapsed', async () => {
-    const runForProfile = vi.fn(async () => ({ added: 0, removed: 0 }));
+    const runForProfile = vi.fn(async () => cycleResult());
     await discoveryHandler(deps({ shouldRun: async () => false, runForProfile }))({} as Job);
     expect(runForProfile).not.toHaveBeenCalled();
   });
 
   it('runs an enabled, due profile and forwards the profile name', async () => {
-    const runForProfile = vi.fn(async () => ({ added: 2, removed: 1 }));
+    const runForProfile = vi.fn(async () => cycleResult({ added: 2, removed: 1 }));
     await discoveryHandler(deps({ runForProfile }))({} as Job);
     expect(runForProfile).toHaveBeenCalledTimes(1);
     // The name reaches runForProfile so its notify wrapper can prefix it.
@@ -165,7 +189,7 @@ describe('discoveryHandler', () => {
         ctx: ProfileWakeContext,
       ) => {
         expect(ctx.accountPermissions).toEqual(['SPOT']);
-        return { added: 0, removed: 0 };
+        return cycleResult();
       },
     );
     await discoveryHandler(
@@ -208,7 +232,7 @@ describe('discoveryHandler', () => {
         ctx: ProfileWakeContext,
       ) => {
         seen.push(ctx.accountPermissions);
-        return { added: 0, removed: 0 };
+        return cycleResult();
       },
     );
     await discoveryHandler(
@@ -229,7 +253,7 @@ describe('discoveryHandler', () => {
     const runForProfile = vi
       .fn()
       .mockRejectedValueOnce(new Error('binance down'))
-      .mockResolvedValueOnce({ added: 1, removed: 0 });
+      .mockResolvedValueOnce(cycleResult({ added: 1 }));
     await discoveryHandler(
       deps({
         listActive: () => [profile('1'), profile('2')],
@@ -252,7 +276,7 @@ describe('discoveryHandler', () => {
           'stablecoin-route-empty',
         ),
       )
-      .mockResolvedValueOnce({ added: 1, removed: 0 });
+      .mockResolvedValueOnce(cycleResult({ added: 1 }));
     await discoveryHandler(
       deps({
         listActive: () => [profile('1'), profile('2')],
@@ -274,7 +298,7 @@ describe('discoveryHandler', () => {
     const runForProfile = vi
       .fn()
       .mockRejectedValueOnce(new Error('binance down'))
-      .mockResolvedValueOnce({ added: 1, removed: 0 });
+      .mockResolvedValueOnce(cycleResult({ added: 1 }));
     await discoveryHandler(
       deps({
         listActive: () => [profile('1'), profile('2')],
@@ -421,8 +445,89 @@ describe('discoveryHandler', () => {
     expect(seeded).toEqual([...ASSET_POLICY_ABORT_CAUSES].sort());
   });
 
+  it('seeds every reap outcome at zero before the cycle that could refuse one runs', async () => {
+    // Same hazard as the abort seed and the same remedy. A prom-client child is born at its first write holding that value, so an unseeded refusal counter's first increment is a series that has always read 1 — a level, not a rise — and every rate/increase rule over it evaluates empty. The ordering is half the property: seeded AFTER the cycle, the very first refusal of a fresh process is still the child's birth.
+    const record = vi.fn();
+    const runForProfile = vi.fn(async () => cycleResult());
+    await discoveryHandler(
+      deps({
+        listActive: () => [profile('1')],
+        runForProfile,
+        metrics: { record, forget: vi.fn() },
+      }),
+    )({} as Job);
+
+    const seeds = record.mock.calls.filter(
+      (call) => call[0] === REAP_OUTCOME_METRIC && call[1] === 0,
+    );
+    expect(seeds.map((call) => (call[2] as { outcome: string }).outcome).sort()).toEqual(
+      [...DISCOVERY_REAP_OUTCOMES].sort(),
+    );
+    for (const call of seeds) {
+      expect(call[2]).toEqual({
+        profileId: unwrapId(profile('1').profileId),
+        outcome: expect.any(String),
+      });
+    }
+    const seedOrders = record.mock.invocationCallOrder.filter(
+      (_order, i) => record.mock.calls[i]?.[0] === REAP_OUTCOME_METRIC,
+    );
+    expect(seedOrders).toHaveLength(DISCOVERY_REAP_OUTCOMES.length);
+    const [runOrder] = runForProfile.mock.invocationCallOrder;
+    if (runOrder === undefined) throw new Error('expected the profile cycle to have run');
+    expect(Math.max(...seedOrders)).toBeLessThan(runOrder);
+  });
+
+  it('declares the reap-outcome counter in the metric catalogue, with no per-symbol label', async () => {
+    // The sink is a closed union keyed off this catalogue, so an entry here is what makes the name emittable at all. `symbol` is deliberately absent: labelling by symbol would make the series count the tradable universe, and the outcome is the only part an operator acts on.
+    const spec = (CATALOG as Record<string, { kind: string; labelNames?: readonly string[] }>)[
+      REAP_OUTCOME_METRIC
+    ];
+    expect(spec?.kind).toBe('counter');
+    expect(spec?.labelNames).toEqual(['profileId', 'outcome']);
+  });
+
+  it('logs a refusal-only cycle, carrying the whole outcome tally', async () => {
+    // A cycle that rotated nothing and refused several used to log nothing at all, so an operator whose coin list had stopped moving had only a Prometheus series they never open. `pinned` and `not-found` have no other diagnosis surface at all.
+    const info = vi.fn();
+    const reapOutcomes = { ...zeroReapOutcomes(), pinned: 2, 'hold-unproven': 1 };
+    await discoveryHandler(
+      deps({
+        logger: { info, warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never,
+        listActive: () => [profile('1')],
+        runForProfile: vi.fn(async () => ({ added: 0, removed: 0, reapOutcomes })),
+      }),
+    )({} as Job);
+
+    expect(info).toHaveBeenCalledTimes(1);
+    expect(info.mock.calls[0]?.[0]).toEqual({
+      profileId: unwrapId(profile('1').profileId),
+      added: 0,
+      removed: 0,
+      reapOutcomes,
+    });
+  });
+
+  it('stays silent for a cycle that neither rotated nor refused anything', async () => {
+    // The other half: without this, "log when refusals exist" degrades into "log every wake", and a line printed once a minute per profile is one nobody reads.
+    const info = vi.fn();
+    await discoveryHandler(
+      deps({
+        logger: { info, warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never,
+        listActive: () => [profile('1')],
+        runForProfile: vi.fn(async () => ({
+          added: 0,
+          removed: 0,
+          reapOutcomes: zeroReapOutcomes(),
+        })),
+      }),
+    )({} as Job);
+
+    expect(info).not.toHaveBeenCalled();
+  });
+
   it('does not seed a profile that is gated out before its cycle runs', async () => {
-    // A seed per gated profile per wake would mint a child for every profile on the box every 60 seconds and never retire one. The seed belongs to a cycle that actually ran, which is also the only cycle that could have aborted.
+    // A seed per gated profile per wake would mint a child for every profile on the box every 60 seconds and never retire one. The seed belongs to a cycle that actually ran, which is also the only cycle that could have aborted, and the same holds for the reap counter: a gated profile attempted no rotation, so it has nothing to refuse.
     const record = vi.fn();
     await discoveryHandler(
       deps({
@@ -432,7 +537,9 @@ describe('discoveryHandler', () => {
       }),
     )({} as Job);
 
-    expect(record.mock.calls.map((c) => c[0])).not.toContain('discovery_asset_policy_abort_total');
+    const names = record.mock.calls.map((c) => c[0]);
+    expect(names).not.toContain('discovery_asset_policy_abort_total');
+    expect(names).not.toContain(REAP_OUTCOME_METRIC);
   });
 
   it('fetches the all-symbols ticker once per wake, shared across profiles', async () => {
@@ -441,7 +548,7 @@ describe('discoveryHandler', () => {
     const runForProfile = vi.fn(
       async (_p, _cfg, _quoteAsset, _name, _now, getAllTickers: () => Promise<unknown>) => {
         await getAllTickers();
-        return { added: 0, removed: 0 };
+        return cycleResult();
       },
     );
     await discoveryHandler(
@@ -457,7 +564,7 @@ describe('discoveryHandler', () => {
     const fetchSymbolAdmission = vi.fn(
       async (_mode: string) => new Map<string, SymbolAdmission>([['AAAUSDT', adm('AAA')]]),
     );
-    const runForProfile = vi.fn(async () => ({ added: 0, removed: 0 }));
+    const runForProfile = vi.fn(async () => cycleResult());
     await discoveryHandler(
       deps({ listActive: () => [profile('1'), profile('2')], fetchSymbolAdmission, runForProfile }),
     )({} as Job);
@@ -502,7 +609,7 @@ describe('discoveryHandler', () => {
       ) => {
         const key = p === pTest ? 'p-test' : p === pTest2 ? 'p-test2' : 'p-live';
         captured.set(key, ctx);
-        return { added: 0, removed: 0 };
+        return cycleResult();
       },
     );
     await discoveryHandler(
@@ -542,7 +649,7 @@ describe('discoveryHandler', () => {
     const ran: string[] = [];
     const runForProfile = vi.fn(async (p: ActiveProfile) => {
       ran.push(p === pTest ? 'p-test' : 'p-live');
-      return { added: 0, removed: 0 };
+      return cycleResult();
     });
     const warn = vi.fn();
     const record = vi.fn();
@@ -612,7 +719,7 @@ describe('discoveryHandler', () => {
       clock: { nowMs: () => NOW },
       logger,
     });
-    const runForProfile = vi.fn(async () => ({ added: 0, removed: 0 }));
+    const runForProfile = vi.fn(async () => cycleResult());
     await discoveryHandler(
       deps({
         listActive: () => [profile('1'), profile('2')],
@@ -633,7 +740,7 @@ describe('discoveryHandler', () => {
     const getAssetPolicy = vi.fn(async () => {
       throw new Error('product feed unreachable');
     });
-    const runForProfile = vi.fn(async () => ({ added: 0, removed: 0 }));
+    const runForProfile = vi.fn(async () => cycleResult());
     const warn = vi.fn();
     await discoveryHandler(
       deps({
@@ -699,7 +806,7 @@ describe('discoveryHandler', () => {
         ctx: ProfileWakeContext,
       ) => {
         seen.push(ctx.assetPolicy);
-        return { added: 0, removed: 0 };
+        return cycleResult();
       },
     );
     await discoveryHandler(

@@ -90,7 +90,6 @@ const profile = {
   candleInterval: '1h',
   technicalsConfig: { useOnlyWithinMin: 2, ifExpires: 'do-not-buy', intervals: [] },
   needsAccountDeployedQuote: false,
-  reserveBaseQuantity: null,
 } as unknown as ProfileTickContext;
 
 const job = {

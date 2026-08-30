@@ -11,27 +11,31 @@ import { and, eq, gte, isNull, lt, sql } from 'drizzle-orm';
 import { accounts } from '../../schema/accounts.js';
 import { apiKeys } from '../../schema/api-keys.js';
 import { avgEntryPrices } from '../../schema/avg-entry-prices.js';
+import { conditionStates } from '../../schema/condition-states.js';
 import { orders } from '../../schema/orders.js';
 import { profiles } from '../../schema/profiles.js';
 import { profileSymbols } from '../../schema/profile-symbols.js';
 import { tradeArchive } from '../../schema/trade-archive.js';
 import { dashboardAggregateCacheKey, GLOBAL_KEYS, profileKey } from '../../redis.js';
+import { POSITION_SEED_REFUSED } from '../condition-states.js';
 import { type AccountScope } from '../_scoped.js';
 import * as profilesMod from '../profiles.js';
 import { tryParseJson } from './_json.js';
 import type { ProjectionRedis } from './redis-port.js';
 
 /**
- * Coerce an untrusted Redis ticker `price` to a `DecimalString`, or `null`
- * when it is absent, non-string, or not a well-formed decimal. The ticker
- * blob is operator-opaque JSON; a malformed `price` must degrade to "no
- * price" rather than leak an invalid `DecimalString` that fails the
- * `DashboardAggregateResponse` contract on the API boundary.
+ * Coerce an untrusted Redis ticker `price` to a `DecimalString`, or `null` when it is absent, non-string, or not a well-formed decimal. The ticker blob is operator-opaque JSON; a malformed `price` must degrade to "no price" rather than leak an invalid `DecimalString` that fails the `DashboardAggregateResponse` contract on the API boundary.
+ *
+ * The parsed `data` is returned, never the raw input. The schema normalises to plain notation, and this is precisely the surface that needs it: an externally-produced string, straight off Redis, that reaches the dashboard as a price. Keeping `value` here would consult the schema for a verdict and then discard its answer, so a ticker written as `9.9e-7` would render as an exponent in a price column.
+ *
+ * @param value - The `price` field lifted out of the ticker JSON, of unknown type and unknown provenance.
+ * @returns The normalised, branded price, or `null` when the value is not a usable decimal.
  */
-const toTickerPrice = (value: unknown): DecimalString | null =>
-  typeof value === 'string' && DecimalString.safeParse(value).success
-    ? (value as DecimalString)
-    : null;
+const toTickerPrice = (value: unknown): DecimalString | null => {
+  if (typeof value !== 'string') return null;
+  const parsed = DecimalString.safeParse(value);
+  return parsed.success ? parsed.data : null;
+};
 
 interface ProfileRollup {
   openOrderCount: number;
@@ -61,7 +65,7 @@ export const rollupAllProfilesForAccount = async (
   redis: ProjectionRedis,
 ): Promise<Map<ProfileId, ProfileRollup>> => {
   const { db, accountId } = scope;
-  const [orderCounts, lbpRows] = await Promise.all([
+  const [orderCounts, lbpRows, refusalRows] = await Promise.all([
     db
       .select({ profileId: orders.profileId, count: sql<number>`count(*)::int` })
       .from(orders)
@@ -92,12 +96,28 @@ export const rollupAllProfilesForAccount = async (
       )
       .innerJoin(profiles, eq(profiles.id, avgEntryPrices.profileId))
       .where(eq(profiles.accountId, accountId)),
+    db
+      .select({ profileId: conditionStates.profileId, symbol: conditionStates.symbol })
+      .from(conditionStates)
+      .innerJoin(profiles, eq(profiles.id, conditionStates.profileId))
+      .where(
+        and(
+          eq(profiles.accountId, accountId),
+          eq(conditionStates.condition, POSITION_SEED_REFUSED),
+        ),
+      ),
   ]);
+  // A row exists for exactly as long as the refusal stands, so presence IS the open state; this mirrors `listOpenByCondition`, whose predicate is the same pair.
+  const refused = new Set(refusalRows.map((r) => `${r.profileId}:${r.symbol}`));
 
   // A position requires a recorded avg-entry price AND a strictly positive held
   // quantity — the shared predicate the profile-detail page and coin-grid use,
   // so the count here and the Unrealised P/L card cannot drift.
-  const held = lbpRows.filter((r) => isHeldPosition(r.avgEntryPrice, r.quantity));
+  // The refusal filter belongs HERE rather than at the count alone: `held` also seeds `positions`, which the web sums into the ticker's unrealised total, so dropping a refused row from the count while leaving it in the array would fix the number beside the coins and not the money.
+  const held = lbpRows.filter(
+    (r) =>
+      isHeldPosition(r.avgEntryPrice, r.quantity) && !refused.has(`${r.profileId}:${r.symbol}`),
+  );
   // One account-wide MGET for every held symbol (deduped): symbol-global keys, so
   // a symbol held by two profiles is fetched once. Absent key reads as `{}`.
   const heldSymbols = [...new Set(held.map((r) => r.symbol))];
@@ -129,9 +149,9 @@ export const rollupAllProfilesForAccount = async (
     bucket.openPositionCount += 1;
     bucket.positions.push({
       symbol: row.symbol,
-      avgEntryPrice: row.avgEntryPrice as DecimalString,
+      avgEntryPrice: DecimalString.parse(row.avgEntryPrice),
       currentPrice: toTickerPrice(ticker.price),
-      quantity: row.quantity as DecimalString,
+      quantity: DecimalString.parse(row.quantity),
     });
   }
   return rollups;

@@ -13,6 +13,25 @@ import type { DiscoveryProfileContext } from '../../../src/crons/discovery/run.j
 const NOW = 1_700_000_000_000;
 const HOUR = 3_600_000;
 
+// Every reap outcome a cycle can tally, at zero. Two of them never reach the repo at all: the wallet guard refuses before `reapSymbol` is called, and its bare `continue` is why a coin that stopped rotating because the balance read failed looked identical to one nothing wanted to rotate. Literal keys rather than an import from src so this file loads and fails on its assertions.
+const REAP_TALLY_ZERO = {
+  removed: 0,
+  pinned: 0,
+  held: 0,
+  'not-found': 0,
+  'wallet-held': 0,
+  'hold-unproven': 0,
+} as const;
+
+type ReapTally = Record<keyof typeof REAP_TALLY_ZERO, number>;
+
+/** The zeroed tally with only the named outcomes raised, so every assertion states the whole record and a stray count elsewhere fails. */
+const reapTally = (over: Partial<ReapTally> = {}): ReapTally => ({ ...REAP_TALLY_ZERO, ...over });
+
+/** Outcomes handed to the sink, in decision order. The sink is fed per decision, so this is what survives a cycle that never returns. */
+const recorded = (port: DiscoveryProfilePort): string[] =>
+  (port.recordReapOutcome as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0] as string);
+
 const ticker = (over: Partial<Ticker24hrDto>): Ticker24hrDto => ({
   symbol: 'AAAUSDT',
   lastPrice: '1',
@@ -85,14 +104,14 @@ const BASELINE_SYMBOLS = ['AAAUSDT', 'BTCUSDT'] as const;
  * @param stored - The profile's stored discovery settings.
  * @param quoteAsset - The profile's settlement asset.
  * @param over - Fields of the wake context to replace, for tests about the context itself.
- * @returns The cycle's add/remove counts.
+ * @returns The cycle's add/remove counts plus its per-outcome rotation tally.
  */
 const runCycle = async (
   port: DiscoveryProfilePort,
   stored: StoredDiscoveryConfig,
   quoteAsset = 'USDT',
   over: Partial<DiscoveryProfileContext> = {},
-): Promise<{ added: number; removed: number }> => {
+): Promise<{ added: number; removed: number; reapOutcomes: ReapTally }> => {
   const symbols = [
     ...new Set([...BASELINE_SYMBOLS, ...(await port.getAllTickers()).map((t) => t.symbol)]),
   ];
@@ -119,15 +138,16 @@ const fakePort = (over: Partial<DiscoveryProfilePort> = {}): DiscoveryProfilePor
   logger: { warn: vi.fn() },
   getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' })],
   getKlines: async () => eligibleKlines(),
-  listAutoSymbols: async () => [],
-  listManualSymbols: async () => [],
+  listRotatableSymbols: async () => [],
+  listPinnedSymbols: async () => [],
   lastFlattenBySymbol: async () => ({}),
   addedAtBySymbol: async () => ({}),
   addSymbol: vi.fn(async () => ({ outcome: 'created' as const })),
   siblingConflict: vi.fn(async () => null), // default: no sibling conflict
   refreshEntryHint: vi.fn(async () => undefined),
   heldOnExchange: vi.fn(async () => false), // default: wallet flat, reap allowed
-  reapSymbol: vi.fn(async () => true),
+  reapSymbol: vi.fn(async () => 'removed' as const),
+  recordReapOutcome: vi.fn(),
   emit: vi.fn(async () => undefined),
   emitReadd: vi.fn(async () => undefined),
   emitMembershipLost: vi.fn(async () => undefined),
@@ -179,7 +199,7 @@ describe('runDiscoveryForProfile — sibling account-level conflict (#661)', () 
     const port = fakePort();
     stubSiblingConflict(port, 'sibling-quotes-base');
     const r = await runCycle(port, permissiveConfig(), 'USDT');
-    expect(r).toEqual({ added: 0, removed: 0 });
+    expect(r).toEqual({ added: 0, removed: 0, reapOutcomes: reapTally() });
     expect(port.addSymbol).not.toHaveBeenCalled();
     expect(port.emit).not.toHaveBeenCalledWith('AAAUSDT', 'add');
     expect(port.enqueueResync).not.toHaveBeenCalled();
@@ -192,7 +212,7 @@ describe('runDiscoveryForProfile — sibling account-level conflict (#661)', () 
     const port = fakePort();
     stubSiblingConflict(port, 'sibling-owns-base');
     const r = await runCycle(port, permissiveConfig(), 'USDT');
-    expect(r).toEqual({ added: 0, removed: 0 });
+    expect(r).toEqual({ added: 0, removed: 0, reapOutcomes: reapTally() });
     expect(port.addSymbol).not.toHaveBeenCalled();
     expect(explainRowFor(port, 'AAAUSDT')?.disposition).toBe('sibling-owns-base');
   });
@@ -213,7 +233,7 @@ describe('runDiscoveryForProfile — sibling account-level conflict (#661)', () 
     const port = fakePort();
     stubSiblingConflict(port, null);
     const r = await runCycle(port, permissiveConfig(), 'USDT');
-    expect(r).toEqual({ added: 1, removed: 0 });
+    expect(r).toEqual({ added: 1, removed: 0, reapOutcomes: reapTally() });
     expect(port.addSymbol).toHaveBeenCalledWith('AAAUSDT', NOW);
     expect(port.emit).toHaveBeenCalledWith('AAAUSDT', 'add');
     expect(explainRowFor(port, 'AAAUSDT')?.disposition).toBe('added');
@@ -224,7 +244,7 @@ describe('runDiscoveryForProfile', () => {
   it('adds a fresh eligible symbol and enqueues one resync', async () => {
     const port = fakePort();
     const r = await runCycle(port, permissiveConfig(), 'USDT');
-    expect(r).toEqual({ added: 1, removed: 0 });
+    expect(r).toEqual({ added: 1, removed: 0, reapOutcomes: reapTally() });
     // The add binds the row; the per-cycle refresh pass owns the hint hash.
     expect(port.addSymbol).toHaveBeenCalledWith('AAAUSDT', NOW);
     expect(port.emit).toHaveBeenCalledWith('AAAUSDT', 'add');
@@ -281,14 +301,14 @@ describe('runDiscoveryForProfile', () => {
   it('drops the still-forming final candle so trend-confirm reads closed bars only', async () => {
     const port = fakePort({ getKlines: async () => [...fiveRisingClosed(), badBar(NOW + HOUR)] });
     const r = await runCycle(port, trendCfg(), 'USDT');
-    expect(r).toEqual({ added: 1, removed: 0 });
+    expect(r).toEqual({ added: 1, removed: 0, reapOutcomes: reapTally() });
     expect(port.addSymbol).toHaveBeenCalledWith('AAAUSDT', NOW);
   });
 
   it('keeps a final candle that is already closed (trims by close time, not position)', async () => {
     const port = fakePort({ getKlines: async () => [...fiveRisingClosed(), badBar(NOW - HOUR)] });
     const r = await runCycle(port, trendCfg(), 'USDT');
-    expect(r).toEqual({ added: 0, removed: 0 });
+    expect(r).toEqual({ added: 0, removed: 0, reapOutcomes: reapTally() });
     expect(port.addSymbol).not.toHaveBeenCalled();
   });
 
@@ -333,7 +353,7 @@ describe('runDiscoveryForProfile', () => {
     // AAAUSDT is already an auto member and stays desired this cycle — no add,
     // but the refresh pass must still re-stamp its current 24h high.
     const port = fakePort({
-      listAutoSymbols: async () => ['AAAUSDT'],
+      listRotatableSymbols: async () => ['AAAUSDT'],
       getAllTickers: async () => [ticker({ symbol: 'AAAUSDT', highPrice: '999' })],
     });
     await runCycle(port, permissiveConfig(), 'USDT');
@@ -372,7 +392,7 @@ describe('runDiscoveryForProfile', () => {
     const T0 = NOW - 2 * HOUR;
     const port = fakePort({
       addedAtBySymbol: async () => ({ GHOSTUSDT: T0 }),
-      listAutoSymbols: async () => [],
+      listRotatableSymbols: async () => [],
       lastFlattenBySymbol: async () => ({}),
     });
     await runCycle(port, permissiveConfig(), 'USDT');
@@ -385,7 +405,7 @@ describe('runDiscoveryForProfile', () => {
     const T0 = NOW - 2 * HOUR;
     const port = fakePort({
       addedAtBySymbol: async () => ({ GHOSTUSDT: T0 }),
-      listAutoSymbols: async () => [],
+      listRotatableSymbols: async () => [],
       lastFlattenBySymbol: async () => ({ GHOSTUSDT: T0 + HOUR }), // reaped after add
     });
     await runCycle(port, permissiveConfig(), 'USDT');
@@ -402,7 +422,7 @@ describe('runDiscoveryForProfile', () => {
     const T0 = NOW - 2 * HOUR;
     const port = fakePort({
       addedAtBySymbol: async () => ({ AAAUSDT: T0 }),
-      listAutoSymbols: async () => [],
+      listRotatableSymbols: async () => [],
       lastFlattenBySymbol: async () => ({}),
       addSymbol: vi.fn(async () => ({ outcome: 'readded' as const, prevAddedAt: T0 })),
     });
@@ -432,7 +452,22 @@ describe('runDiscoveryForProfile', () => {
     const T0 = NOW - 2 * HOUR;
     const port = fakePort({
       addedAtBySymbol: async () => ({ KEEPUSDT: T0 }),
-      listAutoSymbols: async () => ['KEEPUSDT'],
+      listRotatableSymbols: async () => ['KEEPUSDT'],
+      lastFlattenBySymbol: async () => ({}),
+    });
+    await runCycle(port, permissiveConfig(), 'USDT');
+    expect(port.emitMembershipLost).not.toHaveBeenCalled();
+    expect(port.cleanupOrphanedAdded).not.toHaveBeenCalled();
+  });
+
+  it('does not flag a pinned auto-added symbol as a lost membership, and keeps its added-at stamp', async () => {
+    // The gap the other three sweep cases leave open, and the one an operator hits on the headline pin flow. PINUSDT was auto-added, so it holds an added-at stamp; pinning it takes it out of `listRotatableSymbols` (which returns the UNPINNED bindings) without putting it in `diff.add` (the add loop skips pinned), so it matched neither existing skip and fell through to the loss branch.
+    // `cleanupOrphanedAdded` is the assertion that matters: the stray warn is noise, but dropping the stamp costs the symbol its min-hold on a later unpin, where `addedAt[s] ?? 0` reads as past any anti-churn delay.
+    const T0 = NOW - 2 * HOUR;
+    const port = fakePort({
+      addedAtBySymbol: async () => ({ PINUSDT: T0 }),
+      listRotatableSymbols: async () => [],
+      listPinnedSymbols: async () => ['PINUSDT'],
       lastFlattenBySymbol: async () => ({}),
     });
     await runCycle(port, permissiveConfig(), 'USDT');
@@ -504,7 +539,7 @@ describe('runDiscoveryForProfile', () => {
     // candidate ladder's own denominator, and `largestDrop` then charges the
     // whole gap to the age cut below it — pointing the operator at a filter
     // that never ran instead of at the missing price history.
-    const port = fakePort({ listAutoSymbols: async () => ['ZZZUSDT'] });
+    const port = fakePort({ listRotatableSymbols: async () => ['ZZZUSDT'] });
     await runCycle(port, permissiveConfig(), 'USDT');
     const snap = snapshotFor(port);
     expect(snap.funnel?.probed).toBe(1);
@@ -524,55 +559,151 @@ describe('runDiscoveryForProfile', () => {
 
   it('threads manual members so a pinned, still-qualifying symbol is not re-added (issue #435)', async () => {
     // The only ticker (AAAUSDT) qualifies, but the operator pinned it to manual.
-    const port = fakePort({ listManualSymbols: async () => ['AAAUSDT'] });
+    const port = fakePort({ listPinnedSymbols: async () => ['AAAUSDT'] });
     const r = await runCycle(port, permissiveConfig(), 'USDT');
-    expect(r).toEqual({ added: 0, removed: 0 });
+    expect(r).toEqual({ added: 0, removed: 0, reapOutcomes: reapTally() });
     expect(port.addSymbol).not.toHaveBeenCalled();
     expect(port.enqueueResync).not.toHaveBeenCalled();
   });
 
   it('reaps a faded auto symbol past its min-hold', async () => {
-    const port = fakePort({ listAutoSymbols: async () => ['OLDUSDT'] }); // not in the shortlist
+    const port = fakePort({ listRotatableSymbols: async () => ['OLDUSDT'] }); // not in the shortlist
     const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.removed).toBe(1);
     expect(port.reapSymbol).toHaveBeenCalledWith('OLDUSDT', NOW);
     expect(port.emit).toHaveBeenCalledWith('OLDUSDT', 'remove');
+    // A success has to land on the same counter as the refusals, or the refusal share has no denominator and an operator reading the metric cannot tell "one refusal out of a hundred rotations" from "nothing rotates any more".
+    expect(r.reapOutcomes).toEqual(reapTally({ removed: 1 }));
+    expect(recorded(port)).toEqual(['removed']);
   });
 
   it('does not emit/notify a remove the repo flat-guard vetoes (still held)', async () => {
     const port = fakePort({
-      listAutoSymbols: async () => ['OLDUSDT'],
-      reapSymbol: vi.fn(async () => false), // held — flat-guard refused
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      reapSymbol: vi.fn(async () => 'held' as const), // flat-guard refused
     });
     const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.removed).toBe(0);
     expect(port.emit).not.toHaveBeenCalledWith('OLDUSDT', 'remove');
+    expect(port.notify).not.toHaveBeenCalledWith('removed', 'OLDUSDT');
+    expect(r.reapOutcomes).toEqual(reapTally({ held: 1 }));
+    expect(recorded(port)).toEqual(['held']);
   });
+
+  // The repo names three distinct refusals and they have three different remedies: a pin is the operator's own choice and needs nothing, an open order or position is a cycle that has not closed, and a missing row means discovery and the bindings table disagree about what is bound. Collapsed to one boolean they were indistinguishable, so none of them could be alerted on.
+  it.each(['pinned', 'held', 'not-found'] as const)(
+    'tallies the %s refusal under its own outcome and removes nothing',
+    async (outcome) => {
+      const port = fakePort({
+        listRotatableSymbols: async () => ['OLDUSDT'],
+        reapSymbol: vi.fn(async () => outcome),
+      });
+      const r = await runCycle(port, permissiveConfig(), 'USDT');
+      expect(r.removed).toBe(0);
+      expect(r.reapOutcomes).toEqual(reapTally({ [outcome]: 1 }));
+      expect(recorded(port)).toEqual([outcome]);
+      expect(port.emit).not.toHaveBeenCalledWith('OLDUSDT', 'remove');
+    },
+  );
 
   it('never reaps a symbol the exchange wallet still holds (adoption-lag guard)', async () => {
     // The faded auto symbol qualifies for removal, but the wallet still holds a
     // sellable position — a real buy whose fill has not yet been adopted. Reaping
     // would orphan a live position, so the reap must be skipped entirely.
     const port = fakePort({
-      listAutoSymbols: async () => ['OLDUSDT'],
+      listRotatableSymbols: async () => ['OLDUSDT'],
       heldOnExchange: vi.fn(async () => true),
     });
     const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.removed).toBe(0);
     expect(port.reapSymbol).not.toHaveBeenCalled();
     expect(port.emit).not.toHaveBeenCalledWith('OLDUSDT', 'remove');
+    // This refusal never reaches the repo, so the repo's own four outcomes can never describe it. Left uncounted, the most common reason a coin stops rotating is the one reason the metric cannot show.
+    expect(r.reapOutcomes).toEqual(reapTally({ 'wallet-held': 1 }));
+    expect(recorded(port)).toEqual(['wallet-held']);
   });
 
   it('defers the reap when the wallet balance is unreadable (fail-safe)', async () => {
     // A null held result (no credentials / API error) must be treated as held:
     // never abandon a symbol we cannot prove is flat.
     const port = fakePort({
-      listAutoSymbols: async () => ['OLDUSDT'],
+      listRotatableSymbols: async () => ['OLDUSDT'],
       heldOnExchange: vi.fn(async () => null),
     });
     const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.removed).toBe(0);
     expect(port.reapSymbol).not.toHaveBeenCalled();
+    // Separated from `wallet-held` because they are opposite facts. One is the guard working — a real position kept safe. The other is the guard blind, and a run of them is a credential or API fault that stops rotation entirely while looking exactly like a healthy hold.
+    expect(r.reapOutcomes).toEqual(reapTally({ 'hold-unproven': 1 }));
+    expect(recorded(port)).toEqual(['hold-unproven']);
+  });
+
+  it('tallies every outcome a single cycle produced, keeping emit/notify on the removals only', async () => {
+    // One cycle can hit all six at once, and the tally is per-cycle rather than per-symbol on purpose: the outcome is what an operator acts on, and labelling the counter by symbol would make its cardinality the size of the tradable universe.
+    const byOutcome: Record<string, 'removed' | 'pinned' | 'held' | 'not-found'> = {
+      GONEUSDT: 'removed',
+      PINUSDT: 'pinned',
+      BUSYUSDT: 'held',
+      MISSUSDT: 'not-found',
+    };
+    const port = fakePort({
+      listRotatableSymbols: async () => [
+        'GONEUSDT',
+        'PINUSDT',
+        'BUSYUSDT',
+        'MISSUSDT',
+        'WALLETUSDT',
+        'BLINDUSDT',
+      ],
+      heldOnExchange: vi.fn(async (symbol: string) => {
+        if (symbol === 'WALLETUSDT') return true;
+        if (symbol === 'BLINDUSDT') return null;
+        return false;
+      }),
+      reapSymbol: vi.fn(async (symbol: string) => byOutcome[symbol] ?? 'not-found'),
+    });
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
+    expect(r.removed).toBe(1);
+    expect(r.reapOutcomes).toEqual({
+      removed: 1,
+      pinned: 1,
+      held: 1,
+      'not-found': 1,
+      'wallet-held': 1,
+      'hold-unproven': 1,
+    });
+    // The wallet guard still short-circuits before the repo call.
+    expect(port.reapSymbol).not.toHaveBeenCalledWith('WALLETUSDT', NOW);
+    expect(port.reapSymbol).not.toHaveBeenCalledWith('BLINDUSDT', NOW);
+    // Exactly one symbol actually left, so exactly one remove is announced.
+    const removeEmits = (port.emit as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c) => c[1] === 'remove',
+    );
+    expect(removeEmits).toEqual([['GONEUSDT', 'remove']]);
+    expect([...recorded(port)].sort()).toEqual(
+      ['hold-unproven', 'not-found', 'held', 'pinned', 'removed', 'wallet-held'].sort(),
+    );
+    const removeNotifies = (port.notify as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c) => c[0] === 'removed',
+    );
+    expect(removeNotifies).toEqual([['removed', 'GONEUSDT']]);
+  });
+
+  it('keeps the outcomes it already decided when the reap loop dies partway', async () => {
+    // The whole reason the sink is fed per decision. `reapSymbol` runs a Postgres transaction and the wallet read resolves a Binance client; either can reject, and the caller's per-profile catch then throws the cycle's return value away. A profile failing here every wake would report nothing at all, which reads identically to a profile with nothing to rotate — the exact case this counting exists to distinguish.
+    const port = fakePort({
+      // Faded symbols only: none is in the ticker feed, so all three are reap candidates rather than kept members.
+      listRotatableSymbols: async () => ['OLDAUSDT', 'OLDBUSDT', 'OLDCUSDT'],
+      reapSymbol: vi.fn(async (symbol: string) => {
+        if (symbol === 'OLDCUSDT') throw new Error('reap transaction rolled back');
+        return symbol === 'OLDAUSDT' ? 'removed' : 'pinned';
+      }),
+    });
+    await expect(runCycle(port, permissiveConfig(), 'USDT')).rejects.toThrow(
+      'reap transaction rolled back',
+    );
+    // The first two verdicts survive the throw; the third never reached a verdict, so it is absent rather than guessed at.
+    expect(recorded(port)).toEqual(['removed', 'pinned']);
   });
 
   it('a quote change never reaps a still-held old-quote symbol', async () => {
@@ -588,7 +719,7 @@ describe('runDiscoveryForProfile', () => {
         ticker({ symbol: 'BTCUSDT', lastPrice: '100000' }),
         ticker({ symbol: 'NEWBTC' }),
       ],
-      listAutoSymbols: async () => ['OLDUSDT'],
+      listRotatableSymbols: async () => ['OLDUSDT'],
       heldOnExchange: vi.fn(async (symbol) => symbol === 'OLDUSDT'),
     });
     const r = await runCycle(port, permissiveConfig(), 'BTC');
@@ -617,7 +748,7 @@ describe('runDiscoveryForProfile', () => {
     // transient network blip would reap a live position.
     const T0 = NOW - 2 * HOUR; // past minHoldMinutes:60 → a genuine reap candidate
     const port = fakePort({
-      listAutoSymbols: async () => ['AAAUSDT'], // held auto, past min-hold
+      listRotatableSymbols: async () => ['AAAUSDT'], // held auto, past min-hold
       addedAtBySymbol: async () => ({ AAAUSDT: T0 }),
       getKlines: vi.fn(async () => {
         throw new Error('kline boom');
@@ -632,7 +763,7 @@ describe('runDiscoveryForProfile', () => {
   it('enqueues no resync when nothing changes', async () => {
     const port = fakePort({ getAllTickers: async () => [] }); // empty universe
     const r = await runCycle(port, permissiveConfig(), 'USDT');
-    expect(r).toEqual({ added: 0, removed: 0 });
+    expect(r).toEqual({ added: 0, removed: 0, reapOutcomes: reapTally() });
     expect(port.enqueueResync).not.toHaveBeenCalled();
   });
 
@@ -646,7 +777,7 @@ describe('runDiscoveryForProfile', () => {
     const fetched: string[] = [];
     const port = fakePort({
       getAllTickers: async () => tickers,
-      listAutoSymbols: async () => ['HELDUSDT'],
+      listRotatableSymbols: async () => ['HELDUSDT'],
       getKlines: async (symbol) => {
         fetched.push(symbol);
         return eligibleKlines();
@@ -674,7 +805,7 @@ describe('runDiscoveryForProfile — an untrustworthy asset classification abort
   const heldPort = (): DiscoveryProfilePort =>
     fakePort({
       getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' })],
-      listAutoSymbols: async () => ['OLDUSDT'],
+      listRotatableSymbols: async () => ['OLDUSDT'],
       getKlines: vi.fn(async () => eligibleKlines()),
     });
 

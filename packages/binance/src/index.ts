@@ -35,6 +35,8 @@ export {
   type DustBtcDto,
   type DustConvertDto,
   type DustConvertResultDto,
+  type CommissionRateSetDto,
+  type CommissionRatesDto,
   type MyTradeDto,
   type OpenOrderDto,
   type OrderBookDto,

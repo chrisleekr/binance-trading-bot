@@ -13,7 +13,7 @@
 // Cursor pagination because new archive entries land continuously while the
 // operator pages through; an offset would re-show or skip rows.
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
 import { Trash2 } from 'lucide-react';
@@ -41,21 +41,33 @@ import {
 } from '@/shared/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Badge } from '@/shared/components/ui/badge';
-import { PnlValue } from '@/shared/components/pnl-value';
+import { PnlPercent, PnlValue, UnavailablePnl } from '@/shared/components/pnl-value';
 import { PnlBasisToggle } from '@/shared/components/pnl-basis-toggle';
 import { RollupStatsLine } from '@/shared/components/rollup-stats-line';
 import { usePnlBasis } from '@/shared/hooks/use-pnl-basis';
 import { errorMessage } from '@/shared/lib/api';
+import { formatAmount } from '@/shared/lib/format';
 import { formatInstant } from '@/shared/lib/format-time';
-import { useTimezone } from '@/shared/context/timezone-context';
 import { exitIntentLabel, glossExitIntent } from '@/shared/lib/gloss-exit-intent';
 import { sourceLabel } from '@/shared/lib/rollup-stats';
+import { accountSettingsQueryOptions } from '@/features/account/api/account-settings';
 import {
   backfillTradeArchive,
   deleteArchiveEntry,
   dismissUnreconstructable,
   fetchProfileArchive,
 } from '@/features/profile/api/archive';
+import {
+  bucketPnl,
+  rowPnl,
+  sharesOfPnl,
+  unavailablePnlGlyph,
+  unavailablePnlLabel,
+} from '@/features/profile/lib/archive-view-model';
+import {
+  ArchiveCompactList,
+  ArchiveCompactSkeleton,
+} from '@/features/profile/components/archive-compact-list';
 
 import type { ArchivePeriod, TradeArchiveResponse, UnreconstructableReason } from '@app/contracts';
 import { TableSkeleton } from '@/shared/components/page-skeleton';
@@ -74,6 +86,44 @@ function glossUnreconstructable(reason: UnreconstructableReason): string {
   }
 }
 
+/**
+ * One bucket's share of its quote coin's closing P/L, as both rollup bands render it.
+ *
+ * A component rather than a string helper so the two bands share the className as well as the wording. They are read one under the other, and a share sized or coloured differently in one of them reads as a different kind of number. Module level, because a component declared inside another's render body remounts its subtree on every render.
+ *
+ * @param bucket - The decorated bucket: its whole-number share, null when the quote coin's Net fee evidence is incomplete; the coin that share is a portion of; and whether the list it came from spans more than one coin.
+ * @param testId - The band's per-row testid, which is what keeps the two bands' share nodes individually addressable while their markup stays identical.
+ * @returns The share line.
+ */
+function ShareLabel({
+  bucket,
+  testId,
+}: {
+  readonly bucket: {
+    readonly share: number | null;
+    readonly quoteAsset: string;
+    readonly multiQuote: boolean;
+  };
+  readonly testId: string;
+}): React.JSX.Element {
+  // The coin is named only when it is ambiguous. Shares are apportioned to 100 WITHIN each quote coin, so a period spanning two coins renders two pools in one flat list and the percentages add to 200 unless each one says which pool it belongs to. On a single-coin period that name is noise on the surface an operator reads most.
+  return (
+    <span className="text-[11px] text-muted-fg tabular-nums" data-testid={testId}>
+      {bucket.share === null ? (
+        // A share is withheld only ever by incomplete fee evidence, and across the whole quote coin, so a line whose own evidence is complete can lose its share to an incomplete sibling. The coin is named unconditionally here, unlike the percentage above: on a withheld share the name is the only thing telling the reader whose evidence is missing, which is not a question a single-coin period makes obvious either.
+        <UnavailablePnl
+          glyph={unavailablePnlGlyph('fees')}
+          description={`Share of P/L unavailable, ${bucket.quoteAsset} fee evidence incomplete`}
+        />
+      ) : bucket.multiQuote ? (
+        `${bucket.share}% of ${bucket.quoteAsset} P/L`
+      ) : (
+        `${bucket.share}% of P/L`
+      )}
+    </span>
+  );
+}
+
 const PERIODS: readonly { value: ArchivePeriod; label: string }[] = [
   { value: 'a', label: 'All time' },
   { value: 'd', label: 'Today' },
@@ -88,45 +138,11 @@ interface PageState {
 
 const initialPage: PageState = { cursor: null, history: [] };
 
-/**
- * One bucket's share of all closing P/L for its quote coin, as a whole-number
- * percent of the absolute-P/L total (so losers and winners both count toward
- * the denominator and the shares read honestly). This is a display ratio, not
- * a money value, so plain Number parsing is fine here; the P/L itself always
- * renders from the verbatim decimal string via PnlValue.
- */
-function intentShare(
-  buckets: readonly { quoteAsset: string; profitSum: string }[],
-  bucket: { quoteAsset: string; profitSum: string },
-): number {
-  const total = buckets
-    .filter((b) => b.quoteAsset === bucket.quoteAsset)
-    .reduce((sum, b) => sum + Math.abs(Number(b.profitSum)), 0);
-  if (total === 0) return 0;
-  return Math.round((Math.abs(Number(bucket.profitSum)) / total) * 100);
-}
-
-/**
- * Stand-in for a P/L the bot could not work out. A cycle whose sale had no
- * recorded purchase price contributes nothing to `profit`, so the stored number
- * is an under-count — and an under-count of zero renders as a confident
- * "+0.00", turning a real trade into a flat one. Say the number is missing
- * instead of showing one nobody measured.
- *
- * Module-level, not nested in the panel's render body: a component declared
- * inside another's render remounts its whole subtree on every render.
- */
-function UnavailablePnl({ testId }: { readonly testId?: string }): React.JSX.Element {
-  return (
-    <span className="text-[11px] font-normal text-muted-fg italic" data-testid={testId}>
-      P/L unavailable
-    </span>
-  );
-}
-
 export function TradeArchivePanel({ profileId }: { profileId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
-  const timeZone = useTimezone();
+  // TimezoneProvider owns the request; this observer reads the same query state so the archive cannot run against its temporary UTC fallback.
+  const settings = useQuery({ ...accountSettingsQueryOptions, enabled: false });
+  const timeZone = settings.isSuccess ? settings.data.timezone : undefined;
 
   const { basis, setBasis } = usePnlBasis();
   const [period, setPeriod] = useState<ArchivePeriod>('a');
@@ -148,7 +164,10 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
   const list = useQuery({
     queryKey,
     // The full view, explicitly: every default below depends on it.
-    queryFn: () => fetchProfileArchive(profileId, period, page.cursor, timeZone, 'full'),
+    queryFn:
+      timeZone === undefined
+        ? skipToken
+        : () => fetchProfileArchive(profileId, period, page.cursor, timeZone, 'full'),
     refetchInterval: recovering ? 3000 : false,
   });
 
@@ -162,6 +181,9 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
   const unreconstructableHidden = unreconstructableSymbols.filter((u) => u.dismissed);
   const byIntent = list.data?.byIntent ?? [];
   const bySource = list.data?.bySource ?? [];
+  // Basis resolved once per row, so the amount cell and the percent cell beside
+  // it can never disagree about which P/L they are showing.
+  const rows = items.map((row) => ({ ...row, pnl: rowPnl(row, basis) }));
 
   // Stop polling when the recoverable set drains (each coin either archived or
   // moved to the "no recoverable history" note), or after a 45s lull. The
@@ -462,41 +484,41 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
           data-testid="archive-by-intent"
           aria-label="Profit and loss by exit reason"
         >
-          <div>
-            <p className="text-sm font-medium text-fg">P/L by exit reason</p>
-            <p className="text-xs text-muted-fg">
-              How every trade in this period closed, grouped by why it sold. Win%, PF (profit
-              factor), and expectancy are all net of Binance fees — above PF 1 and positive
-              expectancy makes money after costs. Share is the bucket's portion of all closing P/L
-              for the quote coin.
-            </p>
-          </div>
+          <p className="text-sm font-medium text-fg">P/L by exit reason</p>
           <ul className="space-y-2">
-            {byIntent.map((b) => (
-              <li
-                key={`${b.quoteAsset}-${b.intent}`}
-                className="space-y-0.5"
-                data-testid={`archive-intent-${b.quoteAsset}-${b.intent}`}
-              >
-                <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="min-w-0 flex-1 truncate text-muted-fg">
-                    {glossExitIntent(b.intent)}
-                  </span>
-                  <span className="w-24 text-right font-mono tabular-nums">
-                    <PnlValue
-                      value={basis === 'net' ? b.netProfit : b.profitSum}
-                      unit={b.quoteAsset}
+            {sharesOfPnl(byIntent, basis).map((b) => {
+              const pnl = bucketPnl(b, basis);
+              return (
+                <li
+                  key={`${b.quoteAsset}-${b.intent}`}
+                  className="space-y-0.5"
+                  data-testid={`archive-intent-${b.quoteAsset}-${b.intent}`}
+                >
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="min-w-0 flex-1 truncate text-muted-fg">
+                      {glossExitIntent(b.intent)}
+                    </span>
+                    <span className="w-24 text-right font-mono tabular-nums">
+                      {pnl === null ? (
+                        <UnavailablePnl
+                          glyph={unavailablePnlGlyph('fees')}
+                          description={unavailablePnlLabel('fees')}
+                        />
+                      ) : (
+                        <PnlValue value={pnl} unit={b.quoteAsset} />
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <RollupStatsLine bucket={b} />
+                    <ShareLabel
+                      bucket={b}
+                      testId={`archive-intent-share-${b.quoteAsset}-${b.intent}`}
                     />
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <RollupStatsLine bucket={b} />
-                  <span className="text-[11px] text-muted-fg tabular-nums">
-                    {intentShare(byIntent, b)}% of P/L
-                  </span>
-                </div>
-              </li>
-            ))}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}
@@ -507,40 +529,65 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
           data-testid="archive-by-source"
           aria-label="Profit and loss by source"
         >
-          <div>
-            <p className="text-sm font-medium text-fg">P/L by source</p>
-            <p className="text-xs text-muted-fg">
-              Discovery (coins the bot auto-found) vs manual (coins you pinned) — which one is the
-              edge and which is the drag. P/L follows the Net/Gross toggle; win%, PF, and expectancy
-              are always net of fees.
-            </p>
-          </div>
+          <p className="text-sm font-medium text-fg">P/L by source</p>
           <ul className="space-y-2">
-            {bySource.map((b) => (
-              <li
-                key={`${b.quoteAsset}-${b.source}`}
-                className="space-y-0.5"
-                data-testid={`archive-source-${b.quoteAsset}-${b.source}`}
-              >
-                <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="min-w-0 flex-1 truncate text-muted-fg">
-                    {sourceLabel(b.source)}
-                  </span>
-                  <span className="w-24 text-right font-mono tabular-nums">
-                    <PnlValue
-                      value={basis === 'net' ? b.netProfit : b.profitSum}
-                      unit={b.quoteAsset}
+            {sharesOfPnl(bySource, basis).map((b) => {
+              const pnl = bucketPnl(b, basis);
+              return (
+                <li
+                  key={`${b.quoteAsset}-${b.source}`}
+                  className="space-y-0.5"
+                  data-testid={`archive-source-${b.quoteAsset}-${b.source}`}
+                >
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="min-w-0 flex-1 truncate text-muted-fg">
+                      {sourceLabel(b.source)}
+                    </span>
+                    <span className="w-24 text-right font-mono tabular-nums">
+                      {pnl === null ? (
+                        <UnavailablePnl
+                          glyph={unavailablePnlGlyph('fees')}
+                          description={unavailablePnlLabel('fees')}
+                        />
+                      ) : (
+                        <PnlValue value={pnl} unit={b.quoteAsset} />
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <RollupStatsLine bucket={b} />
+                    <ShareLabel
+                      bucket={b}
+                      testId={`archive-source-share-${b.quoteAsset}-${b.source}`}
                     />
-                  </span>
-                </div>
-                <RollupStatsLine bucket={b} />
-              </li>
-            ))}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}
 
-      {list.isLoading ? <TableSkeleton /> : null}
+      {settings.isPending || list.isLoading ? (
+        <>
+          {/* Two placeholders, one per breakpoint, matching the two renders of the loaded list below. Only one is ever in the accessibility tree: `hidden` is display:none, so the other's `role="status"` is not announced. */}
+          <div className="md:hidden" data-testid="archive-card-skeleton">
+            <ArchiveCompactSkeleton />
+          </div>
+          <div className="hidden md:block" data-testid="archive-table-skeleton">
+            <TableSkeleton />
+          </div>
+        </>
+      ) : null}
+
+      {settings.error ? (
+        <Alert variant="danger">
+          <AlertTitle>Could not load display settings</AlertTitle>
+          <AlertDescription>
+            Trade history needs your saved timezone before it can load.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {list.error ? (
         <Alert variant="danger">
@@ -555,132 +602,138 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
         <p className="text-sm text-muted-fg">No archive entries for this period.</p>
       ) : null}
 
-      {/* Always-visible gloss for the "P/L unavailable" rows. A hover title is
-          invisible on touch, so the explanation renders inline once above the
-          table rather than per row (which would drown the list). */}
-      {items.some((row) => row.missingCostBasis > 0) ? (
-        <p className="text-xs text-muted-fg" data-testid="archive-pnl-unavailable-note">
-          Some trades below show <span className="italic">P/L unavailable</span>: the bot has no
-          record of what that coin originally cost, so it cannot work out the profit or loss. On
-          those rows the Buy and Sell figures only count the part it could match, so they read low
-          too, and the totals above count those trades as zero.
-        </p>
-      ) : null}
-
       {items.length > 0 ? (
-        <div className="rounded-md border border-border">
-          <Table data-testid="archive-list" className="text-xs">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Symbol</TableHead>
-                <TableHead>Exit</TableHead>
-                <TableHead className="text-right">Buy</TableHead>
-                <TableHead className="text-right">Sell</TableHead>
-                <TableHead className="text-right">{basis === 'net' ? 'Net PnL' : 'PnL'}</TableHead>
-                <TableHead className="text-right">PnL%</TableHead>
-                <TableHead className="text-right" title="Commission paid to Binance, per asset">
-                  <div className="leading-tight">
-                    Fees
-                    {/* Always-visible gloss: a hover title is invisible on touch
+        <>
+          {/* Below md the nine-column table is a horizontal scroll strip, so the same rows render compactly with the full figures one tap away. `rows` is passed through rather than re-derived so both renders read the same basis. */}
+          <div className="md:hidden">
+            <ArchiveCompactList rows={rows} timeZone={timeZone} onDelete={setConfirming} />
+          </div>
+          <div className="hidden rounded-md border border-border md:block">
+            <Table data-testid="archive-list" className="text-xs">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Symbol</TableHead>
+                  <TableHead>Exit</TableHead>
+                  <TableHead className="text-right">Buy</TableHead>
+                  <TableHead className="text-right">Sell</TableHead>
+                  <TableHead className="text-right">
+                    {basis === 'net' ? 'Net P/L' : 'Recorded P/L'}
+                  </TableHead>
+                  <TableHead className="text-right">PnL%</TableHead>
+                  <TableHead className="text-right" title="Commission paid to Binance, per asset">
+                    <div className="leading-tight">
+                      Fees
+                      {/* Always-visible gloss: a hover title is invisible on touch
                         screens, so the explanation must render inline too. */}
-                    <span className="block text-[11px] font-normal text-muted-fg">
-                      commission paid to Binance
-                    </span>
-                  </div>
-                </TableHead>
-                <TableHead className="text-right">Time</TableHead>
-                <TableHead className="w-10 text-right" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="font-medium text-fg">{row.symbol}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={row.exitIntent === 'grid-stop-loss' ? 'danger' : 'secondary'}
-                      title={glossExitIntent(row.exitIntent)}
-                      data-testid={`archive-exit-${row.id}`}
-                    >
-                      {exitIntentLabel(row.exitIntent)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell
-                    className="text-right font-mono text-muted-fg tabular-nums"
-                    data-testid={`archive-buy-${row.id}`}
-                  >
-                    {row.totalBuyQuote}
-                    <span className="ml-1 text-muted-fg">{row.quoteAsset}</span>
-                  </TableCell>
-                  <TableCell
-                    className="text-right font-mono text-muted-fg tabular-nums"
-                    data-testid={`archive-sell-${row.id}`}
-                  >
-                    {row.totalSellQuote}
-                    <span className="ml-1 text-muted-fg">{row.quoteAsset}</span>
-                  </TableCell>
-                  <TableCell
-                    className="text-right font-mono tabular-nums"
-                    data-testid={`archive-profit-${row.id}`}
-                  >
-                    {row.missingCostBasis > 0 ? (
-                      <UnavailablePnl testId={`archive-pnl-unavailable-${row.id}`} />
-                    ) : (
-                      <PnlValue
-                        value={basis === 'net' ? row.netProfit : row.profit}
-                        unit={row.quoteAsset}
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell
-                    className="text-right font-mono tabular-nums"
-                    data-testid={`archive-percent-${row.id}`}
-                  >
-                    {row.missingCostBasis > 0 ? (
-                      <span className="text-muted-fg">—</span>
-                    ) : (
-                      <>
-                        <PnlValue value={row.profitPercent} />
-                        <span className="text-muted-fg">%</span>
-                      </>
-                    )}
-                  </TableCell>
-                  <TableCell
-                    className="text-right font-mono text-muted-fg tabular-nums"
-                    data-testid={`archive-fees-${row.id}`}
-                  >
-                    {Object.keys(row.fees).length === 0
-                      ? '—'
-                      : Object.entries(row.fees).map(([asset, amount]) => (
-                          <div key={asset}>
-                            {amount} <span className="text-muted-fg">{asset}</span>
-                          </div>
-                        ))}
-                  </TableCell>
-                  <TableCell className="text-right font-mono whitespace-nowrap text-muted-fg tabular-nums">
-                    {formatInstant(row.archivedAt, timeZone)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <RowActions
-                      label={`Actions for ${row.symbol} archive entry`}
-                      testId={`archive-row-actions-${row.id}`}
-                      actions={[
-                        {
-                          key: 'delete',
-                          label: 'Delete',
-                          icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
-                          destructive: true,
-                          onSelect: () => setConfirming(row),
-                          testId: `archive-delete-${row.id}`,
-                        },
-                      ]}
-                    />
-                  </TableCell>
+                      <span className="block text-[11px] font-normal text-muted-fg">
+                        commission paid to Binance
+                      </span>
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-right">Time</TableHead>
+                  <TableHead className="w-10 text-right" />
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium text-fg">{row.symbol}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={row.exitIntent === 'grid-stop-loss' ? 'danger' : 'secondary'}
+                        title={glossExitIntent(row.exitIntent)}
+                        data-testid={`archive-exit-${row.id}`}
+                      >
+                        {exitIntentLabel(row.exitIntent)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell
+                      className="text-right font-mono text-muted-fg tabular-nums"
+                      data-testid={`archive-buy-${row.id}`}
+                    >
+                      {formatAmount(row.totalBuyQuote)}
+                      <span className="ml-1 text-muted-fg">{row.quoteAsset}</span>
+                    </TableCell>
+                    <TableCell
+                      className="text-right font-mono text-muted-fg tabular-nums"
+                      data-testid={`archive-sell-${row.id}`}
+                    >
+                      {formatAmount(row.totalSellQuote)}
+                      <span className="ml-1 text-muted-fg">{row.quoteAsset}</span>
+                    </TableCell>
+                    <TableCell
+                      className="text-right font-mono tabular-nums"
+                      data-testid={`archive-profit-${row.id}`}
+                    >
+                      {row.pnl.available ? (
+                        <>
+                          <PnlValue value={row.pnl.pnl} unit={row.quoteAsset} />
+                          {/* Abbreviated because it sits in a numeric table column, but still a word rather than a tint: `title` carries the full sentence for anyone who stops on it, and a screen reader reads the abbreviation aloud instead of skipping a colour. */}
+                          {row.pnl.estimated ? (
+                            <span
+                              className="ml-1 text-[11px] text-muted-fg"
+                              title="A commission in this total was reconstructed from Binance's rate table rather than the charge it reported."
+                              data-testid={`archive-pnl-estimated-${row.id}`}
+                            >
+                              est
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <UnavailablePnl
+                          testId={`archive-pnl-unavailable-${row.id}`}
+                          glyph={unavailablePnlGlyph(row.pnl.reason)}
+                          description={unavailablePnlLabel(row.pnl.reason)}
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell
+                      className="text-right font-mono tabular-nums"
+                      data-testid={`archive-percent-${row.id}`}
+                    >
+                      {row.pnl.available ? (
+                        <PnlPercent value={row.pnl.pnlPercent} />
+                      ) : (
+                        <span className="text-muted-fg">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell
+                      className="text-right font-mono text-muted-fg tabular-nums"
+                      data-testid={`archive-fees-${row.id}`}
+                    >
+                      {Object.keys(row.fees).length === 0
+                        ? '—'
+                        : Object.entries(row.fees).map(([asset, amount]) => (
+                            <div key={asset}>
+                              {formatAmount(amount)} <span className="text-muted-fg">{asset}</span>
+                            </div>
+                          ))}
+                    </TableCell>
+                    <TableCell className="text-right font-mono whitespace-nowrap text-muted-fg tabular-nums">
+                      {timeZone === undefined ? null : formatInstant(row.archivedAt, timeZone)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <RowActions
+                        label={`Actions for ${row.symbol} archive entry`}
+                        testId={`archive-row-actions-${row.id}`}
+                        actions={[
+                          {
+                            key: 'delete',
+                            label: 'Delete',
+                            icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                            destructive: true,
+                            onSelect: () => setConfirming(row),
+                            testId: `archive-delete-${row.id}`,
+                          },
+                        ]}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       ) : null}
 
       <ActionBanner banner={banner} />
@@ -721,7 +774,7 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
           <DialogHeader>
             <DialogTitle>Delete archive entry?</DialogTitle>
             <DialogDescription>
-              {confirming
+              {confirming && timeZone !== undefined
                 ? `${confirming.symbol} archived ${formatInstant(confirming.archivedAt, timeZone)}. This is audit-logged and cannot be undone.`
                 : null}
             </DialogDescription>

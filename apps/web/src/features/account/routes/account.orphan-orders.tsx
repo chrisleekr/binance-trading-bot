@@ -13,7 +13,7 @@ import { useState } from 'react';
 
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
 import { FormActions } from '@/shared/components/form-actions';
-import { BackLink, Page, PageHeader } from '@/shared/components/page';
+import { Page, PageHeader } from '@/shared/components/page';
 import { Panel } from '@/shared/components/panel';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
@@ -89,7 +89,7 @@ function OrphanOrdersPage(): React.JSX.Element {
 
   return (
     <Page>
-      <PageHeader title="Orphan orders" back={<BackLink to="/account" />} />
+      <PageHeader title="Orphan orders" />
       <p className="text-sm text-muted-fg">
         Orders open on Binance that the bot isn&rsquo;t tracking (&ldquo;orphans&rdquo;) — one it
         placed but lost track of, one you placed by hand, or one left behind when a coin stopped

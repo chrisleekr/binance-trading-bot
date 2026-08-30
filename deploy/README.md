@@ -110,7 +110,7 @@ The `depends_on: { condition: service_healthy }` chain blocks the `app` service 
 
 ### 6. Database migrations (automatic on boot)
 
-Migrations run automatically on boot: the container entrypoint (`apps/server/docker-entrypoint.sh`) runs the migration runner before starting the app, unless `SKIP_MIGRATIONS=1`. The runner is idempotent — every migration file is keyed by checksum in `_app_migrations`, so re-running is safe. A migration that fails exits the container non-zero and readiness never answers, so the orchestrator backs off rather than serving a stale schema. In the scale topology only the `api` service migrates; `worker`/`study` set `SKIP_MIGRATIONS=1`.
+Migrations run automatically on boot: the container entrypoint (`apps/server/docker-entrypoint.sh`) runs the migration runner before starting the app, unless `SKIP_MIGRATIONS=1` is used for an offline maintenance command. The runner is idempotent and serialises concurrent callers with a Postgres advisory lock, so every `api`, `worker`, and `study` role migrates before it references the schema. A migration that fails exits the container non-zero and readiness never answers, so the orchestrator backs off rather than serving a stale schema.
 
 To run migrations manually (offline path), invoke the same binary:
 

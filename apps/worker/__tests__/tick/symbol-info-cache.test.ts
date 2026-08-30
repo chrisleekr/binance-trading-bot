@@ -373,7 +373,7 @@ describe('createSymbolInfoCache', () => {
     });
 
     it('C6: bounds the refetch — N gets within the negative TTL run refresh at most once', async () => {
-      // Core of #667. A held/not-auto delisted symbol used to re-run the
+      // Core of #667. A held/pinned delisted symbol used to re-run the
       // ungoverned full /exchangeInfo fetch on EVERY get. The negative-TTL
       // cache serves the typed throw from memory within the window, so refresh
       // fires at most once across N gets. RED start: today refresh runs N times.

@@ -99,6 +99,7 @@ describeIfInfra('dust-transfer history route', () => {
     expect(body.map((r) => r.id)).toEqual([pendingId, doneId]);
 
     const [pending, done] = body;
+    if (!pending || !done) throw new Error('expected two dust-transfer rows');
     expect(pending.status).toBe('pending');
     expect(pending.requestedAssets).toEqual(['SHIB']);
     expect(pending.convertedAssets).toBeNull();
@@ -108,7 +109,8 @@ describeIfInfra('dust-transfer history route', () => {
     expect(done.status).toBe('done');
     expect(done.requestedAssets).toEqual(['TRX', 'DOGE']);
     expect(done.convertedAssets).toEqual(['TRX', 'DOGE']);
-    expect(done.bnbReceived).toBe('0.01230000');
+    // Binance really does emit scale-padded strings, so the fixture keeps its trailing zeros; the response schema canonicalises every decimal-string it parses, so the byte on the wire is the trimmed form.
+    expect(done.bnbReceived).toBe('0.0123');
     expect(done.consumedAt).not.toBeNull();
   });
 

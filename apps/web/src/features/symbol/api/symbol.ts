@@ -136,14 +136,20 @@ export const fetchSymbolCandles = (
   const frames = options.frames ?? SYMBOL_CANDLE_FRAMES;
   const bucketMs = symbolCandleBucketMs(interval, options.now);
   const fromMs = bucketMs - frames * CANDLE_INTERVAL_MS[interval];
-  const search = new URLSearchParams({
-    interval,
-    from: new Date(fromMs).toISOString(),
-    to: new Date(bucketMs).toISOString(),
-  });
-  return apiFetch(`${symbolPath(profileId, symbol, '/candles')}?${search.toString()}`, CandleList, {
-    method: 'GET',
-  });
+  return apiFetch(
+    accountPath(
+      `/profiles/${encodePathSegment(profileId)}/symbols/${encodePathSegment(symbol)}/candles`,
+    ),
+    CandleList,
+    {
+      method: 'GET',
+      query: {
+        interval,
+        from: new Date(fromMs).toISOString(),
+        to: new Date(bucketMs).toISOString(),
+      },
+    },
+  );
 };
 
 /**
@@ -280,13 +286,16 @@ export const fetchSymbolLogs = (
   symbol: string,
   range: { from: Date; to: Date },
 ): Promise<SymbolLogList> => {
-  const search = new URLSearchParams({
-    from: range.from.toISOString(),
-    to: range.to.toISOString(),
-  });
-  return apiFetch(`${symbolPath(profileId, symbol, '/logs')}?${search.toString()}`, SymbolLogList, {
-    method: 'GET',
-  });
+  return apiFetch(
+    accountPath(
+      `/profiles/${encodePathSegment(profileId)}/symbols/${encodePathSegment(symbol)}/logs`,
+    ),
+    SymbolLogList,
+    {
+      method: 'GET',
+      query: { from: range.from.toISOString(), to: range.to.toISOString() },
+    },
+  );
 };
 
 /**
@@ -387,21 +396,6 @@ export const patchSymbolOverride = (
   apiFetch(symbolPath(profileId, symbol, ''), ProfileSymbolResponse, {
     method: 'PATCH',
     body: { overrideConfig },
-  });
-
-/**
- * PUT /profiles/:id/symbols/:symbol/reserve — set the always-hold floor in base
- * units (the quantity the bot must never sell below), or `null` to clear it. The
- * server rejects a reserve larger than the live base-asset holding (422).
- */
-export const putSymbolReserve = (
-  profileId: string,
-  symbol: string,
-  reserveBaseQuantity: string | null,
-): Promise<ProfileSymbolResponseT> =>
-  apiFetch(symbolPath(profileId, symbol, '/reserve'), ProfileSymbolResponse, {
-    method: 'PUT',
-    body: { reserveBaseQuantity },
   });
 
 /** Stable query key for a symbol's config-override row. */

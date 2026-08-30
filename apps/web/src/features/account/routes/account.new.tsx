@@ -6,10 +6,10 @@
 
 import { AccountCreate } from '@app/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createRoute, useRouter } from '@tanstack/react-router';
+import { createRoute, Link, useRouter } from '@tanstack/react-router';
 import { useState, type FormEvent, type ReactNode } from 'react';
 
-import { BackLink, Page, PageHeader } from '@/shared/components/page';
+import { Page, PageHeader } from '@/shared/components/page';
 import { Panel } from '@/shared/components/panel';
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
@@ -18,6 +18,7 @@ import { accountsQueryKey, createAccount } from '@/features/account/api/accounts
 import { setActiveAccountId } from '@/shared/lib/account-scope';
 import { errorMessage } from '@/shared/lib/api';
 import { rootRoute } from '@/app/__root';
+import { t } from '@/shared/lib/i18n';
 
 function AccountNewPage(): ReactNode {
   const router = useRouter();
@@ -51,7 +52,7 @@ function AccountNewPage(): ReactNode {
 
   return (
     <Page>
-      <PageHeader title="New account" back={<BackLink to="/" />} />
+      <PageHeader title="New account" />
       <form className="space-y-5" onSubmit={onSubmit} data-testid="account-new-form">
         <Panel title="Account">
           <div className="space-y-5">
@@ -98,9 +99,18 @@ function AccountNewPage(): ReactNode {
           </div>
         </Panel>
 
-        <Button type="submit" variant="primary" disabled={create.isPending}>
-          {create.isPending ? 'Creating…' : 'Create account'}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button type="submit" variant="primary" disabled={create.isPending}>
+            {create.isPending ? 'Creating…' : 'Create account'}
+          </Button>
+          {/* This route hangs directly off the root, so it has only one nameable rung and renders no breadcrumb. Without an explicit cancel the form would have no in-page way out at all. */}
+          <Link
+            to="/"
+            className="rounded px-2 py-2.5 text-sm text-muted-fg hover:text-fg focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+          >
+            {t('common.cancel')}
+          </Link>
+        </div>
       </form>
     </Page>
   );

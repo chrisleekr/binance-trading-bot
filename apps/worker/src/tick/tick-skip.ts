@@ -100,14 +100,14 @@ interface ReapCopy {
   readonly logFields: Record<string, unknown>;
   readonly removedMsg: string;
   readonly heldMsg: string;
-  readonly notAutoMsg: string;
+  readonly pinnedMsg: string;
   /** Per-cause suppression window. Two causes must never share one key namespace. */
   readonly throttle: { allow(key: string): Promise<boolean> } | undefined;
 }
 
 /**
  * The shared trunk of every "this binding will never work again" self-heal: reap
- * it when it is discovery-owned and flat, tell the operator what happened (once
+ * it when it is unpinned and flat, tell the operator what happened (once
  * per window when they must act), and NEVER let any of that turn into a throw.
  *
  * Every step is swallowed on purpose. The contract this exists to hold is the
@@ -121,7 +121,7 @@ interface ReapCopy {
 const reapAndRecord = async (
   deps: Pick<
     TickHandlerDeps,
-    'reapAutoIfFlat' | 'appendActionLog' | 'enqueueReconfigure' | 'logger'
+    'reapUnpinnedIfFlat' | 'appendActionLog' | 'enqueueReconfigure' | 'logger'
   >,
   ctx: { scope: ProfileScope; profileId: ProfileId; symbol: string; nowMs: number },
   copy: ReapCopy,
@@ -143,7 +143,7 @@ const reapAndRecord = async (
   // `undefined` reads the same as the unwired dep — say nothing, still skip.
   let outcome: ReapOutcome | undefined;
   try {
-    outcome = deps.reapAutoIfFlat ? await deps.reapAutoIfFlat(scope, symbol) : undefined;
+    outcome = deps.reapUnpinnedIfFlat ? await deps.reapUnpinnedIfFlat(scope, symbol) : undefined;
   } catch (reapErr) {
     deps.logger.warn(
       { profileId, symbol, err: reapErr, source: copy.source },
@@ -155,7 +155,7 @@ const reapAndRecord = async (
   if (outcome === 'removed') {
     deps.logger.info(
       { profileId, symbol, source: copy.source, ...copy.logFields },
-      'tick-handler: reaped the flat auto-added binding',
+      'tick-handler: reaped the flat unpinned binding',
     );
     await appendBestEffort({
       time,
@@ -179,8 +179,8 @@ const reapAndRecord = async (
         'tick-handler: failed to enqueue reconfigure after the reap (self-heal still applied)',
       );
     }
-  } else if (outcome === 'held' || outcome === 'not-auto') {
-    // Can't reap a held position or an operator-pinned symbol. The operator must
+  } else if (outcome === 'held' || outcome === 'pinned') {
+    // Can't reap a held position or a pinned symbol. The operator must
     // act (flatten or unpin), so tell them — but the cause repeats identically
     // every tick, so gate the record to one per window. Fail-open twice over: an
     // absent throttle emits every time, and a throttle that throws (Redis down)
@@ -203,7 +203,7 @@ const reapAndRecord = async (
         time,
         symbol,
         level: 'warn',
-        msg: outcome === 'held' ? copy.heldMsg : copy.notAutoMsg,
+        msg: outcome === 'held' ? copy.heldMsg : copy.pinnedMsg,
         ctx: { source: copy.source, ...copy.logFields, outcome },
       });
     }
@@ -214,7 +214,7 @@ const reapAndRecord = async (
 
 /**
  * The tick's response to a confirmed-delisted symbol: self-heal instead of
- * dead-lettering. Reaps the auto-added binding when it is flat and returns the
+ * dead-lettering. Reaps the unpinned binding when it is flat and returns the
  * same graceful-skip result the RedisUnavailable path returns, so the job never
  * retries a symbol that will not come back. Returns `null` when `err` is NOT a
  * delisted error — telling the caller to fall through (RedisUnavailable check,
@@ -225,7 +225,7 @@ export const symbolDelistedReap = async (
   err: unknown,
   deps: Pick<
     TickHandlerDeps,
-    'reapAutoIfFlat' | 'appendActionLog' | 'delistThrottle' | 'enqueueReconfigure' | 'logger'
+    'reapUnpinnedIfFlat' | 'appendActionLog' | 'delistThrottle' | 'enqueueReconfigure' | 'logger'
   >,
   ctx: {
     scope: ProfileScope;
@@ -240,9 +240,9 @@ export const symbolDelistedReap = async (
   await reapAndRecord(deps, ctx, {
     source: 'symbol-delisted',
     logFields: { mode: err.mode },
-    removedMsg: `${symbol}: delisted on Binance — auto-added symbol removed`,
+    removedMsg: `${symbol}: delisted on Binance — the coin was not pinned and held nothing, so the bot stopped tracking it`,
     heldMsg: `${symbol}: delisted on Binance but still held — left in place, flatten it manually`,
-    notAutoMsg: `${symbol}: delisted on Binance but pinned — left in place, unpin it to remove`,
+    pinnedMsg: `${symbol}: delisted on Binance but pinned — left in place, unpin it to remove`,
     throttle: deps.delistThrottle,
   });
   return throttledSkip({ profileId, symbol, latencyMs: ctx.latencyMs });
@@ -254,7 +254,7 @@ export const symbolDelistedReap = async (
  * assembler rather than in its catch. A symbol whose `permissionSets` the
  * account cannot satisfy is refused `-2010` on every order it will ever emit, so
  * the binding is retired on the same terms as a delisting — reaped when it is
- * discovery-owned and flat, left in place with a throttled operator record when
+ * unpinned and flat, left in place with a throttled operator record when
  * the operator must act first.
  *
  * Returns `null` for "carry on and tick", and it says that in every ambiguity:
@@ -264,7 +264,7 @@ export const symbolDelistedReap = async (
  * symbol the account can trade, while a wrong "permitted" costs one Binance
  * rejection, which is what already happens today.
  *
- * It also returns `null` when the binding SURVIVES (held or operator-pinned).
+ * It also returns `null` when the binding SURVIVES (held or pinned).
  * Only a retired symbol has nothing left to tick; one still bound must keep
  * ticking, or its blocker rows never close and its resting orders can never be
  * cancelled. The order-placement pre-flight already refuses its orders at zero
@@ -283,7 +283,7 @@ export const symbolNotPermittedRetire = async (
     TickHandlerDeps,
     | 'redis'
     | 'symbolInfoCache'
-    | 'reapAutoIfFlat'
+    | 'reapUnpinnedIfFlat'
     | 'appendActionLog'
     | 'notPermittedThrottle'
     | 'enqueueReconfigure'
@@ -331,9 +331,9 @@ export const symbolNotPermittedRetire = async (
       publishedSetCount: permissionSets.length,
       heldTagCount: accountPermissions.length,
     },
-    removedMsg: `${symbol}: this account has no Binance permission to trade it — auto-added symbol removed`,
+    removedMsg: `${symbol}: this account has no Binance permission to trade it — the coin was not pinned and held nothing, so the bot stopped tracking it`,
     heldMsg: `${symbol}: this account has no Binance permission to trade it and you still hold a position — left in place. Sell the position down to zero on Binance and it is removed automatically.`,
-    notAutoMsg: `${symbol}: this account has no Binance permission to trade it but you pinned the symbol — left in place, unpin it to remove`,
+    pinnedMsg: `${symbol}: this account has no Binance permission to trade it but you pinned the symbol — left in place, unpin it to remove`,
     throttle: deps.notPermittedThrottle,
   });
   if (outcome !== 'removed') return null;

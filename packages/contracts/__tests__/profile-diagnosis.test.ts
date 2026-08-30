@@ -43,6 +43,12 @@ const snapshot = (over: Partial<DiagnosisSnapshot> = {}): DiagnosisSnapshot => (
   ...over,
 });
 
+// A scan persisted before the funnel field: the key is ABSENT, not set to undefined. `funnel?:` is an optional property, so under `exactOptionalPropertyTypes` those are different types, and only the absent one is a row the discovery writer could ever have produced.
+const preFunnelSnapshot = (over: Partial<DiagnosisSnapshot> = {}): DiagnosisSnapshot => {
+  const { funnel: _absent, ...rest } = snapshot(over);
+  return rest;
+};
+
 const input = (over: Partial<ProfileDiagnosisInput> = {}): ProfileDiagnosisInput => ({
   nowMs: NOW,
   profile: {
@@ -428,7 +434,7 @@ describe('rung 5: discovery running', () => {
     const stranded = { cause: 'cross-check-gap', atMs: NOW - 4 * 900_000 } as const;
     const i = input({
       assetPolicyAbort: stranded,
-      conditions: [cond({ condition: 'discovery-stale', symbol: null, sinceMs: NOW - DAY })],
+      conditions: [cond({ condition: 'discovery-stale', symbol: '', sinceMs: NOW - DAY })],
     });
 
     const r = runDiagnosisStep('discovery-running', i);
@@ -515,10 +521,7 @@ describe('rung 7: candidate funnel', () => {
   it('reports unknown, never zero, when no scan carries funnel counts', () => {
     // Rows predating the funnel field have no counts. Coercing that to 0 would
     // manufacture a choke at the first stage on every legacy profile.
-    const r = runDiagnosisStep(
-      'candidate-funnel',
-      input({ snapshots: [snapshot({ funnel: undefined })] }),
-    );
+    const r = runDiagnosisStep('candidate-funnel', input({ snapshots: [preFunnelSnapshot()] }));
     expect(r.status).toBe('unknown');
     expect(r.items).toEqual([]);
   });
@@ -1217,7 +1220,10 @@ describe('buildProfileDiagnosis', () => {
     // "not recorded" — and this strip exists to tell chronic choke from a bad
     // scan, so the difference decides the answer.
     const i = input({
-      snapshots: [snapshot({ capturedAtMs: NOW - 1000 }), { capturedAtMs: NOW - 2000 }],
+      snapshots: [
+        snapshot({ capturedAtMs: NOW - 1000 }),
+        { capturedAtMs: NOW - 2000, breadthOk: undefined },
+      ],
     });
     const report = buildProfileDiagnosis(i, runAll(i));
     expect(report.funnel?.history[0]).toEqual({
@@ -1229,7 +1235,7 @@ describe('buildProfileDiagnosis', () => {
   });
 
   it('has no funnel at all when no snapshot carries counts', () => {
-    const i = input({ snapshots: [snapshot({ funnel: undefined })] });
+    const i = input({ snapshots: [preFunnelSnapshot()] });
     expect(buildProfileDiagnosis(i, runAll(i)).funnel).toBeNull();
   });
 

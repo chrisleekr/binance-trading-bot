@@ -1,15 +1,9 @@
-// The History tab: the past-runs list with its outcome / type filters, rows-per-
-// page control, bulk-delete bar, and the paginated footer showing the total run
-// count and the current page over cursor-based paging.
+// The History tab: the past-runs list with its outcome filter, rows-per-page control, bulk-delete bar, and the paginated footer showing the total run count and the current page over cursor-based paging.
 
 import { Button } from '@/shared/components/ui/button';
+import { Select } from '@/shared/components/ui/select';
 import { PastRunsTable } from './past-runs-table';
-import {
-  RUNS_FILTERS,
-  RUNS_KIND_FILTERS,
-  RUNS_PAGE_SIZES,
-  type BacktestWorkbench,
-} from './use-backtest-workbench';
+import { RUNS_FILTERS, RUNS_PAGE_SIZES, type BacktestWorkbench } from './use-backtest-workbench';
 
 export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element {
   const {
@@ -17,8 +11,6 @@ export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
     runItems,
     runFilter,
     setRunFilter,
-    runKind,
-    setRunKind,
     rowsPerPage,
     setRowsPerPage,
     page,
@@ -37,57 +29,37 @@ export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
       <h2 id="bt-runs-h" className="border-b border-border px-3 py-2 text-sm font-semibold text-fg">
         Past runs
       </h2>
-      {runsQuery.data && (runItems.length > 0 || runFilter !== 'all' || runKind !== 'all') ? (
+      {runsQuery.data && (runItems.length > 0 || runFilter !== 'all') ? (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <div
-              className="flex items-center gap-1"
-              role="group"
-              aria-label="Filter runs by outcome"
-            >
-              {RUNS_FILTERS.map(([key, label]) => (
-                <Button
-                  key={key}
-                  type="button"
-                  size="sm"
-                  variant={runFilter === key ? 'default' : 'outline'}
-                  onClick={() => {
-                    setRunFilter(key);
-                    setPage({ cursor: null, history: [] });
-                  }}
-                  data-testid={`bt-runs-filter-${key}`}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1" role="group" aria-label="Filter runs by type">
-              {RUNS_KIND_FILTERS.map(([key, label]) => (
-                <Button
-                  key={key}
-                  type="button"
-                  size="sm"
-                  variant={runKind === key ? 'default' : 'outline'}
-                  onClick={() => {
-                    setRunKind(key);
-                    setPage({ cursor: null, history: [] });
-                  }}
-                  data-testid={`bt-runs-kind-${key}`}
-                >
-                  {label}
-                </Button>
-              ))}
-            </div>
+          <div className="flex items-center gap-1" role="group" aria-label="Filter runs by outcome">
+            {/* "All" names a filter only in context, and the active chip is signalled by a colour variant alone, so both the name and the on/off state have to be programmatic. */}
+            {RUNS_FILTERS.map(([key, label]) => (
+              <Button
+                key={key}
+                type="button"
+                size="sm"
+                variant={runFilter === key ? 'default' : 'outline'}
+                aria-pressed={runFilter === key}
+                {...(key === 'all' ? { 'aria-label': 'All outcomes' } : {})}
+                onClick={() => {
+                  setRunFilter(key);
+                  setPage({ cursor: null, history: [] });
+                }}
+                data-testid={`bt-runs-filter-${key}`}
+              >
+                {label}
+              </Button>
+            ))}
           </div>
           <label className="flex items-center gap-1.5 text-xs text-muted-fg">
             Rows per page
-            <select
+            <Select
+              variant="sm"
               value={rowsPerPage}
               onChange={(e) => {
                 setRowsPerPage(Number(e.target.value));
                 setPage({ cursor: null, history: [] });
               }}
-              className="rounded-md border border-border bg-bg-elevated px-2 py-1 text-xs text-fg"
               data-testid="bt-runs-page-size"
             >
               {RUNS_PAGE_SIZES.map((n) => (
@@ -95,7 +67,7 @@ export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
                   {n}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         </div>
       ) : null}
@@ -116,7 +88,7 @@ export function HistoryTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
       ) : null}
       {runsQuery.data && runItems.length === 0 ? (
         <p className="p-3 text-sm text-muted-fg">
-          {runFilter === 'all' && runKind === 'all' ? 'No runs yet.' : 'No runs match this filter.'}
+          {runFilter === 'all' ? 'No runs yet.' : 'No runs match this filter.'}
         </p>
       ) : (
         <PastRunsTable wb={wb} />

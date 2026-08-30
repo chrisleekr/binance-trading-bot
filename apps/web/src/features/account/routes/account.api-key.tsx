@@ -5,7 +5,7 @@
 
 import { createRoute } from '@tanstack/react-router';
 
-import { BackLink, Page, PageHeader } from '@/shared/components/page';
+import { Page, PageHeader } from '@/shared/components/page';
 import { ApiKeyPanel } from '@/features/profile/components/api-key-panel';
 import { accountScopeRoute } from '@/features/account/routes/account-scope';
 import { t } from '@/shared/lib/i18n';
@@ -13,7 +13,7 @@ import { t } from '@/shared/lib/i18n';
 function ApiKeyPage(): React.JSX.Element {
   return (
     <Page>
-      <PageHeader title={t('edit.api_key.title')} back={<BackLink to="/" />} />
+      <PageHeader title={t('edit.api_key.title')} />
       <ApiKeyPanel />
     </Page>
   );

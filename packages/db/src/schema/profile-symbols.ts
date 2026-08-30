@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { check, jsonb, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import type { SymbolSource } from '@app/contracts';
 import { profiles } from './profiles.js';
 
@@ -17,23 +26,20 @@ export const profileSymbols = pgTable(
     // per account, which subsumes the per-symbol check (two quotes, one base).
     baseAsset: text('base_asset').notNull(),
     overrideConfig: jsonb('override_config'),
-    // Whether the operator added this symbol (`manual`) or discovery rotated it
-    // in (`auto`). Discovery may only reap `auto` rows, and only when flat.
+    // PROVENANCE only: the operator added this symbol (`manual`), discovery rotated it in (`auto`), or the system re-created the binding to recover a position nobody was tracking (`unknown`). Nothing reads it to decide anything — reap protection is `pinned` below. The split exists because a recovery path could previously protect a binding only by claiming the operator added it, which exempted it from rotation forever.
     source: text('source').$type<SymbolSource>().notNull().default('manual'),
+    // Whether discovery is barred from reaping this binding. The reap's DELETE predicate keys on THIS column alone. Defaults false, so a binding created by a recovery path rotates like any other unless someone deliberately pins it.
+    pinned: boolean('pinned').notNull().default(false),
+    // When the pin was set; null when it was never pinned OR when the pin was backfilled from the pre-split `source='manual'` rows. A backfilled pin has no honest timestamp, so null-on-pinned is the "inferred, not chosen" marker the UI surfaces rather than a missing value to paper over.
+    pinnedAt: timestamp('pinned_at', { withTimezone: true }),
     // Last time this symbol was flattened (manual eject or discovery drop).
     // Feeds the discovery re-add hysteresis cooldown (Slice 3, filter 9); null
     // until the first flatten.
     lastFlattenAt: timestamp('last_flatten_at', { withTimezone: true }),
-    // Reserve floor in base units (decimal-string): the quantity the bot must
-    // never sell below. Null = no reserve. The worker subtracts it from the
-    // bot-visible base balance, so the strategy trades only the surplus above it
-    // and never sells into it. Strategy-agnostic; see
-    // docs/architecture/account-isolation.md.
-    reserveBaseQuantity: text('reserve_base_quantity'),
   },
   (table) => [
     primaryKey({ columns: [table.profileId, table.symbol] }),
-    check('profile_symbols_source_chk', sql`${table.source} in ('manual', 'auto')`),
+    check('profile_symbols_source_chk', sql`${table.source} in ('manual', 'auto', 'unknown')`),
   ],
 );
 

@@ -67,7 +67,7 @@ const buildHarness = (): Harness => {
   return { app, changePassword, audited };
 };
 
-const post = (
+const post = async (
   app: OpenAPIHono<Env>,
   body: Record<string, string>,
   headers: Record<string, string> = {},

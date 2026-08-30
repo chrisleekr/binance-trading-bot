@@ -12,5 +12,8 @@ export function useProfileName(profileId: string): string | undefined {
   return useQuery({
     queryKey: profileQueryKey(profileId),
     queryFn: () => fetchProfile(profileId),
+    // The breadcrumb calls this on every route, including those with no profile
+    // in scope. Without the gate an empty id fetches `/profiles/`.
+    enabled: profileId !== '',
   }).data?.name;
 }

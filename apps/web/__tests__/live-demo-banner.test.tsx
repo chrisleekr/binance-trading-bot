@@ -18,7 +18,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -76,5 +76,31 @@ describe('<AppShell> — Live demo banner', () => {
     await renderShellWithDemo(false);
     expect(screen.queryByText(/live demo/i)).not.toBeInTheDocument();
     expect(screen.getByTestId('header-account')).toBeInTheDocument();
+  });
+
+  // The bottom nav is the phone's only navigation, so its demo filter is the one
+  // that decides whether a public visitor is offered the credential surfaces.
+  // Asserting the header alone left both of these cells unverified.
+  const bottomNav = (): HTMLElement => {
+    const navs = screen.getAllByRole('navigation', { name: 'Primary' });
+    const bar = navs.find((nav) => /\bh-16\b/.test(nav.className));
+    if (!bar) throw new Error('bottom nav not rendered');
+    return bar;
+  };
+
+  it('drops Settings and the account hub from the bottom nav in demo mode', async () => {
+    await renderShellWithDemo(true);
+    const bar = bottomNav();
+    expect(within(bar).queryByRole('link', { name: 'Settings' })).toBeNull();
+    expect(within(bar).queryByRole('link', { name: 'Account' })).toBeNull();
+    // Home and the Profiles sheet survive, so the bar is still navigable.
+    expect(within(bar).getByRole('link', { name: 'Home' })).toBeInTheDocument();
+  });
+
+  it('keeps both bottom-nav destinations outside demo mode', async () => {
+    await renderShellWithDemo(false);
+    const bar = bottomNav();
+    expect(within(bar).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    expect(within(bar).getByRole('link', { name: 'Account' })).toBeInTheDocument();
   });
 });

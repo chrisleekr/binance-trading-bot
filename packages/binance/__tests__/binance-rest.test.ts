@@ -550,6 +550,88 @@ describe('createBinanceRest — request shape', () => {
     expect(client.ctx().weightUsed1m).toBe(20);
   });
 
+  it('queries per-symbol commission rates as a signed GET to /api/v3/account/commission', async () => {
+    // The only source of the rates Binance actually applied to a fill. `myTrades` carries the commission AMOUNT and its asset but no rate, so a commission charged in a third asset — BNB on a discounted account — has nothing in the fill to value it from. This endpoint supplies the rate table instead, which is what keeps a historical fill valued at what it really cost rather than at a current ticker.
+    const payload = {
+      symbol: 'BTCUSDT',
+      standardCommission: {
+        maker: '0.00000010',
+        taker: '0.00000020',
+        buyer: '0.00000030',
+        seller: '0.00000040',
+      },
+      taxCommission: { maker: '0', taker: '0', buyer: '0', seller: '0' },
+      specialCommission: { maker: '0', taker: '0', buyer: '0', seller: '0' },
+      discount: {
+        enabledForAccount: true,
+        enabledForSymbol: true,
+        discountAsset: 'BNB',
+        discount: '0.75',
+      },
+    };
+    const spy = makeFetchSpy(jsonResponse(payload, { weight: '20' }));
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    const rates = await client.getCommissionRates('BTCUSDT');
+    const call = spy.nth(0);
+    const url = new URL(call.url);
+    expect(call.method).toBe('GET');
+    expect(url.origin + url.pathname).toBe(`${BINANCE_HOSTS.test}/api/v3/account/commission`);
+    expect(url.searchParams.get('symbol')).toBe('BTCUSDT');
+    // USER_DATA, so the query must be signed and carry the api key header.
+    expect(url.searchParams.get('timestamp')).toBe('1700000000000');
+    expect(url.searchParams.get('recvWindow')).toBe('5000');
+    expect(url.searchParams.get('signature')).not.toBeNull();
+    expect(call.headers.get('x-mbx-apikey')).toBe('pub');
+    expect(rates).toEqual(payload);
+    expect(client.ctx().weightUsed1m).toBe(20);
+  });
+
+  it('reserves the documented commission weight (20) before the call', async () => {
+    // Weight 20 is heavy for a read, and the fee path can reach it once per symbol on a reconcile pass. Reserving it under-weight is invisible until the account is banned for the minute.
+    const reserved: number[] = [];
+    const governor = {
+      reserve: async (w: number): Promise<void> => {
+        reserved.push(w);
+      },
+      used: () => 0,
+      ceiling: () => 1_200,
+    };
+    const spy = makeFetchSpy(jsonResponse({}));
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch, weightGovernor: governor }));
+    await client.getCommissionRates('BTCUSDT');
+    expect(reserved).toEqual([20]);
+  });
+
+  it('surfaces a Binance rejection from the commission endpoint as a typed error', async () => {
+    // The caller fails closed on any rejection, and it can only do that if the rejection reaches it. A swallowed error here would hand back a partial rate set and value a fee on it.
+    const spy = makeFetchSpy(
+      jsonResponse({ code: -1121, msg: 'Invalid symbol.' }, { status: 400 }),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    await expect(client.getCommissionRates('NOPEUSDT')).rejects.toMatchObject({
+      name: 'BinanceApiError',
+      status: 400,
+      code: -1121,
+      retryable: false,
+    });
+  });
+
+  it('surfaces a non-JSON commission body rather than returning an empty rate set', async () => {
+    // A deployment where this endpoint is not served answers with an HTML error page. Parsed leniently that is an object with no rates, which every downstream `?? 0` would read as a zero-commission account.
+    // Three responses and `noSleep`: an unparseable body classifies as a transient GET failure, so the client re-issues up to `GET_RETRY_ATTEMPTS` times. Programming fewer would exhaust the spy and the assertion below would read the spy's own error instead of the client's.
+    const html = (): Response =>
+      new Response('<html>gateway</html>', {
+        status: 200,
+        headers: new Headers({ 'content-type': 'text/html' }),
+      });
+    const spy = makeFetchSpy(html(), html(), html());
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch, sleep: noSleep }));
+    const err = await client.getCommissionRates('BTCUSDT').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(errorMessage(err)).toMatch(/response body was not JSON/);
+    expect(errorMessage(err)).toMatch(/\/api\/v3\/account\/commission/);
+  });
+
   it('omits fromId and limit from the myTrades query when not provided', async () => {
     const spy = makeFetchSpy(jsonResponse([]));
     const client = createBinanceRest(options({ fetchImpl: spy.fetch }));

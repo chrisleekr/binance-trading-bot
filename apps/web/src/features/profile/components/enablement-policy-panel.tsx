@@ -1,5 +1,5 @@
 // Live-enablement gate policy editor, rendered as a full page panel (reached from
-// the profile Manage card at /profiles/:id/gate). Going live is never blocked by
+// the sidebar's expanded profile or the phone's Profiles sheet, at /profiles/:id/gate). Going live is never blocked by
 // this gate; it is an advisory quality check that a recent backtest on the current
 // config clears these net-of-fee thresholds. Seeded from the profile's effective
 // policy and saved via PATCH /profiles/:id { enablementPolicy }.

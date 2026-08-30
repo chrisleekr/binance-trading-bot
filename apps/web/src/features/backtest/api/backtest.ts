@@ -39,7 +39,7 @@ export const createBacktest = (
     {
       method: 'POST',
       body,
-      ...(opts.force ? { query: { force: true } } : {}),
+      query: { force: opts.force ? true : undefined },
     },
   );
 
@@ -166,37 +166,45 @@ export const parseImproveConfigReply = (
     { method: 'POST', body: { reply } },
   );
 
-/** A page of the profile's runs, newest first; pass the previous page's
- * `nextCursor` to fetch the next page. `limit` sets the page size and `filter`
- * narrows by outcome (profit/loss/error — the runs-table filter); both default
- * to the whole unfiltered, server-default-sized page. */
+/**
+ * A page of the profile's runs, newest first.
+ *
+ * `filter` is the only narrowing the server implements. A `kind` param used to ride along beside it and was discarded on arrival — nothing stored on a run distinguishes one kind from another — so it is gone from the wire rather than left as a param the server ignores.
+ *
+ * @param profileId - Profile whose run history is being paged.
+ * @param cursor - The previous page's `nextCursor`; null starts at the newest run.
+ * @param limit - Page size; null takes the server default, which keeps the canonical first-page URL param-free.
+ * @param filter - Outcome narrowing (profit/loss/error) from the runs-table toolbar; null returns every run.
+ * @returns The page of runs with its next cursor and the total matching the same filter.
+ */
 export const fetchBacktestList = (
   profileId: string,
   cursor: string | null = null,
   limit: number | null = null,
   filter: string | null = null,
-  kind: string | null = null,
 ): Promise<BacktestListResponseType> => {
-  const params = new URLSearchParams();
-  if (cursor !== null) params.set('cursor', cursor);
-  if (limit !== null) params.set('limit', String(limit));
-  if (filter !== null) params.set('filter', filter);
-  if (kind !== null) params.set('kind', kind);
-  const query = params.toString();
   return apiFetch(
-    accountPath(`/profiles/${encodePathSegment(profileId)}/backtests${query ? `?${query}` : ''}`),
+    accountPath(`/profiles/${encodePathSegment(profileId)}/backtests`),
     BacktestListResponse,
-    { method: 'GET' },
+    { method: 'GET', query: { cursor, limit, filter } },
   );
 };
 
+/**
+ * Cache key for one page of {@link fetchBacktestList}. Every argument that changes the request changes the key, so a filter or page-size switch reads a separate cache entry instead of showing the previous page's rows under the new toolbar state.
+ *
+ * @param profileId - Profile whose run history is being paged.
+ * @param cursor - The page cursor, null for the first page.
+ * @param limit - Page size, null when the server default applies.
+ * @param filter - Outcome narrowing, null when unfiltered.
+ * @returns The query key tuple.
+ */
 export const backtestListQueryKey = (
   profileId: string,
   cursor: string | null = null,
   limit: number | null = null,
   filter: string | null = null,
-  kind: string | null = null,
-): readonly unknown[] => ['backtest', 'list', profileId, cursor, limit, filter, kind];
+): readonly unknown[] => ['backtest', 'list', profileId, cursor, limit, filter];
 
 export const backtestRunQueryKey = (profileId: string, runId: string): readonly unknown[] => [
   'backtest',
@@ -219,17 +227,19 @@ export const fetchBacktestCandles = (
   fromMs: number,
   toMs: number,
 ): Promise<CandleList> => {
-  const search = new URLSearchParams({
-    interval,
-    from: new Date(fromMs).toISOString(),
-    to: new Date(toMs).toISOString(),
-  });
   return apiFetch(
     accountPath(
-      `/profiles/${encodePathSegment(profileId)}/symbols/${encodePathSegment(symbol)}/candles?${search.toString()}`,
+      `/profiles/${encodePathSegment(profileId)}/symbols/${encodePathSegment(symbol)}/candles`,
     ),
     CandleList,
-    { method: 'GET' },
+    {
+      method: 'GET',
+      query: {
+        interval,
+        from: new Date(fromMs).toISOString(),
+        to: new Date(toMs).toISOString(),
+      },
+    },
   );
 };
 

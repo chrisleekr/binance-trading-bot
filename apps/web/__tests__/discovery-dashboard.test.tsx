@@ -6,6 +6,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/shared/lib/query-client';
 import { DiscoveryDashboard } from '@/features/profile/components/discovery-dashboard';
 
+import {
+  SUB_UNIT_DEPLOYED_QUOTE,
+  SUB_UNIT_DEPLOYED_TEXT,
+  SUB_UNIT_EXPOSURE_CAP_QUOTE,
+  SUB_UNIT_EXPOSURE_CAP_TEXT,
+} from './helpers/sub-unit-quote-fixture';
+
 const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -36,10 +43,14 @@ const dashboard = {
   scoreboard: {
     realizedProfit: '123.45',
     realizedProfitPercent: '2.5',
+    netProfit: '123.45',
     tradeCount: 8,
     winRate: 0.75,
+    feeBasis: 'exact',
     realizedProfit7d: '40.00',
+    netProfit7d: '40.00',
     tradeCount7d: 3,
+    feeBasis7d: 'exact',
   },
   gauge: { deployedQuote: '5000.00', maxAccountExposureQuote: '10000', autoSymbolCount: 3 },
 };
@@ -80,6 +91,57 @@ describe('DiscoveryDashboard', () => {
     expect(within(board).getByText('75.00%')).toBeInTheDocument();
     const gauge = screen.getByTestId('discovery-gauge');
     expect(within(gauge).getByTestId('discovery-auto-count')).toHaveTextContent('3');
+    // Same number as the Home strip and the same hazard: it counts unpinned bindings, not coins discovery found.
+    expect(within(gauge).getByText('In rotation')).toBeInTheDocument();
+    expect(within(gauge).queryByText(/auto symbols/i)).not.toBeInTheDocument();
+  });
+
+  it('withholds all-time Net P/L and win rate when fee evidence is incomplete', async () => {
+    const incomplete = {
+      ...dashboard,
+      scoreboard: { ...dashboard.scoreboard, feeBasis: 'unknown' },
+    };
+    setUp((url) => (url.endsWith('/profiles/p1/discovery') ? json(incomplete) : json({}, 404)));
+    const board = await screen.findByTestId('discovery-scoreboard');
+    expect(within(board).getByTestId('discovery-net-pl')).toHaveTextContent('Unavailable');
+    expect(within(board).getByText('Win rate').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.getByTestId('discovery-fees-incomplete')).toHaveTextContent(
+      'a commission is unaccounted for',
+    );
+  });
+
+  it('withholds only the seven-day Net tile when that window is incomplete', async () => {
+    const incomplete = {
+      ...dashboard,
+      scoreboard: { ...dashboard.scoreboard, feeBasis7d: 'unknown' },
+    };
+    setUp((url) => (url.endsWith('/profiles/p1/discovery') ? json(incomplete) : json({}, 404)));
+    const board = await screen.findByTestId('discovery-scoreboard');
+    expect(within(board).getByTestId('discovery-net-pl')).toHaveTextContent('+123.45');
+    expect(within(board).getByText('7-day Net P/L').parentElement).toHaveTextContent('Unavailable');
+    expect(screen.getByTestId('discovery-fees-incomplete')).toBeInTheDocument();
+  });
+
+  it('marks the totals as estimates when a commission was reconstructed', async () => {
+    // The middle tier, which the two `unknown` cases above cannot reach. The figures stay — an estimate still has a basis — so the only thing separating this from the `exact` render is the sentence, and nothing else in this suite asserts it exists.
+    const estimated = {
+      ...dashboard,
+      scoreboard: { ...dashboard.scoreboard, feeBasis: 'estimated' },
+    };
+    setUp((url) => (url.endsWith('/profiles/p1/discovery') ? json(estimated) : json({}, 404)));
+    const board = await screen.findByTestId('discovery-scoreboard');
+    expect(within(board).getByTestId('discovery-net-pl')).toHaveTextContent('+123.45');
+    expect(screen.getByTestId('discovery-fees-estimated')).toHaveTextContent(/reconstructed/i);
+    // `unknown` outranks it: a missing charge is not an estimate, and only one of the two notes may render.
+    expect(screen.queryByTestId('discovery-fees-incomplete')).not.toBeInTheDocument();
+  });
+
+  it('shows neither fee note when every commission evidenced itself', async () => {
+    // Anchors the positives above, which would otherwise also pass against a note rendered unconditionally.
+    setUp((url) => (url.endsWith('/profiles/p1/discovery') ? json(dashboard) : json({}, 404)));
+    await screen.findByTestId('discovery-scoreboard');
+    expect(screen.queryByTestId('discovery-fees-estimated')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('discovery-fees-incomplete')).not.toBeInTheDocument();
   });
 
   it('toggling the switch PATCHes the config with enabled flipped', async () => {
@@ -437,12 +499,26 @@ describe('DiscoveryDashboard', () => {
     ).toBeInTheDocument();
   });
 
-  // The pinned-symbols list gives the operator's manual symbols a visible home
-  // in the discovery panel; auto symbols already appear in the universe list.
+  // The pinned-symbols list gives the operator's protected coins a visible home in the discovery panel; rotatable ones already appear in the universe list.
+  //
+  // The rows deliberately cover all three of: a pin the operator chose (XPL, stamped), a pin the rollout inferred from the old source-based model and cannot date (TAO, null stamp), and a pinned coin discovery itself rotated in (ZKJ) — which proves the panel keys on the pin and not on provenance.
   const symbolRows = [
-    { symbol: 'XPLUSDT', overrideConfig: null, source: 'manual' },
-    { symbol: 'TAOUSDT', overrideConfig: null, source: 'manual' },
-    { symbol: 'WINUSDT', overrideConfig: null, source: 'auto' },
+    {
+      symbol: 'XPLUSDT',
+      overrideConfig: null,
+      source: 'manual',
+      pinned: true,
+      pinnedAt: '2026-08-01T00:00:00.000Z',
+    },
+    { symbol: 'TAOUSDT', overrideConfig: null, source: 'manual', pinned: true, pinnedAt: null },
+    {
+      symbol: 'ZKJUSDT',
+      overrideConfig: null,
+      source: 'auto',
+      pinned: true,
+      pinnedAt: '2026-08-02T00:00:00.000Z',
+    },
+    { symbol: 'WINUSDT', overrideConfig: null, source: 'auto', pinned: false, pinnedAt: null },
   ];
   const manualResponder =
     (rows: typeof symbolRows) =>
@@ -450,7 +526,13 @@ describe('DiscoveryDashboard', () => {
       const method = init?.method ?? 'GET';
       if (url.endsWith('/profiles/p1/symbols') && method === 'GET') return json(rows);
       if (url.endsWith('/symbols/XPLUSDT/unpin'))
-        return json({ symbol: 'XPLUSDT', overrideConfig: null, source: 'auto' });
+        return json({
+          symbol: 'XPLUSDT',
+          overrideConfig: null,
+          source: 'manual',
+          pinned: false,
+          pinnedAt: null,
+        });
       if (url.endsWith('/profiles/p1/symbols/XPLUSDT') && method === 'DELETE')
         return new Response(null, { status: 204 });
       if (url.endsWith('/discovery') || url.endsWith('/discovery-config')) return json(dashboard);
@@ -466,7 +548,13 @@ describe('DiscoveryDashboard', () => {
         return json(mutated ? symbolRows.filter((r) => r.symbol !== dropped) : symbolRows);
       if (url.endsWith(`/symbols/${dropped}/unpin`)) {
         mutated = true;
-        return json({ symbol: dropped, overrideConfig: null, source: 'auto' });
+        return json({
+          symbol: dropped,
+          overrideConfig: null,
+          source: 'manual',
+          pinned: false,
+          pinnedAt: null,
+        });
       }
       if (url.endsWith(`/profiles/p1/symbols/${dropped}`) && method === 'DELETE') {
         mutated = true;
@@ -477,18 +565,41 @@ describe('DiscoveryDashboard', () => {
     };
   };
 
-  it('lists the pinned (manual) symbols and excludes auto ones', async () => {
+  it('lists every PINNED symbol whatever its provenance, and excludes unpinned ones', async () => {
     setUp(manualResponder(symbolRows));
     const section = await screen.findByTestId('manual-symbols');
     expect(within(section).getByText('Pinned symbols')).toBeInTheDocument();
     expect(within(section).getByTestId('manual-XPLUSDT')).toBeInTheDocument();
     expect(within(section).getByTestId('manual-TAOUSDT')).toBeInTheDocument();
-    // WINUSDT is source=auto — it belongs to the live-universe list, not here.
+    // Pinned but discovery-found. Filtering on provenance would drop it, and the operator would be shown a shorter list than the reap actually honours.
+    expect(within(section).getByTestId('manual-ZKJUSDT')).toBeInTheDocument();
+    // WINUSDT is unpinned — it belongs to the live-universe list, not here.
     expect(within(section).queryByTestId('manual-WINUSDT')).not.toBeInTheDocument();
   });
 
+  it('badges a pin nobody is recorded as having chosen, and leaves a deliberate one unbadged', async () => {
+    setUp(manualResponder(symbolRows));
+    const section = await screen.findByTestId('manual-symbols');
+    // TAO carries a pin the rollout inferred from the old model, with no stamp to date it. Presenting that as the operator's own choice is the misreport this badge exists to prevent.
+    expect(within(section).getByTestId('manual-unverified-TAOUSDT')).toBeInTheDocument();
+    expect(within(section).queryByTestId('manual-unverified-XPLUSDT')).not.toBeInTheDocument();
+    expect(within(section).queryByTestId('manual-unverified-ZKJUSDT')).not.toBeInTheDocument();
+    // The badge asks the operator to act, so its explanation has to survive a phone: visible panel copy, not a hover-only tooltip.
+    expect(within(section).getByText(/nobody recorded choosing it/i)).toBeInTheDocument();
+  });
+
+  it('no longer claims the pinned list is what "Manual (pinned)" counts in P/L by source', async () => {
+    setUp(manualResponder(symbolRows));
+    const section = await screen.findByTestId('manual-symbols');
+    // The old copy tied the pin to the P/L source band. They are now independent, and a pinned discovery coin still counts as discovery there.
+    expect(within(section).queryByText(/Coins you added or pinned/)).not.toBeInTheDocument();
+    expect(
+      within(section).getByText(/shown separately in your P\/L by source/),
+    ).toBeInTheDocument();
+  });
+
   it('shows an empty state when there are no pinned symbols', async () => {
-    setUp(manualResponder(symbolRows.filter((r) => r.source === 'auto')));
+    setUp(manualResponder(symbolRows.filter((r) => !r.pinned)));
     const section = await screen.findByTestId('manual-symbols');
     expect(within(section).getByTestId('manual-symbols-empty')).toBeInTheDocument();
   });
@@ -534,5 +645,113 @@ describe('DiscoveryDashboard', () => {
     });
     await screen.findByTestId('discovery-dashboard');
     await waitFor(() => expect(screen.queryByTestId('manual-symbols')).not.toBeInTheDocument());
+  });
+});
+
+// A BTC-quoted profile: every quote-denominated figure is sub-unit, which is the
+// case a hard 2-decimal formatter erases. The gauge values come from the shared
+// fixture the Home scoped KPI strip suite also reads, so the two surfaces are
+// pinned to one expected string rather than two independently-written ones.
+const btcDashboard = {
+  ...dashboard,
+  quoteAsset: 'BTC',
+  scoreboard: {
+    ...dashboard.scoreboard,
+    realizedProfit: '0.00453210',
+    netProfit: '0.00453210',
+    realizedProfit7d: '-0.00120000',
+    netProfit7d: '-0.00120000',
+    tradeCount: 8,
+    winRate: 0.75,
+  },
+  gauge: {
+    deployedQuote: SUB_UNIT_DEPLOYED_QUOTE,
+    maxAccountExposureQuote: SUB_UNIT_EXPOSURE_CAP_QUOTE,
+    autoSymbolCount: 3,
+  },
+};
+
+const btcResponder = (url: string): Response =>
+  url.endsWith('/profiles/p1/discovery') ? json(btcDashboard) : json({}, 404);
+
+/** The tile element for a label — `Tile` renders the label and the value as siblings under one wrapper. */
+const tileFor = (scope: HTMLElement, label: string): HTMLElement => {
+  const el = within(scope).getByText(label).parentElement;
+  if (!el) throw new Error(`no tile wrapper for "${label}"`);
+  return el;
+};
+
+describe('DiscoveryDashboard money precision on a sub-unit quote asset', () => {
+  it('keeps a sub-unit Deployed and Exposure cap legible instead of rounding them to 0.00', async () => {
+    setUp(btcResponder);
+    const gauge = await screen.findByTestId('discovery-gauge');
+    expect(tileFor(gauge, 'Deployed')).toHaveTextContent(SUB_UNIT_DEPLOYED_TEXT);
+    expect(tileFor(gauge, 'Exposure cap')).toHaveTextContent(SUB_UNIT_EXPOSURE_CAP_TEXT);
+    // The exact failure this guards: a real balance reported as nothing at all.
+    expect(gauge.textContent).not.toMatch(/\b0\.00\b/);
+  });
+
+  it('keeps a sub-unit Net P/L and 7-day Net P/L legible, with their signs', async () => {
+    setUp(btcResponder);
+    const board = await screen.findByTestId('discovery-scoreboard');
+    expect(within(board).getByTestId('discovery-net-pl')).toHaveTextContent('+0.0045321');
+    expect(tileFor(board, '7-day Net P/L')).toHaveTextContent('-0.0012');
+  });
+
+  it('names the profile quote asset on every money tile', async () => {
+    setUp(btcResponder);
+    const gauge = await screen.findByTestId('discovery-gauge');
+    const board = await screen.findByTestId('discovery-scoreboard');
+    // A bare figure is unreadable on a multi-quote account: 0.0045321 of WHAT.
+    expect(tileFor(gauge, 'Deployed')).toHaveTextContent('BTC');
+    expect(tileFor(gauge, 'Exposure cap')).toHaveTextContent('BTC');
+    expect(within(board).getByTestId('discovery-net-pl')).toHaveTextContent('BTC');
+    expect(tileFor(board, '7-day Net P/L')).toHaveTextContent('BTC');
+  });
+
+  it('keeps the gainer score at 2dp + % — it is a percent, not money', async () => {
+    // Characterization pin AND regression guard: the 2dp + `%` output was already correct, so this was green before the change. It exists to catch a blanket swap of the two local formatters onto the money helpers — `0.123456` is below 1, where a money formatter keeps up to 8 fraction digits, so a careless swap prints "+0.123456%" here.
+    const pct = {
+      ...btcDashboard,
+      universe: {
+        computedAtMs: 1_700_000_000_000,
+        candidates: [
+          {
+            symbol: 'PCTUSDT',
+            gainerScore: '0.123456',
+            passed: ['quote'],
+            failedAt: 'liquidity',
+            disposition: 'rejected',
+            entryBlocker: null,
+          },
+        ],
+      },
+      autoSymbols: [],
+      activity: [],
+    };
+    setUp((url) => (url.endsWith('/profiles/p1/discovery') ? json(pct) : json({}, 404)));
+    const row = await screen.findByTestId('universe-PCTUSDT');
+    expect(within(row).getByText('+0.12%')).toBeInTheDocument();
+    expect(row.textContent).not.toContain('0.123456');
+  });
+
+  it('pairs the win rate with its trade count, and withholds it when nothing has traded', async () => {
+    setUp(btcResponder);
+    const board = await screen.findByTestId('discovery-scoreboard');
+    const winRate = tileFor(board, 'Win rate');
+    expect(winRate).toHaveTextContent('75.00%');
+    // "75%" over 8 trades and over 2 trades mean very different things, so the denominator has to travel with the ratio rather than sit in a sibling tile.
+    expect(winRate).toHaveTextContent('8');
+  });
+
+  it('renders no win-rate percentage at all when the trade count is zero', async () => {
+    const noTrades = {
+      ...btcDashboard,
+      scoreboard: { ...btcDashboard.scoreboard, tradeCount: 0, winRate: 0 },
+    };
+    setUp((url) => (url.endsWith('/profiles/p1/discovery') ? json(noTrades) : json({}, 404)));
+    const board = await screen.findByTestId('discovery-scoreboard');
+    // 0 of 0 is not a 0% win rate; it is no win rate. The scoped KPI strip already guards this (`tradeCount > 0`), this surface did not.
+    expect(tileFor(board, 'Win rate')).not.toHaveTextContent('%');
   });
 });
