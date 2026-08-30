@@ -1,0 +1,11 @@
+# YAML false positives, all of which must stay unmatched.
+#
+# A six-digit colour in a comment: #1a2b3c, and an eight-digit one: #12345678.
+# Every backtrack of the digit run lands on a hex character, so neither matches.
+services:
+  web:
+    environment:
+      # The leader anchor keeps the next two lines out of scope: they are values
+      # on code lines, not comments.
+      THEME_ACCENT: '#123456'
+      RELEASE_NOTE: 'tracker #42 lives in a value, not a comment'

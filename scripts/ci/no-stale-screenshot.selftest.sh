@@ -38,6 +38,8 @@ make_root() {
       echo "_A fixture screen. Seeded demo data, not a real account._"
     done
   } >"$root/docs/page.md"
+  # The anchor page the gate walks for. Present in every fixture root so a case here fails for the reason it names rather than for a walk stop.
+  printf '# Fixture home page\n' >"$root/docs/index.md"
 }
 
 # Assert the gate's outcome for a fixture: $1 label, $2 root, $3 expected rc
@@ -98,6 +100,30 @@ make_root "$tmp/undisclosed" "'user-guide/a.png'" "user-guide/a.png" "user-guide
   echo "_A fixture screen._"
 } >"$tmp/undisclosed/docs/page.md"
 assert_gate "undisclosed fixture" "$tmp/undisclosed" 1 "without a caption saying the data is seeded"
+
+
+# ---------------------------------------------------------------------------
+# The two walk stops. A count is not evidence: these are the two shapes a walk fails in, and only one of them is visible to a floor.
+# ---------------------------------------------------------------------------
+# Each asserts its OWN diagnostic rather than a bare non-zero exit. The gate exits 1 for a real violation, for a walk that returned nothing and for a walk that no longer reaches its anchor alike, so only the sentence says which branch ran — and a fixture that moved would otherwise trip a different branch and read as a successful catch.
+
+# A manifest with captures declared and no docs/ tree at all: the walk returns nothing, and with no page read there is no embed to be missing, so without this stop the gate would report only orphans.
+empty_walk_out="$(GUARD_ROOT="$dir/__fixtures__/screenshot/reject-empty-walk" bash "$gate" 2>&1)"
+empty_walk_rc=$?
+if [ "$empty_walk_rc" -eq 0 ] || ! grep -qF 'scan matched no markdown files under docs —' <<<"$empty_walk_out"; then
+  echo "FAIL: reject-empty-walk expected the zero-file stop (rc=$empty_walk_rc)"
+  echo "$empty_walk_out"
+  fails=1
+fi
+
+# Markdown under docs/ but not the anchor page. The page count is healthy, and an embed the walk never reads is an embed this gate never checks.
+narrowed_walk_out="$(GUARD_ROOT="$dir/__fixtures__/screenshot/reject-narrowed-walk" bash "$gate" 2>&1)"
+narrowed_walk_rc=$?
+if [ "$narrowed_walk_rc" -eq 0 ] || ! grep -qF 'walk narrowed' <<<"$narrowed_walk_out" || ! grep -qF 'docs/index.md' <<<"$narrowed_walk_out"; then
+  echo "FAIL: reject-narrowed-walk expected the anchor stop naming docs/index.md (rc=$narrowed_walk_rc)"
+  echo "$narrowed_walk_out"
+  fails=1
+fi
 
 if [ "$fails" -ne 0 ]; then
   echo "no-stale-screenshot self-test: RED"

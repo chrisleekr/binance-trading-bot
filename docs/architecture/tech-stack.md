@@ -62,10 +62,10 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 
 | Tool | Version | Why it is here |
 | --- | --- | --- |
-| **Bun** | 1.3.x | Runtime, package manager, and test-adjacent tooling. One binary, no Node install. |
+| **Bun** | 1.4.x | Runtime, package manager, and test-adjacent tooling. One binary, no Node install. |
 | **TypeScript** | 7.0.x | Strict end-to-end. `bun run typecheck` builds every package with project references. |
 | **Turborepo** | 2.x | Monorepo task graph and caching across `apps/*` and `packages/*`. |
-| **oxlint** | 1.77 | The single lint path. One whole-repo pass so cycle detection sees the full graph. |
+| **oxlint** | 1.80 | The single lint path. One whole-repo pass so cycle detection sees the full graph. |
 | **Vitest** | 4.x | Unit tests, with per-package coverage thresholds. |
 | **Playwright** | — | End-to-end tests and the docs screenshot capture. |
 
@@ -74,7 +74,7 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 | Library | Version | Why it is here |
 | --- | --- | --- |
 | **Hono** | 4.13.x | HTTP framework for the api. |
-| **`@hono/zod-openapi`** | 1.5.1 | Routes declare Zod schemas; the OpenAPI spec and Swagger UI at `/docs` are generated from them. |
+| **`@hono/zod-openapi`** | 1.6.x | Routes declare Zod schemas; the OpenAPI spec and Swagger UI at `/docs` are generated from them. |
 | **Drizzle ORM** | 0.45.x | Typed queries. Migrations are **hand-authored SQL**, applied by a checksum-tracked runner. |
 | **pg** | 8.22.x | Postgres driver. |
 | **ioredis** | 6.0.x | Redis client, configured with `maxRetriesPerRequest: null` for BullMQ. |
@@ -92,7 +92,7 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 | **React**              | 19.x    | UI.                                                          |
 | **Vite**               | 8.2.x   | Build and dev server. Optionally emits a PWA (`VITE_PWA=1`). |
 | **TanStack Router**    | 1.170.x | Type-safe routing; every surface is a real route.            |
-| **TanStack Query**     | 5.101.x | Server-state cache and polling.                              |
+| **TanStack Query**     | 5.102.x | Server-state cache and polling.                              |
 | **Tailwind CSS**       | 4.x     | Styling, via semantic colour tokens rather than raw colours. |
 | **shadcn/ui**          | —       | Component primitives, vendored into the repo.                |
 | **lightweight-charts** | 5.x     | Financial charts (candles).                                  |

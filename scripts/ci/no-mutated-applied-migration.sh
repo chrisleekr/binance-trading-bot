@@ -29,7 +29,8 @@
 #
 # `loadMigrations` and its digest are IMPORTED from migrate.ts, never re-implemented. A hand-copy would make "the manifest pins what the runner computes" a comment rather than a fact: change the algorithm or the file-selection rule there, and a copy here keeps passing while pinning digests nothing verifies against. migrate.ts has no top-level side effects, so importing it is safe. The same reasoning, and the same `await import`, is used by no-stale-config-table.selftest.sh.
 #
-# MIGRATIONS_DIR is overridable so the paired selftest can aim the gate at a fixture and prove it still fails on a mutation.
+# MIGRATIONS_DIR and MIGRATIONS_RUNNER are overridable so the paired selftest can aim the gate at a fixture and at a broken runner, and prove it still fails on a mutation and on a scan it could not perform. Both are scrubbed by `lint.sh` before the real run, so an ambient value cannot re-point the gate at a tree that is clean by construction.
+set -euo pipefail
 # shellcheck source=_common.sh
 source "$(dirname "$0")/_common.sh"
 ci::start no-mutated-applied-migration
@@ -38,7 +39,7 @@ root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root"
 
 GUARD_DIR="${MIGRATIONS_DIR:-$root/packages/db/migrations}" \
-GUARD_RUNNER="$root/packages/db/src/migrate.ts" \
+GUARD_RUNNER="${MIGRATIONS_RUNNER:-$root/packages/db/src/migrate.ts}" \
 bun -e '
 const fs = require("node:fs");
 const path = require("node:path");
@@ -46,8 +47,16 @@ const path = require("node:path");
 const dir = process.env.GUARD_DIR;
 const manifestPath = path.join(dir, "checksums.json");
 
+const errMsg = (err) => (err && err.message ? err.message : String(err));
+
 // The runner itself, so the gate pins what production computes rather than what a copy of it computes.
-const { loadMigrations } = await import(process.env.GUARD_RUNNER);
+let loadMigrations;
+try {
+  ({ loadMigrations } = await import(process.env.GUARD_RUNNER));
+} catch (err) {
+  console.error("could not load the migration runner from " + process.env.GUARD_RUNNER + ": " + errMsg(err));
+  process.exit(1);
+}
 
 if (!fs.existsSync(dir)) {
   console.error("migrations directory not found: " + dir + " — scan-path regression in this gate.");
@@ -58,11 +67,37 @@ if (!fs.existsSync(manifestPath)) {
   process.exit(1);
 }
 
-const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+// Prettier rejects a manifest that will not parse, so this catch is for the file the reader could not get to at all — EACCES, or a directory standing where the manifest should be — and for a hand-edit that lands between the two.
+let manifest;
+try {
+  manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+} catch (err) {
+  console.error("could not read the checksum manifest at " + manifestPath + ": " + errMsg(err));
+  process.exit(1);
+}
+// The container and its values are one question asked in one place, because the compare loop below trusts both and is guarded by neither. `Object.keys` answers `null` with a TypeError and an array with positional indices, which would compare real filenames against pins really named "0" and "1". A VALUE that is not a digest is the quieter half: `expected.slice(0, 12)` throws for null, a number, a boolean or an object — an array slips through, since arrays have `.slice` — and that throw happens well past every catch in this file. Requiring the exact SHA-256 spelling the runner emits is cheaper than guarding the read site, and it also rejects a truncated or upper-cased digest that would otherwise read as an ordinary mutation.
+const DIGEST = /^[0-9a-f]{64}$/;
+if (manifest === null || typeof manifest !== "object" || Array.isArray(manifest)) {
+  console.error("checksum manifest at " + manifestPath + " is not a name-to-digest object.");
+  process.exit(1);
+}
+const malformedPins = Object.entries(manifest).filter(([, v]) => typeof v !== "string" || !DIGEST.test(v));
+if (malformedPins.length > 0) {
+  console.error("checksum manifest at " + manifestPath + " has entries that are not a SHA-256 digest:");
+  console.error(malformedPins.map(([k, v]) => "  " + k + ": " + JSON.stringify(v)).join("\n"));
+  process.exit(1);
+}
 const pinned = Object.keys(manifest);
 
 // Selection rule and digest both come from the runner, so this cannot drift from what the ledger stores.
-const migrations = await loadMigrations(dir);
+// The directory resolves and its manifest was readable, which is not the same as every migration being readable: EACCES on one file, or EMFILE, both land here. Whether an uncaught throw fails the process is a property of the runtime, not of this file, and a bun release has already exited 0 on one — so the failure is made explicit rather than inherited.
+let migrations;
+try {
+  migrations = await loadMigrations(dir);
+} catch (err) {
+  console.error("could not read migrations from " + dir + ": " + errMsg(err));
+  process.exit(1);
+}
 
 // A gate that passes because it scanned nothing is worse than no gate.
 if (migrations.length === 0 || pinned.length === 0) {

@@ -1,0 +1,6 @@
+{
+  "apps/web/src/features/profile/components/gauge.tsx": {
+    "reason": "percent readout, fixed 2dp by design",
+    "sites": ["export const pct = (n: number): string => `${n.toFixed(2)}%`;"]
+  }
+}

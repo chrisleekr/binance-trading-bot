@@ -54,7 +54,8 @@ cd "$root"
 
 RULE_DISCOVERY="$(GUARD_ROOT="$GUARD_ROOT" bash "$(dirname "$0")/discover-prometheus-rules.sh")"
 
-GUARD_ROOT="$GUARD_ROOT" RULE_DISCOVERY="$RULE_DISCOVERY" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" RULE_DISCOVERY="$RULE_DISCOVERY" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
@@ -124,20 +125,19 @@ if (onlyUnion.length > 0 || onlyCatalog.length > 0) {
 // ---------------------------------------------------------------------------
 // Emitted set, source 2: prom-client constructor call sites across the repo.
 // ---------------------------------------------------------------------------
-const SKIP_DIR = new Set(["node_modules", "dist", "__tests__"]);
-const tsFiles = (dir, out = []) => {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (!SKIP_DIR.has(e.name)) tsFiles(p, out);
-    } else if (/\.tsx?$/.test(e.name)) {
-      out.push(p);
-    }
-  }
-  return out;
-};
-const files = [...tsFiles(path.join(root, "apps")), ...tsFiles(path.join(root, "packages"))];
+// Walked and vacuity-checked PER ROOT by the shared helper, which this half of the emitted set had neither of: a union of apps/ and packages/ with no floor at all meant either root vanishing left the constructor scan quietly short, and a rule over a metric that root emits is then reported as a phantom — or, in the direction that actually bites, a metric nothing emits any more is missed because the file that used to emit it was never opened.
+//
+// The anchors are the two modules the emitted set is read from: the worker catalogue, and the only package that constructs prom-client metrics. No .tsx anchor is declared even though the extension clause covers .tsx, because nothing under apps/web constructs a metric; an anchor there would pin a file the rule has no relationship with, which is decoration rather than evidence.
+const files = collectOrExit({
+  root,
+  label: ".ts/.tsx files",
+  skipDirs: ["node_modules", "dist", "__tests__"],
+  test: (p) => /\.tsx?$/.test(p),
+  roots: [
+    { name: "apps", anchors: [path.join("apps", "worker", "src", "metrics", "catalog.ts")] },
+    { name: "packages", anchors: [path.join("packages", "observability", "src", "index.ts")] },
+  ],
+});
 
 const CTOR_KIND = { Counter: "counter", Gauge: "gauge", Histogram: "histogram", Summary: "summary" };
 const CTOR = /new\s+(?:[A-Za-z_$][A-Za-z0-9_$]*\.)?(Counter|Gauge|Histogram|Summary)\s*(?:<[^>]*>)?\s*\(\s*\{/g;

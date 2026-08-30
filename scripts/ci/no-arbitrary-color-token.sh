@@ -25,8 +25,11 @@ ci::start no-arbitrary-color-token
 
 root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root"
+# Overridable so no-arbitrary-color-token.selftest.sh can drive this exact script over fixture trees rather than re-implementing its matching.
+GUARD_ROOT="${GUARD_ROOT:-$root}"
 
-GUARD_ROOT="$root" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
@@ -34,25 +37,22 @@ const root = process.env.GUARD_ROOT;
 const TOKENS = "bg-elevated|surface-alt|fg-emphasis|muted-fg|border-strong|accent-fg|primary-fg|danger-fg|warning-fg|card-fg|bg|fg|muted|border|accent|primary|success|up|down|danger|destructive|warning|focus|card";
 const PATTERN = new RegExp("-\\[var\\(--(" + TOKENS + ")\\)\\]");
 
-const SKIP_DIR = new Set(["node_modules", "dist"]);
-const tsFiles = (dir, out = []) => {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (!SKIP_DIR.has(e.name)) tsFiles(p, out);
-    } else if (/\.tsx?$/.test(e.name)) {
-      out.push(p);
-    }
-  }
-  return out;
-};
-
-const files = tsFiles(path.join(root, "apps/web/src"));
-if (files.length === 0) {
-  console.error("no source files scanned under apps/web/src — scan-path regression in this gate.");
-  process.exit(1);
-}
+// Walked and vacuity-checked by the shared helper: it refuses a walk that returns nothing AND one that still returns files but no longer reaches the shared UI primitives, which are where the semantic utilities this rule protects are actually spelled. A feature-tree re-layout leaves hundreds of files in scope while the components that carry colour go unscanned, and a file count cannot tell that apart from a clean tree.
+const files = collectOrExit({
+  root,
+  label: ".ts/.tsx files",
+  skipDirs: ["node_modules", "dist"],
+  test: (p) => /\.tsx?$/.test(p),
+  roots: [
+    {
+      name: path.join("apps", "web", "src"),
+      anchors: [
+        path.join("apps", "web", "src", "main.tsx"),
+        path.join("apps", "web", "src", "shared", "components", "ui", "button.tsx"),
+      ],
+    },
+  ],
+});
 
 const hits = [];
 for (const file of files) {

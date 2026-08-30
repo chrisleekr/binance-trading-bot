@@ -108,9 +108,9 @@ nav:
           - Backtest: user-guide/profile/backtest.md
           - History: user-guide/profile/history.md
           - Bulk order: user-guide/profile/bulk-order.md
-          - General: user-guide/profile/general.md
+          - Profile settings: user-guide/profile/general.md
       - Account:
-          - Manage account: user-guide/account/index.md
+          - Account: user-guide/account/index.md
           - API key: user-guide/account/api-key.md
           - Dust transfer: user-guide/account/dust-transfer.md
           - Orphan orders: user-guide/account/orphan-orders.md

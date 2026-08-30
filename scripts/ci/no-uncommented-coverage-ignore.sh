@@ -31,8 +31,11 @@ ci::start no-uncommented-coverage-ignore
 
 root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root"
+# Overridable so no-uncommented-coverage-ignore.selftest.sh can drive this exact script over fixture trees rather than re-implementing its matching.
+GUARD_ROOT="${GUARD_ROOT:-$root}"
 
-GUARD_ROOT="$root" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
@@ -41,28 +44,22 @@ const root = process.env.GUARD_ROOT;
 const DIRECTIVE = /\/\*+\s*v8\s+ignore[^*]*\*\//;
 const STOP = /\/\*+\s*v8\s+ignore\s+stop\s*\*\//;
 
-const ROOTS = ["apps", "packages"];
-const SKIP_DIR = new Set(["node_modules", "dist"]);
-const EXTS = /\.(tsx?|m?js)$/;
-
-const srcFiles = (dir, out = []) => {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (!SKIP_DIR.has(e.name)) srcFiles(p, out);
-    } else if (EXTS.test(e.name)) {
-      out.push(p);
-    }
-  }
-  return out;
-};
-
-const files = ROOTS.flatMap((r) => srcFiles(path.join(root, r)));
-if (files.length === 0) {
-  console.error("no source files scanned under apps/ or packages/ — scan-path regression in this gate.");
-  process.exit(1);
-}
+// Walked and vacuity-checked PER ROOT by the shared helper. The directive count below is a second floor, but it is a UNION count: apps/ going dark still leaves every directive under packages/ to keep it healthy, so it cannot see half a walk. The per-root anchors can.
+//
+// One apps anchor is .tsx on purpose. The extension clause covers .tsx, and with .ts anchors only, dropping it would leave both floors and both anchors satisfied while every directive in apps/web went unscanned.
+const files = collectOrExit({
+  root,
+  label: "source files",
+  skipDirs: ["node_modules", "dist"],
+  test: (p) => /\.(tsx?|m?js)$/.test(p),
+  roots: [
+    {
+      name: "apps",
+      anchors: [path.join("apps", "api", "src", "index.ts"), path.join("apps", "web", "src", "main.tsx")],
+    },
+    { name: "packages", anchors: [path.join("packages", "contracts", "src", "decimal.ts")] },
+  ],
+});
 
 let directives = 0;
 const bad = [];

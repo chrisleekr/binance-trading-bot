@@ -1,0 +1,10 @@
+default:
+  image: oven/bun:9.9.9-alpine
+
+browser-bootstrap:
+  variables:
+    BUN_VERSION: '9.9.9'
+
+app-e2e:
+  variables:
+    BUN_VERSION: '9.9.9'

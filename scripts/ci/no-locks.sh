@@ -18,8 +18,11 @@ ci::start no-locks
 
 root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root"
+# Overridable so no-locks.selftest.sh can drive this exact script over fixture trees rather than re-implementing its matching.
+GUARD_ROOT="${GUARD_ROOT:-$root}"
 
-GUARD_ROOT="$root" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
@@ -39,28 +42,21 @@ const PATTERNS = [
 // packages/binance; the shared token bucket is consume-and-decay rate-limiting,
 // not a lock, and must never regress into one. Scanning it closes the prior
 // passes-by-omission hole.
-const ROOTS = ["apps/worker/src", "packages/strategy", "packages/notify", "packages/binance"];
-const SKIP_DIR = new Set(["node_modules", "dist"]);
-const EXTS = /\.(tsx?|m?js)$/;
-
-const srcFiles = (dir, out = []) => {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    if (e.isDirectory()) {
-      if (!SKIP_DIR.has(e.name)) srcFiles(p, out);
-    } else if (EXTS.test(e.name)) {
-      out.push(p);
-    }
-  }
-  return out;
-};
-
-const files = ROOTS.flatMap((r) => srcFiles(path.join(root, r)));
-if (files.length === 0) {
-  console.error("no source files scanned under the lock-free roots — scan-path regression in this gate.");
-  process.exit(1);
-}
+// Walked and vacuity-checked PER ROOT by the shared helper. A union walk with one shared floor is fail-open in exactly the direction this gate cares about: packages/binance going dark still leaves hundreds of files from the other three roots, so the floor is satisfied while the shared Redis weight bucket — the one piece of coordination code that must never regress into a lock, and the reason this gate scans packages/binance at all — is never read.
+//
+// Each anchor is the module its root exists to protect: the worker entrypoint, the first strategy plugin, the notifier contract, and the consume-and-decay weight governor.
+const files = collectOrExit({
+  root,
+  label: "source files",
+  skipDirs: ["node_modules", "dist"],
+  test: (p) => /\.(tsx?|m?js)$/.test(p),
+  roots: [
+    { name: path.join("apps", "worker", "src"), anchors: [path.join("apps", "worker", "src", "index.ts")] },
+    { name: path.join("packages", "strategy"), anchors: [path.join("packages", "strategy", "trailing-trade", "src", "index.ts")] },
+    { name: path.join("packages", "notify"), anchors: [path.join("packages", "notify", "src", "index.ts")] },
+    { name: path.join("packages", "binance"), anchors: [path.join("packages", "binance", "src", "rate-limit", "redis-weight-governor.ts")] },
+  ],
+});
 
 const hits = [];
 for (const file of files) {

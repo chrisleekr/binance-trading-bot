@@ -1,0 +1,5 @@
+{
+  "name": "fixture-root",
+  "private": true,
+  "workspaces": ["packages/*"]
+}

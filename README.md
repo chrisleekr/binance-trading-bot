@@ -52,7 +52,7 @@ Process-level environment variables (`DATABASE_URL`, `REDIS_URL`, `WEB_ORIGIN`, 
 
 ## Quick start (development)
 
-Prerequisites: [Bun](https://bun.sh) 1.3+ and Docker (with the `compose` plugin) for the local Postgres + Redis stack.
+Prerequisites: [Bun](https://bun.sh) 1.4+ (pinned to `1.4.0` in `.tool-versions`; `bun.lock` is a `lockfileVersion: 2` file that Bun 1.3.x cannot parse) and Docker (with the `compose` plugin) for the local Postgres + Redis stack.
 
 Run all commands from the repo root.
 

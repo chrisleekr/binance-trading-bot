@@ -84,7 +84,10 @@ expect_reject catalog-widened-union 'metrics/catalog.ts must type its sink on Me
 
 # Vacuity floor: a scan that matched no files reports every file as clean, which
 # is the failure mode a path or extension change produces silently.
-expect_reject empty 'zero candidate files'
+expect_reject empty 'scan matched no .ts/.tsx files under apps —'
+
+# The other half of the same failure, and the half no floor can see: files under both roots, but the boot-time sink builder — the module this rule exists to keep typed on MetricName — no longer reached. The file count stays healthy, so only the anchor sentence tells this from a clean tree.
+expect_reject reject-narrowed-walk 'walk narrowed' 'apps/worker/src/boot/metrics-sink.ts'
 
 # The catalogue moving out from under the gate. The fixture carries a widened
 # declaration, so passing here would mean the gate walked a real offence and

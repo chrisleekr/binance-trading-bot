@@ -11,7 +11,7 @@
 # The container entrypoint runs migrations first (unless SKIP_MIGRATIONS=1), then
 # exec's the entry; ROLE decides which listeners/consumers boot.
 
-ARG BUN_VERSION=1.3.14
+ARG BUN_VERSION=1.4.0
 # `BUN_IMAGE` is split out so CI can point at a registry mirror to dodge Docker
 # Hub's unauthenticated pull rate limit (#122). Defaults to the upstream image so
 # local `docker build` keeps working without any extra args.

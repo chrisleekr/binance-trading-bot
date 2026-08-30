@@ -39,8 +39,11 @@ ci::start no-unwired-test-d
 
 root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 cd "$root"
+# Overridable so no-unwired-test-d.selftest.sh can drive this exact script over fixture trees rather than re-implementing its matching.
+GUARD_ROOT="${GUARD_ROOT:-$root}"
 
-GUARD_ROOT="$root" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -56,19 +59,6 @@ const readJson = (p) => {
   return JSON.parse(raw);
 };
 
-const guardFiles = (dir, out = []) => {
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (e.isDirectory()) {
-      if (e.name === "node_modules" || e.name === "dist") continue;
-      guardFiles(path.join(dir, e.name), out);
-    } else if (e.name.endsWith(".test-d.ts") && dir.split(path.sep).includes("__tests__")) {
-      out.push(path.join(dir, e.name));
-    }
-  }
-  return out;
-};
-
 const owningPkgDir = (file) => {
   let dir = path.dirname(file);
   while (dir.length >= root.length) {
@@ -78,15 +68,19 @@ const owningPkgDir = (file) => {
   return null;
 };
 
-const files = [
-  ...guardFiles(path.join(root, "apps")),
-  ...guardFiles(path.join(root, "packages")),
-];
-
-if (files.length === 0) {
-  console.error("scan matched nothing — glob likely broken. Expected at least one __tests__/**/print.test-d.ts.");
-  process.exit(1);
-}
+// Walked and vacuity-checked PER ROOT by the shared helper. A union walk with one shared floor is fail-open in the direction that matters: apps/ going dark still leaves every packages/ guard file to keep the count healthy, so the gate reports all guard files wired while the app-side ones — which are the ones a default tsconfig silently excludes — are never examined.
+//
+// Each anchor is a guard file whose whole purpose is to be compiled by a tsc pass this gate forces into existence; a walk that stops reaching it has stopped enforcing exactly what the rule is for.
+const files = collectOrExit({
+  root,
+  label: "*.test-d.ts guard files",
+  skipDirs: ["node_modules", "dist"],
+  test: (p) => p.endsWith(".test-d.ts") && path.dirname(p).split(path.sep).includes("__tests__"),
+  roots: [
+    { name: "apps", anchors: [path.join("apps", "worker", "__tests__", "metrics", "catalog.test-d.ts")] },
+    { name: "packages", anchors: [path.join("packages", "strategy", "core", "__tests__", "decision-typing.test-d.ts")] },
+  ],
+});
 
 // ---- Gate 1: wiring ----
 const violations = [];

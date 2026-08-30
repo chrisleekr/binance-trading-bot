@@ -140,6 +140,12 @@ expect_reject fail \
 expect_reject vacuous 'names no metric'
 expect_reject empty-catalog 'zero metric names parsed'
 expect_reject no-ctor 'zero prom-client metric constructors'
+
+# The two walk stops, which the constructor floor above cannot express. That floor counts across BOTH roots, so packages/ going dark still leaves the worker constructors to keep it healthy while the emitted set is silently short — and a rule over a metric that package emits is then reported as a phantom.
+expect_reject reject-empty-walk 'scan matched no .ts/.tsx files under packages —'
+
+# Files under both roots, but the packages anchor gone: the only package that constructs prom-client metrics is no longer reached, and every count in this gate still looks healthy.
+expect_reject reject-narrowed-walk 'walk narrowed' 'packages/observability/src/index.ts'
 expect_reject no-rules 'zero alert rules parsed'
 expect_reject no-exprs 'zero expr values parsed'
 

@@ -1,0 +1,112 @@
+{
+  "apps/web/src/app/top-bar-ticker.tsx": {
+    "reason": "animation duration in seconds, rounded to one decimal for a stable CSS custom property.",
+    "sites": [
+      "to-fixed: el.style.setProperty('--ticker-duration', `${(half / TICKER_SPEED_PX_PER_SEC).toFixed(1)}s`);"
+    ]
+  },
+  "apps/web/src/features/account/components/backup-settings-card.tsx": {
+    "reason": "byte size, not money: KB and MB use the conventional one-decimal readout.",
+    "sites": [
+      "to-fixed: if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;",
+      "to-fixed: return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;"
+    ]
+  },
+  "apps/web/src/features/backtest/lib/diagnosis-spine.ts": {
+    "reason": "percent deltas inside diagnostic titles use the two-decimal percent style.",
+    "sites": [
+      "to-fixed: title: `${r.regime} regime: negative alpha vs hold (${r.alphaVsHoldPct.toFixed(2)}%)`,",
+      "to-fixed: title: `Lost to buy-and-hold by ${Math.abs(m.alphaVsHoldPct).toFixed(2)}% (negative alpha vs hold)`,",
+      "to-fixed: title: `Out-of-sample holdout underperformed hold (${oos.alphaVsHoldPct.toFixed(2)}%)`,"
+    ]
+  },
+  "apps/web/src/features/dashboard/components/live-vs-backtest-card.tsx": {
+    "reason": "profit factor is a unitless ratio at two decimals, and its comparison delta is a whole percent.",
+    "sites": [
+      "to-fixed: const fmtPf = (pf: number | null): string => (pf === null ? '∞' : pf.toFixed(2));",
+      "to-fixed: d === null ? '—' : `${d >= 0 ? '+' : ''}${d.toFixed(0)}%`;"
+    ]
+  },
+  "apps/web/src/features/dashboard/components/market-trend-card.tsx": {
+    "reason": "distance from the moving average and the share of rising symbols are percentage readouts.",
+    "sites": [
+      "to-fixed: return `${Math.abs(ratio).toFixed(1)}% ${direction} 50-day avg`;",
+      "to-fixed: {percentUp.toFixed(0)}% rising · {mostDown ? 'Cautious' : 'Upbeat'}"
+    ]
+  },
+  "apps/web/src/features/dashboard/lib/aggregate-pnl.ts": {
+    "reason": "eight-decimal float-noise trim on a computed sum that is reparsed before display.",
+    "sites": ["to-fixed: .map(([quote, sum]) => ({ quote, pnl: String(Number(sum.toFixed(8))) }))"]
+  },
+  "apps/web/src/features/dashboard/lib/build-ticker-metrics.ts": {
+    "reason": "computed quote totals trim float noise at eight decimals, while the derived percent trims to two before further use.",
+    "sites": [
+      "to-fixed: .map(([quote, sum]) => ({ quote, pnl: String(Number(sum.toFixed(8))) }))",
+      "to-fixed: pnlPercent: pct == null ? '' : String(Number(pct.toFixed(2))),"
+    ]
+  },
+  "apps/web/src/features/profile/lib/unrealised-pnl.ts": {
+    "reason": "eight-decimal float-noise trim on computed P/L before a separate money formatter renders it.",
+    "sites": ["to-fixed: return Number.isFinite(pnl) ? Number(pnl.toFixed(8)) : null;"]
+  },
+  "apps/web/src/features/symbol/components/symbol-discovery-status.tsx": {
+    "reason": "elapsed duration in hours uses one decimal only when it is not an integer.",
+    "sites": ["to-fixed: return `${Number.isInteger(hours) ? hours : hours.toFixed(1)}h`;"]
+  },
+  "apps/web/src/features/symbol/components/symbol-order-book-panel.tsx": {
+    "reason": "order-book depth share is a percentage and the companion value is CSS bar geometry.",
+    "sites": [
+      "to-fixed: const depthPct = maxCumulative > 0 ? ((entry.cumulative / maxCumulative) * 100).toFixed(2) : '0';",
+      "to-fixed: width: `${bidPct.toFixed(1)}%`,"
+    ]
+  },
+  "apps/web/src/features/symbol/components/symbol-stats-strip.tsx": {
+    "reason": "compact volume notation is capped at two fractional digits, and 24-hour price change uses the two-decimal percent style.",
+    "sites": [
+      "fixed-two: return n.toLocaleString(undefined, { notation: 'compact', maximumFractionDigits: 2 });",
+      "to-fixed: : `${up ? '+' : ''}${changePct.toFixed(2)}%`;"
+    ]
+  },
+  "apps/web/src/features/symbol/components/symbol-trade-panels.tsx": {
+    "reason": "quick-fill base-asset quantity uses Binance's widest eight-decimal step before stripping trailing zeros.",
+    "sites": ["to-fixed: return value.toFixed(8).replace(/\\.?0+$/, '');"]
+  },
+  "apps/web/src/features/symbol/lib/order-book-group.ts": {
+    "reason": "order-book price and size bucketing trims float noise at Binance's widest eight-decimal step.",
+    "sites": [
+      "to-fixed: const round8 = (n: number): number => Number(n.toFixed(8));",
+      "to-fixed: const decimalStr = (n: number): string => n.toFixed(8).replace(/\\.?0+$/, '') || '0';"
+    ]
+  },
+  "apps/web/src/features/symbol/strategies/trailing-trade/signal-panel.tsx": {
+    "reason": "gap to trigger is a percentage using the two-decimal percent style.",
+    "sites": ["to-fixed: return `${sign}${gapPct.toFixed(2)}%`;"]
+  },
+  "apps/web/src/shared/components/rollup-stats-line.tsx": {
+    "reason": "payoff is a unitless average-win to average-loss ratio displayed at two decimals.",
+    "sites": ["to-fixed: {payoff !== null ? ` · payoff ${payoff.toFixed(2)}` : ''}"]
+  },
+  "apps/web/src/shared/lib/format-time.ts": {
+    "reason": "humanized elapsed durations use one decimal for fractional hours and days.",
+    "sites": [
+      "to-fixed: else if (ms < DAY) body = tenths ? `${(ms / HOUR).toFixed(1)}h` : `${Math.floor(ms / HOUR)}h`;",
+      "to-fixed: else body = tenths ? `${(ms / DAY).toFixed(1)}d` : `${Math.floor(ms / DAY)}d`;"
+    ]
+  },
+  "apps/web/src/shared/lib/format.ts": {
+    "reason": "shared value-kind formatters deliberately use fixed two-decimal branches for zero or quote amounts at least one, and the fixed-two primitive normalizes negative zero.",
+    "sites": [
+      "fixed-two: ? { minimumFractionDigits: 2, maximumFractionDigits: 2 }",
+      "fixed-two: ? { minimumFractionDigits: 2, maximumFractionDigits: 2 }",
+      "fixed-two: ? { minimumFractionDigits: 2, maximumFractionDigits: 2 }",
+      "to-fixed: const s = n.toFixed(2);"
+    ]
+  },
+  "apps/web/src/shared/lib/rollup-stats.ts": {
+    "reason": "expectancy at or above one is displayed at two decimals, and profit factor is a unitless ratio rounded to two decimals.",
+    "sites": [
+      "to-fixed: const body = abs < 1 ? abs.toLocaleString(undefined, SIG2_PLAIN) : abs.toFixed(2);",
+      "to-fixed: return pf < 1 ? Number(pf.toPrecision(2)) : Number(pf.toFixed(2));"
+    ]
+  }
+}

@@ -34,19 +34,21 @@ root="$(cd -- "$(dirname -- "$0")/../.." && pwd)"
 GUARD_ROOT="${GUARD_ROOT:-$root}"
 cd "$root"
 
-GUARD_ROOT="$GUARD_ROOT" bun -e '
+CI_WALK_LIB="$root/scripts/ci/lib/walk.mjs" GUARD_ROOT="$GUARD_ROOT" bun -e '
+const { collectOrExit } = await import(process.env.CI_WALK_LIB);
 const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
 const SHOT_DIR = path.join(root, "docs/assets/screenshots");
 
-const walk = (dir, match, out = []) => {
+// unanchored-walk: the committed PNG set is not a verdict, it is one of three sets this gate cross-references, and every way it can narrow already surfaces by name. A PNG the walk stops seeing is reported as a missing file under the page that embeds it, and one it should not have seen is reported as orphaned; there is no reading of this listing that produces a confident OK, which is the only failure an anchor exists to prevent. Anchoring it on a named PNG would instead swallow the promised-but-uncommitted branch, which is a case worth more than the stop.
+const pngFiles = (dir, out = []) => {
   if (!fs.existsSync(dir)) return out;
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
     if (e.isDirectory()) {
-      if (e.name !== "node_modules") walk(p, match, out);
-    } else if (match.test(e.name)) {
+      if (e.name !== "node_modules") pngFiles(p, out);
+    } else if (e.name.endsWith(".png")) {
       out.push(p);
     }
   }
@@ -59,17 +61,20 @@ if (!Array.isArray(SHOTS) || SHOTS.length === 0) {
   process.exit(1);
 }
 
-const mdFiles = walk(path.join(root, "docs"), /\.md$/);
-if (mdFiles.length === 0) {
-  console.error("no markdown files scanned under docs/ — scan-path regression in this gate.");
-  process.exit(1);
-}
+// Walked and vacuity-checked by the shared helper. The docs walk IS a verdict here — an embed this gate never reads is an embed it never checks — so it needs the stop a page count cannot give: a docs re-layout leaves plenty of markdown in scope while the pages carrying screenshots go unread, and every committed PNG then reports as orphaned or, worse, nothing reports at all.
+const mdFiles = collectOrExit({
+  root,
+  label: "markdown files",
+  skipDirs: ["node_modules"],
+  test: (p) => p.endsWith(".md"),
+  roots: [{ name: "docs", anchors: [path.join("docs", "index.md")] }],
+});
 
 // What the manifest promises to write, relative to docs/assets/screenshots.
 const captured = new Set(SHOTS.flatMap((s) => s.dest));
 // What is committed.
 const committed = new Set(
-  walk(SHOT_DIR, /\.png$/).map((p) => path.relative(SHOT_DIR, p).split(path.sep).join("/")),
+  pngFiles(SHOT_DIR).map((p) => path.relative(SHOT_DIR, p).split(path.sep).join("/")),
 );
 // What the pages actually embed.
 const embedded = new Map();

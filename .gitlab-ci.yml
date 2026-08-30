@@ -52,7 +52,7 @@ workflow:
     - if: $CI_COMMIT_TAG
 
 default:
-  image: oven/bun:1.3.14-alpine
+  image: oven/bun:1.4.0-alpine
   # Every job is interruptible so `workflow.auto_cancel.on_new_commit` above can
   # cancel superseded runs. docker-build overrides this (see its job) so a push
   # image build is never left half-done.
@@ -91,7 +91,7 @@ stages:
   # though e2e depends on neither lint nor unit — a ~119s stage barrier on
   # every MR. Every test/check job now declares `needs: []` and starts right
   # after bootstrap, so the MR critical path collapses from ~250s to
-  # max(unit, e2e) ≈ 130s. Trade-off (accepted, #577): a failing lint no
+  # max(unit, e2e) ≈ 130s. Trade-off (accepted): a failing lint no
   # longer short-circuits the expensive jobs; since lint is run locally and
   # rarely fails on CI, the per-run latency win beats the occasional wasted
   # runner minutes. `docker-build` still gates on all tests passing (see its
@@ -121,6 +121,12 @@ lint:
       paths:
         - .turbo/
       policy: pull-push
+  # git on top of the default before_script: no-publish-hazard scans the git index, and the bun-alpine image ships no git. The GitHub lane runs the same script on ubuntu, which does, so that lane has always exercised the gate; this one had not.
+  #
+  # Until Bun 1.4 the missing binary was invisible here. An uncaught top-level throw in `bun -e` exited 0 on Bun 1.3.x, so `execFileSync("git", ...)` raised ENOENT, the gate printed nothing, and ci::_atexit reported a passing step. Bun 1.4 exits 1 on the same throw, which is what surfaced it. The gate's own vacuity guard could not catch this: it counts tracked files, and the throw happens before the count exists.
+  before_script:
+    - !reference [default, before_script]
+    - apk add --no-cache git
   script: bash scripts/ci/lint.sh
 
 typecheck:
@@ -134,16 +140,10 @@ unit:
   # `apps/api/__tests__/login-throttle.test.ts` is gated on `REDIS_TEST_URL`
   # and silently skipped without a Redis. Run it here so the throttle's
   # 5-attempts-per-60s sliding window + 10-failures lockout contract is
-  # enforced on every push (#48-C). The throttle test does not touch
+  # enforced on every push. The throttle test does not touch
   # Postgres, so no DB service is needed in this job.
   #
-  # nodejs on top of the default before_script: test-unit.sh runs vitest with
-  # `--coverage`, and the v8 coverage provider needs Node's V8 inspector API,
-  # which Bun does not implement. `bun run` delegates the vitest bin to `node`
-  # when it is on PATH; without node here vitest aborts with "Coverage APIs are
-  # not supported" (the GitHub runner already ships node, so this only affects
-  # the bun-alpine image). Every bun-alpine job that collects coverage installs
-  # Node in its own before_script.
+  # Bun 1.4.0 executes this suite but recursively overflows the stack while merging v8 coverage, so Node remains the coverage runtime.
   before_script:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
@@ -173,7 +173,7 @@ test-replay:
 integration:
   stage: test
   needs: []
-  # Vitest v8 coverage needs Node's inspector API, which Bun does not expose.
+  # Bun 1.4.0 executes this suite but recursively overflows the stack while merging v8 coverage, so Node remains the coverage runtime.
   before_script:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
@@ -204,10 +204,7 @@ integration:
 worker-integration:
   stage: test
   needs: []
-  # nodejs on top of the default before_script (same as the `unit` job):
-  # The Vitest binary delegates to `node` when it is on PATH. The tick-and-audit suite mocks
-  # Binance with nock, whose fetch interception throws under the bun-alpine
-  # runtime; running vitest under node avoids it.
+  # Bun 1.4.0 passes the nock-backed tick-and-audit tests but recursively overflows the stack while merging v8 coverage, so Node remains the coverage runtime.
   before_script:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
@@ -237,8 +234,7 @@ worker-integration:
 db-isolation:
   stage: test
   needs: []
-  # TypeScript 7's synchronous project API reads Node's private stdio pipe
-  # handles. Bun does not expose those handles, so run Vitest under Node.
+  # Bun 1.4.0 reaches coverage without the previous TypeScript sync-channel error but recursively overflows the stack while merging v8 coverage, so Node remains the coverage runtime.
   before_script:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
@@ -274,7 +270,7 @@ browser-bootstrap:
   image: mcr.microsoft.com/playwright:v1.62.1-noble
   variables:
     BUN_INSTALL: /root/.bun
-    BUN_VERSION: '1.3.14'
+    BUN_VERSION: '1.4.0'
     # The MS Playwright image bundles browsers under /ms-playwright;
     # Playwright defaults to $HOME/.cache/ms-playwright which is empty
     # in this container. Pointing at the image's bundled set avoids
@@ -322,7 +318,7 @@ app-e2e:
       alias: redis
   variables:
     BUN_INSTALL: /root/.bun
-    BUN_VERSION: '1.3.14'
+    BUN_VERSION: '1.4.0'
     PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     POSTGRES_DB: binance_trading_bot_test
     POSTGRES_USER: postgres
@@ -413,7 +409,7 @@ docker-build:
     DOCKER_CERT_PATH: /certs/client
     # Mirror tonistiigi/binfmt and oven/bun in the project's GitLab registry
     # so this job sidesteps Docker Hub's 100/6h unauthenticated pull rate
-    # limit (#122). The mirror images are populated by hand; refresh with
+    # limit. The mirror images are populated by hand; refresh with
     # `docker buildx imagetools create --tag <mirror> <upstream>` whenever
     # the upstream tag is bumped.
     #

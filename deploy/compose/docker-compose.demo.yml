@@ -12,7 +12,8 @@
 # secret, never committed), so visitors place real testnet orders with fake
 # money. "No sensitive info exposed" holds by construction: only a testnet key is
 # ever present and credential, notifier, backup/restore, account-creation,
-# retention-change, and diagnosis-start routes are off.
+# account-rename/delete, retention-change, diagnosis-start, fee-reconciliation, and
+# archive-backfill routes are off.
 #
 # Operator deployment checklist:
 #   - Seed the golden testnet snapshot (account + profiles + symbols + history).

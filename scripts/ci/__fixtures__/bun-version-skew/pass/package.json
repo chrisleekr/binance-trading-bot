@@ -1,0 +1,11 @@
+{
+  "name": "bun-version-skew-fixture",
+  "private": true,
+  "packageManager": "bun@9.9.9",
+  "engines": {
+    "bun": ">=9.9"
+  },
+  "devDependencies": {
+    "@types/bun": "9.9.9"
+  }
+}
