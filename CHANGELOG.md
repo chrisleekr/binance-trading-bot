@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.3.0...v1.4.0) (2026-08-30)
+
+
+### Features
+
+* **trading:** pin bindings, drop the always-hold reserve, and record fee basis ([#765](https://github.com/chrisleekr/binance-trading-bot/issues/765)) ([e827f1d](https://github.com/chrisleekr/binance-trading-bot/commit/e827f1d3b9d2c5e5d2f718512b1241dcdf02e0ab))
+
 ## [1.3.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.2.0...v1.3.0) (2026-08-23)
 
 
