@@ -36,9 +36,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const root = process.env.GUARD_ROOT;
 
-// Workspaces that legitimately ship no src/: e2e is specs only, packages/config
-// ships shared vitest/tsconfig presets at its root. Anything else with an empty
-// src/ is a find-path regression, not a package to skip.
+// Workspaces that legitimately ship no src/: e2e is specs only, and packages/config ships shared vitest/tsconfig presets at its root. Anything else with an empty src/ is a find-path regression, not a package to skip.
 const NO_SRC = new Set(["e2e", "packages/config"]);
 
 // Expand the root `workspaces` globs. Only the trailing-/* and literal forms the
@@ -88,6 +86,15 @@ const pkgs = dirs
 
 if (pkgs.length === 0) {
   console.error("no workspace packages found — find-path regression in this guard.");
+  process.exit(1);
+}
+
+// The exemption is valid only while the path has no source tree. Refusing a stale entry makes newly added source visible instead of letting the early continue below turn NO_SRC into a permanent scan bypass.
+const staleNoSrc = [...NO_SRC].filter((dir) => fs.existsSync(path.join(root, dir, "src")));
+if (staleNoSrc.length > 0) {
+  console.error("workspace packages listed in NO_SRC but now carrying src/:\n  " + staleNoSrc.join("\n  "));
+  console.error("");
+  console.error("Remove each package from NO_SRC and give its source walk an entry-point anchor.");
   process.exit(1);
 }
 

@@ -48,6 +48,9 @@ expect_reject reject-narrowed-walk 'walk narrowed' 'packages/core/src/index.ts'
 # A workspace this guard cannot anchor at all: no types, no main, no exports pointing into src/. Skipping it would drop the package from the scan silently, which is the same fail-open the anchors exist to close, so it is refused by name instead.
 expect_reject reject-unanchorable-package 'no src/ entry point' 'packages/core'
 
+# A no-source exemption must expire as soon as that package gains source, before the root-building loop can skip it permanently.
+expect_reject reject-stale-no-src 'listed in NO_SRC but now carrying src/' 'packages/config'
+
 if [ "$fails" -ne 0 ]; then
   echo "no-undeclared-workspace-import self-test: FAILED"
   exit 1

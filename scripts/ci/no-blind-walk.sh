@@ -192,7 +192,8 @@ const AMBIENT_BY_DESIGN = [
 ];
 const SEAM_VAR = new RegExp("\\$\\{([A-Z][A-Z0-9_]*):-", "g");
 const unclassified = [];
-for (const [name, src] of [...read].sort()) {
+const compareEntryNames = ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0);
+for (const [name, src] of [...read].sort(compareEntryNames)) {
   // lint.sh is the sweeper, not a gate. SELF is excluded for the reason it is excluded from the scan: it names the seam pattern in its own recogniser prose, so an unfiltered pass reports its own comment as an offender. Its one real seam is GUARD_ROOT, asserted directly above.
   if (name === "lint.sh" || name === SELF) continue;
   for (const m of src.matchAll(SEAM_VAR)) {
@@ -217,7 +218,7 @@ const libraries = [];
 const blind = [];
 const seamless = [];
 const untaught = [];
-for (const [name, src] of [...read].sort()) {
+for (const [name, src] of [...read].sort(compareEntryNames)) {
   if (name === SELF) continue;
   const ext = path.extname(name);
   // Classified by extension BEFORE asking whether it walks, and that order is the whole point. The walk test is itself a set of language-specific spellings — three JavaScript directory primitives and two helper paths — so a gate written with `os.walk` or `filepath.WalkDir` answers "does not walk", takes the early continue below, and is never seen at all. That is precisely the file class this branch exists to catch, so it cannot be gated on a vocabulary that class does not share.
