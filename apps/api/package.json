@@ -23,7 +23,7 @@
     "@app/strategy-core": "workspace:*",
     "@app/strategy-registry": "workspace:*",
     "@hono/swagger-ui": "~0.6.1",
-    "@hono/zod-openapi": "1.6.1",
+    "@hono/zod-openapi": "1.6.2",
     "better-auth": "~1.7.2",
     "bullmq": "5.58.6",
     "drizzle-orm": "~0.45.2",
@@ -31,7 +31,7 @@
     "ioredis": "~6.0.0",
     "pg": "~8.23.0",
     "pino": "~10.3.1",
-    "zod": "~4.4.3",
+    "zod": "~4.5.4",
     "@app/observability": "workspace:*"
   },
   "devDependencies": {
