@@ -37,6 +37,25 @@ const compactRowOverflow = (page: Page): Promise<number> =>
     return Math.max(...rows.map((row) => row.getBoundingClientRect().right - viewportWidth));
   });
 
+/**
+ * How far `<main>` scrolls sideways past its own visible width, in CSS pixels.
+ *
+ * A second probe beside {@link compactRowOverflow}, not a duplicate of it. That one measures ROWS against the viewport, which catches a cell that fails to truncate; this measures the SCROLLER, which catches the other half — a control strip whose flex item cannot shrink, so the strip's own `overflow-x-auto` never engages and the page takes the scroll instead. Neither sees the other's fault: a too-wide row is clipped by the row test's own surface long before `<main>` grows, and a page-wide sideways scroll moves every row's `right` together so the row probe reads it as fitting.
+ *
+ * `<main>` and not `documentElement`: the shell is `h-svh … overflow-hidden`, so the document never scrolls and its `scrollWidth` is pinned to the viewport whatever happens inside. `<main>` is the app's only scroll surface, and it is declared `overflow-y-scroll` alone — which computes `overflow-x` to `auto`, so it acquires a horizontal axis silently the moment anything inside overflows.
+ *
+ * Throws rather than returning 0 when the scroller is absent, for the same reason the row probe does: a renamed shell element must fail loudly, not pass forever.
+ *
+ * @param page - The page to measure, at whatever viewport it currently has.
+ * @returns `scrollWidth - clientWidth` for the shell scroller. Zero when nothing overflows sideways.
+ */
+const mainHorizontalOverflow = (page: Page): Promise<number> =>
+  page.evaluate(() => {
+    const main = document.querySelector('main');
+    if (!main) throw new Error('horizontal overflow probe: no <main> in the DOM');
+    return main.scrollWidth - main.clientWidth;
+  });
+
 test('signs in and renders the seeded profile dashboard and fee-incomplete archive', async ({
   page,
 }, testInfo) => {
@@ -71,6 +90,8 @@ test('signs in and renders the seeded profile dashboard and fee-incomplete archi
   await expect(page.getByTestId('archive-card-list')).toBeVisible();
   // C1, and deliberately the FIRST assertion after the wait that makes the list measurable. An overflow check placed lower would sit behind `archive-list` being hidden, and that gate halts the test in the very scenario an overflow check exists to catch — so the check would only ever run in the case where its value is arithmetically forced to pass.
   expect(await compactRowOverflow(page)).toBeLessThanOrEqual(1);
+  // The page itself, on the same principle and at the same point in the leg. History's period strip ships its presets inside an `overflow-x-auto` scroller, which only ever engages if every ancestor between it and the scroller can shrink to the line — one flex item left at `min-width:auto` hands the whole page a horizontal axis instead, and the charter's rule is that the body never scrolls sideways.
+  expect(await mainHorizontalOverflow(page)).toBeLessThanOrEqual(1);
   await expect(page.getByTestId('archive-list')).toBeHidden();
 
   // Both variants mount at once and only CSS separates them, so "hidden" has to mean hidden to assistive technology too, not merely invisible. Both render a RowActions trigger under the SAME accessible name, so if `hidden` ever leaves the table wrapper this count doubles. Deterministic where the unit lane cannot be: happy-dom loads no stylesheet, so it can never evaluate `display:none`.

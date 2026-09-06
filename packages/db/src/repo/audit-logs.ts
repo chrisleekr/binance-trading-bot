@@ -33,17 +33,28 @@ export interface AuditLogCursor {
  * :profileId`. The audit middleware writes `profileId` into the payload for
  * every state-changing per-profile route; rows without a `profileId` are
  * operator-scoped events and intentionally excluded from this view.
+ *
+ * @param scope - Ownership-proven profile scope.
+ * @param limit - Page size.
+ * @param cursor - The previous page's boundary, or null for the first page.
+ * @param events - Event-name allow-list; empty means every event.
+ * @param window - Optional inclusive `created_at` bounds. Either edge may be null, which leaves that side unbounded.
+ * @returns One page, newest first, each row carrying the token the next cursor is built from.
  */
 export async function listForProfile(
   scope: ProfileScope,
   limit: number,
   cursor: AuditLogCursor | null,
   events: readonly string[] = [],
+  window: { from: Date | null; to: Date | null } = { from: null, to: null },
 ): Promise<(AuditLogRow & { cursorToken: string })[]> {
   const conditions = [
     eq(auditLogs.operatorId, scope.operatorId),
     sql`${auditLogs.payload}->>'profileId' = ${scope.profileId}`,
   ];
+  // Bounded to a plotted window by the History curve's markers, which need the operator actions inside one chart range and nothing else. Without it the caller can only page backwards from now until it happens to reach the range, which for an old window is the whole log.
+  if (window.from !== null) conditions.push(gte(auditLogs.createdAt, window.from));
+  if (window.to !== null) conditions.push(lte(auditLogs.createdAt, window.to));
   if (cursor !== null) {
     // The cursor `createdAt` is cast back to timestamptz so the comparison
     // stays a direct column predicate (index-safe), not a string compare.

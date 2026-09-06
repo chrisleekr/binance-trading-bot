@@ -7,6 +7,7 @@ import {
   formatBalanceAmount,
   formatBalanceMoney,
   formatFixed2,
+  formatHoldDuration,
   formatMoneyAmount,
   formatPercent,
   formatPrice,
@@ -196,5 +197,40 @@ describe('formatPercent', () => {
     expect(formatPercent(0, { sign: true })).toBe('0.00%');
     // A tiny negative that rounds to zero must not render as -0.00% or +0.00%.
     expect(formatPercent(-0.0001, { sign: true })).toBe('0.00%');
+  });
+});
+
+describe('formatHoldDuration', () => {
+  it('reads an untimed cycle as an em dash rather than a zero-length hold', () => {
+    // A cycle rebuilt from Binance history carries no open time. `0m` would claim it was held for an instant, which is the reading this whole column exists to avoid.
+    expect(formatHoldDuration(null)).toBe('—');
+    expect(formatHoldDuration(undefined)).toBe('—');
+    expect(formatHoldDuration(Number.NaN)).toBe('—');
+    expect(formatHoldDuration(Number.POSITIVE_INFINITY)).toBe('—');
+  });
+
+  it('floors a real but sub-minute hold at 1m, never 0m', () => {
+    // 29s rounds to zero minutes. Rendered as `0m` it is indistinguishable from the untimed reading above, and it says a real trade took no time at all.
+    expect(formatHoldDuration(29_000)).toBe('1m');
+    expect(formatHoldDuration(1)).toBe('1m');
+    expect(formatHoldDuration(0)).toBe('1m');
+    // And a hold that genuinely rounds past a minute is not clamped to the floor.
+    expect(formatHoldDuration(90_000)).toBe('2m');
+  });
+
+  it('steps up to whole hours at an hour, and to tenths of a day at a day', () => {
+    // 59m59s is still minutes; the hour boundary is exact.
+    expect(formatHoldDuration(3_599_000)).toBe('60m');
+    expect(formatHoldDuration(3_600_000)).toBe('1h');
+    expect(formatHoldDuration(5_400_000)).toBe('2h');
+    // One millisecond short of a day is still hours, and 30h is 1.3 days at one decimal.
+    expect(formatHoldDuration(86_399_999)).toBe('24h');
+    expect(formatHoldDuration(86_400_000)).toBe('1d');
+    expect(formatHoldDuration(108_000_000)).toBe('1.3d');
+  });
+
+  it('reads a negative span as a sub-minute hold rather than a negative one', () => {
+    // Two stamps that run backwards are not a hold at all, and this formatter is not where that is decided — the callers drop such a span before it arrives. Pinned so the reading is a known one rather than a `-1h` nobody chose.
+    expect(formatHoldDuration(-3_600_000)).toBe('1m');
   });
 });

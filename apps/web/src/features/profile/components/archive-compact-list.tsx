@@ -10,21 +10,14 @@ import { useEffect, useState } from 'react';
 
 import { Trash2 } from 'lucide-react';
 
-import { PnlPercent, PnlValue, UnavailablePnl } from '@/shared/components/pnl-value';
+import { PnlValue, UnavailablePnl } from '@/shared/components/pnl-value';
 import { LoadingStatus } from '@/shared/components/page-skeleton';
 import { RowActions } from '@/shared/components/row-actions';
+import { ArchiveDetailSheet } from '@/features/profile/components/archive-detail-sheet';
 import { Badge } from '@/shared/components/ui/badge';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/shared/components/ui/sheet';
 import { Skeleton } from '@/shared/components/ui/skeleton';
-import { formatAmount } from '@/shared/lib/format';
 import { formatInstant } from '@/shared/lib/format-time';
-import { exitIntentLabel, glossExitIntent } from '@/shared/lib/gloss-exit-intent';
+import { exitIntentLabel } from '@/shared/lib/gloss-exit-intent';
 import {
   unavailablePnlGlyph,
   unavailablePnlLabel,
@@ -39,39 +32,22 @@ const MD_QUERY = '(min-width: 48rem)';
 /** An archive row with its P/L already resolved onto the operator's chosen basis. Resolved once by the panel and passed down, never re-derived here: two independent resolutions could pair a Net amount with a Recorded percentage. */
 export type ArchiveCompactRow = TradeArchiveResponse & { readonly pnl: RowPnl };
 
-/** One label/value pair in the detail sheet. Module-level because a component declared inside another's render body remounts its subtree on every render. */
-function DetailRow({
-  label,
-  testId,
-  children,
-}: {
-  readonly label: string;
-  readonly testId: string;
-  readonly children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <div className="flex items-baseline justify-between gap-3 border-b border-border py-2 last:border-b-0">
-      <dt className="shrink-0 text-xs text-muted-fg">{label}</dt>
-      <dd className="min-w-0 text-right font-mono text-sm tabular-nums" data-testid={testId}>
-        {children}
-      </dd>
-    </div>
-  );
-}
-
 /**
  * Compact per-trade rows for viewports below `md`, plus the detail sheet they open.
  *
+ * @param profileId - Profile that owns these rows, for the sheet's own reads.
  * @param rows - Archive rows in display order, each already carrying its basis-resolved P/L.
  * @param timeZone - The operator's display timezone, or `undefined` while account settings are still resolving — in which case no time is rendered rather than a wrong-zone one.
  * @param onDelete - Called with the row whose Delete was chosen. The caller owns the confirm dialog, so this list never destroys anything on its own.
  * @returns The list and its sheet.
  */
 export function ArchiveCompactList({
+  profileId,
   rows,
   timeZone,
   onDelete,
 }: {
+  readonly profileId: string;
   readonly rows: readonly ArchiveCompactRow[];
   readonly timeZone: string | undefined;
   readonly onDelete: (row: ArchiveCompactRow) => void;
@@ -167,68 +143,12 @@ export function ArchiveCompactList({
         ))}
       </ul>
 
-      <Sheet
-        open={detail !== null}
-        onOpenChange={(next) => {
-          if (!next) setDetailId(null);
-        }}
-      >
-        <SheetContent
-          side="bottom"
-          className="max-h-[85svh] overflow-y-auto"
-          data-testid="archive-detail-sheet"
-        >
-          {detail === null ? null : (
-            <>
-              <SheetHeader>
-                <SheetTitle>{detail.symbol}</SheetTitle>
-                <SheetDescription>{glossExitIntent(detail.exitIntent)}</SheetDescription>
-              </SheetHeader>
-              <dl className="mt-4">
-                <DetailRow label="Buy total" testId="archive-detail-buy">
-                  {formatAmount(detail.totalBuyQuote)}
-                  <span className="ml-1 text-muted-fg">{detail.quoteAsset}</span>
-                </DetailRow>
-                <DetailRow label="Sell total" testId="archive-detail-sell">
-                  {formatAmount(detail.totalSellQuote)}
-                  <span className="ml-1 text-muted-fg">{detail.quoteAsset}</span>
-                </DetailRow>
-                <DetailRow label="P/L" testId="archive-detail-profit">
-                  {detail.pnl.available ? (
-                    <PnlValue value={detail.pnl.pnl} unit={detail.quoteAsset} />
-                  ) : (
-                    <UnavailablePnl
-                      glyph={unavailablePnlGlyph(detail.pnl.reason)}
-                      description={unavailablePnlLabel(detail.pnl.reason)}
-                    />
-                  )}
-                </DetailRow>
-                <DetailRow label="P/L %" testId="archive-detail-percent">
-                  {detail.pnl.available ? (
-                    <PnlPercent value={detail.pnl.pnlPercent} />
-                  ) : (
-                    <span className="text-muted-fg">—</span>
-                  )}
-                </DetailRow>
-                {/* "Fees" alone is jargon on first read; the gloss travels with the value because a hover title is invisible on touch, which is the only place this sheet renders. */}
-                <DetailRow label="Fees (commission paid to Binance)" testId="archive-detail-fees">
-                  {Object.keys(detail.fees).length === 0
-                    ? '—'
-                    : Object.entries(detail.fees).map(([asset, amount]) => (
-                        <div key={asset}>
-                          {formatAmount(amount)} <span className="text-muted-fg">{asset}</span>
-                        </div>
-                      ))}
-                </DetailRow>
-                {/* Renders nothing, not an em dash, when the zone is unknown — matching the compact row and the table cell. A settings refetch can fail after rows have loaded, and an em dash would read as "this trade has no time" rather than "the app does not know your zone yet". */}
-                <DetailRow label="Archived" testId="archive-detail-time">
-                  {timeZone === undefined ? null : formatInstant(detail.archivedAt, timeZone)}
-                </DetailRow>
-              </dl>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+      <ArchiveDetailSheet
+        profileId={profileId}
+        row={detail}
+        timeZone={timeZone}
+        onClose={() => setDetailId(null)}
+      />
     </>
   );
 }

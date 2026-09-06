@@ -46,6 +46,9 @@ const AuditLogQuery = z.object({
       return [v];
     }, z.array(AuditEventFilter).max(32))
     .optional(),
+  // Inclusive `created_at` bounds. Present so a chart can ask for the operator actions inside the window it is plotting; absent, the reader pages back from the newest row as before. Each edge is independent: a `from` with no `to` is "everything since", which is what a live window asks for.
+  from: z.iso.datetime().optional(),
+  to: z.iso.datetime().optional(),
 });
 
 const route = createRoute({
@@ -83,7 +86,7 @@ export const auditLogsRouter = (di: DI): ApiHono => {
 
   app.openapi(route, async (c) => {
     const profileId = asProfileId(c.req.valid('param').profileId);
-    const { limit, cursor, event } = c.req.valid('query');
+    const { limit, cursor, event, from, to } = c.req.valid('query');
     const p = await scopeOf(c, di, profileId);
     // The query schema has already proven both halves and the separator, so the split cannot fail here.
     let cursorObj: { createdAt: string; id: string } | null = null;
@@ -91,7 +94,10 @@ export const auditLogsRouter = (di: DI): ApiHono => {
       const { timestamp, id } = splitCompositeCursor(cursor, CURSOR_SEPARATOR);
       cursorObj = { createdAt: timestamp, id };
     }
-    const rows = await p.auditLogs.listForProfile(limit, cursorObj, event ?? []);
+    const rows = await p.auditLogs.listForProfile(limit, cursorObj, event ?? [], {
+      from: from !== undefined ? new Date(from) : null,
+      to: to !== undefined ? new Date(to) : null,
+    });
     const last = rows.at(-1);
     const nextCursor =
       rows.length === limit && last !== undefined

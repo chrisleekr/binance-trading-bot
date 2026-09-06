@@ -68,19 +68,21 @@ const toneClass = (s: string): string => (Number(s) >= 0 ? 'text-up' : 'text-dow
  *
  * A ratio with no denominator is unreadable: 75% over 4 trades and over 400 trades are not the same claim, and 0 of 0 is not a 0% win rate at all. A fee-incomplete scoreboard cannot state the rate honestly, so it says so instead of showing a number.
  *
- * @param scoreboard - Scoreboard slice carrying the fee tier, the trade count, and the ratio itself.
- * @returns The tile's `value`, plus a `note` naming the trade count only when an actual rate is shown.
+ * The denominator is the FEE-VALUED count, not the period's trade count. A win is a cycle that finished ahead after commission, so a cycle whose commission is unknown cannot be counted either way — and naming the larger number beside the ratio would describe a denominator the rate was not taken over.
+ *
+ * @param scoreboard - Scoreboard slice carrying the fee tier, the fee-valued trade count, and the ratio itself.
+ * @returns The tile's `value`, plus a `note` naming that denominator only when an actual rate is shown.
  */
 function winRateTile(scoreboard: {
   readonly feeBasis: string;
-  readonly tradeCount: number;
+  readonly netTradeCount: number;
   readonly winRate: number;
 }): { value: string; note?: string } {
   if (scoreboard.feeBasis === 'unknown') return { value: 'Unavailable' };
-  if (scoreboard.tradeCount === 0) return { value: '—' };
+  if (scoreboard.netTradeCount === 0) return { value: '—' };
   return {
     value: formatWinRate(scoreboard.winRate),
-    note: `of ${scoreboard.tradeCount} trade${scoreboard.tradeCount === 1 ? '' : 's'}`,
+    note: `of ${scoreboard.netTradeCount} trade${scoreboard.netTradeCount === 1 ? '' : 's'}`,
   };
 }
 

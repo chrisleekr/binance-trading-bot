@@ -7,7 +7,8 @@
 // realized net profit factor against the profit factor of its pinned baseline
 // backtest (the same baseline the live-vs-backtest scorecard shows) and, on a
 // breach, sends the operator a one-time Slack heads-up. It NEVER pauses buys — the
-// bot's only auto-pause is the daily-loss breaker.
+// bot's only auto-pauses are the three entry breakers (daily loss, loss streak,
+// drawdown), all of which live in the portfolio-risk cron.
 //
 // De-dup via the per-profile `edgeDecayNotified` Redis latch: set when we alert on
 // a breach, cleared when the edge recovers, so a single decay episode alerts once
@@ -46,7 +47,10 @@ export interface EdgeAssessment {
   readonly reason: string;
   readonly liveProfitFactor: number | null;
   readonly baselineProfitFactor: number | null;
+  /** Cycles the verdict was actually taken over: the fee-valued ones, the same rows the profit factor beside it was folded from. Reporting the window's whole count here would name a sample size nothing was measured on, and it is the number the alert prints. */
   readonly liveTradeCount: number;
+  /** Cycles the window held, valued or not. Carried beside `liveTradeCount` rather than replacing it, so the alert can state the coverage instead of silently swapping which of the two numbers it shows. */
+  readonly windowTradeCount: number;
 }
 
 /**
@@ -56,6 +60,22 @@ export interface EdgeAssessment {
  * an ALERT decision only; it never pauses buys.
  */
 export const shouldAlertOnDecay = (verdict: EdgeDecayVerdict): boolean => verdict === 'breached';
+
+/**
+ * How the alert states the sample the verdict was taken over.
+ *
+ * A bare count would name the whole window while the profit factor beside it was folded from the fee-valued rows alone, so the operator reads a 40-cycle judgement that six cycles produced. When the two differ the coverage is stated outright; when they agree the second number would be noise.
+ *
+ * @param a - The assessment, read for its measured count and the count of the window it was taken from.
+ * @returns The Slack field's value: the measured count, or "measured of window" cycles when the window held rows the verdict could not use.
+ */
+export const tradesMeasured = (a: {
+  readonly liveTradeCount: number;
+  readonly windowTradeCount: number;
+}): string =>
+  a.windowTradeCount > a.liveTradeCount
+    ? `${a.liveTradeCount} of ${a.windowTradeCount} cycles`
+    : String(a.liveTradeCount);
 
 export interface EdgeDecayMonitorDeps {
   readonly logger: Logger;
@@ -99,6 +119,7 @@ export const edgeDecayMonitorHandler = (deps: EdgeDecayMonitorDeps) => {
               liveProfitFactor: a.liveProfitFactor,
               baselineProfitFactor: a.baselineProfitFactor,
               liveTradeCount: a.liveTradeCount,
+              windowTradeCount: a.windowTradeCount,
               notifiedAtMs: clock.nowMs(),
             }),
           );
@@ -109,6 +130,7 @@ export const edgeDecayMonitorHandler = (deps: EdgeDecayMonitorDeps) => {
               liveProfitFactor: a.liveProfitFactor,
               baselineProfitFactor: a.baselineProfitFactor,
               liveTradeCount: a.liveTradeCount,
+              windowTradeCount: a.windowTradeCount,
             },
             'edge-decay monitor: live edge below baseline — heads-up sent, buys NOT paused',
           );
@@ -121,7 +143,7 @@ export const edgeDecayMonitorHandler = (deps: EdgeDecayMonitorDeps) => {
             fields: [
               { label: 'Live profit factor', value: String(a.liveProfitFactor ?? 'n/a') },
               { label: 'Baseline', value: String(a.baselineProfitFactor ?? 'n/a') },
-              { label: 'Trades measured', value: String(a.liveTradeCount) },
+              { label: 'Trades measured', value: tradesMeasured(a) },
             ],
           });
         } else if (!decayed && already) {
@@ -216,14 +238,16 @@ export const buildEdgeDecayMonitorCron = (ctx: BootContext): CronDef =>
           hasBaseline,
           baselineProfitFactor,
           liveProfitFactor,
-          liveTradeCount: summary.tradeCount,
+          // The sample floor guards the profit factor beside it, and that factor is built from the valued rows' magnitudes alone, so the count it is judged against has to span the same rows. Feeding the whole-window count would clear a 10-trade floor on 3 valued cycles.
+          liveTradeCount: summary.netTradeCount,
         });
         return {
           verdict: assessment.verdict,
           reason: assessment.reason,
           liveProfitFactor,
           baselineProfitFactor,
-          liveTradeCount: summary.tradeCount,
+          liveTradeCount: summary.netTradeCount,
+          windowTradeCount: summary.tradeCount,
         };
       },
       wasNotified: async (accountId, profileId) =>

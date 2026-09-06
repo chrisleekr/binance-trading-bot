@@ -200,6 +200,18 @@ export const decimalSub = (a: string, b: string): DecimalString =>
   new Decimal(a).minus(new Decimal(b)).toFixed() as DecimalString;
 
 /**
+ * Orders two decimal-strings by value, for `Array#sort`.
+ *
+ * Money cannot be ordered as text ('9' would outrank '10') and must not be ordered through `Number`, which drops the low digits of a large balance and can report two distinct amounts as equal. A P/L column the operator reads as a ranking is exactly where that misorder is invisible, so the comparison runs on the same `Decimal` the sums are built from.
+ *
+ * @param a - Left operand as a decimal-string.
+ * @param b - Right operand as a decimal-string.
+ * @returns Negative when `a` sorts below `b`, positive when above, `0` when equal in value (so '1.0' and '1' tie, as they must).
+ */
+export const decimalCompare = (a: string, b: string): number =>
+  new Decimal(a).comparedTo(new Decimal(b));
+
+/**
  * Multiplies two decimal-strings.
  *
  * @param a - Left factor as a decimal-string.

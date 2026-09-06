@@ -30,6 +30,9 @@ const profileBody = (baselineBacktestRunId: string | null) => ({
   updatedAt: '2026-06-19T00:00:00.000Z',
 });
 
+// The window the server resolved; required on the response, so a producer that does not state it fails validation loudly instead of having its rollups plotted against an assumed period.
+const ARCHIVE_WINDOW = { from: '1970-01-01T00:00:00.000Z', to: '2026-06-20T00:00:00.000Z' };
+
 // bySource bucket: 4 trades, 3 wins, gross +60 / -20 → PF 3.0, win 75%.
 const archiveBody = {
   items: [],
@@ -39,6 +42,7 @@ const archiveBody = {
       quoteAsset: 'USDT',
       source: 'manual',
       tradeCount: 4,
+      netTradeCount: 4,
       wins: 3,
       losses: 1,
       profitSum: '40',
@@ -50,6 +54,7 @@ const archiveBody = {
     },
   ],
   nextCursor: null,
+  ...ARCHIVE_WINDOW,
 };
 
 const equityBody = {
@@ -232,6 +237,7 @@ describe('LiveVsBacktestCard', () => {
                 quoteAsset: 'BTC',
                 source: 'auto',
                 tradeCount: 40,
+                netTradeCount: 40,
                 wins: 40,
                 losses: 0,
                 profitSum: '0.5',
@@ -275,8 +281,11 @@ describe('LiveVsBacktestCard', () => {
         if (url.includes('/trade-archive')) {
           return jsonOf({
             ...archiveBody,
+            // `netTradeCount: 0` travels with the tier: the producer reports `unknown` exactly when it could value no row, and a fixture that pairs `unknown` with a non-zero valued count would let a gate keyed on either one pass.
             bySource: archiveBody.bySource.map((bucket) => ({
               ...bucket,
+              netTradeCount: 0,
+              netProfit: '0',
               feeBasis: 'unknown',
             })),
           });
@@ -298,6 +307,73 @@ describe('LiveVsBacktestCard', () => {
     expect(screen.queryByText(/→/)).not.toBeInTheDocument();
   });
 
+  it('names the denominator when the live figures cover only some of the window', async () => {
+    // The defect: `feeBasis` is `unknown` only when NOTHING could be valued, so a window that valued 2 of 40 reads `estimated`, clears the incomplete gate, and renders a two-cycle "100%" differenced against the backtest as "75% → 100% (+25%)". The win rate itself is right for the rows it covers; what was missing is the reader being told how few those are.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive'))
+          return jsonOf({
+            items: [],
+            byIntent: [],
+            bySource: [
+              {
+                quoteAsset: 'USDT',
+                source: 'manual',
+                tradeCount: 40,
+                netTradeCount: 2,
+                wins: 2,
+                losses: 0,
+                profitSum: '10',
+                netProfit: '10',
+                grossProfit: '10',
+                grossLoss: '0',
+                totalFees: '1',
+                feeBasis: 'estimated',
+              },
+            ],
+            nextCursor: null,
+            ...ARCHIVE_WINDOW,
+          });
+        if (url.includes('/backtests/')) return jsonOf(runDetailBody);
+        return jsonOf(profileBody(RUN_ID));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('live-scorecard-coverage')).toHaveTextContent(
+      '2 of 40 cycles',
+    );
+    // The figure itself still renders — a partial answer with a stated denominator beats no answer.
+    expect(screen.getByText('100.00%')).toBeInTheDocument();
+  });
+
+  it('states no denominator when the live figures cover the whole window', async () => {
+    // Anchors the case above: an unconditional line would pass it just as well, and "4 of 4 cycles" beside a complete figure is noise.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        if (url.includes('/backtests/')) return jsonOf(runDetailBody);
+        return jsonOf(profileBody(RUN_ID));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.getByText('75.00%')).toBeInTheDocument());
+    expect(screen.queryByTestId('live-scorecard-coverage')).not.toBeInTheDocument();
+  });
+
   it('shows the statistics, marks them, and still issues a verdict on a reconstructed fee total', async () => {
     // The middle tier is the one a withhold-everything gate and a show-everything gate get wrong in opposite directions. The figures are usable, so they render; the commission behind them was reconstructed, so the caveat is in WORDS beside them rather than a tint the operator cannot repeat back.
     //
@@ -316,6 +392,7 @@ describe('LiveVsBacktestCard', () => {
                 quoteAsset: 'USDT',
                 source: 'manual',
                 tradeCount: 12,
+                netTradeCount: 12,
                 wins: 7,
                 losses: 5,
                 profitSum: '10',
@@ -327,6 +404,7 @@ describe('LiveVsBacktestCard', () => {
               },
             ],
             nextCursor: null,
+            ...ARCHIVE_WINDOW,
           });
         if (url.includes('/backtests/')) return jsonOf(runDetailBody);
         return jsonOf(profileBody(RUN_ID));
@@ -426,6 +504,7 @@ describe('LiveVsBacktestCard', () => {
                 quoteAsset: 'USDT',
                 source: 'manual',
                 tradeCount: 12,
+                netTradeCount: 12,
                 wins: 7,
                 losses: 5,
                 profitSum: '10',
@@ -437,6 +516,7 @@ describe('LiveVsBacktestCard', () => {
               },
             ],
             nextCursor: null,
+            ...ARCHIVE_WINDOW,
           });
         if (url.includes('/backtests/')) return jsonOf(runDetailBody);
         return jsonOf(profileBody(RUN_ID));

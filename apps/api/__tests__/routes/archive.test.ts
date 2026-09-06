@@ -86,18 +86,21 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
     profit: string,
     orders: { side: string; intent: string }[],
     source: 'auto' | 'manual' = 'manual',
+    // The row's fee evidence. It decides which leg of the rollup the row lands in: every row is counted and summed, but only a row that can prove its commission contributes a win, a loss, a gross magnitude or a Net total.
+    feeBasis: 'exact' | 'estimated' | 'unknown' = 'exact',
   ): Promise<void> => {
     await fx.di.pool.query(
       `insert into trade_archive
          (profile_id, symbol, base_asset, quote_asset, total_buy_quote,
-          total_sell_quote, profit, breakdown, orders, fees, source, archived_at)
-       values ($1,$2,$3,'USDT','100','105',$4,'{}'::jsonb,$5::jsonb,'{}'::jsonb,$6, now())`,
+          total_sell_quote, profit, breakdown, orders, fees, fee_basis, source, archived_at)
+       values ($1,$2,$3,'USDT','100','105',$4,'{}'::jsonb,$5::jsonb,'{}'::jsonb,$6,$7, now())`,
       [
         fx.alice.profileId,
         symbol,
         symbol.replace('USDT', ''),
         profit,
         JSON.stringify(orders),
+        feeBasis,
         source,
       ],
     );
@@ -122,8 +125,8 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
       ],
       'auto',
     );
-    // A cycle with no SELL must bucket under 'unknown', not be dropped.
-    await seedArchive('ETHUSDT', '0', [{ side: 'BUY', intent: 'grid-buy' }], 'manual');
+    // A cycle with no SELL must bucket under 'unknown', not be dropped. It also carries no fee evidence, which is the other half of what this case pins: it is counted, and it contributes to nothing that is stated net of commission.
+    await seedArchive('ETHUSDT', '0', [{ side: 'BUY', intent: 'grid-buy' }], 'manual', 'unknown');
 
     const res = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/trade-archive`,
@@ -143,7 +146,9 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
     expect(intentBySymbol['WLDUSDT']).toBe('grid-stop-loss');
     expect(intentBySymbol['BTCUSDT']).toBe('grid-sell');
     expect(intentBySymbol['ETHUSDT']).toBe('unknown');
-    expect(body.items.every((item) => item.feeBasis === 'unknown')).toBe(true);
+    const basisBySymbol = Object.fromEntries(body.items.map((i) => [i.symbol, i.feeBasis]));
+    expect(basisBySymbol['WLDUSDT']).toBe('exact');
+    expect(basisBySymbol['ETHUSDT']).toBe('unknown');
 
     // byIntent carries the trader metrics, not just net P/L: the stop-loss bucket
     // is a pure loss, the grid-sell bucket a pure win.
@@ -151,6 +156,7 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
       expect.objectContaining({
         intent: 'grid-stop-loss',
         tradeCount: 1,
+        netTradeCount: 1,
         wins: 0,
         losses: 1,
         profitSum: '-5',
@@ -170,7 +176,15 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
       }),
     );
     expect(body.byIntent).toContainEqual(
-      expect.objectContaining({ intent: 'unknown', tradeCount: 1, wins: 0, losses: 0 }),
+      // Counted and summed, but it proves no commission — so it wins nothing, loses nothing, and drags the bucket's reported tier down to `unknown`.
+      expect.objectContaining({
+        intent: 'unknown',
+        tradeCount: 1,
+        netTradeCount: 0,
+        wins: 0,
+        losses: 0,
+        feeBasis: 'unknown',
+      }),
     );
 
     // bySource splits the two auto trades (one win, one loss) from the one manual
@@ -179,18 +193,20 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
       expect.objectContaining({
         source: 'auto',
         tradeCount: 2,
+        netTradeCount: 2,
         wins: 1,
         losses: 1,
         profitSum: '-2',
         grossProfit: '3',
         grossLoss: '5',
-        feeBasis: 'unknown',
+        feeBasis: 'exact',
       }),
     );
     expect(body.bySource).toContainEqual(
       expect.objectContaining({
         source: 'manual',
         tradeCount: 1,
+        netTradeCount: 0,
         wins: 0,
         losses: 0,
         feeBasis: 'unknown',
@@ -644,5 +660,377 @@ describeIfInfra('archive router — trade-archive GET exit-intent projection', (
     const second = await page(first.body.nextCursor ?? '');
     expect(second.status).toBe(200);
     expect(second.body.items[0]?.symbol).toBe('SUBMSBUSDT');
+  });
+});
+
+/**
+ * The History page's reach: an explicit window, ordering by keys no index carries, row filters, the NDJSON export and the per-trade detail read.
+ *
+ * Integration-level because every one of those is a claim about which ROWS come back, and the orderings are decided over rows read from Postgres — a mocked repo would only prove the handler calls itself.
+ */
+describeIfInfra('archive router — window, ordering, filters, export and detail', () => {
+  let fx: ApiFixture;
+
+  beforeAll(async () => {
+    fx = await setupApp();
+  });
+
+  afterAll(async () => {
+    await fx.cleanup();
+  });
+
+  // Every request below carries WINDOW, so the exact orderings and counts assert over this suite's three rows and not over the fixture's shared archive — the suites in this file share one database on purpose.
+  const seed = async (row: {
+    symbol: string;
+    profit: string;
+    feesQuote: string;
+    feeBasis: string;
+    source: 'auto' | 'manual';
+    exit: string;
+    archivedAt: string;
+    entryAt?: string;
+    exitAt?: string;
+  }): Promise<void> => {
+    const orders = [
+      {
+        orderId: `${row.symbol}-b`,
+        side: 'BUY',
+        intent: 'grid-buy',
+        closedAt: row.entryAt ?? null,
+      },
+      {
+        orderId: `${row.symbol}-s`,
+        binanceOrderId: '77',
+        clientOrderId: 'c-1',
+        side: 'SELL',
+        intent: row.exit,
+        status: 'FILLED',
+        executedQty: '1',
+        cummulativeQuoteQty: '105',
+        closedAt: row.exitAt ?? null,
+        // The whole exchange payload the list refuses to ship and the detail projection drops.
+        raw: { fills: [{ price: '105', qty: '1' }] },
+      },
+    ];
+    await fx.di.pool.query(
+      `insert into trade_archive
+         (profile_id, symbol, base_asset, quote_asset, total_buy_quote, total_sell_quote,
+          profit, fees_quote, fee_basis, breakdown, orders, fees, source, archived_at)
+       values ($1,$2,$3,'USDT','100','105',$4,$5,$6,'{}'::jsonb,$7::jsonb,'{}'::jsonb,$8,$9::timestamptz)`,
+      [
+        fx.bob.profileId,
+        row.symbol,
+        row.symbol.replace('USDT', ''),
+        row.profit,
+        row.feesQuote,
+        row.feeBasis,
+        JSON.stringify(orders),
+        row.source,
+        row.archivedAt,
+      ],
+    );
+  };
+
+  const url = (): string =>
+    `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive`;
+
+  // The window this suite's rows live in, and nothing else in the file does.
+  const WINDOW = 'from=2026-03-01T00:00:00.000Z&to=2026-03-03T12:00:00.000Z';
+
+  const get = async (
+    query: string,
+  ): Promise<{ status: number; body: Record<string, unknown>; text: string }> => {
+    const res = await fx.app.request(`${url()}?${WINDOW}&${query}`, {
+      method: 'GET',
+      headers: headers(fx.bob.userId),
+    });
+    const text = await res.text();
+    let body: Record<string, unknown> = {};
+    try {
+      body = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      body = {};
+    }
+    return { status: res.status, body, text };
+  };
+
+  beforeAll(async () => {
+    await seed({
+      // The biggest gross AND the biggest net, so that net P/L, gross profit and the default time order are three DIFFERENT sequences over these rows — a fixture where two of them coincide cannot tell the comparator's net arm from its neighbours.
+      symbol: 'AAAUSDT',
+      profit: '40',
+      feesQuote: '1',
+      feeBasis: 'exact',
+      source: 'auto',
+      exit: 'grid-sell',
+      archivedAt: '2026-03-01T00:00:00Z',
+      entryAt: '2026-02-28T00:00:00.000Z',
+      exitAt: '2026-03-01T00:00:00.000Z',
+    });
+    await seed({
+      symbol: 'BBBUSDT',
+      profit: '30',
+      feesQuote: '20',
+      feeBasis: 'exact',
+      source: 'manual',
+      exit: 'grid-stop-loss',
+      archivedAt: '2026-03-02T00:00:00Z',
+      entryAt: '2026-03-01T23:00:00.000Z',
+      exitAt: '2026-03-02T00:00:00.000Z',
+    });
+    await seed({
+      symbol: 'CCCUSDT',
+      profit: '20',
+      feesQuote: '0',
+      feeBasis: 'exact',
+      source: 'auto',
+      exit: 'grid-sell',
+      archivedAt: '2026-03-03T00:00:00Z',
+    });
+  });
+
+  it('orders by net P/L, which is a different order from both the default and gross profit', async () => {
+    const { status, body } = await get('sort=netProfit&dir=desc');
+    expect(status).toBe(200);
+    const symbols = (body['items'] as { symbol: string }[]).map((i) => i.symbol);
+    // Net: AAA 39, CCC 20, BBB 10.
+    expect(symbols).toEqual(['AAAUSDT', 'CCCUSDT', 'BBBUSDT']);
+    // Gross: AAA 40, BBB 30, CCC 20 — BBB's 20 of fees is the whole difference between the two orders.
+    const gross = await get('sort=profit&dir=desc');
+    expect((gross.body['items'] as { symbol: string }[]).map((i) => i.symbol)).toEqual([
+      'AAAUSDT',
+      'BBBUSDT',
+      'CCCUSDT',
+    ]);
+    // And the default `archivedAt desc` is a third sequence, so neither of the above can be satisfied by an ordering that ignores its key.
+    const byTime = await get('sort=archivedAt&dir=desc');
+    expect((byTime.body['items'] as { symbol: string }[]).map((i) => i.symbol)).toEqual([
+      'CCCUSDT',
+      'BBBUSDT',
+      'AAAUSDT',
+    ]);
+  });
+
+  it('sorts the rows that cannot prove a hold to the end under BOTH directions', async () => {
+    // CCC carries no stamps. It is not a zero-length hold, so it must not win "shortest" either.
+    const desc = await get('sort=holdMs&dir=desc');
+    expect((desc.body['items'] as { symbol: string }[]).at(-1)?.symbol).toBe('CCCUSDT');
+    const asc = await get('sort=holdMs&dir=asc');
+    expect((asc.body['items'] as { symbol: string }[]).at(-1)?.symbol).toBe('CCCUSDT');
+    // And the two stamped rows do flip, so the direction is not being ignored.
+    expect((asc.body['items'] as { symbol: string }[])[0]?.symbol).toBe('BBBUSDT');
+    expect((desc.body['items'] as { symbol: string }[])[0]?.symbol).toBe('AAAUSDT');
+  });
+
+  it('pages a derived ordering by offset and refuses a cursor minted under another one', async () => {
+    const first = await get('sort=netProfit&dir=desc&limit=1');
+    expect((first.body['items'] as { symbol: string }[])[0]?.symbol).toBe('AAAUSDT');
+    // A tag naming the whole sequence, then the position in it. The tag is opaque; what matters is that the offset is `1` and that the token round-trips.
+    const cursor = first.body['nextCursor'] as string;
+    expect(cursor).toMatch(/^[0-9a-f]{12}:1$/);
+
+    const second = await get(
+      `sort=netProfit&dir=desc&limit=1&cursor=${encodeURIComponent(cursor)}`,
+    );
+    expect((second.body['items'] as { symbol: string }[])[0]?.symbol).toBe('CCCUSDT');
+
+    // The same offset under a different key addresses a different row, silently. Refused instead.
+    const reSorted = await get(`sort=holdMs&dir=desc&limit=1&cursor=${encodeURIComponent(cursor)}`);
+    expect(reSorted.status).toBe(422);
+    // And the same key in the other direction, which is the reversed sequence.
+    const reversed = await get(
+      `sort=netProfit&dir=asc&limit=1&cursor=${encodeURIComponent(cursor)}`,
+    );
+    expect(reversed.status).toBe(422);
+    // And a keyset token, which cannot address anything in an in-memory ordering.
+    const keyset = await get(
+      'sort=netProfit&dir=desc&limit=1&cursor=2026-03-01T00%3A00%3A00.000000Z__00000000-0000-4000-8000-00000000ffff',
+    );
+    expect(keyset.status).toBe(422);
+  });
+
+  it('refuses an offset cursor replayed against a set a ROW FILTER has changed', async () => {
+    // An offset names a position, not a row, so it means nothing once the set it counts into changes. Under the old token — which carried the sort key and nothing else — adding a filter kept the page-2 offset and silently answered rows 1..n of a set that no longer had them, with no field in the response saying so. The keyset walk next door degrades safely because its token names a boundary ROW.
+    const first = await get('sort=netProfit&dir=desc&limit=1');
+    const cursor = first.body['nextCursor'] as string;
+    for (const added of ['symbol=AAAUSDT', 'exitIntent=grid-sell', 'source=auto']) {
+      const replayed = await get(
+        `sort=netProfit&dir=desc&limit=1&${added}&cursor=${encodeURIComponent(cursor)}`,
+      );
+      expect(replayed.status).toBe(422);
+    }
+  });
+
+  it('refuses an offset cursor replayed against a set the WINDOW has changed', async () => {
+    // The window decides which rows exist at all, so it is as much a part of the sequence as the ordering is. Built without the suite's shared window, because a repeated query key arrives as an array the string schema refuses.
+    const withWindow = async (
+      query: string,
+    ): Promise<{ status: number; body: Record<string, unknown> }> => {
+      const res = await fx.app.request(`${url()}?${query}`, {
+        method: 'GET',
+        headers: headers(fx.bob.userId),
+      });
+      return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+    };
+    const wide = await withWindow(
+      'from=2026-03-01T00:00:00.000Z&to=2026-03-03T12:00:00.000Z&sort=netProfit&dir=desc&limit=1',
+    );
+    const cursor = wide.body['nextCursor'] as string;
+    const narrowed = await withWindow(
+      `from=2026-03-02T00:00:00.000Z&to=2026-03-03T12:00:00.000Z&sort=netProfit&dir=desc&limit=1&cursor=${encodeURIComponent(cursor)}`,
+    );
+    expect(narrowed.status).toBe(422);
+  });
+
+  it('treats a cycle whose stamps run backwards as unstamped, in the sort AND on the row', async () => {
+    // A negative span is not a hold, it is two stamps that cannot both belong to this cycle. Reported as a number it wins "shortest" under an ascending hold sort and renders as `1m` on the row — the archive's fastest trade, fabricated. The contract's rollup already dropped it; the route's own copy of the rule did not.
+    await seed({
+      symbol: 'ZZZUSDT',
+      profit: '1',
+      feesQuote: '0',
+      feeBasis: 'exact',
+      source: 'auto',
+      exit: 'grid-sell',
+      archivedAt: '2026-03-03T06:00:00Z',
+      entryAt: '2026-03-03T06:00:00.000Z',
+      exitAt: '2026-03-03T05:00:00.000Z',
+    });
+    try {
+      const asc = await get('sort=holdMs&dir=asc');
+      const symbols = (asc.body['items'] as { symbol: string }[]).map((i) => i.symbol);
+      // Last, beside the row that carries no stamps at all — not first, which is where a -1h span sorts.
+      expect(symbols.at(0)).toBe('BBBUSDT');
+      expect(symbols.slice(-2).sort()).toEqual(['CCCUSDT', 'ZZZUSDT']);
+    } finally {
+      await fx.di.pool.query(`delete from trade_archive where symbol = 'ZZZUSDT'`);
+    }
+  });
+
+  it('reads a cycle’s exit instant off its closing SELL, not off the stored cycle_end', async () => {
+    // Two definitions of one instant. The forward writer falls back to the archive cutoff when a cycle has no closed sell to read, which is not an exit at all — so the Held column came off a different instant from the Avg-hold figure beside it, which reads `deriveExitAt` unconditionally. And the reported exit TIME now comes off the same order as the exit REASON.
+    await seed({
+      symbol: 'YYYUSDT',
+      profit: '1',
+      feesQuote: '0',
+      feeBasis: 'exact',
+      source: 'auto',
+      exit: 'grid-sell',
+      archivedAt: '2026-03-03T06:00:00Z',
+      entryAt: '2026-03-03T00:00:00.000Z',
+      exitAt: '2026-03-03T02:00:00.000Z',
+    });
+    await fx.di.pool.query(
+      `update trade_archive set cycle_end = '2026-03-03T09:00:00.000Z'::timestamptz where symbol = 'YYYUSDT'`,
+    );
+    try {
+      const { body } = await get('symbol=YYYUSDT');
+      const row = (body['items'] as { exitAt: string }[])[0];
+      expect(row?.exitAt).toBe('2026-03-03T02:00:00.000Z');
+    } finally {
+      await fx.di.pool.query(`delete from trade_archive where symbol = 'YYYUSDT'`);
+    }
+  });
+
+  it('narrows the list by exit reason without narrowing the rollups the operator drills from', async () => {
+    const { status, body } = await get('exitIntent=grid-stop-loss');
+    expect(status).toBe(200);
+    expect((body['items'] as { symbol: string }[]).map((i) => i.symbol)).toEqual(['BBBUSDT']);
+    // The bands still describe the whole period. A map redrawn to show only where the operator already clicked cannot be navigated back out of.
+    const intents = (body['byIntent'] as { intent: string }[]).map((b) => b.intent).sort();
+    expect(intents).toEqual(['grid-sell', 'grid-stop-loss']);
+  });
+
+  it('scopes both the list and the rollups to an explicit range, and echoes the window it used', async () => {
+    // Built without the suite's own window: a repeated query key arrives as an array, which the string schema refuses, so the two cannot be layered.
+    const res = await fx.app.request(
+      `${url()}?from=2026-03-02T00:00:00.000Z&to=2026-03-02T12:00:00.000Z`,
+      { method: 'GET', headers: headers(fx.bob.userId) },
+    );
+    const status = res.status;
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(status).toBe(200);
+    expect((body['items'] as { symbol: string }[]).map((i) => i.symbol)).toEqual(['BBBUSDT']);
+    expect((body['byIntent'] as unknown[]).length).toBe(1);
+    expect(body['from']).toBe('2026-03-02T00:00:00.000Z');
+    expect(body['to']).toBe('2026-03-02T12:00:00.000Z');
+  });
+
+  it('refuses an inverted range instead of answering it as an empty archive', async () => {
+    const res = await fx.app.request(
+      `${url()}?from=2026-03-03T00:00:00.000Z&to=2026-03-01T00:00:00.000Z`,
+      { method: 'GET', headers: headers(fx.bob.userId) },
+    );
+    expect(res.status).toBe(422);
+  });
+
+  it('exports NDJSON restricted to the active filter, one JSON object per line', async () => {
+    const res = await fx.app.request(
+      `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive/export?${WINDOW}&source=auto&sort=netProfit&dir=desc`,
+      { method: 'GET', headers: headers(fx.bob.userId) },
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/x-ndjson');
+    expect(res.headers.get('content-disposition')).toContain('attachment');
+    const lines = (await res.text()).trim().split('\n');
+    const rows = lines.map((l) => JSON.parse(l) as { symbol: string; netProfit: string });
+    // The two auto rows only, in the requested order — the manual one is excluded exactly as the screen excluded it. Net puts AAA (39) ahead of CCC (20); the default time order would have reversed the pair.
+    expect(rows.map((r) => r.symbol)).toEqual(['AAAUSDT', 'CCCUSDT']);
+    expect(rows[0]?.netProfit).toBe('39');
+  });
+
+  it('reads the export on one pooled connection, under the same budget as the page', async () => {
+    // The export runs `listForProfileInRange`, the unpaginated whole-period read the archive budget exists for, and it defaults to the entire archive because `period` defaults to 'a' and `to` is optional. Unbudgeted it is a worse version of the page: a handful in flight hold the api pool's ten connections for as long as Postgres will run the query, and every other route queues behind them until its 5s checkout deadline turns into a 503. On a LIVE_DEMO box `requireUser` passes for an anonymous caller, so the requests need no credential.
+    // Asserted from the pool rather than from the response for the same reason the page's twin is: a 200 says nothing about how many connections it took or whether a budget was ever armed.
+    const { peak, statements } = await recordPoolCheckouts(fx.di.pool, async () => {
+      const res = await fx.app.request(
+        `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive/export`,
+        { method: 'GET', headers: headers(fx.bob.userId) },
+      );
+      expect(res.status).toBe(200);
+      // Drain the stream: the reads finish before `stream()` is called, but leaving the body unread can end the request while the recorder is still watching.
+      await res.text();
+    });
+
+    expect.soft(peak).toBe(1);
+    expect.soft(statements.some((s) => s.includes("set_config('statement_timeout'"))).toBe(true);
+  });
+
+  it('serves one cycle its fills without the raw exchange payload, and hides another profile’s row', async () => {
+    const list = await get('symbol=AAAUSDT');
+    const id = (list.body['items'] as { id: string }[])[0]?.id ?? '';
+    const res = await fx.app.request(
+      `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive/${id}`,
+      { method: 'GET', headers: headers(fx.bob.userId) },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { id: string; orders: Record<string, unknown>[] };
+    expect(body.id).toBe(id);
+    expect(body.orders).toHaveLength(2);
+    const sell = body.orders.find((o) => o['side'] === 'SELL');
+    expect(sell?.['intent']).toBe('grid-sell');
+    expect(sell?.['cummulativeQuoteQty']).toBe('105');
+    // The reason the list ships no `orders` at all: each stored element embeds the whole exchange payload.
+    expect('raw' in (sell ?? {})).toBe(false);
+
+    // Alice cannot read Charlie's row, and gets the same answer as for a row that does not exist.
+    const cross = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/trade-archive/${id}`,
+      { method: 'GET', headers: headers(fx.alice.userId) },
+    );
+    expect(cross.status).toBe(404);
+  });
+
+  it('rejects the export and the detail read without a session', async () => {
+    // Both live under a path the list's own `use` does not cover, so the middleware line that covers them is load-bearing on its own.
+    const anonExport = await fx.app.request(
+      `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive/export`,
+      { method: 'GET' },
+    );
+    expect(anonExport.status).toBe(401);
+    const anonDetail = await fx.app.request(
+      `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive/00000000-0000-4000-8000-00000000aaaa`,
+      { method: 'GET' },
+    );
+    expect(anonDetail.status).toBe(401);
   });
 });

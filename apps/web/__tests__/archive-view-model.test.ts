@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   bucketPnl,
+  holdMsOf,
   rowPnl,
   sharesOfPnl,
   type ArchiveRowPnlFields,
@@ -24,9 +25,16 @@ function row(partial: Partial<ArchiveRowPnlFields> = {}): ArchiveRowPnlFields {
   };
 }
 
-/** A rollup bucket carrying only the fields the basis resolver reads. */
-function bucket(quoteAsset: string, profitSum: string, netProfit: string, feeBasis = 'exact') {
-  return { quoteAsset, profitSum, netProfit, feeBasis };
+/** A rollup bucket carrying only the fields the basis resolver reads. `netTradeCount` follows the producer's own invariant — a bucket reports `unknown` exactly when it could value no row — so the tier argument alone still describes the whole bucket, and a partial one is spelled out with both counts. */
+function bucket(
+  quoteAsset: string,
+  profitSum: string,
+  netProfit: string,
+  feeBasis = 'exact',
+  tradeCount = 4,
+  netTradeCount = feeBasis === 'unknown' ? 0 : tradeCount,
+) {
+  return { quoteAsset, profitSum, netProfit, tradeCount, netTradeCount, feeBasis };
 }
 
 /** The percent of an available row, or `null` when the row reports no P/L. */
@@ -182,14 +190,39 @@ describe.each(['net', 'gross'] as const)(
 describe('bucketPnl', () => {
   it('selects the net sum under net and the gross sum under gross', () => {
     const b = bucket('USDT', '394', '380');
-    expect(bucketPnl(b, 'net')).toBe('380');
-    expect(bucketPnl(b, 'gross')).toBe('394');
+    expect(bucketPnl(b, 'net')).toEqual({ pnl: '380', covered: 4, excluded: 0 });
+    expect(bucketPnl(b, 'gross')).toEqual({ pnl: '394', covered: 4, excluded: 0 });
   });
 
-  it('withholds an incomplete net subtotal but keeps the recorded sum', () => {
-    const b = bucket('USDT', '394', '380', 'unknown');
-    expect(bucketPnl(b, 'net')).toBeNull();
-    expect(bucketPnl(b, 'gross')).toBe('394');
+  it('withholds Net only when nothing was valued, and states the coverage when something was', () => {
+    const none = bucket('USDT', '394', '380', 'unknown');
+    expect(bucketPnl(none, 'net')).toBeNull();
+    expect(bucketPnl(none, 'gross')).toEqual({ pnl: '394', covered: 4, excluded: 0 });
+    // The case the old rule blanked outright: three of the four cycles carried fee evidence, so the figure stands with the rows it covers attached to it rather than being withheld to avoid disclosing a partial one.
+    const partial = bucket('USDT', '394', '300', 'exact', 4, 3);
+    expect(bucketPnl(partial, 'net')).toEqual({ pnl: '300', covered: 3, excluded: 1 });
+    // Recorded spans every row whatever the fee evidence says, so it can never exclude one.
+    expect(bucketPnl(partial, 'gross')).toEqual({ pnl: '394', covered: 4, excluded: 0 });
+  });
+});
+
+describe('holdMsOf', () => {
+  it('measures the span between the two derived stamps', () => {
+    expect(
+      holdMsOf({ entryAt: '2026-08-20T00:00:00.000Z', exitAt: '2026-08-20T02:00:00.000Z' }),
+    ).toBe(2 * 60 * 60 * 1000);
+  });
+
+  it('is null when either end is unstamped', () => {
+    expect(holdMsOf({ entryAt: null, exitAt: '2026-08-20T02:00:00.000Z' })).toBeNull();
+    expect(holdMsOf({ entryAt: '2026-08-20T00:00:00.000Z', exitAt: null })).toBeNull();
+  });
+
+  it('drops a NEGATIVE span, the same as the API and the rollup do', () => {
+    // This copy once lacked the guard the contract's version carries, so a row whose stamps run backwards sorted first under an ascending hold sort and rendered as `1m` — `formatHoldDuration`'s floor, whose own doc says it never renders a fabricated instant hold.
+    expect(
+      holdMsOf({ entryAt: '2026-08-20T02:00:00.000Z', exitAt: '2026-08-20T00:00:00.000Z' }),
+    ).toBeNull();
   });
 });
 
@@ -215,10 +248,24 @@ describe('sharesOfPnl', () => {
     expect(net).not.toEqual(gross);
   });
 
-  it('withholds every Net share in a quote group when one bucket is incomplete', () => {
+  it('keeps the Net shares of a group in which at least one bucket valued a row', () => {
+    // One unvalued bucket used to blank the share of every sibling in its quote coin. The buckets that did value their rows keep theirs; the one that valued nothing withholds its own, because a zero share renders as "0% of P/L" — a positive claim that it contributed nothing, where the truth is that nobody knows what it contributed.
     const mixed = [bucket('USDT', '75', '70'), bucket('USDT', '25', '20', 'unknown')];
-    expect(sharesOfPnl(mixed, 'net').map((b) => b.share)).toEqual([null, null]);
+    expect(sharesOfPnl(mixed, 'net').map((b) => b.share)).toEqual([100, null]);
     expect(sharesOfPnl(mixed, 'gross').map((b) => b.share)).toEqual([75, 25]);
+  });
+
+  it('keeps a genuine zero share distinct from a withheld one', () => {
+    // Anchors the case above. A bucket that valued its rows and made exactly nothing DID contribute zero, and that is a measurement — withholding it too would erase the difference the null exists to carry.
+    const zeroed = [bucket('USDT', '100', '100'), bucket('USDT', '0', '0')];
+    expect(sharesOfPnl(zeroed, 'net').map((b) => b.share)).toEqual([100, 0]);
+  });
+
+  it('withholds every Net share in a quote group where nothing could be valued', () => {
+    // The arm that survives: with no valued row anywhere in the coin there is no pool, so a percentage of it would be a portion of nothing.
+    const none = [bucket('USDT', '75', '0', 'unknown'), bucket('USDT', '25', '0', 'unknown')];
+    expect(sharesOfPnl(none, 'net').map((b) => b.share)).toEqual([null, null]);
+    expect(sharesOfPnl(none, 'gross').map((b) => b.share)).toEqual([75, 25]);
   });
 
   it('counts losers toward the total, so a share is a portion of all the action', () => {

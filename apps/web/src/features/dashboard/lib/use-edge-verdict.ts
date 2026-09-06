@@ -23,7 +23,8 @@ export function useEdgeVerdict(profileId: string): ReturnType<typeof assessEdgeD
   });
   const archive = useQuery({
     queryKey: ['trade-archive', profileId, 'a', timeZone, 'rollup', 'scorecard'],
-    queryFn: () => fetchProfileArchive(profileId, 'a', null, timeZone, 'rollup'),
+    queryFn: () =>
+      fetchProfileArchive(profileId, { period: 'a', cursor: null, tz: timeZone, view: 'rollup' }),
     refetchInterval: 60_000,
   });
   const baselineId = profile.data?.baselineBacktestRunId ?? null;
@@ -48,6 +49,7 @@ export function useEdgeVerdict(profileId: string): ReturnType<typeof assessEdgeD
     hasBaseline: baselineId !== null && !!baseline.data?.result,
     baselineProfitFactor: baseline.data?.result?.metrics?.profitFactor ?? null,
     liveProfitFactor: profitFactorFromGross(bucket.grossProfit, bucket.grossLoss),
-    liveTradeCount: bucket.tradeCount,
+    // The same denominator the cron judges its sample floor against: the profit factor above spans the fee-valued cycles only, so a badge decided on the whole-window count would appear at a sample the alert channel considers too small to speak on.
+    liveTradeCount: bucket.netTradeCount,
   });
 }

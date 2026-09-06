@@ -11,7 +11,9 @@ import {
 /**
  * Trades, win rate, profit factor, payoff, and expectancy shared by the archive bands and the Home rollups. `∞` is an unbounded profit factor, payoff is average win divided by average loss, and negative expectancy means the edge loses money after costs.
  *
- * Which of the five render depends on the bucket's fee tier, and the split is not about confidence, it is about which statistics the missing fact can actually corrupt. Trade count is a count. Win rate is classified on the net subtotal, which is wrong by the same fee whichever way it moved, so the classification survives an unaccounted charge. The other three are ratios OF that fee-adjusted money, and an unaccounted charge only ever makes them look better — a fee that was paid and not recorded raises the profit factor, never lowers it. Withholding exactly those three is why the operator still gets the two figures that were always sound, where the whole line used to be replaced by a sentence.
+ * Which of them render depends on the bucket's fee tier, and the split is not about confidence, it is about which statistics the missing fact can actually corrupt. Trade count is a count, and survives anything. The other four are all read off the fee-adjusted money — win rate included, because a cycle counts as a win by clearing its fees — and a charge that was paid but never recorded only ever makes them look better. So at `unknown`, where no cycle in the bucket could be valued at all, the count is the only figure left; the win rate goes with the other three rather than standing beside a sentence saying the fees behind it were never read.
+ *
+ * At the two valued tiers the bucket may still hold cycles that were left out, and then the covered count is stated on the same line. That is the only place a reader learns the ratios and the trade count have different denominators.
  *
  * An `estimated` bucket renders all five and says so in words rather than a tint: the reader has to be able to repeat the caveat back, and a colour is invisible to a screen reader and to anyone reading this on a phone in daylight.
  *
@@ -21,9 +23,9 @@ import {
 export function RollupStatsLine({ bucket }: { bucket: RollupStatsBucket }): React.JSX.Element {
   // `?? 'unknown'` rather than a bare read: the tier is defaulted at the contract boundary, but a body that never went through it (an optimistic write, a fixture) leaves it undefined, and treating that silence as evidence is the direction this whole change exists to close.
   const feeBasis = bucket.feeBasis ?? 'unknown';
-  const counts = (
+  const trades = (
     <>
-      {bucket.tradeCount} trade{bucket.tradeCount === 1 ? '' : 's'} · {winPct(bucket)}% win
+      {bucket.tradeCount} trade{bucket.tradeCount === 1 ? '' : 's'}
     </>
   );
   if (feeBasis === 'unknown') {
@@ -32,19 +34,23 @@ export function RollupStatsLine({ bucket }: { bucket: RollupStatsBucket }): Reac
         className="text-[11px] text-muted-fg tabular-nums"
         data-testid="rollup-stats-incomplete"
       >
-        {counts} · fees not accounted
+        {trades} · fees not accounted
       </span>
     );
   }
+  // The rows every ratio below is folded over. A bucket that valued all of its cycles states nothing extra; one that valued some of them says which, because the trade count beside the ratios is not their denominator.
+  const covered = bucket.netTradeCount ?? bucket.tradeCount;
+  const excluded = bucket.tradeCount - covered;
   const pf = profitFactor(bucket);
   const payoff = payoffRatio(bucket);
   const exp = expectancy(bucket);
   return (
     <span className="text-[11px] text-muted-fg tabular-nums">
-      {counts} · PF {pf === null ? '∞' : formatProfitFactor(pf)}
+      {trades} · {winPct(bucket)}% win · PF {pf === null ? '∞' : formatProfitFactor(pf)}
       {payoff !== null ? ` · payoff ${payoff.toFixed(2)}` : ''}
       {exp !== null ? ` · exp ${formatExpectancy(exp)}/trade` : ''}
       {feeBasis === 'estimated' ? ' · estimated' : ''}
+      {excluded > 0 ? ` · ${covered} of ${bucket.tradeCount} cycles` : ''}
     </span>
   );
 }

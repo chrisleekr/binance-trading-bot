@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
   asDecimalString,
   decimalAdd,
+  decimalCompare,
   decimalMul,
   decimalString,
   DecimalString,
@@ -292,5 +293,21 @@ describe('decimalString', () => {
       expect(re.test('0')).toBe(true);
       expect(re.test('')).toBe(false);
     });
+  });
+});
+
+describe('decimalCompare', () => {
+  it('orders by value, where a text sort would put 9 above 10', () => {
+    const sorted = ['9', '10', '2'].sort(decimalCompare);
+    expect(sorted).toEqual(['2', '9', '10']);
+  });
+
+  it('ties two spellings of the same amount, and separates two a double cannot', () => {
+    expect(decimalCompare('1.0', '1')).toBe(0);
+    // Both collapse to the same IEEE-754 double, so a `Number` comparison reports them equal and a P/L ranking silently loses the difference.
+    const a = '9007199254740993';
+    const b = '9007199254740992';
+    expect(Number(a) - Number(b)).toBe(0);
+    expect(decimalCompare(a, b)).toBeGreaterThan(0);
   });
 });

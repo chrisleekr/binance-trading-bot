@@ -2,6 +2,8 @@
 //
 // `apps/web` is barred from decimal.js (lint-enforced), and that is not an oversight to repair here. Money stays a VERBATIM decimal string end to end and renders through `PnlValue`; only DISPLAY RATIOS — a percentage, a share of a total — go through plain `Number`, because a ratio is already a lossy summary and never becomes an order quantity. The same split is documented on `shared/lib/rollup-stats.ts`.
 
+import { holdMsBetween } from '@app/contracts';
+
 import type { PnlBasis } from '@/shared/hooks/use-pnl-basis';
 
 /** The fields of an archive row that a basis choice selects between, plus the two facts that can make a Net figure unusable: an un-costed sell, and a commission nobody accounted for. */
@@ -13,12 +15,21 @@ export interface ArchiveRowPnlFields {
   readonly feeBasis: string;
 }
 
-/** The fields of a rollup bucket that a basis choice selects between. `profitSum` is the Recorded cost-basis sum; `netProfit` applies the additional commission adjustment. */
+/** The fields of a rollup bucket that a basis choice selects between, plus the two counts saying how many rows each basis was summed over. `profitSum` is the Recorded cost-basis sum over every row; `netProfit` applies the additional commission adjustment and spans the `netTradeCount` rows whose fees were known. */
 export interface RollupBucketPnlFields {
   readonly quoteAsset: string;
   readonly profitSum: string;
   readonly netProfit: string;
+  readonly tradeCount: number;
+  readonly netTradeCount: number;
   readonly feeBasis: string;
+}
+
+/** A P/L figure with the rows it covers. `excluded > 0` means the reader is looking at a partial total and has to be told so on the same line. */
+export interface BucketPnl {
+  readonly pnl: string;
+  readonly covered: number;
+  readonly excluded: number;
 }
 
 /**
@@ -72,17 +83,27 @@ export function rowPnl(row: ArchiveRowPnlFields, basis: PnlBasis): RowPnl {
 }
 
 /**
- * The P/L amount a rollup bucket shows on one basis.
+ * The P/L amount a rollup bucket shows on one basis, with the row count it was summed over.
  *
- * Trivial on its own; it exists so the bands cannot resolve the basis by hand and drift from the rows the way the percentage did.
+ * It exists so the bands cannot resolve the basis by hand and drift from the rows the way the percentage did, and it now carries the denominator for the same reason: a partial total whose coverage is stated somewhere else is one edit away from being read as covering everything.
  *
- * @param bucket - The bucket's basis-selectable P/L sums.
- * @param basis - Which P/L the operator asked to see.
- * @returns The bucket's P/L as a verbatim decimal string, or null when Net was asked for on a bucket with a charge unaccounted.
+ * Net is withheld only when NOTHING in the bucket could be valued. A bucket holding one unvalued row among fifty reports the forty-nine-row figure and says so: a partial answer with a stated denominator is strictly more informative than `n/a`, and, unlike a silently partial total, cannot be misread as complete. The old rule withheld the whole answer to avoid disclosing a per-trade uncertainty of a few cents.
+ *
+ * @param bucket - The bucket's basis-selectable P/L sums and its two row counts.
+ * @param basis - Which P/L the operator asked to see: Net, or the legacy `gross` token displayed as Recorded.
+ * @returns The amount as a verbatim decimal string with the rows it covers and the rows it leaves out, or null when the Net basis has no valued row to sum.
  */
-export function bucketPnl(bucket: RollupBucketPnlFields, basis: PnlBasis): string | null {
-  if (basis === 'net' && bucket.feeBasis === 'unknown') return null;
-  return basis === 'net' ? bucket.netProfit : bucket.profitSum;
+export function bucketPnl(bucket: RollupBucketPnlFields, basis: PnlBasis): BucketPnl | null {
+  // Recorded needs no fee evidence, so it always covers the whole bucket and can never exclude a row.
+  if (basis !== 'net') {
+    return { pnl: bucket.profitSum, covered: bucket.tradeCount, excluded: 0 };
+  }
+  if (bucket.netTradeCount === 0) return null;
+  return {
+    pnl: bucket.netProfit,
+    covered: bucket.netTradeCount,
+    excluded: bucket.tradeCount - bucket.netTradeCount,
+  };
 }
 
 /**
@@ -92,7 +113,7 @@ export function bucketPnl(bucket: RollupBucketPnlFields, basis: PnlBasis): strin
  *
  * @param buckets - The rollup buckets to decorate, in render order; grouping is by their `quoteAsset`.
  * @param basis - Which P/L the shares are a portion of: Net, or the legacy `gross` token displayed as Recorded.
- * @returns The same buckets in the same order, each carrying a whole-number share (or null when its quote group has a charge unaccounted) and the list-wide `multiQuote` flag.
+ * @returns The same buckets in the same order, each carrying a whole-number share (or null when the bucket itself could value no row, so its contribution is unknown rather than zero) and the list-wide `multiQuote` flag.
  */
 export function sharesOfPnl<T extends RollupBucketPnlFields>(
   buckets: readonly T[],
@@ -102,18 +123,17 @@ export function sharesOfPnl<T extends RollupBucketPnlFields>(
   const quoteAssets = new Set(buckets.map((b) => b.quoteAsset));
 
   for (const quoteAsset of quoteAssets) {
-    const groupIndexes = buckets
-      .map((bucket, index) => ({ bucket, index }))
-      .filter(({ bucket }) => bucket.quoteAsset === quoteAsset);
-    if (basis === 'net' && groupIndexes.some(({ bucket }) => bucket.feeBasis === 'unknown')) {
-      for (const { index } of groupIndexes) shares[index] = null;
-      continue;
-    }
+    // One unvalued row among a group's siblings no longer costs the whole group its shares; the magnitudes below come from `bucketPnl`, so each bucket contributes exactly the rows it could value. A group that valued nothing yields no shares at all, because then there is no pool to take a portion of — which falls out of the per-bucket withholding below rather than needing its own gate.
     const group: { index: number; magnitude: number }[] = [];
     buckets.forEach((b, index) => {
-      if (b.quoteAsset === quoteAsset) {
-        group.push({ index, magnitude: absMagnitude(bucketPnl(b, basis) ?? '0') });
+      if (b.quoteAsset !== quoteAsset) return;
+      const pnl = bucketPnl(b, basis);
+      // A bucket that valued nothing is withheld outright rather than coerced to a zero magnitude. Coercing it apportioned it 0% and rendered "0% of P/L", which is a positive claim that this exit reason contributed nothing — the opposite of "nobody knows what it contributed". It stays out of the pool for the same reason: it has no known magnitude to be a share of.
+      if (pnl === null) {
+        shares[index] = null;
+        return;
       }
+      group.push({ index, magnitude: absMagnitude(pnl.pnl) });
     });
     const total = group.reduce((sum, g) => sum + g.magnitude, 0);
     if (total === 0) continue;
@@ -164,3 +184,16 @@ export function unavailablePnlLabel(reason: 'cost-basis' | 'fees'): string {
 export function unavailablePnlGlyph(reason: 'cost-basis' | 'fees'): string {
   return reason === 'fees' ? 'net n/a' : 'n/a';
 }
+
+/**
+ * How long a cycle was held, from the first buy that filled to the sell that closed it.
+ *
+ * The span rule itself lives in `@app/contracts` and is shared with the API's sort key and the rollup's average hold: a copy here once dropped the negative-span guard, so a row whose two stamps cannot both belong to it sorted first under an ascending hold sort and rendered as `1m`, the shortest hold `formatHoldDuration` can express.
+ *
+ * @param row - Any archive row carrying the two derived stamps.
+ * @returns Elapsed milliseconds, or null when the row cannot prove its hold.
+ */
+export const holdMsOf = (row: {
+  readonly entryAt: string | null;
+  readonly exitAt: string | null;
+}): number | null => holdMsBetween(row.entryAt, row.exitAt);

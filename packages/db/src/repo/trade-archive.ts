@@ -95,32 +95,25 @@ export async function listForProfilePaginated(
 }
 
 /**
- * Every archive row for the profile in `[from, ∞)` (or all-time when `from` is `null`), projected to just the columns the archive rollups need: `quoteAsset`, `source`, `profit`, and the archived `orders` (the by-intent rollup derives each row's exit intent from the SELL that closed the cycle, i.e. the one with the greatest `closedAt`; the by-source rollup groups on `source`). Unpaginated on purpose: the rollup is period-scoped (the whole window, not the visible page), and a profile's archive is small enough to read in full. The caller owns the period boundary, matching {@link listForProfilePaginated}.
+ * Every archive row for the profile inside `[from, to]`, all-time on either bound when it is `null`. Unpaginated on purpose: the rollup is period-scoped (the whole window, not the visible page), and a profile's archive is small enough to read in full. The caller owns the period boundary, matching {@link listForProfilePaginated}.
+ *
+ * Whole rows, not the four rollup inputs it once projected. The archive page sorts and filters this same set on keys no index carries (net P/L, hold duration), and a narrow projection would force a second whole-period read to turn the winning rows back into list items. One read, one row shape.
+ *
+ * @param scope - Ownership-proven profile scope; the read is filtered by its `profileId`.
+ * @param from - Inclusive lower bound on `archived_at`, or `null` for no lower bound.
+ * @param to - Inclusive upper bound on `archived_at`, or `null` for no upper bound. Inclusive so a window the caller built from a period boundary keeps the row that landed exactly on it.
+ * @returns Every matching row, unordered — the caller owns the ordering, which for this reader is never `archived_at` alone.
  */
 export async function listForProfileInRange(
   scope: ProfileScope,
   from: Date | null,
-): Promise<
-  {
-    quoteAsset: string;
-    source: SymbolSource;
-    profit: string;
-    feesQuote: string;
-    feeBasis: FeeBasis;
-    orders: unknown;
-  }[]
-> {
+  to: Date | null = null,
+): Promise<TradeArchiveRow[]> {
   const conditions = [eq(tradeArchive.profileId, scope.profileId)];
   if (from !== null) conditions.push(gte(tradeArchive.archivedAt, from));
+  if (to !== null) conditions.push(lte(tradeArchive.archivedAt, to));
   return scope.db
-    .select({
-      quoteAsset: tradeArchive.quoteAsset,
-      source: tradeArchive.source,
-      profit: tradeArchive.profit,
-      feesQuote: tradeArchive.feesQuote,
-      feeBasis: tradeArchive.feeBasis,
-      orders: tradeArchive.orders,
-    })
+    .select()
     .from(tradeArchive)
     .where(and(...conditions));
 }
@@ -142,18 +135,25 @@ const canonicalQuote = (quoteAsset: string): string => quoteAsset.toUpperCase();
  *
  * Typed as {@link FeeBasis} rather than `string`, which is a narrowing this expression actually earns: the value is read out of a three-element literal array and defaulted from a literal, so no column value can reach the caller unmapped — unlike a raw column read, where the cast would be a wish.
  *
- * Ranked inline rather than through a helper function: a per-row function call inside an aggregate is not something Postgres can plan around, and the ranking is three literals. An unrecognised value ranks lowest, matching the TS fold, so a tier this build does not know about is reported as the weakest rather than silently trusted. The empty set yields NULL from `min`, which the coalesce turns into `exact` — nothing was read, so there is nothing to distrust, and that is the reading `coalesce(bool_and(...), true)` already had.
+ * Ranked inline rather than through a helper function: a per-row function call inside an aggregate is not something Postgres can plan around, and the ranking is three literals. Only the two valued tiers rank; `unknown` and any value this build does not recognise map to NULL and drop out of the `min`, because those rows are not in the money sums beside this either, so letting them weaken the tier would report a Net figure they never contributed to as untrustworthy.
+ *
+ * The two empty sets are different facts and must not collapse. No rows matched at all: nothing was read, so there is nothing to distrust and the tier is `exact`, matching what `summarizeClosedTrades` returns for empty input. Rows matched but none was valued: the `min` is NULL and the tier is `unknown`, because here the caller must be able to tell "nothing to distrust" from "nothing to trust". Only the ungrouped aggregates can hit the first case, since a GROUP BY emits no row for an empty group.
  */
-const weakestFeeBasisAgg = sql<FeeBasis>`coalesce(
+const weakestFeeBasisAgg = sql<FeeBasis>`case when count(*) = 0 then 'exact' else coalesce(
     (array['unknown', 'estimated', 'exact'])[
       min(case ${tradeArchive.feeBasis}
-            when 'unknown' then 1
             when 'estimated' then 2
             when 'exact' then 3
-            else 1 end)
+            else null end)
     ],
-    'exact'
-  )`;
+    'unknown'
+  ) end`;
+
+/** Rows in the group that carry fee evidence, i.e. the denominator of every Net figure beside them. A row whose fees are missing outright has a real cost-basis result but no net one, so it counts in `tradeCount` and in nothing below it. */
+const netTradeCountAgg = sql<number>`count(*) filter (where ${tradeArchive.feeBasis} <> 'unknown')::int`;
+
+/** The rows a Net figure may be summed over. Every fee-derived aggregate filters on this so the whole Net leg shares one denominator: summing an unvalued row's profit into `netProfit` while its missing fee stays out of `totalFees` charges the valued rows' fees against it. */
+const valuedRow = sql`${tradeArchive.feeBasis} <> 'unknown'`;
 
 /**
  * Every money figure a realised-P/L aggregate returns, tagged with the currency it is counted in.
@@ -175,6 +175,8 @@ export interface RealizedTotals {
   readonly feeBasis: FeeBasis;
   /** Archived CYCLES matched, not orders and not symbols. */
   readonly tradeCount: number;
+  /** Matched cycles carrying fee evidence: the denominator of `totalFees`, `netProfit` and any win/loss split beside them. Equal to `tradeCount` when every matched row was valued, and `0` when none was, which is the only state in which `feeBasis` reads `unknown` on a non-empty window. */
+  readonly netTradeCount: number;
 }
 
 /**
@@ -202,10 +204,11 @@ export async function sumProfitInRange(
         when coalesce(sum(${tradeArchive.totalBuyQuote}), 0) = 0 then '0'
         else round(coalesce(sum(${tradeArchive.profit}), 0)
               / sum(${tradeArchive.totalBuyQuote}) * 100, 8)::text end`,
-      totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}), 0)::text`,
-      netProfit: sql<string>`coalesce(sum(${tradeArchive.profit} - ${tradeArchive.feesQuote}), 0)::text`,
+      totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}) filter (where ${valuedRow}), 0)::text`,
+      netProfit: sql<string>`coalesce(sum(${tradeArchive.profit} - ${tradeArchive.feesQuote}) filter (where ${valuedRow}), 0)::text`,
       feeBasis: weakestFeeBasisAgg,
       tradeCount: sql<number>`count(*)::int`,
+      netTradeCount: netTradeCountAgg,
     })
     .from(tradeArchive)
     .where(
@@ -224,6 +227,7 @@ export async function sumProfitInRange(
     netProfit: rows[0]?.netProfit ?? '0',
     feeBasis: rows[0]?.feeBasis ?? 'exact',
     tradeCount: rows[0]?.tradeCount ?? 0,
+    netTradeCount: rows[0]?.netTradeCount ?? 0,
   };
 }
 
@@ -326,12 +330,13 @@ export async function sumProfitInRangeForSource(
         when coalesce(sum(${tradeArchive.totalBuyQuote}), 0) = 0 then '0'
         else round(coalesce(sum(${tradeArchive.profit}), 0)
               / sum(${tradeArchive.totalBuyQuote}) * 100, 8)::text end`,
-      totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}), 0)::text`,
-      netProfit: sql<string>`coalesce(sum(${tradeArchive.profit} - ${tradeArchive.feesQuote}), 0)::text`,
+      totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}) filter (where ${valuedRow}), 0)::text`,
+      netProfit: sql<string>`coalesce(sum(${tradeArchive.profit} - ${tradeArchive.feesQuote}) filter (where ${valuedRow}), 0)::text`,
       feeBasis: weakestFeeBasisAgg,
       tradeCount: sql<number>`count(*)::int`,
-      // Classification uses the known Net subtotal; consumers read `feeBasis` before presenting it as exact.
-      wins: sql<number>`count(*) filter (where ${tradeArchive.profit} - ${tradeArchive.feesQuote} > 0)::int`,
+      netTradeCount: netTradeCountAgg,
+      // Classification uses the known Net subtotal, over the valued rows only: an unvalued row's net is its gross, so counting it here would classify a win off a fee that was never read.
+      wins: sql<number>`count(*) filter (where ${valuedRow} and ${tradeArchive.profit} - ${tradeArchive.feesQuote} > 0)::int`,
     })
     .from(tradeArchive)
     .where(
@@ -351,6 +356,7 @@ export async function sumProfitInRangeForSource(
     netProfit: rows[0]?.netProfit ?? '0',
     feeBasis: rows[0]?.feeBasis ?? 'exact',
     tradeCount: rows[0]?.tradeCount ?? 0,
+    netTradeCount: rows[0]?.netTradeCount ?? 0,
     wins: rows[0]?.wins ?? 0,
   };
 }
@@ -395,16 +401,18 @@ export async function sumProfitInRangeBySource(
         when coalesce(sum(${tradeArchive.totalBuyQuote}), 0) = 0 then '0'
         else round(coalesce(sum(${tradeArchive.profit}), 0)
               / sum(${tradeArchive.totalBuyQuote}) * 100, 8)::text end`,
-      totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}), 0)::text`,
-      netProfit: sql<string>`coalesce(sum(${net}), 0)::text`,
+      totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}) filter (where ${valuedRow}), 0)::text`,
+      netProfit: sql<string>`coalesce(sum(${net}) filter (where ${valuedRow}), 0)::text`,
       feeBasis: weakestFeeBasisAgg,
       tradeCount: sql<number>`count(*)::int`,
+      netTradeCount: netTradeCountAgg,
       // Classified on ${net} (= profit − fees_quote), NOT raw profit: a gross win
       // that did not clear its fees is a net loss. Do not revert these to `profit`.
-      wins: sql<number>`count(*) filter (where ${net} > 0)::int`,
-      losses: sql<number>`count(*) filter (where ${net} < 0)::int`,
-      grossProfit: sql<string>`coalesce(sum(${net}) filter (where ${net} > 0), 0)::text`,
-      grossLoss: sql<string>`coalesce(abs(sum(${net}) filter (where ${net} < 0)), 0)::text`,
+      // Restricted to the valued rows for the same reason the sums above are: an unvalued row's ${net} is its gross, so it would be classified against a fee nobody read.
+      wins: sql<number>`count(*) filter (where ${valuedRow} and ${net} > 0)::int`,
+      losses: sql<number>`count(*) filter (where ${valuedRow} and ${net} < 0)::int`,
+      grossProfit: sql<string>`coalesce(sum(${net}) filter (where ${valuedRow} and ${net} > 0), 0)::text`,
+      grossLoss: sql<string>`coalesce(abs(sum(${net}) filter (where ${valuedRow} and ${net} < 0)), 0)::text`,
     })
     .from(tradeArchive)
     .where(
@@ -418,6 +426,27 @@ export async function sumProfitInRangeBySource(
     .groupBy(tradeArchive.source)
     .orderBy(tradeArchive.source);
   return rows.map((r) => ({ quoteAsset: quote, ...r }));
+}
+
+/**
+ * One archive row by id, scoped to the profile that owns it.
+ *
+ * The `profileId` condition is what makes a row belonging to another profile answer `null` instead of 404-vs-200 leaking which ids exist. It is not redundant with the id being a uuid: a uuid is guessable enough to probe with, and the two failures must be indistinguishable.
+ *
+ * @param scope - Ownership-proven profile scope; a row outside it is invisible, not forbidden.
+ * @param archiveId - The row's uuid.
+ * @returns The whole row, or `null` when this profile has no such row.
+ */
+export async function findById(
+  scope: ProfileScope,
+  archiveId: string,
+): Promise<TradeArchiveRow | null> {
+  const rows = await scope.db
+    .select()
+    .from(tradeArchive)
+    .where(and(eq(tradeArchive.id, archiveId), eq(tradeArchive.profileId, scope.profileId)))
+    .limit(1);
+  return rows[0] ?? null;
 }
 
 export async function deleteById(scope: ProfileScope, archiveId: string): Promise<boolean> {
@@ -623,10 +652,7 @@ export async function summarizeArchiveSince(
       bd.breakdown as breakdown
     from totals, bd
   `);
-  // drizzle's `db.execute` shape: pg-style `{ rows }` on node-pg,
-  // postgres.js-style array directly. Normalise to a row pointer.
-  const r = (result as unknown as { rows?: unknown[] }).rows ?? (result as unknown as unknown[]);
-  const row = Array.isArray(r) ? (r[0] as Record<string, unknown> | undefined) : undefined;
+  const row = firstExecutedRow(result);
   if (!row) return null;
   const orderCount = Number(row['order_count']);
   if (!Number.isFinite(orderCount) || orderCount === 0) return null;

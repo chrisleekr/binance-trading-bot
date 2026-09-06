@@ -269,11 +269,14 @@ const buildDashboard = async (
       netProfit: all.netProfit as DecimalString,
       feeBasis: all.feeBasis,
       tradeCount: all.tradeCount,
-      winRate: all.tradeCount > 0 ? all.wins / all.tradeCount : 0,
+      netTradeCount: all.netTradeCount,
+      // Over the fee-valued rows, because `wins` counts only those: dividing by every matched cycle would report a rate whose numerator and denominator span different sets, and the excluded rows only ever make it look better.
+      winRate: all.netTradeCount > 0 ? all.wins / all.netTradeCount : 0,
       realizedProfit7d: last7.totalProfit as DecimalString,
       netProfit7d: last7.netProfit as DecimalString,
       feeBasis7d: last7.feeBasis,
       tradeCount7d: last7.tradeCount,
+      netTradeCount7d: last7.netTradeCount,
     },
     gauge: {
       deployedQuote: deployed as DecimalString,
@@ -377,10 +380,12 @@ export const discoveryRouter = (di: DI): ApiHono => {
         realizedProfitPercent: (auto?.totalProfitPercent ?? '0') as DecimalString,
         totalFees: (auto?.totalFees ?? '0') as DecimalString,
         netProfit: (auto?.netProfit ?? '0') as DecimalString,
-        // `exact` when the window held no auto rows at all: nothing was read, so there is nothing to distrust, which is the same empty-set reading the SQL fold uses.
+        // `exact` when the window held no auto rows at all: nothing was read, so there is nothing to distrust. A window that DID hold auto rows but valued none of them arrives as `unknown` from the SQL fold, which is the opposite fact and must not collapse into this one.
         feeBasis: auto?.feeBasis ?? 'exact',
         tradeCount: auto?.tradeCount ?? 0,
-        winRate: auto && auto.tradeCount > 0 ? auto.wins / auto.tradeCount : 0,
+        netTradeCount: auto?.netTradeCount ?? 0,
+        // Same denominator as `wins`, for the reason given on the all-time scoreboard above.
+        winRate: auto && auto.netTradeCount > 0 ? auto.wins / auto.netTradeCount : 0,
         bySource: ranged.map((r) => ({
           source: r.source,
           realizedProfit: r.totalProfit as DecimalString,
@@ -388,6 +393,7 @@ export const discoveryRouter = (di: DI): ApiHono => {
           netProfit: r.netProfit as DecimalString,
           feeBasis: r.feeBasis,
           tradeCount: r.tradeCount,
+          netTradeCount: r.netTradeCount,
           wins: r.wins,
           losses: r.losses,
           grossProfit: r.grossProfit as DecimalString,

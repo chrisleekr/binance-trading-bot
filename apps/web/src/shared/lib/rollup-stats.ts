@@ -13,6 +13,8 @@
  */
 export interface RollupStatsBucket {
   readonly tradeCount: number;
+  /** How many of `tradeCount` carried fee evidence, i.e. how many rows `wins`, `losses` and the two gross magnitudes were folded over. Optional because a fixture or a payload written before the second denominator shipped carries none; such a payload also arrives with no tier, which already routes it to the branch that withholds profit factor, payoff and expectancy, so the fallback below governs the win rate alone. */
+  readonly netTradeCount?: number;
   readonly wins: number;
   readonly losses: number;
   readonly grossProfit: string;
@@ -22,10 +24,16 @@ export interface RollupStatsBucket {
   readonly feeBasis?: string;
 }
 
-/** Win rate as a whole-number percent (wins / trades). A display ratio of counts, so Number is fine. */
+/**
+ * The rows the win/loss counts and the gross magnitudes were folded over: the fee-valued ones. Falling back to `tradeCount` rather than to zero, because a payload with no second denominator computed its counts over every row it had, so `tradeCount` is that payload's honest denominator — while zero would blank a real 12-trade win rate into `0% win`, fabricating a wrong number where the old code printed a right one.
+ */
+const netDenominator = (b: RollupStatsBucket): number => b.netTradeCount ?? b.tradeCount;
+
+/** Win rate as a whole-number percent (wins / fee-valued trades). A display ratio of counts, so Number is fine. Divides by the valued rows because `wins` counts only those: a rate whose numerator and denominator span different sets reads as a lower win rate the more rows went unvalued. */
 export function winPct(b: RollupStatsBucket): number {
-  if (b.tradeCount === 0) return 0;
-  return Math.round((b.wins / b.tradeCount) * 100);
+  const denominator = netDenominator(b);
+  if (denominator === 0) return 0;
+  return Math.round((b.wins / denominator) * 100);
 }
 
 /**
@@ -45,14 +53,17 @@ export function avgLoss(b: RollupStatsBucket): number | null {
 }
 
 /**
- * Expectancy: the average NET-of-fee profit per trade, `(grossProfit -
- * grossLoss) / tradeCount`. The single number that says whether the edge is
+ * Expectancy: the average NET-of-fee profit per trade over the fee-valued rows,
+ * `(grossProfit - grossLoss) / netTradeCount`. The single number that says whether the edge is
  * positive after costs — negative means each trade loses money on average.
- * `null` when there are no trades. A display ratio over verbatim decimal sums.
+ * `null` when no trade was valued. Both magnitudes span the valued rows only, so dividing by every
+ * row would shrink the average towards zero in proportion to how much evidence was missing.
+ * A display ratio over verbatim decimal sums.
  */
 export function expectancy(b: RollupStatsBucket): number | null {
-  if (b.tradeCount === 0) return null;
-  return (Number(b.grossProfit) - Number(b.grossLoss)) / b.tradeCount;
+  const denominator = netDenominator(b);
+  if (denominator === 0) return null;
+  return (Number(b.grossProfit) - Number(b.grossLoss)) / denominator;
 }
 
 /**

@@ -87,12 +87,14 @@ describeIfInfra('discovery router', () => {
       breakdown: {},
       source: 'auto' as const,
     };
-    // One win and one loss, both archived last month.
+    // One win and one loss, both archived last month, both with their commission proved — a win is a cycle that finished ahead AFTER commission, so a cycle that cannot state its fees is counted but never won or lost.
     await p.tradeArchive.insert({
       ...base,
       totalSellQuote: '105',
       profit: '5',
       orders: [{ side: 'BUY' }],
+      feesQuote: '0',
+      feeBasis: 'exact',
       archivedAt: new Date('2026-05-10T00:00:00Z'),
     });
     await p.tradeArchive.insert({
@@ -100,10 +102,11 @@ describeIfInfra('discovery router', () => {
       totalSellQuote: '97',
       profit: '-3',
       orders: [{ side: 'SELL' }],
+      feesQuote: '0',
+      feeBasis: 'exact',
       archivedAt: new Date('2026-05-11T00:00:00Z'),
     });
-    // A manual win — invisible to the auto-attributed top-level fields, but it
-    // must surface as its own slice in bySource.
+    // A manual cycle — invisible to the auto-attributed top-level fields, but it must surface as its own slice in bySource. It proves no commission, so it is the row that shows the two legs apart: counted and summed, but winning nothing.
     await p.tradeArchive.insert({
       ...base,
       source: 'manual' as const,
@@ -132,6 +135,7 @@ describeIfInfra('discovery router', () => {
       realizedProfit: string;
       feeBasis: string;
       tradeCount: number;
+      netTradeCount: number;
       wins: number;
       losses: number;
       grossProfit: string;
@@ -153,19 +157,23 @@ describeIfInfra('discovery router', () => {
     expect(allBody.tradeCount).toBe(2);
     expect(allBody.winRate).toBe(0.5);
     expect(Number(allBody.realizedProfit)).toBe(2);
-    expect(allBody.feeBasis).toBe('unknown');
+    // Auto-only, and that is what this asserts: the manual row in the same window proves no commission, so a fold that reached across sources would report `unknown` here.
+    expect(allBody.feeBasis).toBe('exact');
 
     // bySource carries both sources, ordered auto then manual, each with its
     // own win/loss split and gross magnitudes for the band's win% + PF.
     expect(allBody.bySource.map((s) => s.source)).toEqual(['auto', 'manual']);
     const auto = allBody.bySource.find((s) => s.source === 'auto');
-    expect(auto).toMatchObject({ tradeCount: 2, wins: 1, losses: 1 });
-    expect(auto?.feeBasis).toBe('unknown');
+    expect(auto).toMatchObject({ tradeCount: 2, netTradeCount: 2, wins: 1, losses: 1 });
+    expect(auto?.feeBasis).toBe('exact');
     expect(Number(auto?.grossProfit)).toBe(5);
     expect(Number(auto?.grossLoss)).toBe(3);
+    // The unvalued row: counted, and its P/L summed, but it wins nothing and contributes no gross magnitude — those are stated net of a commission it cannot prove.
     const manual = allBody.bySource.find((s) => s.source === 'manual');
-    expect(manual).toMatchObject({ tradeCount: 1, wins: 1, losses: 0 });
+    expect(manual).toMatchObject({ tradeCount: 1, netTradeCount: 0, wins: 0, losses: 0 });
+    expect(manual?.feeBasis).toBe('unknown');
     expect(Number(manual?.realizedProfit)).toBe(10);
+    expect(Number(manual?.grossProfit)).toBe(0);
     expect(Number(manual?.grossLoss)).toBe(0);
 
     // A current complete row proves a non-empty window can propagate true rather than defaulting every populated result to false.

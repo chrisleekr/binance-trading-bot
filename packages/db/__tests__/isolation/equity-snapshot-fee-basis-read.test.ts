@@ -62,4 +62,56 @@ describeIfDb('equity-snapshot fee-basis read', () => {
     // Named individually rather than by count: the caller has to be able to TELL the tiers apart to mark the line, and a read that returned three rows with one tier collapsed would pass a count assertion.
     expect(read.map((r) => r.feeBasis)).toEqual(['unknown', 'estimated', 'exact']);
   });
+
+  it('caps a long window to the requested point budget by thinning it, not by truncating it', async () => {
+    // The live profile already holds thousands of points over a couple of months and grows by ~96 a day, so "All time" has to come back bounded. Truncating to the newest N would draw a curve that silently starts in the middle of the window; the read buckets the span instead and keeps one real row per bucket.
+    const capFrom = new Date('2033-01-01T00:00:00Z');
+    const capTo = new Date('2033-01-02T00:00:00Z');
+    const values = Array.from({ length: 25 }, (_, i) =>
+      snapshotRow(
+        fx.alice.profileId,
+        new Date(capFrom.getTime() + i * 60 * 60 * 1000).toISOString(),
+        'exact',
+      ),
+    );
+    const inserted = await fx.db.insert(equitySnapshots).values(values).returning();
+    const insertedIds = new Set(inserted.map((r) => r.id));
+
+    const capped = await ap.equitySnapshots.listForProfileInRange('USDT', capFrom, capTo, 10);
+    expect(capped.length).toBeGreaterThan(0);
+    expect(capped.length).toBeLessThanOrEqual(10);
+    // Real rows, not synthesised averages: every point on the curve is a snapshot that was actually captured.
+    for (const row of capped) expect(insertedIds.has(row.id)).toBe(true);
+    // Ascending, and spanning the window rather than clustering at one end.
+    const times = capped.map((r) => r.capturedAt.getTime());
+    expect([...times].sort((a, b) => a - b)).toEqual(times);
+    // The newest snapshot in each bucket, so the last point is the state the window actually ended in — the one figure a cumulative curve must not approximate. The first point sits inside the first bucket rather than exactly on `capFrom` for the same reason.
+    expect(times.at(-1)).toBe(capTo.getTime());
+    expect(times[0]).toBeLessThan(capFrom.getTime() + 4 * 60 * 60 * 1000);
+    // Thinned across the window, not the newest N: the oldest kept point is far from the newest.
+    expect(times[0]).toBeLessThan(capFrom.getTime() + 12 * 60 * 60 * 1000);
+
+    // Under the budget, the read is the plain one and nothing is dropped.
+    const whole = await ap.equitySnapshots.listForProfileInRange('USDT', capFrom, capTo, 100);
+    expect(whole).toHaveLength(25);
+  });
+
+  it('honours a budget of one, where the bucket arithmetic alone overshoots', async () => {
+    // `limit = 1` collapses the `limit - 1` divisor to 1, so the bucket becomes the whole span — and `time_bucket` aligns to the EPOCH, not to the first row, so the two endpoints can fall either side of a boundary and come back as two rows against a cap of one. Every other limit is bounded by the arithmetic; this one is the arithmetic's blind spot, and it is a real request: a caller asking for a single representative point.
+    const oneFrom = new Date('2034-01-01T00:00:00Z');
+    const oneTo = new Date('2034-01-03T00:00:00Z');
+    await fx.db
+      .insert(equitySnapshots)
+      .values([
+        snapshotRow(fx.alice.profileId, '2034-01-01T00:00:00Z', 'exact'),
+        snapshotRow(fx.alice.profileId, '2034-01-02T00:00:00Z', 'exact'),
+        snapshotRow(fx.alice.profileId, '2034-01-03T00:00:00Z', 'exact'),
+      ]);
+
+    const one = await ap.equitySnapshots.listForProfileInRange('USDT', oneFrom, oneTo, 1);
+    expect(one).toHaveLength(1);
+    // Two is the budget that already worked, asserted beside it so a fix that clamped every read to a single row would not pass.
+    const two = await ap.equitySnapshots.listForProfileInRange('USDT', oneFrom, oneTo, 2);
+    expect(two).toHaveLength(2);
+  });
 });

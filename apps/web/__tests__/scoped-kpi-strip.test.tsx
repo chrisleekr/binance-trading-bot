@@ -60,6 +60,13 @@ const row = (
   ...overrides,
 });
 
+/** How many of a window's cycles a Net figure covers, and how many the window holds. Equal in every case that is not about coverage. */
+interface Coverage {
+  readonly tradeCount: number;
+  readonly netTradeCount: number;
+}
+const FULL: Coverage = { tradeCount: 4, netTradeCount: 4 };
+
 // Minimal discovery payload the scoped strip reads (gauge + scoreboard).
 const discovery = (
   feeBasis = 'exact',
@@ -68,6 +75,7 @@ const discovery = (
     maxAccountExposureQuote: '500',
     autoSymbolCount: 2,
   },
+  sevenDay: Coverage = { tradeCount: 0, netTradeCount: 0 },
 ): DiscoveryDashboardResponse =>
   ({
     config: { enabled: true } as DiscoveryDashboardResponse['config'],
@@ -78,11 +86,13 @@ const discovery = (
       netProfit: '12.5',
       feeBasis,
       tradeCount: 4,
+      netTradeCount: 4,
       winRate: 0.5,
       realizedProfit7d: '3.25',
       netProfit7d: '3.25',
       feeBasis7d: feeBasis,
-      tradeCount7d: 0,
+      tradeCount7d: sevenDay.tradeCount,
+      netTradeCount7d: sevenDay.netTradeCount,
     },
     gauge,
     quoteAsset: 'USDT',
@@ -101,9 +111,11 @@ const setUp = (
     seedScoreboard?: boolean;
     feeBasis?: string;
     gauge?: { deployedQuote: string; maxAccountExposureQuote: string; autoSymbolCount: number };
+    /** Coverage of the 'd' scoreboard and of the 7-day cell. Equal counts mean the figures cover the whole window. */
+    coverage?: Coverage;
   } = {},
 ): void => {
-  const { seedScoreboard = true, feeBasis = 'exact', gauge } = opts;
+  const { seedScoreboard = true, feeBasis = 'exact', gauge, coverage = FULL } = opts;
   // Focus is URL-driven now: `all` stays on the account overview; a profile id
   // routes to the per-profile page where the scoped strip renders.
   const focusId = scope === 'all' ? null : scope;
@@ -128,9 +140,20 @@ const setUp = (
   // (#504); seed 'd' and 'w' with distinct counts so a toggle is observable.
   queryClient.setQueryData(
     discoveryDashboardQueryKey(PID),
-    gauge ? discovery(feeBasis, gauge) : discovery(feeBasis),
+    gauge
+      ? discovery(feeBasis, gauge, coverage)
+      : discovery(
+          feeBasis,
+          { deployedQuote: '120', maxAccountExposureQuote: '500', autoSymbolCount: 2 },
+          coverage,
+        ),
   );
-  const scoreboard = (period: string, tradeCount: number, winRate: number) => ({
+  const scoreboard = (
+    period: string,
+    tradeCount: number,
+    winRate: number,
+    netTradeCount = tradeCount,
+  ) => ({
     period,
     tz: 'UTC',
     from: '2026-06-04T00:00:00.000Z',
@@ -141,6 +164,8 @@ const setUp = (
     netProfit: '12.5',
     feeBasis,
     tradeCount,
+    // The API cannot emit `unknown` beside a non-zero valued count: the tier reaches `unknown` only when no row in the window could be valued at all. A fixture that pairs them would let a gate keyed on either one pass.
+    netTradeCount: feeBasis === 'unknown' ? 0 : netTradeCount,
     winRate,
     // Discovery is the edge here (3 wins, no losers → PF ∞); manual is the drag
     // (1 win 1 loss, gross 1 vs 2 → PF 0.5, the sub-1 path).
@@ -152,6 +177,7 @@ const setUp = (
         netProfit: '12.5',
         feeBasis,
         tradeCount: 3,
+        netTradeCount: feeBasis === 'unknown' ? 0 : 3,
         wins: 3,
         losses: 0,
         grossProfit: '12.5',
@@ -164,6 +190,7 @@ const setUp = (
         netProfit: '-1',
         feeBasis,
         tradeCount: 2,
+        netTradeCount: feeBasis === 'unknown' ? 0 : 2,
         wins: 1,
         losses: 1,
         grossProfit: '1',
@@ -175,7 +202,10 @@ const setUp = (
   // TimezoneProvider) — the server cuts the period boundaries in it, so it is
   // part of the key.
   if (seedScoreboard) {
-    queryClient.setQueryData(['discovery-scoreboard', PID, 'd', 'UTC'], scoreboard('d', 4, 0.5));
+    queryClient.setQueryData(
+      ['discovery-scoreboard', PID, 'd', 'UTC'],
+      scoreboard('d', coverage.tradeCount, 0.5, coverage.netTradeCount),
+    );
     queryClient.setQueryData(['discovery-scoreboard', PID, 'w', 'UTC'], scoreboard('w', 9, 0.25));
   }
   const closed = (period: string) => ({
@@ -292,7 +322,9 @@ describe('Home KPI surface — scoped vs unscoped', () => {
     // Second of the two call sites. Both render the shared line, and a gate applied in only one of them leaves the operator reading the same bucket two different ways depending on which screen they are on.
     setUp(PID, { feeBasis: 'unknown' });
     const auto = await screen.findByTestId('scoped-source-auto');
-    expect(auto).toHaveTextContent('100% win');
+    // The tier is reached only when no cycle could be valued, so the count is all that is left: a win rate here would be classified against fees nobody read.
+    expect(auto).toHaveTextContent('3 trades');
+    expect(auto.textContent ?? '').not.toContain('% win');
     expect(auto.textContent ?? '').not.toContain('PF');
   });
 
@@ -318,6 +350,34 @@ describe('Home KPI surface — scoped vs unscoped', () => {
     setUp(PID, { feeBasis: 'exact' });
     await screen.findByTestId('scoped-kpi-strip');
     expect(screen.queryByTestId('scoped-fees-estimated')).not.toBeInTheDocument();
+  });
+
+  it('names the denominator on every cell whose figure covers only some of the window', async () => {
+    // The defect this closes: Home printed a Net over three cycles beside "Trades: 12" with no disclosure, while History rendered "3 of 12 cycles" for the same window. `feeBasis` cannot carry that fact any more — `unknown` now means NOTHING could be valued, so a partial window reads `exact` here and looks complete.
+    setUp(PID, { coverage: { tradeCount: 12, netTradeCount: 3 } });
+    await screen.findByTestId('scoped-kpi-strip');
+    expect(screen.getByTestId('scoped-kpi-trades')).toHaveTextContent('12');
+    expect(screen.getByTestId('scoped-realised-coverage')).toHaveTextContent('3 of 12 cycles');
+    expect(screen.getByTestId('scoped-realised-7d-coverage')).toHaveTextContent('3 of 12 cycles');
+    expect(screen.getByTestId('scoped-win-rate-coverage')).toHaveTextContent('3 of 12 cycles');
+  });
+
+  it('states no denominator when the figures already cover every cycle in the window', async () => {
+    // Anchors the case above: a note rendered unconditionally would pass it just as well, and "4 of 4 cycles" beside a complete figure is noise the operator has to decide to ignore.
+    setUp(PID, { coverage: { tradeCount: 4, netTradeCount: 4 } });
+    await screen.findByTestId('scoped-kpi-strip');
+    expect(screen.queryByTestId('scoped-realised-coverage')).toBeNull();
+    expect(screen.queryByTestId('scoped-win-rate-coverage')).toBeNull();
+  });
+
+  it('drops the realised denominators under Recorded, which is summed over every cycle', async () => {
+    // The Recorded amount needs no fee evidence, so it has no shortfall to disclose. The win rate keeps its note on both bases: a win is classified after commission whatever amount is displayed above it.
+    setUp(PID, { coverage: { tradeCount: 12, netTradeCount: 3 } });
+    await screen.findByTestId('scoped-realised-coverage');
+    await userEvent.click(screen.getByTestId('pnl-basis-gross'));
+    expect(screen.queryByTestId('scoped-realised-coverage')).toBeNull();
+    expect(screen.queryByTestId('scoped-realised-7d-coverage')).toBeNull();
+    expect(screen.getByTestId('scoped-win-rate-coverage')).toHaveTextContent('3 of 12 cycles');
   });
 
   it('withholds Net P/L and net statistics when fee accounting is incomplete', async () => {
