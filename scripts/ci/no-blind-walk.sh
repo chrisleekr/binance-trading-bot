@@ -105,7 +105,7 @@ const HELPER = HELPER_BY_EXT[".sh"];
 const TAUGHT_EXTS = Object.keys(HELPER_BY_EXT).filter((e) => SEAM_BY_EXT[e] !== undefined);
 
 // These exact depth-one files are data rather than executable candidates. A suffix is not an exemption: every other filename reaches classification, including an extensionless or data-looking walker. A name is added here only once the file it names exists and has been reviewed, never ahead of one.
-const NON_GATE_FILES = ["tofixed-inventory.json"];
+const NON_GATE_FILES = ["prometheus-3.4.1.sha256", "tofixed-inventory.json"];
 
 const gates = collectOrExit({
   root,
