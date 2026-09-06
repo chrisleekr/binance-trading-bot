@@ -1,4 +1,5 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +10,8 @@ import { describe, expect, it, vi } from 'vitest';
 import config from '../vitest.config.js';
 
 const TESTS_ROOT = fileURLToPath(new URL('.', import.meta.url));
+const DB_ROOT = fileURLToPath(new URL('..', import.meta.url));
+const LIFECYCLE_FIXTURE = join(TESTS_ROOT, 'fixtures/infra-lifecycle');
 
 // Both specifiers are assembled at runtime: this guard scans the very directory it lives in, so a literal would make the file an offender of its own scan and the sole-provisioner rule would report itself forever.
 const PROVISIONER_SPECIFIER = ['@app', 'testcontainers'].join('/');
@@ -116,26 +119,80 @@ const fileParallelismUnder = async (
   }
 };
 
+type LifecycleRun = {
+  readonly events: readonly string[];
+  readonly status: number | null;
+  readonly stderr: string;
+};
+
+/**
+ * Runs two fixture suites through the real DB helper and global setup while replacing only the Testcontainers boundary with an event logger.
+ *
+ * @param env - Infrastructure selection passed to the child Vitest process.
+ * @returns The child status, stderr, and lifecycle events persisted after global teardown.
+ */
+const runLifecycleFixture = (env: {
+  readonly testcontainers?: '1';
+  readonly databaseUrl?: string;
+  readonly stopFailure?: string;
+}): LifecycleRun => {
+  const runDir = mkdtempSync(join(LIFECYCLE_FIXTURE, '.run-'));
+  const eventLog = join(runDir, 'events.log');
+  const childEnv = { ...process.env };
+  delete childEnv['TESTCONTAINERS'];
+  delete childEnv['DATABASE_TEST_URL'];
+  delete childEnv['INFRA_LIFECYCLE_STOP_FAILURE'];
+  if (env.testcontainers) childEnv['TESTCONTAINERS'] = env.testcontainers;
+  if (env.databaseUrl) childEnv['DATABASE_TEST_URL'] = env.databaseUrl;
+  if (env.stopFailure) childEnv['INFRA_LIFECYCLE_STOP_FAILURE'] = env.stopFailure;
+  childEnv['INFRA_LIFECYCLE_LOG'] = eventLog;
+  childEnv['EXPECTED_DATABASE_URL'] = env.testcontainers
+    ? 'postgres://fixture/shared'
+    : (env.databaseUrl ?? '<unset>');
+
+  try {
+    const result = spawnSync(
+      'bunx',
+      [
+        'vitest',
+        'run',
+        '--config',
+        join(LIFECYCLE_FIXTURE, 'vitest.config.ts'),
+        join(LIFECYCLE_FIXTURE, 'consumer-a.fixture.ts'),
+        join(LIFECYCLE_FIXTURE, 'consumer-b.fixture.ts'),
+      ],
+      {
+        cwd: DB_ROOT,
+        encoding: 'utf8',
+        env: childEnv,
+        timeout: 60_000,
+      },
+    );
+    const events = existsSync(eventLog)
+      ? readFileSync(eventLog, 'utf8').split('\n').filter(Boolean)
+      : [];
+    return { events, status: result.status, stderr: result.stderr };
+  } finally {
+    rmSync(runDir, { force: true, recursive: true });
+  }
+};
+
 describe('database test hook timeouts', () => {
   it('sets the project hook timeout to 180 seconds', () => {
     expect(config.test?.hookTimeout).toBe(180_000);
   });
 
-  // The headline claim of `_infra.ts` is that teardown lives OUTSIDE the hook that acquires, so a timed-out `beforeAll` cannot orphan a container. That claim rests entirely on this one registration: delete it and every suite in the package still passes while each `TESTCONTAINERS=1` file leaks a Postgres. The api side already pins its equivalent, and the two guards should not disagree.
-  it('registers shared-infrastructure cleanup at file scope in the module that owns it', () => {
-    const source = readFileSync(join(TESTS_ROOT, SHARED_MEMO_FILE), 'utf8');
-    const owner = source.search(
-      /^export const stopSharedInfra = async \(\): Promise<void> => \{$/m,
-    );
-    const hook = source.search(/^afterAll\(stopSharedInfra\);$/m);
+  it('keeps shared-infrastructure teardown in the project lifecycle owner', () => {
+    const helperSource = readFileSync(join(TESTS_ROOT, SHARED_MEMO_FILE), 'utf8');
+    const configured = config.test?.globalSetup;
+    const setupFiles = configured === undefined ? [] : [configured].flat();
 
-    expect(owner).toBeGreaterThanOrEqual(0);
-    // After the owner and at column zero, i.e. module scope rather than nested inside any suite hook.
-    expect(hook).toBeGreaterThan(owner);
+    expect(helperSource).not.toMatch(/\bafterAll\s*\(/);
+    expect(setupFiles.some((file) => file.endsWith('/_global-setup.ts'))).toBe(true);
   });
 
   it('serialises the package only when it provisions containers', async () => {
-    // Both branches, because each failure mode is real and they are opposites. Left unarmed under TESTCONTAINERS=1, seven suites race one Docker daemon and orphan what they start. Armed unconditionally, every Docker-free lane pays roughly 3x wall clock to serialise 78 files over zero containers.
+    // Both branches, because each failure mode is real and they are opposites. Under TESTCONTAINERS=1, every provisioning suite drives the one project-global container endpoint, so the package keeps its scratch-database migration work serial. Without a provisioned container there is no shared local endpoint to protect, and serialising the package only adds wall time.
     expect(await fileParallelismUnder('1')).toBe(false);
     expect(await fileParallelismUnder(undefined)).toBe(true);
   });
@@ -168,5 +225,81 @@ describe('database infrastructure provisioning', () => {
       .filter((file) => !provisioningSuites.includes(file))
       .flatMap(provisionerReferences);
     expect(strays).toEqual([]);
+  });
+});
+
+describe('database infrastructure global lifecycle', () => {
+  it('configures one shared module graph and one project lifecycle owner', () => {
+    const configured = config.test?.globalSetup;
+    const setupFiles = configured === undefined ? [] : [configured].flat();
+
+    expect.soft(config.test?.isolate).toBe(false);
+    expect.soft(setupFiles.some((file) => file.endsWith('/_global-setup.ts'))).toBe(true);
+  });
+
+  it('provisions once, shares the URL across later suites, and stops only after both finish', () => {
+    const result = runLifecycleFixture({ testcontainers: '1' });
+
+    expect(result.status, result.stderr).toBe(0);
+    expect
+      .soft(
+        result.events.filter((event) => event === 'start'),
+        result.events.join(' -> '),
+      )
+      .toHaveLength(1);
+    const consumers = result.events.filter((event) => event.startsWith('consumer-'));
+    expect.soft(consumers).toHaveLength(2);
+    expect
+      .soft(consumers)
+      .toEqual(
+        expect.arrayContaining([
+          'consumer-a:postgres://fixture/shared:<unset>',
+          'consumer-b:postgres://fixture/shared:<unset>',
+        ]),
+      );
+    expect.soft(result.events.filter((event) => event === 'stop')).toHaveLength(1);
+    expect.soft(result.events.at(-1), result.events.join(' -> ')).toBe('stop');
+  });
+
+  it('provides an external URL without invoking or stopping Testcontainers', () => {
+    const databaseUrl = 'postgres://external/fixture';
+    const result = runLifecycleFixture({ databaseUrl });
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.events).toEqual(
+      expect.arrayContaining([
+        `consumer-a:${databaseUrl}:${databaseUrl}`,
+        `consumer-b:${databaseUrl}:${databaseUrl}`,
+      ]),
+    );
+    expect(result.events.some((event) => event === 'start' || event === 'stop')).toBe(false);
+  });
+
+  it('prefers a provisioned fixture when both infrastructure selectors are present', () => {
+    const databaseUrl = 'postgres://external/fixture';
+    const result = runLifecycleFixture({ testcontainers: '1', databaseUrl });
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.events).toEqual(
+      expect.arrayContaining([
+        'start',
+        `consumer-a:postgres://fixture/shared:${databaseUrl}`,
+        `consumer-b:postgres://fixture/shared:${databaseUrl}`,
+        'stop',
+      ]),
+    );
+    expect(result.events.filter((event) => event === 'start')).toHaveLength(1);
+    expect(result.events.filter((event) => event === 'stop')).toHaveLength(1);
+    expect(result.events.at(-1), result.events.join(' -> ')).toBe('stop');
+  });
+
+  it('fails the run when project-owned teardown cannot stop its container', () => {
+    const result = runLifecycleFixture({
+      testcontainers: '1',
+      stopFailure: 'fixture stop failed',
+    });
+
+    expect(result.status, result.stderr).not.toBe(0);
+    expect(result.stderr).toContain('fixture stop failed');
   });
 });

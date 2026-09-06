@@ -1,13 +1,6 @@
-// Thin wrappers around `@testcontainers/postgresql` and
-// `@testcontainers/redis` that produce a fresh container per call.
+// Thin wrappers around `@testcontainers/postgresql` and `@testcontainers/redis` that produce a fresh container per call.
 //
-// The integration suites under apps/api, apps/worker, and packages/db all
-// need a hermetic Postgres + Redis. Sharing a single long-lived instance
-// across suites is fragile — one suite's leaked rows show up in the next
-// — so each suite calls `withPostgres` / `withRedis` and tears the
-// container down on cleanup. The factories live here rather than inline
-// in each suite so the image pins, env defaults, and start-up timing are
-// owned in one place.
+// API and worker integration fixtures call these factories directly and release their containers during fixture cleanup. The database package calls `withPostgres` once from project global setup, then gives migration suites separate scratch databases on that shared endpoint. The factories live here rather than inline so image pins, environment defaults, and startup timing remain owned in one place.
 
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { RedisContainer, type StartedRedisContainer } from '@testcontainers/redis';

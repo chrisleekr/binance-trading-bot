@@ -40,8 +40,12 @@ describe('bootstrapEnv', () => {
     expect(process.env['BOOTSTRAP_TEST_REDIS']).toBe('redis://test');
   });
 
-  it('container path: no .git / no turbo.json → no-op, no throw', () => {
-    const callerUrl = callerUrlFor(join(root, 'app', 'src'));
+  it('does not load .env when the repository marker is beyond the 12-level search', () => {
+    mkdirSync(join(root, '.git'));
+    writeFileSync(join(root, '.env'), 'BOOTSTRAP_TEST_DB=postgres://outside\n');
+    const callerUrl = callerUrlFor(
+      join(root, ...Array.from({ length: 12 }, (_, depth) => `level-${depth}`)),
+    );
 
     expect(() => bootstrapEnv(callerUrl)).not.toThrow();
     expect(process.env['BOOTSTRAP_TEST_DB']).toBeUndefined();

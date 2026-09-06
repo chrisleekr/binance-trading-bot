@@ -1,0 +1,15 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_EXTENDS$",
+        "$TURBO_ROOT$/scripts/ci/check-worker-integration-honesty.ts",
+        "$TURBO_ROOT$/scripts/ci/test-worker-integration.sh",
+        "$TURBO_ROOT$/scripts/ci/test-worker-integration-local.sh",
+        "$TURBO_ROOT$/apps/worker/__tests__/integration/**"
+      ]
+    }
+  }
+}
