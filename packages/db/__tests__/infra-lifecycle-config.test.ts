@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import * as ts from 'typescript/unstable/ast';
 import { API } from 'typescript/unstable/sync';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import config from '../vitest.config.js';
 
@@ -17,6 +17,7 @@ const LIFECYCLE_FIXTURE = join(TESTS_ROOT, 'fixtures/infra-lifecycle');
 const PROVISIONER_SPECIFIER = ['@app', 'testcontainers'].join('/');
 const SHARED_MEMO_SPECIFIER = ['./_infra', 'js'].join('.');
 const SHARED_MEMO_FILE = '_infra.ts';
+const LIFECYCLE_OWNER_FILE = '_global-setup.ts';
 
 /**
  * Collects every TypeScript file under `packages/db/__tests__` so the rules below apply to whatever the directory actually holds, not to a list that silently stops covering new suites.
@@ -101,22 +102,25 @@ const beforeAllArgumentCounts = (file: string): number[] => {
 /**
  * Re-evaluates the project config under a chosen `TESTCONTAINERS` value. The setting is resolved once at import time, so reading the ambient module would pin only whichever branch the runner happened to start in and leave the other free to be inverted.
  *
+ * Evaluated in a child process, the way `packages/config/__tests__/coverage-thresholds.test.ts` loads config under a chosen lane. The alternatives both reach outside this file: the package runs under `isolate: false`, so `vi.resetModules()` would drop modules every later file in this worker reuses, and mutating `process.env` in-process would do the same to anything reading it concurrently.
+ *
  * @param testcontainers - Value to place in `TESTCONTAINERS`, or `undefined` to unset it entirely.
  * @returns The `fileParallelism` the config resolves to under that environment.
  */
-const fileParallelismUnder = async (
-  testcontainers: string | undefined,
-): Promise<boolean | undefined> => {
-  const previous = process.env['TESTCONTAINERS'];
-  if (testcontainers === undefined) delete process.env['TESTCONTAINERS'];
-  else process.env['TESTCONTAINERS'] = testcontainers;
-  try {
-    vi.resetModules();
-    return (await import('../vitest.config.js')).default.test?.fileParallelism;
-  } finally {
-    if (previous === undefined) delete process.env['TESTCONTAINERS'];
-    else process.env['TESTCONTAINERS'] = previous;
-  }
+const fileParallelismUnder = (testcontainers: string | undefined): unknown => {
+  const env = { ...process.env };
+  if (testcontainers === undefined) delete env['TESTCONTAINERS'];
+  else env['TESTCONTAINERS'] = testcontainers;
+
+  const script =
+    'const config = (await import("./vitest.config.ts")).default;' +
+    'console.log("FILE_PARALLELISM=" + JSON.stringify(config.test?.fileParallelism ?? null));';
+  const loaded = spawnSync('bun', ['-e', script], { cwd: DB_ROOT, encoding: 'utf8', env });
+
+  expect(loaded.status, loaded.stderr).toBe(0);
+  const marker = loaded.stdout.split('\n').find((line) => line.startsWith('FILE_PARALLELISM='));
+  expect(marker, loaded.stdout).toBeDefined();
+  return JSON.parse(marker!.slice('FILE_PARALLELISM='.length)) as unknown;
 };
 
 type LifecycleRun = {
@@ -182,6 +186,7 @@ describe('database test hook timeouts', () => {
     expect(config.test?.hookTimeout).toBe(180_000);
   });
 
+  // Deliberately the inverse of `apps/api/__tests__/infra-lifecycle-config.test.ts`, which requires `afterAll(stopSharedInfra)` in `_helpers.ts` and forbids the global setup from naming it. The two packages own different problems: api provisions Postgres AND Redis per isolated test file and has not moved to a project-owned fixture, so its teardown still belongs to the module that acquired. This package has one endpoint for the whole project, so file-scoped teardown is exactly the hazard being removed. Moving api across is a separate change; until then a failure on either side is read against its own package's shape, not the other's.
   it('keeps shared-infrastructure teardown in the project lifecycle owner', () => {
     const helperSource = readFileSync(join(TESTS_ROOT, SHARED_MEMO_FILE), 'utf8');
     const configured = config.test?.globalSetup;
@@ -191,10 +196,10 @@ describe('database test hook timeouts', () => {
     expect(setupFiles.some((file) => file.endsWith('/_global-setup.ts'))).toBe(true);
   });
 
-  it('serialises the package only when it provisions containers', async () => {
+  it('serialises the package only when it provisions containers', () => {
     // Both branches, because each failure mode is real and they are opposites. Under TESTCONTAINERS=1, every provisioning suite drives the one project-global container endpoint, so the package keeps its scratch-database migration work serial. Without a provisioned container there is no shared local endpoint to protect, and serialising the package only adds wall time.
-    expect(await fileParallelismUnder('1')).toBe(false);
-    expect(await fileParallelismUnder(undefined)).toBe(true);
+    expect(fileParallelismUnder('1')).toBe(false);
+    expect(fileParallelismUnder(undefined)).toBe(true);
   });
 
   it('reaches every provisioning suite in the directory', () => {
@@ -219,12 +224,19 @@ describe('database infrastructure provisioning', () => {
     },
   );
 
+  // The exemption tracks the file that provisions, which is the global setup, not the memo. Pointing it at `_infra.ts` would exempt a file that acquires nothing and force the real owner to obfuscate the specifier to stay green.
   it('leaves no other file under __tests__ importing the Testcontainers wrapper', () => {
     const strays = allFiles
-      .filter((file) => !file.endsWith(SHARED_MEMO_FILE))
+      .filter((file) => !file.endsWith(LIFECYCLE_OWNER_FILE))
       .filter((file) => !provisioningSuites.includes(file))
       .flatMap(provisionerReferences);
     expect(strays).toEqual([]);
+  });
+
+  // The negative rule above is only worth having while someone still holds the reference. Deleting the provision would otherwise satisfy every assertion in this file.
+  it('acquires infrastructure in the lifecycle owner and nowhere else', () => {
+    expect(provisionerReferences(join(TESTS_ROOT, LIFECYCLE_OWNER_FILE))).not.toEqual([]);
+    expect(provisionerReferences(join(TESTS_ROOT, SHARED_MEMO_FILE))).toEqual([]);
   });
 });
 
@@ -261,7 +273,7 @@ describe('database infrastructure global lifecycle', () => {
     expect.soft(result.events.at(-1), result.events.join(' -> ')).toBe('stop');
   });
 
-  it('provides an external URL without invoking or stopping Testcontainers', () => {
+  it('provides an external URL without provisioning or stopping a container', () => {
     const databaseUrl = 'postgres://external/fixture';
     const result = runLifecycleFixture({ databaseUrl });
 

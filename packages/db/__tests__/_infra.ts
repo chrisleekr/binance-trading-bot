@@ -2,9 +2,8 @@
 
 import { inject } from 'vitest';
 
-// Two ways to get a real Postgres: `TESTCONTAINERS=1` provisions a throwaway one (Docker required), or `DATABASE_TEST_URL` names a running server. Neither, and the provisioning suites `describe.skipIf` out in the no-Docker unit lane.
-export const HAS_INFRA =
-  process.env['TESTCONTAINERS'] === '1' || Boolean(process.env['DATABASE_TEST_URL']);
+// Re-exported from the lifecycle owner so the suites keep one import site and the predicate has one definition.
+export { HAS_INFRA } from './_global-setup.js';
 
 /**
  * Returns the project-owned Postgres endpoint shared by every provisioning suite. Callers that need an empty schema create a scratch database on this endpoint rather than asking for a second container.

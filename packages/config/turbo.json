@@ -1,14 +1,20 @@
 {
-  "$schema": "https://turborepo.com/schema.json",
+  "$schema": "https://v2-9-16.turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
     "test": {
       "inputs": [
         "$TURBO_EXTENDS$",
-        "$TURBO_ROOT$/scripts/ci/check-worker-integration-honesty.ts",
-        "$TURBO_ROOT$/scripts/ci/test-worker-integration.sh",
-        "$TURBO_ROOT$/scripts/ci/test-worker-integration-local.sh",
-        "$TURBO_ROOT$/apps/worker/__tests__/integration/**"
+        "$TURBO_ROOT$/README.md",
+        "$TURBO_ROOT$/docs/**/*.md",
+        "$TURBO_ROOT$/e2e/**",
+        "$TURBO_ROOT$/scripts/ci/**",
+        "$TURBO_ROOT$/apps/**/package.json",
+        "$TURBO_ROOT$/apps/**/vitest.config.ts",
+        "$TURBO_ROOT$/apps/**/src/**",
+        "$TURBO_ROOT$/apps/worker/__tests__/integration/**",
+        "$TURBO_ROOT$/packages/**/package.json",
+        "$TURBO_ROOT$/packages/**/src/**"
       ]
     }
   }
