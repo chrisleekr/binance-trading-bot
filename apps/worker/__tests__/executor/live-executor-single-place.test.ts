@@ -13,9 +13,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
 import type { Decision, DecisionResult, TickExecutorContext } from '@app/strategy-core';
-import { asAccountId } from '@app/contracts';
+import { asAccountId, asProfileId } from '@app/contracts';
 import type { NotifyProviderRegistry } from '@app/notify';
 import type { StrategyRegistry } from '@app/strategy-registry';
+import type { PlacementOwner } from '../../src/executor/placement-owner.js';
 
 const { placeOrderSpy } = vi.hoisted(() => ({ placeOrderSpy: vi.fn() }));
 
@@ -24,6 +25,7 @@ vi.mock('../../src/executor/decisions/place-order.js', () => ({
 }));
 
 import { createLiveExecutor, MultiPlacementError } from '../../src/executor/live-executor.js';
+import { buildPlacementOwnerKey } from '../../src/executor/redis-namespace.js';
 
 const CTX: TickExecutorContext = {
   userId: 'u-1',
@@ -42,9 +44,11 @@ const place = (clientOrderId: string): Decision => ({
 const mkLogger = () =>
   ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }) as unknown as Logger;
 
-const buildExecutor = () =>
+const mkRedis = () => ({ set: vi.fn(async () => 'OK'), get: vi.fn(async () => null) });
+
+const buildExecutor = (redis: ReturnType<typeof mkRedis> = mkRedis()) =>
   createLiveExecutor({
-    redis: {} as unknown as Redis,
+    redis: redis as unknown as Redis,
     notifyRegistry: {} as unknown as NotifyProviderRegistry,
     strategies: {} as unknown as StrategyRegistry,
     logger: mkLogger(),
@@ -76,5 +80,25 @@ describe('LiveExecutor.applyAll — one placement per tick', () => {
     const applied = await buildExecutor().applyAll(CTX, ACCOUNT, [place('coid-1')]);
     expect(applied).toHaveLength(1);
     expect(placeOrderSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The executor's default is the ONLY production line that constructs a `PlacementOwner`, and every caller reaches it through `deps.placementOwner?.`, so deleting the default disarms the cross-profile isolation gate everywhere while every place-order test stays green on the owner it injects itself. This is the on-switch, pinned where it lives.
+describe('LiveExecutor wires the placement-ownership marker by default', () => {
+  it("hands the handler an owner that writes to the executor's OWN redis connection", async () => {
+    const redis = mkRedis();
+    await buildExecutor(redis).applyAll(CTX, ACCOUNT, [place('coid-1')]);
+
+    const deps = placeOrderSpy.mock.calls[0]?.[0] as { placementOwner?: PlacementOwner };
+    expect(deps.placementOwner).toBeDefined();
+
+    // Connection identity is the whole guarantee: an owner over some other Redis writes markers the event router's gate will never read. Proven by registering through it and finding the write on the connection this executor was built with, under the catalogued key.
+    await deps.placementOwner?.register(ACCOUNT, asProfileId('p-1'), 'coid-1');
+    expect(redis.set).toHaveBeenCalledWith(
+      buildPlacementOwnerKey(ACCOUNT, 'coid-1'),
+      'p-1',
+      'PX',
+      expect.any(Number),
+    );
   });
 });

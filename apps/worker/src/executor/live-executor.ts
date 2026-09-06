@@ -22,6 +22,7 @@ import { type BinanceMode, type BinanceRestClient, type OrderRateGovernor } from
 
 import { createCancelLedger } from 'executor/cancel-ledger.js';
 import { createPlacementDedup, type PlacementDedup } from 'executor/placement-dedup.js';
+import { createPlacementOwner, type PlacementOwner } from 'executor/placement-owner.js';
 import { DEFAULT_WEIGHT_TTL } from 'executor/weight-limiter.js';
 import {
   createNotifierGapThrottle,
@@ -99,6 +100,10 @@ export interface LiveExecutorDeps {
    * defaults to a fresh one per executor.
    */
   readonly placementDedup?: PlacementDedup;
+  /**
+   * Marks each placement with the profile that made it, so the event router can attribute a report that beats the `orders` row. Injected so a test can hold the same instance the gate reads through; defaults to one per executor over the shared Redis connection.
+   */
+  readonly placementOwner?: PlacementOwner;
   /**
    * Defers a converge-to-exchange-truth pass onto the `symbol-reconcile` queue.
    * Handlers that discover a fill the user stream never delivered call it; they
@@ -254,6 +259,9 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
     placementDedup:
       deps.placementDedup ??
       createPlacementDedup(undefined, { redis: deps.redis, logger: deps.logger }),
+    // Same Redis connection the event router's ownership gate reads its markers through, and both ends mint the key from `buildPlacementOwnerKey`, so writer and reader cannot drift.
+    placementOwner:
+      deps.placementOwner ?? createPlacementOwner({ redis: deps.redis, logger: deps.logger }),
     // Spread only when supplied: `exactOptionalPropertyTypes` rejects an explicit
     // `undefined` on the optional dep.
     ...(deps.enqueueSymbolReconcile ? { enqueueSymbolReconcile: deps.enqueueSymbolReconcile } : {}),

@@ -92,5 +92,5 @@
   "0091_drop_profile_symbols_reserve.sql": "1477156512f4c37afd7fc9f9883ab80cd00897f89b3b431f0c93fda440d65085",
   "0092_trade_archive_fees_plain_decimal.sql": "7f51219214ad4d24b4068f97c2ad0a49e670cfb4cdc9611a87d40d81312f0515",
   "0093_trade_archive_fee_basis.sql": "f869a7f7d9e3b91e6488932244ab3d4c8e2635ee47e5d748d5faaa657a747f82",
-  "0094_purge_sibling_leaked_symbol_states.sql": "050712db28d034fbc261572e5b8dbf64f8b54bb7244d3f8f33d829f218c16707"
+  "0094_purge_sibling_leaked_symbol_states.sql": "dfde632cdd83c196916a3d44ebbf49d1830744bb1455d7837a8578a2e5dca55e"
 }

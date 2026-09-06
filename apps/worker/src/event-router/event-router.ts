@@ -96,10 +96,7 @@ export interface EventRouterDeps {
    *
    * Resolves who, if anyone, owns `binanceOrderId`:
    *
-   *   - `own`      — this profile's order, by its `orders` row, by the placement
-   *                  marker `clientOrderId` carries while that row is still
-   *                  uncommitted, or (marker lost) by nobody positively owning
-   *                  it. Adopt it.
+   *   - `own`      — this profile's order, by its `orders` row, by the placement marker `clientOrderId` carries while that row is still uncommitted, or, on an account with no sibling to leak into, by nothing naming an owner at all. Adopt it.
    *   - `sibling`  — positively owned by a DIFFERENT profile on this account.
    *                  Drop: that profile gets the same report on its own stream.
    *   - `detached` — the row exists but its profile was deleted (`profile_id`

@@ -9,9 +9,7 @@ import { createPlacementOwner } from '../../src/executor/placement-owner.js';
 import { buildPlacementOwnerKey } from '../../src/executor/redis-namespace.js';
 import { fakeDb, silentLogger } from '../boot/builders/fakes.js';
 
-// The gate resolves its repos through `accountRepo` / `profileRepo`, both of which run a live
-// ownership query. Only those two are stubbed; the rest of `@app/db` stays real so the error
-// classes the fail-safe branch does `instanceof` against are the genuine ones.
+// The gate resolves its repos through `accountRepo` / `profileRepo`, both of which run a live ownership query. Only those two are stubbed; the rest of `@app/db` stays real so the error classes the fail-safe branch does `instanceof` against are the genuine ones.
 const state = {
   // The account-domain `orders` row for the id under test, or null when nothing has committed.
   orderRow: null as { profileId: string | null } | null,
@@ -19,8 +17,7 @@ const state = {
   profileIds: ['p1', 'p2'],
   // The profile owning a matching `manual_orders` row, or null when no profile does.
   manualOwner: null as string | null,
-  // Makes the ownership resolve fail, so the fail-safe branch is reachable. An Error value is
-  // thrown as-is, which is how the quiet-suppression arm is reached with the real error classes.
+  // Makes the ownership resolve fail, so the fail-safe branch is reachable. An Error value is thrown as-is, which is how the quiet-suppression arm is reached with the real error classes.
   lookupThrows: false as boolean | Error,
 };
 
@@ -53,14 +50,23 @@ const P1 = asProfileId('p1');
 const P2 = asProfileId('p2');
 const BINANCE_ORDER_ID = 4242;
 const CLIENT_ORDER_ID = 'co-4242';
-// Minted through the same builder the placement path writes with, never a literal: two
-// independently-hardcoded keys that happen to agree would still let writer and reader drift.
+// Minted through the same builder the placement path writes with, never a literal: two independently-hardcoded keys that happen to agree would still let writer and reader drift.
 const MARKER_KEY = buildPlacementOwnerKey(ACCOUNT, CLIENT_ORDER_ID);
 
-// Byte-exact key lookup: a marker read that misses answers null, exactly as Redis would, so a
-// gate that consults the wrong key reads as "no marker" instead of silently passing.
-const makeRedis = (entries: Record<string, string> = {}): Redis =>
-  ({ get: vi.fn((key: string) => Promise.resolve(entries[key] ?? null)) }) as unknown as Redis;
+// Byte-exact key lookup: a marker read that misses answers null, exactly as Redis would, so a gate that consults the wrong key reads as "no marker" instead of silently passing.
+//
+// `set` carries the NX semantics the warning throttle rides on, over the same store. A Redis without it makes the throttle fail open, and every warn assertion below would then be measuring the fail-open path rather than the throttle.
+const makeRedis = (entries: Record<string, string> = {}): Redis => {
+  const store = new Map<string, string>(Object.entries(entries));
+  return {
+    get: vi.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
+    set: vi.fn((key: string, value: string) => {
+      if (store.has(key)) return Promise.resolve(null);
+      store.set(key, value);
+      return Promise.resolve('OK');
+    }),
+  } as unknown as Redis;
+};
 
 const gate = (redis: Redis = makeRedis()) =>
   createClassifyOrder({
@@ -114,23 +120,28 @@ describe('createClassifyOrder', () => {
     },
   );
 
-  it('returns own when no orders row, no marker and no manual order exist anywhere', async () => {
-    await expect(gate()(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
-      'own',
-    );
-  });
+  // The no-evidence branch answers identically for EVERY profile on the account, so the verdict has to turn on whether there is a sibling to corrupt. With one profile there is nobody to leak into and adopting keeps the operator's hand-placed fill in the position state that mirrors their wallet; with two, `own` would tell both of them to adopt the same fill, which is the corruption this gate exists to prevent.
+  it.each([
+    ['adopts', ['p2'], 'own'],
+    ['drops', ['p1', 'p2'], 'sibling'],
+  ])(
+    '%s a report nothing names an owner for, by whether the account has a sibling',
+    async (_label, profileIds, verdict) => {
+      state.profileIds = profileIds;
+      await expect(gate()(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
+        verdict,
+      );
+    },
+  );
 
-  // This branch grants adoption on the ABSENCE of evidence, and it is the branch the incident came
-  // out of. It is now also the only signal that the marker path has stopped working — Redis down,
-  // TTL lapsed, an id the keyspace cannot use — so it must never be silent (CLAUDE.md: no silent
-  // failures). Pinned to the fallthrough alone: the arms that resolve a positive owner stay quiet.
-  it('warns when it grants adoption with no positive owner', async () => {
+  // This branch decides on the ABSENCE of evidence, and it is the branch the incident came out of. It is also the only signal that the marker path has stopped working, meaning Redis down, a lapsed TTL, or an id the keyspace cannot use, so it must never be silent (CLAUDE.md: no silent failures). Pinned to the fallthrough alone: the arms that resolve a positive owner stay quiet.
+  it('warns when nothing names an owner', async () => {
     const warn = vi.fn();
     const logger = { ...silentLogger(), warn } as unknown as Logger;
     const classify = createClassifyOrder({ db: fakeDb(), redis: makeRedis(), logger });
 
     await expect(classify(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
-      'own',
+      'sibling',
     );
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
@@ -143,12 +154,26 @@ describe('createClassifyOrder', () => {
       }),
       expect.stringContaining('names an owner'),
     );
-    // The benign cause is named BEFORE the fault causes: an operator's hand-placed order lands
-    // here too, once per profile per report, and a message that reads as a fault first teaches the
-    // operator to ignore the one occurrence that says the isolation control is disarmed.
+    // The benign cause is named BEFORE the fault causes: an operator's hand-placed order lands here too, and a message that reads as a fault first teaches the operator to ignore the one occurrence that says the isolation control is disarmed.
     const message = String(warn.mock.calls[0]?.[1]);
     expect(message).toContain('placed by hand');
     expect(message.indexOf('placed by hand')).toBeLessThan(message.indexOf('lost marker'));
+  });
+
+  // One hand-placed order emits a NEW, its TRADE partials and a terminal report, and every profile on the account receives all of them, so the unthrottled line is roughly 3-4 per profile per order. Keyed per (account, order) rather than per profile, which is why the second call here asks as a DIFFERENT profile: a per-profile key would let each sibling log the same order again.
+  it('logs the same unowned order once across the whole fan-out', async () => {
+    const warn = vi.fn();
+    const logger = { ...silentLogger(), warn } as unknown as Logger;
+    const redis = makeRedis();
+    const classify = createClassifyOrder({ db: fakeDb(), redis, logger });
+
+    await classify(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
+    await classify(OPERATOR, ACCOUNT, P1, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    // A different order is new information, not a repeat of the suppressed one.
+    await classify(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID + 1, CLIENT_ORDER_ID);
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 
   // All three positive-owner arms, including the MARKER arm this MR adds — without that third case a warn added inside the marker arm leaves every test green, and the arm this change exists to introduce would be the one that is unpinned.
@@ -191,22 +216,21 @@ describe('createClassifyOrder', () => {
     );
   });
 
-  // Fail-open, not fail-safe, for THIS read specifically: a marker the gate cannot reach leaves it
-  // on the verdict it gave before markers existed, rather than dropping every report on the
-  // account for as long as Redis is unwell.
+  // Fail-open, not fail-safe, for THIS read specifically: a marker the gate cannot reach leaves it on the verdict it gave before markers existed, rather than dropping every report on the account for as long as Redis is unwell. Arranged so a manual order names the asking profile, because that is a verdict only the arms AFTER the marker consult can produce: a marker fault that aborted the gate would answer `sibling` instead.
   it('falls back to the pre-marker verdict when the marker read fails', async () => {
+    state.manualOwner = 'p2';
     const redis = {
       get: () => Promise.reject(new Error('CONNRESET')),
+      set: () => Promise.resolve('OK'),
     } as unknown as Redis;
     await expect(
       gate(redis)(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
     ).resolves.toBe('own');
   });
 
-  // An empty clientOrderId is one shared key for every report Binance sent without `c`, so the
-  // gate must not read it at all: a marker written by ANY profile would otherwise answer for all
-  // of them. Proven by planting exactly that key and showing the verdict ignores it.
+  // An empty clientOrderId is one shared key for every report Binance sent without `c`, so the gate must not read it at all: a marker written by ANY profile would otherwise answer for all of them. Proven by planting exactly that key and showing the verdict ignores it. The account is given a single profile so the no-evidence fallthrough answers `own`, which the planted marker naming `p1` could not produce.
   it('ignores the marker keyspace entirely when the report carries no clientOrderId', async () => {
+    state.profileIds = ['p2'];
     const redis = makeRedis({ [buildPlacementOwnerKey(ACCOUNT, '')]: 'p1' });
     await expect(gate(redis)(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, '')).resolves.toBe('own');
   });
@@ -218,10 +242,7 @@ describe('createClassifyOrder', () => {
     );
   });
 
-  // An ownership error is not a fault, it is the answer: the profile was deleted or moved between
-  // the report and the lookup, and the stream fans one report out to every profile on the account,
-  // so warning would emit noise on every sibling for a routine race. The verdict still has to be
-  // the fail-safe one.
+  // An ownership error is not a fault, it is the answer: the profile was deleted or moved between the report and the lookup, and the stream fans one report out to every profile on the account, so warning would emit noise on every sibling for a routine race. The verdict still has to be the fail-safe one.
   it.each([
     ['ProfileNotOwnedError', () => new ProfileNotOwnedError(OPERATOR, ACCOUNT, P2)],
     ['AccountNotOwnedError', () => new AccountNotOwnedError(OPERATOR, ACCOUNT)],
@@ -242,10 +263,7 @@ describe('createClassifyOrder', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  // The report lands before the placing profile's `orders` row commits, so the row lookup misses
-  // for everyone. Without a positive owner the gate hands the foreign order to whichever profile
-  // asks, which is how a profile bound to four BTC symbols acquires state for symbols it never
-  // traded. The placement marker is the only evidence of ownership in that window.
+  // The report lands before the placing profile's `orders` row commits, so the row lookup misses for everyone. Without a positive owner the gate can only fall back to a guess, which is how a profile bound to four BTC symbols acquired state for symbols it never traded. The placement marker is the only evidence of ownership in that window.
   it('returns sibling when no orders row exists and marker-names-sibling', async () => {
     const redis = makeRedis({ [MARKER_KEY]: 'p1' });
     await expect(
@@ -254,10 +272,7 @@ describe('createClassifyOrder', () => {
   });
 });
 
-// Producer and consumer meeting through real code on BOTH ends. The gate is only armed if the
-// bytes the placement path writes are the bytes the gate reads, and every test that stubs one
-// side alone stays green when they diverge — so this one runs the real `register` and the real
-// gate over ONE Redis, with no key named anywhere in the test.
+// Producer and consumer meeting through real code on BOTH ends. The gate is only armed if the bytes the placement path writes are the bytes the gate reads, and every test that stubs one side alone stays green when they diverge, so this one runs the real `register` and the real gate over ONE Redis, with no key named anywhere in the test.
 describe('placement marker, written by the executor and read by the gate', () => {
   const inMemoryRedis = (): Redis => {
     const store = new Map<string, string>();
@@ -290,9 +305,7 @@ describe('placement marker, written by the executor and read by the gate', () =>
     const redis = inMemoryRedis();
     const logger = silentLogger();
     await createPlacementOwner({ redis, logger }).register(ACCOUNT, P1, CLIENT_ORDER_ID);
-    // Without the marker this arrangement resolves to `sibling` (P2 holds the matching manual
-    // order), so `own` can only come from the marker. Left at the default the fallthrough would
-    // answer `own` too, and deleting the entire consult would leave this test green.
+    // Without the marker this arrangement resolves to `sibling`, because P2 holds the matching manual order, so `own` can only come from the marker.
     state.manualOwner = 'p2';
 
     const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger })(

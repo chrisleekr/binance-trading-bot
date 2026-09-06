@@ -179,10 +179,19 @@ describe.skipIf(!HAS_INFRA)('migration 0094 — purge sibling-leaked per-symbol 
   });
 
   // The reason the predicate is a regex and not a `::numeric` cast: a cast is partial, and any one of these bodies would abort the transaction and wedge the whole deploy. The reason it matches the FLAT form instead of excluding the held one: every body here fails the match, so every one of these rows survives — an inverse spelling like `!~ '[1-9]'` would delete the first two, which are exactly the rows nothing can read well enough to judge.
-  it.each([['not-a-number'], ['NaN'], ['1e-8']])(
+  //
+  // The last three are the ones a pattern whose every quantifier can match zero characters silently deletes: a bare sign or point is not a spelling of zero, it is a body nothing can read, and this is a one-shot delete. The symbol tag is carried explicitly rather than derived from the body because these three strip to the same empty string.
+  it.each([
+    ['not-a-number', 'NOTANUMBER'],
+    ['NaN', 'NAN'],
+    ['1e-8', 'EXPONENT'],
+    ['+', 'BAREPLUS'],
+    ['-', 'BAREMINUS'],
+    ['.', 'BAREPOINT'],
+  ])(
     'keeps an unbound row whose heldQuantity reads as %s rather than aborting the migration',
-    async (held) => {
-      const symbol = `ODD${held.replaceAll(/[^A-Z0-9]/gi, '')}USDT`;
+    async (held, tag) => {
+      const symbol = `ODD${tag}USDT`;
       await seedState(symbol, held);
 
       await expect(pool.query(MIGRATION_SQL)).resolves.toBeDefined();

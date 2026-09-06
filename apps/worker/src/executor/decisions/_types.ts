@@ -7,6 +7,7 @@ import type { CancelLedger } from 'executor/cancel-ledger.js';
 import type { ProfileExecutorBindings } from 'executor/live-executor.js';
 import type { NotifierGapThrottle } from 'executor/notifier-gap-throttle.js';
 import type { PlacementDedup } from 'executor/placement-dedup.js';
+import type { PlacementOwner } from 'executor/placement-owner.js';
 import type { SymbolReconcileCause } from 'queues/job-payloads.js';
 
 /**
@@ -112,6 +113,11 @@ export interface DecisionDeps {
    * one long-lived instance on the executor. See {@link PlacementDedup}.
    */
   readonly placementDedup?: PlacementDedup;
+
+  /**
+   * Stamps this profile as the placer of an order's clientOrderId, just before the order is transmitted. The event router's ownership gate reads it to attribute a report that arrives before the `orders` row commits. Both production paths carry one, `applyTick` and the standalone `apply` share the `baseDeps` literal that defaults it, so the option exists only so a test can omit it; omission means no marker is written and that window falls back to the pre-marker verdict. See {@link PlacementOwner}.
+   */
+  readonly placementOwner?: PlacementOwner;
 }
 
 /**

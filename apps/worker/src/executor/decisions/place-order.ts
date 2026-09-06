@@ -573,6 +573,9 @@ export const placeOrderHandler = async (
     return { ok: true };
   }
 
+  // Stamp this profile as the placer BEFORE the order is transmitted. Binance can push the execution report before this call even returns, and the `orders` row is not written until after it does, so the marker is the only thing that can tell the sibling profiles receiving that report on the shared stream to leave it alone. Outside the try on purpose: `register` resolves whatever Redis does, and a marker fault must never be read as a placement fault.
+  await deps.placementOwner?.register(deps.accountId, profileId, decision.intent.clientOrderId);
+
   let dto: Awaited<ReturnType<typeof bindings.binance.placeOrder>>;
   // When we CALLED the client — a fallback anchor only. The request is not signed
   // until the weight governor admits it, which can be seconds later, and Binance's

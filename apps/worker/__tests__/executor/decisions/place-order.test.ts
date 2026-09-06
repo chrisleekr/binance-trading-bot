@@ -17,6 +17,7 @@ import { isOrderRetriable } from '../../../src/tick/override-settlement.js';
 import type { DecisionDeps } from '../../../src/executor/decisions/_types.js';
 import { createCancelLedger } from '../../../src/executor/cancel-ledger.js';
 import { createPlacementDedup } from '../../../src/executor/placement-dedup.js';
+import { createPlacementOwner } from '../../../src/executor/placement-owner.js';
 import type { ProfileExecutorBindings } from '../../../src/executor/live-executor.js';
 import type { ProfilePersistence } from '../../../src/profile-bindings/persistence.js';
 
@@ -154,6 +155,56 @@ describe('placeOrderHandler', () => {
     // tick advances rather than retrying, and Binance is never re-called.
     expect(out).toEqual({ ok: true });
     expect(binance.placeOrder).not.toHaveBeenCalled();
+  });
+
+  it('stamps the placement marker BEFORE the order is transmitted', async () => {
+    // Ordering is the whole guarantee: Binance can push the execution report before `placeOrder` even returns, so a marker written afterwards is written after the window it exists to close.
+    const seen: string[] = [];
+    const placeOrder = placeOrderMock(async () => {
+      seen.push('transmit');
+      return { orderId: 42, clientOrderId: 'client-1', status: 'FILLED' };
+    });
+    const bindings = buildBindings({ binance: fakeBinance({ placeOrder }) });
+    // Settles on a LATER turn, which is what makes the caller's `await` load-bearing: a fake that pushed synchronously on call would keep this array ordered even with the `await` removed.
+    const register = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      seen.push('register');
+    });
+    const deps: DecisionDeps = {
+      ...buildDeps(bindings),
+      placementOwner: { register, ownerOf: async () => null },
+    };
+
+    await placeOrderHandler(deps, CTX, PLACE);
+
+    expect(seen).toEqual(['register', 'transmit']);
+    expect(register).toHaveBeenCalledWith(ACCOUNT, PROFILE, 'client-1');
+  });
+
+  // The marker is an attribution aid; an order the operator's strategy asked for is never worth stranding over it. Injected at the REDIS boundary through the real `createPlacementOwner`, because that is where the fault actually occurs and it is the module's never-throw contract, not the handler's, that has to hold.
+  it.each([
+    ['rejects', () => Promise.reject(new Error('READONLY'))],
+    ['stalls', () => new Promise<never>(() => undefined)],
+  ])('still transmits the order when the marker write %s', async (_label, set) => {
+    const placeOrder = placeOrderMock(async () => ({
+      orderId: 42,
+      clientOrderId: 'client-1',
+      status: 'FILLED',
+    }));
+    const bindings = buildBindings({ binance: fakeBinance({ placeOrder }) });
+    const deps: DecisionDeps = {
+      ...buildDeps(bindings),
+      placementOwner: createPlacementOwner({
+        redis: { set } as unknown as Redis,
+        logger: pino({ level: 'silent' }),
+        redisTimeoutMs: 5,
+      }),
+    };
+
+    const out = await placeOrderHandler(deps, CTX, PLACE);
+
+    expect(out).toEqual({ ok: true });
+    expect(placeOrder).toHaveBeenCalledTimes(1);
   });
 
   it('records an accepted MARKET placement so the very next identical one is suppressed', async () => {
