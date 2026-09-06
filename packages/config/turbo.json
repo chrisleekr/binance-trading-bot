@@ -14,6 +14,7 @@
         "$TURBO_ROOT$/apps/**/src/**",
         "$TURBO_ROOT$/apps/worker/__tests__/integration/**",
         "$TURBO_ROOT$/packages/**/package.json",
+        "$TURBO_ROOT$/packages/**/vitest.config.ts",
         "$TURBO_ROOT$/packages/**/src/**"
       ]
     }

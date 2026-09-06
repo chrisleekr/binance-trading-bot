@@ -1,9 +1,11 @@
+import type { TestProjectInlineConfiguration } from 'vitest/config';
+
 import { defineProject } from '../config/vitest/index.js';
 
 // Serialisation remains scoped to local container runs. The global setup now provisions one endpoint for the whole project, while serial execution preserves the migration suites' established Docker and database concurrency behavior.
 const provisionsContainers = process.env['TESTCONTAINERS'] === '1';
 
-// Declared separately because Vitest types `teardownTimeout` as a root-only setting even though this package config is run as the root config. The value is still consumed when `vitest run` loads this file directly.
+// Declared separately because Vitest types `teardownTimeout` as a root-only setting even though this package config is run as the root config. The value is still consumed when `vitest run` loads this file directly. `satisfies` widens exactly that one key: a bare variable would also stop TypeScript catching a typo in any of the others.
 const test = {
   globalSetup: './__tests__/_global-setup.ts',
   hookTimeout: 180_000,
@@ -13,6 +15,8 @@ const test = {
   //
   // Safe because nothing here depends on a fresh registry per file. `_infra.ts` is a provided-context read with no module-level state to leak, teardown is owned by the project global setup rather than by whichever file imported first, and no suite calls `vi.resetModules()` on the shared graph.
   isolate: false,
+} satisfies NonNullable<TestProjectInlineConfiguration['test']> & {
+  readonly teardownTimeout: number;
 };
 
 export default defineProject({ packageName: '@app/db', test });

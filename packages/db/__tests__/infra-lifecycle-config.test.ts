@@ -11,7 +11,10 @@ import config from '../vitest.config.js';
 
 const TESTS_ROOT = fileURLToPath(new URL('.', import.meta.url));
 const DB_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const LIFECYCLE_FIXTURE = join(TESTS_ROOT, 'fixtures/infra-lifecycle');
+const FIXTURES_ROOT = join(TESTS_ROOT, 'fixtures');
+const LIFECYCLE_FIXTURE = join(FIXTURES_ROOT, 'infra-lifecycle');
+// Contention headroom, not an expectation of how long the work takes. Idle, the four nested `vitest run` cases settle in ~460ms and the two `bun -e` config loads in ~770ms, but 79 files run with `fileParallelism: true` in the db-isolation lane and nothing here is retried, so Vitest's five-second default turns one overrun into a red pipeline with no defect behind it. `packages/config/__tests__/coverage-thresholds.test.ts` states the same budget for a cheaper spawn.
+const SPAWN_TIMEOUT_MS = 60_000;
 
 // Both specifiers are assembled at runtime: this guard scans the very directory it lives in, so a literal would make the file an offender of its own scan and the sole-provisioner rule would report itself forever.
 const PROVISIONER_SPECIFIER = ['@app', 'testcontainers'].join('/');
@@ -182,8 +185,12 @@ const runLifecycleFixture = (env: {
 };
 
 describe('database test hook timeouts', () => {
-  it('sets the project hook timeout to 180 seconds', () => {
+  it('sets the project hook and teardown timeouts to 180 seconds', () => {
     expect(config.test?.hookTimeout).toBe(180_000);
+    // The teardown budget covers `fixture.stop()` shutting down a real container, so it needs the same headroom as the hook that started it. Read through a cast because Vitest types the key as root-only and the resolved project config does not surface it, which is the same reason the config declares it through a `satisfies` variable.
+    const teardownTimeout = (config.test as { readonly teardownTimeout?: number } | undefined)
+      ?.teardownTimeout;
+    expect(teardownTimeout).toBe(180_000);
   });
 
   // Deliberately the inverse of `apps/api/__tests__/infra-lifecycle-config.test.ts`, which requires `afterAll(stopSharedInfra)` in `_helpers.ts` and forbids the global setup from naming it. The two packages own different problems: api provisions Postgres AND Redis per isolated test file and has not moved to a project-owned fixture, so its teardown still belongs to the module that acquired. This package has one endpoint for the whole project, so file-scoped teardown is exactly the hazard being removed. Moving api across is a separate change; until then a failure on either side is read against its own package's shape, not the other's.
@@ -196,11 +203,15 @@ describe('database test hook timeouts', () => {
     expect(setupFiles.some((file) => file.endsWith('/_global-setup.ts'))).toBe(true);
   });
 
-  it('serialises the package only when it provisions containers', () => {
-    // Both branches, because each failure mode is real and they are opposites. Under TESTCONTAINERS=1, every provisioning suite drives the one project-global container endpoint, so the package keeps its scratch-database migration work serial. Without a provisioned container there is no shared local endpoint to protect, and serialising the package only adds wall time.
-    expect(fileParallelismUnder('1')).toBe(false);
-    expect(fileParallelismUnder(undefined)).toBe(true);
-  });
+  it(
+    'serialises the package only when it provisions containers',
+    () => {
+      // Both branches, because each failure mode is real and they are opposites. Under TESTCONTAINERS=1, every provisioning suite drives the one project-global container endpoint, so the package keeps its scratch-database migration work serial. Without a provisioned container there is no shared local endpoint to protect, and serialising the package only adds wall time.
+      expect(fileParallelismUnder('1')).toBe(false);
+      expect(fileParallelismUnder(undefined)).toBe(true);
+    },
+    SPAWN_TIMEOUT_MS,
+  );
 
   it('reaches every provisioning suite in the directory', () => {
     expect(allFiles.length).toBeGreaterThan(0);
@@ -225,9 +236,12 @@ describe('database infrastructure provisioning', () => {
   );
 
   // The exemption tracks the file that provisions, which is the global setup, not the memo. Pointing it at `_infra.ts` would exempt a file that acquires nothing and force the real owner to obfuscate the specifier to stay green.
+  //
+  // `fixtures/` is out of scope for the same reason. Nothing there acquires anything: the nested project aliases the specifier to a fake before any of it runs, and the outer project's include never matches those files. Scanning them only made naming the wrapper, in an alias key or a `satisfies` clause, cost a runtime-assembled string, which is a trap for the next reader rather than a rule.
   it('leaves no other file under __tests__ importing the Testcontainers wrapper', () => {
     const strays = allFiles
       .filter((file) => !file.endsWith(LIFECYCLE_OWNER_FILE))
+      .filter((file) => !file.startsWith(FIXTURES_ROOT))
       .filter((file) => !provisioningSuites.includes(file))
       .flatMap(provisionerReferences);
     expect(strays).toEqual([]);
@@ -249,69 +263,86 @@ describe('database infrastructure global lifecycle', () => {
     expect.soft(setupFiles.some((file) => file.endsWith('/_global-setup.ts'))).toBe(true);
   });
 
-  it('provisions once, shares the URL across later suites, and stops only after both finish', () => {
-    const result = runLifecycleFixture({ testcontainers: '1' });
+  it(
+    'provisions once, shares the URL across later suites, and stops only after both finish',
+    () => {
+      const result = runLifecycleFixture({ testcontainers: '1' });
 
-    expect(result.status, result.stderr).toBe(0);
-    expect
-      .soft(
-        result.events.filter((event) => event === 'start'),
-        result.events.join(' -> '),
-      )
-      .toHaveLength(1);
-    const consumers = result.events.filter((event) => event.startsWith('consumer-'));
-    expect.soft(consumers).toHaveLength(2);
-    expect
-      .soft(consumers)
-      .toEqual(
+      expect(result.status, result.stderr).toBe(0);
+      expect
+        .soft(
+          result.events.filter((event) => event === 'start'),
+          result.events.join(' -> '),
+        )
+        .toHaveLength(1);
+      const consumers = result.events.filter((event) => event.startsWith('consumer-'));
+      expect.soft(consumers).toHaveLength(2);
+      expect
+        .soft(consumers)
+        .toEqual(
+          expect.arrayContaining([
+            'consumer-a:postgres://fixture/shared:<unset>',
+            'consumer-b:postgres://fixture/shared:<unset>',
+          ]),
+        );
+      expect.soft(result.events.filter((event) => event === 'stop')).toHaveLength(1);
+      expect.soft(result.events.at(-1), result.events.join(' -> ')).toBe('stop');
+    },
+    SPAWN_TIMEOUT_MS,
+  );
+
+  it(
+    'provides an external URL without provisioning or stopping a container',
+    () => {
+      const databaseUrl = 'postgres://external/fixture';
+      const result = runLifecycleFixture({ databaseUrl });
+
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.events).toEqual(
         expect.arrayContaining([
-          'consumer-a:postgres://fixture/shared:<unset>',
-          'consumer-b:postgres://fixture/shared:<unset>',
+          `consumer-a:${databaseUrl}:${databaseUrl}`,
+          `consumer-b:${databaseUrl}:${databaseUrl}`,
         ]),
       );
-    expect.soft(result.events.filter((event) => event === 'stop')).toHaveLength(1);
-    expect.soft(result.events.at(-1), result.events.join(' -> ')).toBe('stop');
-  });
+      expect(result.events.some((event) => event === 'start' || event === 'stop')).toBe(false);
+    },
+    SPAWN_TIMEOUT_MS,
+  );
 
-  it('provides an external URL without provisioning or stopping a container', () => {
-    const databaseUrl = 'postgres://external/fixture';
-    const result = runLifecycleFixture({ databaseUrl });
+  // Named for what the fixture can show: the setup passes the wrapper's answer through without re-deciding. The rule itself, that TESTCONTAINERS=1 wins, belongs to `withPostgres` and is pinned in `packages/testcontainers/__tests__/reusable-endpoint.test.ts`; the fake aliased in here only mirrors it.
+  it(
+    'hands the suites whatever the wrapper chose when both selectors are present',
+    () => {
+      const databaseUrl = 'postgres://external/fixture';
+      const result = runLifecycleFixture({ testcontainers: '1', databaseUrl });
 
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.events).toEqual(
-      expect.arrayContaining([
-        `consumer-a:${databaseUrl}:${databaseUrl}`,
-        `consumer-b:${databaseUrl}:${databaseUrl}`,
-      ]),
-    );
-    expect(result.events.some((event) => event === 'start' || event === 'stop')).toBe(false);
-  });
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.events).toEqual(
+        expect.arrayContaining([
+          'start',
+          `consumer-a:postgres://fixture/shared:${databaseUrl}`,
+          `consumer-b:postgres://fixture/shared:${databaseUrl}`,
+          'stop',
+        ]),
+      );
+      expect(result.events.filter((event) => event === 'start')).toHaveLength(1);
+      expect(result.events.filter((event) => event === 'stop')).toHaveLength(1);
+      expect(result.events.at(-1), result.events.join(' -> ')).toBe('stop');
+    },
+    SPAWN_TIMEOUT_MS,
+  );
 
-  it('prefers a provisioned fixture when both infrastructure selectors are present', () => {
-    const databaseUrl = 'postgres://external/fixture';
-    const result = runLifecycleFixture({ testcontainers: '1', databaseUrl });
+  it(
+    'fails the run when project-owned teardown cannot stop its container',
+    () => {
+      const result = runLifecycleFixture({
+        testcontainers: '1',
+        stopFailure: 'fixture stop failed',
+      });
 
-    expect(result.status, result.stderr).toBe(0);
-    expect(result.events).toEqual(
-      expect.arrayContaining([
-        'start',
-        `consumer-a:postgres://fixture/shared:${databaseUrl}`,
-        `consumer-b:postgres://fixture/shared:${databaseUrl}`,
-        'stop',
-      ]),
-    );
-    expect(result.events.filter((event) => event === 'start')).toHaveLength(1);
-    expect(result.events.filter((event) => event === 'stop')).toHaveLength(1);
-    expect(result.events.at(-1), result.events.join(' -> ')).toBe('stop');
-  });
-
-  it('fails the run when project-owned teardown cannot stop its container', () => {
-    const result = runLifecycleFixture({
-      testcontainers: '1',
-      stopFailure: 'fixture stop failed',
-    });
-
-    expect(result.status, result.stderr).not.toBe(0);
-    expect(result.stderr).toContain('fixture stop failed');
-  });
+      expect(result.status, result.stderr).not.toBe(0);
+      expect(result.stderr).toContain('fixture stop failed');
+    },
+    SPAWN_TIMEOUT_MS,
+  );
 });
