@@ -68,6 +68,16 @@ export const momentumNotes: FieldNotes = {
     expect:
       'The stop sits this many ATRs below the peak since entry. At `3` a coin whose ATR is 2% of price gets roughly a 6% pullback allowance, and that allowance moves as volatility does.',
   },
+  'riskSizing.enabled': {
+    when: 'Turn it on when your entry sizing buys the same amount of a jumpy coin as a calm one, so a single stop-out costs far more on some symbols than others. It matters most alongside the ATR stop, where the stop distance already differs coin to coin.',
+    expect:
+      'Each buy is shrunk to the size whose first stop would cost the same slice of the account. Volatile coins get noticeably smaller positions, so they also gain less when they run; it never buys more than your entry sizing allows.',
+  },
+  'riskSizing.riskPct': {
+    when: 'Only when risk-based sizing is on. Lower it to take smaller positions across the board; raise it to trade closer to your entry sizing.',
+    expect:
+      'A stopped-out trade costs roughly this share of the account whatever coin it was, measured against the stop distance at the time you bought — if the coin turns more volatile afterwards the ATR stop widens and it can cost more. If you have the exchange-side protective stop turned on, it also costs somewhat more than the figure here whatever the coin does: the order resting at Binance sells down to a limit price below its own trigger, so the fill lands under the level this was sized from. Set it too low and many entries fall below Binance’s minimum order value and are skipped entirely.',
+  },
   'protectiveStop.enabled': {
     when: 'Turn it on if you want protection that survives the bot being offline. The in-memory trailing stop only fires while the worker is running.',
     expect:
@@ -83,8 +93,13 @@ export const momentumNotes: FieldNotes = {
     expect:
       'Binance refuses a resting sell priced too far below the market, and this picks what happens then. `notify` alerts you and leaves the position with no resting stop behind it. `clamp` raises the stop to the deepest level Binance will take: at the default `0.98` limit offset that is roughly 7.2% below the market on a typical coin. That level is anchored to the market rather than to your high-water mark, so it follows the price both up and down and never sits below the trail you set: a gradual pullback moves it back down instead of triggering it, so it is not a tighter trailing exit but a resting order that catches a fast drop. While the exchange floor is what is holding the stop up, `minRearmDriftPct` is widened to 1% so following the market does not rewrite the order every tick. `native-trail` hands Binance a trailing stop at your full distance instead, so nothing is tightened — the costs are that it sells at whatever the market pays rather than at a limit price, and Binance measures the distance from the highest price seen since the order was placed rather than from your entry, so there is no fixed trigger price for the app to show you.',
   },
+  'protectiveStop.mode': {
+    when: 'Only when the protective stop is on. Switch to `native-trail` once this symbol accepts the configured distance in its Binance `TRAILING_DELTA` filter.',
+    expect:
+      'In `native-trail` mode, one resting `STOP_LOSS` order stays on Binance and Binance ratchets its trigger up after every trade. A tighter distance or an under-size correction replaces it only when the successor would not lower the effective trigger. An over-size correction, or switching a held position from `priced` to `native-trail`, replaces it without that guard. Leaving this at the priced default keeps every existing profile behaving as before.',
+  },
   'protectiveStop.minRearmDriftPct': {
-    when: 'Only when the protective stop is on. Raise it if you are hitting Binance order limits, or if the resting stop is being rewritten constantly in a market that is grinding one way.',
+    when: 'Only when the protective stop is on. Raise it if you are hitting Binance order limits, or if the resting stop is being rewritten constantly in a market that is grinding one way. Applies to `priced` mode and to the priced fallback of `native-trail`; a resting native trail is replaced by the delta and quantity rules under `protectiveStop.mode`, not by this band.',
     expect:
       'The stop order held at Binance is only rewritten once the level has moved this far. Higher means fewer orders sent and a resting stop that lags the in-app level by up to this much; lower means the two stay in step at the cost of order allowance. It does not change when the strategy itself sells — that check runs every tick regardless.',
   },
@@ -106,7 +121,7 @@ export const momentumNotes: FieldNotes = {
   'profitTrail.ratchetMinutes': {
     when: 'Only when the profit trail is on. Lower it if the trail is lagging fast moves; raise it if you are sending too many orders.',
     expect:
-      'How often the profit trail is allowed to move up. It paces that trail only: your normal trailing stop advances on your candle interval, so with a 1-minute interval the stop order at Binance can still be rewritten every minute whenever the normal stop is the higher of the two. Each rewrite is a cancel plus a place and spends one unit of order allowance. The sell check itself runs every tick, so a fall through the current level is caught immediately; what this delays is the level moving UP.',
+      'How often the profit trail is allowed to move up. It paces that trail only: your normal trailing stop advances on your candle interval, so with a 1-minute interval the stop order at Binance can still be rewritten every minute whenever the normal stop is the higher of the two. Each rewrite uses one cancelReplace request and spends one unit of order allowance. The sell check itself runs every tick, so a fall through the current level is caught immediately; what this delays is the level moving UP.',
   },
   'trendFilter.enabled': {
     when: 'Turn it on when backtests show the strategy losing money mainly on entries taken during sustained downtrends.',

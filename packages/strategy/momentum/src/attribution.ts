@@ -63,6 +63,14 @@ export const momentumReasonAttribution: ReasonAttribution = {
     gloss: 'The account is already at your reserve cap',
     kind: 'config',
   },
+  'risk-sizing-unavailable': {
+    setting: 'Risk-based sizing',
+    // Only the on/off switch is listed because the consumer reports the FIRST path holding an armed value, and this blocker is raised only from inside `riskSizing.enabled === true`, so that entry is armed every time it fires and anything listed after it is unreachable. `riskPct` would not help even if it were reported: it is the numerator of a division this refusal returns before ever reaching, so no value of it clears the blocker. The ATR period and multiple are dominated the same way, so they are named in the note instead, where the operator reads the condition rather than a value lookup.
+    paths: ['riskSizing.enabled'],
+    note: 'risk-based sizing needs to know how far below entry the first stop would sit, and it could not work that out. The three you can act on: with the volatility-scaled stop on, there may not be enough closed candles yet to measure this coin’s volatility, which clears as more candles close on this symbol, or the coin may be volatile enough that the stop distance your ATR multiple asks for covers the whole price, which lowering the multiple fixes; with it off, the trailing-stop percent may be missing, or not above 0 and below 100. Any other unusable reading of that distance, such as a flat window with no volatility to measure or an unreadable price, refuses the same way rather than guess a size',
+    gloss: 'The stop distance risk-based sizing needs was not available',
+    kind: 'sizing',
+  },
   'min-qty': {
     setting: 'Binance minimum quantity',
     note: "Binance's per-symbol minimum order size, not your setting — raise your per-trade budget to clear it",
@@ -73,6 +81,12 @@ export const momentumReasonAttribution: ReasonAttribution = {
     setting: 'Binance minimum notional',
     note: "Binance's per-symbol minimum order value, not your setting — raise your per-trade budget to clear it",
     gloss: "Order fell below Binance's minimum notional",
+    kind: 'sizing',
+  },
+  'entry-below-stop-notional': {
+    setting: 'Entry budget',
+    note: 'The budget cannot fund the minimum position that would remain sellable at the protective stop',
+    gloss: 'The position would be too small to sell at its stop',
     kind: 'sizing',
   },
   'invalid-filters': {
@@ -96,10 +110,11 @@ export const momentumReasonAttribution: ReasonAttribution = {
     gloss: 'No coins are free to place the protective stop against',
     kind: 'sizing',
   },
+  // The note names the limit offset because the refusal threshold moves with it, but no `paths` lever is offered: the offset shifts the measured price by a couple of percent, which clears only a position sitting just under the minimum. On the common shape, a position genuinely too small, pointing the operator at that setting would spend their one obvious action on a change that cannot work.
   'base-below-exchange-minimum': {
     setting: 'Protective stop',
-    note: "the free coins are worth less than Binance's minimum order size, so no protective stop can be placed against them; it arms itself once more of the position is free",
-    gloss: 'Too few coins are free to meet the exchange minimum for a protective stop',
+    note: "the coins the stop would sell are worth less at the stop's own price — not today's market price — than Binance's minimum order size, so no protective stop can be placed; either the whole position is that small or too little of it is free, so it clears when more of the position frees up, when you add to it or sell it by hand, or when the limit offset is raised so the limit price the minimum is measured at sits closer to the trigger",
+    gloss: "The coins the stop would sell are under Binance's minimum order size",
     kind: 'sizing',
   },
   // Carries a lever because one shape of this refusal never clears on its own: a
@@ -114,6 +129,39 @@ export const momentumReasonAttribution: ReasonAttribution = {
     // nothing and narrows the gap the stop needs to fill in a fast drop.
     gloss:
       'Binance will not accept a protective stop at this price yet; the limit offset is at fault only when the symbol marks the refusal permanent',
+    kind: 'sizing',
+  },
+  'native-trail-resting': {
+    setting: 'Protective stop',
+    note: 'Binance is holding an exchange-managed trailing stop for this position. Primary-native replacements are guarded against lowering its effective trigger; band-escape and mode-switch replacements follow their own rules.',
+    gloss: 'Binance is holding an exchange-managed trailing stop for this position',
+    kind: 'sizing',
+  },
+  'profit-leg-armed': {
+    setting: 'Profit trail',
+    paths: ['profitTrail.enabled', 'profitTrail.activationPct', 'profitTrail.trailPct'],
+    gloss:
+      'Your profit-lock trail has taken over the trailing stop and is holding a tighter trigger than your base setting',
+    kind: 'sizing',
+  },
+  'native-trail-unavailable': {
+    setting: 'Protective stop mode',
+    paths: ['protectiveStop.mode'],
+    gloss:
+      'Binance would not accept a trailing stop at the distance your settings ask for, so the bot is using its own resting stop instead',
+    kind: 'config',
+  },
+  // One sentence has to read correctly in two opposite places: on the symbol screen a second after an entry, where this is expected, and on a finding raised because it has lasted, where the position has been unguarded the whole time. The old wording told the operator it was nothing, which is exactly wrong on the second one, so it now says what is expected and for how long, then names the two things that keep an arm from landing.
+  'protective-stop-unplaced': {
+    setting: 'Protective stop',
+    note: 'Expected for a moment right after a new position opens, while the bot places the stop. If it is still showing minutes later, every attempt to place it is being refused and nothing on Binance would sell this position if the price fell: check whether another order is holding the coins, and whether Binance will accept a stop at the price your settings ask for.',
+    gloss: 'No protective stop is resting on Binance yet for this position',
+    kind: 'sizing',
+  },
+  'priced-stop-resting': {
+    setting: 'Protective stop',
+    note: 'This is the normal healthy state when protective stop mode is priced.',
+    gloss: 'A fixed-price protective stop is resting on Binance for this position',
     kind: 'sizing',
   },
 };

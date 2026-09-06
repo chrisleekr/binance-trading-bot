@@ -1,7 +1,9 @@
 import { Decimal } from '@app/money';
+import type { SizeFilters } from '@app/strategy-core';
 import { describe, expect, it } from 'vitest';
 
 import {
+  assessDownsideExit,
   hasDownsideExitConfigured,
   noExitCandidates,
   resolveExitBlocker,
@@ -19,6 +21,7 @@ const empty = (): ExitBlockerContext => ({
   openSellOrder: false,
   currentPrice: new Decimal('100'),
   hasDownsideExit: true,
+  stopInfeasible: null,
 });
 
 const baseConfig = (sell: Record<string, unknown>): TTConfig =>
@@ -63,6 +66,79 @@ describe('resolveExitBlocker — every reason maps through with its threshold', 
       changeKey: 'exit-config-invalid|field=highSinceBuy',
       detail: { field: 'highSinceBuy', currentPrice: '100', hasDownsideExit: true },
     });
+  });
+
+  it('stop-infeasible-dust carries held, stop and minNotional and preserves hasDownsideExit', () => {
+    const filters: SizeFilters = {
+      step: new Decimal('0.001'),
+      minQty: new Decimal('0.001'),
+      minNotional: new Decimal('0.0001'),
+    };
+    const assessed = assessDownsideExit(
+      baseConfig({ stopLossPercentage: '0.9' }),
+      false,
+      new Decimal('0.00999'),
+      new Decimal('0.010404'),
+      filters,
+    );
+
+    expect(assessed).toEqual({
+      // The flag keeps its configured meaning: a stop IS configured; infeasibility is reported via the `stop-infeasible-dust` reason, not by falsifying this flag.
+      hasDownsideExit: true,
+      stopInfeasible: {
+        heldQuantity: '0.00999',
+        stopPrice: '0.010404',
+        minNotional: '0.0001',
+      },
+    });
+    expect(
+      resolveExitBlocker({
+        ...empty(),
+        hasDownsideExit: assessed.hasDownsideExit,
+        stopInfeasible: assessed.stopInfeasible,
+      }),
+    ).toEqual({
+      reason: 'stop-infeasible-dust',
+      changeKey: 'stop-infeasible-dust|heldQuantity=0.00999|stopPrice=0.010404|minNotional=0.0001',
+      detail: {
+        heldQuantity: '0.00999',
+        stopPrice: '0.010404',
+        minNotional: '0.0001',
+        currentPrice: '100',
+        // The flag keeps its configured meaning: a stop IS configured; infeasibility is reported via the `stop-infeasible-dust` reason, not by falsifying this flag.
+        hasDownsideExit: true,
+      },
+    });
+  });
+
+  it('preserves the configured downside exit when the stop sell price is unavailable', () => {
+    const filters: SizeFilters = {
+      step: new Decimal('0.001'),
+      minQty: new Decimal('0.001'),
+      minNotional: new Decimal('0.0001'),
+    };
+
+    expect(
+      assessDownsideExit(
+        baseConfig({ stopLossPercentage: '0.9' }),
+        false,
+        new Decimal('0.00999'),
+        null,
+        filters,
+      ),
+    ).toEqual({ hasDownsideExit: true, stopInfeasible: null });
+  });
+
+  it('preserves the configured downside exit when exchange filters are unavailable', () => {
+    expect(
+      assessDownsideExit(
+        baseConfig({ stopLossPercentage: '0.9' }),
+        false,
+        new Decimal('0.00999'),
+        new Decimal('0.010404'),
+        null,
+      ),
+    ).toEqual({ hasDownsideExit: true, stopInfeasible: null });
   });
 
   it('trail-high-raised carries the new high', () => {
@@ -209,6 +285,11 @@ describe('resolveExitBlocker — priority ordering', () => {
     openSellOrder: true,
     unsellable: { skip: 'no-balance' },
     configInvalid: { field: 'highSinceBuy' },
+    stopInfeasible: {
+      heldQuantity: '0.00999',
+      stopPrice: '0.010404',
+      minNotional: '0.0001',
+    },
     trailHighRaised: { high: new Decimal('120') },
     armedTrail: { source: 'fixed', trailPrice: new Decimal('98'), high: new Decimal('120') },
     awaitingArm: { armPrice: new Decimal('105') },
@@ -224,6 +305,7 @@ describe('resolveExitBlocker — priority ordering', () => {
       ['openSellOrder', 'exit-order-open'],
       ['unsellable', 'exit-unsellable'],
       ['configInvalid', 'exit-config-invalid'],
+      ['stopInfeasible', 'stop-infeasible-dust'],
       ['trailHighRaised', 'trail-high-raised'],
       ['armedTrail', 'trail-above-price'],
       ['awaitingArm', 'awaiting-sell-arm'],

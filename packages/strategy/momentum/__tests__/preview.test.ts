@@ -12,7 +12,7 @@ import { momentumPreviewLevels, momentumPreviewDataNeeds } from '../src/preview.
 
 import { MomentumConfigSchema, type MomentumConfig } from '../src/index.js';
 import { resolveEntryBudget } from '../src/sizing.js';
-import { computeEntryQuantity } from '../src/quantity.js';
+import { computeEntryQuantity, entryStopFloor } from '../src/quantity.js';
 
 const FILTERS: SymbolInfo['filters'] = {
   minNotional: '10',
@@ -60,20 +60,41 @@ const RICH_ACCOUNT_WIRE: AccountSnapshotWire = {
   balances: { USDT: { free: '100000', locked: '0' } },
 };
 
+// The closed window every direct oracle call re-measures the stop distance from; the preview builds its rows off the same series.
+const PREVIEW_CANDLES = mkCandles(FLAT_CLOSES);
+const bandCtx = (price: string) => ({ price, candles: PREVIEW_CANDLES });
+
+// A modest wallet, so a plausible riskPct actually binds: at 1000 equity and a 5% stop, risking 0.5% caps the buy at 100 against the 140 entry sizing allows.
+const MODEST_ACCOUNT: AccountSnapshot = {
+  balances: { USDT: { asset: 'USDT', free: new Decimal('1000'), locked: new Decimal('0') } },
+};
+const MODEST_ACCOUNT_WIRE: AccountSnapshotWire = {
+  balances: { USDT: { free: '1000', locked: '0' } },
+};
+
 const rows = (model: PreviewModel): PreviewRow[] => model.sections.flatMap((s) => s.rows);
 const row = (model: PreviewModel, code: string): PreviewRow | undefined =>
   rows(model).find((r) => r.code === code);
 
-const previewInput = (config: MomentumConfig, account: AccountSnapshotWire) => ({
+const previewInput = (
+  config: MomentumConfig,
+  account: AccountSnapshotWire,
+  candles = PREVIEW_CANDLES,
+  filters = FILTERS,
+  currentPrice = '10',
+) => ({
   config,
   state: null,
   entryPrice: null,
-  currentPrice: '10',
-  filters: FILTERS,
-  candles: mkCandles(FLAT_CLOSES),
+  currentPrice,
+  filters,
+  candles,
   account,
   quoteAsset: 'USDT',
 });
+
+// A rising series with a constant step, so every true range is exactly 1 and ATR over its first full window is exactly 1. Non-flat on purpose: a flat series has ATR 0, which is `risk-sizing-unavailable` whether the window arrived or not, and would make the case below blind to an empty one.
+const STEP_CANDLES = mkCandles(['10', '11', '12', '13']);
 
 describe('momentumPreviewLevels — flat state with a configured entry', () => {
   it('projects the entry band at slowEMA*(1+margin) as an informational row (no trigger)', () => {
@@ -97,12 +118,52 @@ describe('momentumPreviewLevels — flat state with a configured entry', () => {
     const entry = row(model, 'entry');
     if (entry?.price === undefined) throw new Error('expected an entry row with a price');
 
-    const budget = resolveEntryBudget(config, RICH_ACCOUNT, 'USDT');
+    const budget = resolveEntryBudget(config, RICH_ACCOUNT, 'USDT', bandCtx(entry.price));
     if (!('budget' in budget)) throw new Error('expected a fundable budget');
-    const expected = computeEntryQuantity(budget.budget, entry.price, FILTERS);
+    const expected = computeEntryQuantity(
+      budget.budget,
+      entry.price,
+      FILTERS,
+      entryStopFloor(config, PREVIEW_CANDLES, entry.price),
+    );
     if (!('quantity' in expected)) throw new Error('expected a sizable quantity');
 
     expect(entry.quantity).toBe(expected.quantity);
+  });
+
+  it('refuses in the preview what computeEntryQuantity refuses at the same stop floor', () => {
+    const config = cfg({
+      entrySizing: { mode: 'fixed', amount: '0.00012' },
+      trailingStopPct: '0.1',
+      entryMarginPct: '0',
+    });
+    const zecFilters = {
+      ...FILTERS,
+      minNotional: '0.0001',
+      tickSize: '0.000001',
+      stepSize: '0.001',
+      minQty: '0.001',
+    };
+    const zecCandles = mkCandles(['0.0118', '0.0118', '0.0118', '0.0118']);
+    const model = momentumPreviewLevels(
+      previewInput(config, RICH_ACCOUNT_WIRE, zecCandles, zecFilters, '0.0118'),
+    );
+    const entry = row(model, 'entry');
+    if (entry?.price === undefined) throw new Error('expected an entry row with a price');
+
+    const budget = resolveEntryBudget(config, RICH_ACCOUNT, 'USDT', {
+      price: entry.price,
+      candles: zecCandles,
+    });
+    if (!('budget' in budget)) throw new Error('expected a fundable budget');
+    const expected = computeEntryQuantity(
+      budget.budget,
+      entry.price,
+      zecFilters,
+      entryStopFloor(config, zecCandles, entry.price),
+    );
+    expect(expected).toEqual({ skip: 'entry-below-stop-notional' });
+    expect(entry.skip).toBe('entry-below-stop-notional');
   });
 
   it('projects the initial trailing stop at entry*(1-trailingStopPct)', () => {
@@ -152,12 +213,145 @@ describe('momentumPreviewLevels — flat state with a configured entry', () => {
     const entry = row(model, 'entry');
     if (entry?.price === undefined) throw new Error('expected an entry row with a price');
 
-    const budget = resolveEntryBudget(poor, RICH_ACCOUNT, 'USDT');
+    const budget = resolveEntryBudget(poor, RICH_ACCOUNT, 'USDT', bandCtx(entry.price));
     if (!('budget' in budget)) throw new Error('expected a resolved budget');
-    const sized = computeEntryQuantity(budget.budget, entry.price, FILTERS);
+    const sized = computeEntryQuantity(
+      budget.budget,
+      entry.price,
+      FILTERS,
+      entryStopFloor(poor, PREVIEW_CANDLES, entry.price),
+    );
     if (!('skip' in sized)) throw new Error('expected a typed sizing skip');
 
     expect(entry.skip).toBe(sized.skip);
+  });
+
+  it('sizes the entry row through the risk cap, below what entry sizing alone would buy', () => {
+    const config = cfg({ riskSizing: { enabled: true, riskPct: '0.005' } });
+    const model = momentumPreviewLevels(previewInput(config, MODEST_ACCOUNT_WIRE));
+    const entry = row(model, 'entry');
+    if (entry?.price === undefined) throw new Error('expected an entry row with a price');
+
+    const budget = resolveEntryBudget(config, MODEST_ACCOUNT, 'USDT', bandCtx(entry.price));
+    if (!('budget' in budget)) throw new Error('expected a fundable budget');
+    const expected = computeEntryQuantity(
+      budget.budget,
+      entry.price,
+      FILTERS,
+      entryStopFloor(config, PREVIEW_CANDLES, entry.price),
+    );
+    if (!('quantity' in expected)) throw new Error('expected a sizable quantity');
+    expect(entry.quantity).toBe(expected.quantity);
+
+    // Matching the oracle alone would pass with the cap unwired on both sides. The same config with the block off must buy strictly more, which is the only assertion that proves the row moved.
+    const uncapped = momentumPreviewLevels(
+      previewInput(cfg({ riskSizing: { enabled: false, riskPct: '0.005' } }), MODEST_ACCOUNT_WIRE),
+    );
+    const uncappedQty = row(uncapped, 'entry')?.quantity;
+    if (uncappedQty === undefined) throw new Error('expected an uncapped quantity');
+    expect(new Decimal(entry.quantity ?? '0').lt(uncappedQty)).toBe(true);
+  });
+
+  it('measures the ATR stop distance off the window it was handed, not an empty one', () => {
+    // The only case that can tell the real closed window from an empty one: the ATR stop is on with a period the window satisfies, so a dropped window would flip a sized row into a `risk-sizing-unavailable` skip. That is the preview lying about size while the tick funds the entry perfectly well, and no replay fixture carries either block, so `assertPreviewTickAgreement` cannot catch it.
+    const config = cfg({
+      atrTrailingStop: { enabled: true, period: 3, multiple: '2' },
+      riskSizing: { enabled: true, riskPct: '0.005' },
+    });
+    const model = momentumPreviewLevels(previewInput(config, MODEST_ACCOUNT_WIRE, STEP_CANDLES));
+    const entry = row(model, 'entry');
+    if (entry?.price === undefined) throw new Error('expected an entry row with a price');
+    expect(entry.skip).toBeUndefined();
+
+    const budget = resolveEntryBudget(config, MODEST_ACCOUNT, 'USDT', {
+      price: entry.price,
+      candles: STEP_CANDLES,
+    });
+    if (!('budget' in budget)) throw new Error('expected a fundable budget');
+    const expected = computeEntryQuantity(
+      budget.budget,
+      entry.price,
+      FILTERS,
+      entryStopFloor(config, STEP_CANDLES, entry.price),
+    );
+    if (!('quantity' in expected)) throw new Error('expected a sizable quantity');
+    expect(entry.quantity).toBe(expected.quantity);
+
+    // And the cap actually bound on this window, so the equality above is not just two identical uncapped figures.
+    const uncapped = momentumPreviewLevels(
+      previewInput(
+        cfg({
+          atrTrailingStop: { enabled: true, period: 3, multiple: '2' },
+          riskSizing: { enabled: false, riskPct: '0.005' },
+        }),
+        MODEST_ACCOUNT_WIRE,
+        STEP_CANDLES,
+      ),
+    );
+    const uncappedQty = row(uncapped, 'entry')?.quantity;
+    if (uncappedQty === undefined) throw new Error('expected an uncapped quantity');
+    expect(new Decimal(entry.quantity ?? '0').lt(uncappedQty)).toBe(true);
+  });
+
+  it('sizes the entry row off the closed window alone when a forming candle trails it', () => {
+    // Only closed candles may set the stop distance an entry size is derived from, because a forming bar keeps moving and would make the quoted quantity non-deterministic within a tick and put this row out of step with the trail row, which is built from the filtered window.
+    const config = cfg({
+      atrTrailingStop: { enabled: true, period: 3, multiple: '2' },
+      riskSizing: { enabled: true, riskPct: '0.005' },
+    });
+    const withForming = [
+      ...STEP_CANDLES,
+      {
+        openTimeMs: 4 * 3_600_000,
+        closeTimeMs: 5 * 3_600_000,
+        open: '40',
+        high: '40',
+        low: '40',
+        close: '40',
+        volume: '1',
+        isClosed: false,
+      },
+    ];
+    const model = momentumPreviewLevels(previewInput(config, MODEST_ACCOUNT_WIRE, withForming));
+    const entry = row(model, 'entry');
+    if (entry?.price === undefined) throw new Error('expected an entry row with a price');
+
+    const budget = resolveEntryBudget(config, MODEST_ACCOUNT, 'USDT', {
+      price: entry.price,
+      candles: STEP_CANDLES,
+    });
+    if (!('budget' in budget)) throw new Error('expected a fundable budget');
+    const expected = computeEntryQuantity(
+      budget.budget,
+      entry.price,
+      FILTERS,
+      entryStopFloor(config, STEP_CANDLES, entry.price),
+    );
+    if (!('quantity' in expected)) throw new Error('expected a sizable quantity');
+    expect(entry.quantity).toBe(expected.quantity);
+    expect(entry.skip).toBeUndefined();
+
+    // And the spike is one the cap would really have felt, so the equality above is the filter holding rather than a bar that changed nothing.
+    expect(
+      resolveEntryBudget(config, MODEST_ACCOUNT, 'USDT', {
+        price: entry.price,
+        candles: withForming,
+      }),
+    ).toEqual({ skip: 'risk-sizing-unavailable' });
+  });
+
+  it('surfaces risk-sizing-unavailable when the ATR window is too short to measure the stop', () => {
+    // ATR(14) needs 15 candles and the preview window has 4 — long enough for the slow EMA, so the row is built and carries the skip rather than the section being dropped.
+    const config = cfg({
+      atrTrailingStop: { enabled: true, period: 14 },
+      riskSizing: { enabled: true, riskPct: '0.005' },
+    });
+    // STEP_CANDLES, not the flat default: a flat window's ATR is exactly zero, which refuses through the divisor check instead, so the assertion could not tell the length guard from that one.
+    const model = momentumPreviewLevels(previewInput(config, MODEST_ACCOUNT_WIRE, STEP_CANDLES));
+    const entry = row(model, 'entry');
+
+    expect(entry?.skip).toBe('risk-sizing-unavailable');
+    expect(entry?.quantity).toBeUndefined();
   });
 });
 
@@ -555,6 +749,101 @@ describe('momentumPreviewLevels — exchange-native trailing protective stop', (
     const ps = row(model, 'protective-stop');
     // 200 * 0.97, the profit leg — the hard leg contributed nothing.
     expect(ps?.price).toBe('194');
+    expect(ps?.note).toBeUndefined();
+  });
+});
+
+describe('momentumPreviewLevels — protectiveStop.mode: native-trail', () => {
+  // No `percentPriceBySide` on purpose: a profile in primary native mode rests a
+  // trail on every tick, not only on a band refusal, so the row must not depend
+  // on a band being published at all.
+  const TRAIL_FILTERS: SymbolInfo['filters'] = {
+    ...FILTERS,
+    trailingDelta: {
+      minTrailingAboveDelta: 10,
+      maxTrailingAboveDelta: 2000,
+      minTrailingBelowDelta: 10,
+      maxTrailingBelowDelta: 2000,
+    },
+  };
+
+  const model = (protectiveStop: Record<string, unknown>, filters = TRAIL_FILTERS): PreviewModel =>
+    momentumPreviewLevels({
+      ...previewInput(cfg({ protectiveStop }), RICH_ACCOUNT_WIRE),
+      filters,
+    });
+
+  it('names the distance instead of a level under the default onBandBlock', () => {
+    // The order that rests is a STOP_LOSS carrying a quantity and a trailing
+    // delta: Binance owns the trigger and derives it from a high-water mark that
+    // starts at placement. A price, a limit price, or a chart line here would put
+    // numbers on the symbol screen that the resting order does not carry.
+    const ps = row(
+      model({ enabled: true, mode: 'native-trail', limitOffsetPercentage: '0.98' }),
+      'protective-stop',
+    );
+    expect(ps).toBeDefined();
+    expect(ps?.label).toBe('Protective stop (exchange trail)');
+    // Pinned as the whole key set, not as three named absences, so a NEW
+    // price-bearing field fails here rather than reaching the chart silently.
+    expect(Object.keys(ps ?? {}).sort()).toEqual(['code', 'label', 'note', 'tone']);
+    // The configured `trailingStopPct: 0.05`, read back out of the delta the
+    // order will carry.
+    expect(ps?.note).toContain('5%');
+  });
+
+  it('keeps the priced row when the profile asks for a trail with no distance to trail by', () => {
+    // Selecting the mode is not enough on its own. An unparseable `trailingStopPct` leaves nothing to size a delta from, so the arm rests the priced stop instead, and the row has to follow the order rather than the setting. Naming a trail here would describe an order that never goes out.
+    const model = momentumPreviewLevels({
+      config: {
+        ...cfg({
+          profitTrail: { enabled: true, activationPct: '0.05', trailPct: '0.03' },
+          protectiveStop: { enabled: true, mode: 'native-trail', limitOffsetPercentage: '0.98' },
+        }),
+        trailingStopPct: 'nope',
+        protectiveStop: {
+          enabled: true,
+          mode: 'native-trail',
+          limitOffsetPercentage: '0.98',
+        },
+      },
+      state: held({ profitHigh: '200' }),
+      entryPrice: '100',
+      currentPrice: '10',
+      filters: TRAIL_FILTERS,
+      candles: mkCandles(FLAT_CLOSES),
+      account: RICH_ACCOUNT_WIRE,
+      quoteAsset: 'USDT',
+    } as never);
+    const ps = row(model, 'protective-stop');
+    expect(ps?.label).toBe('Protective stop');
+    expect(ps?.note).toBeUndefined();
+    // 200 * 0.97, the profit leg: a real resting level, so the row is the priced one rather than absent.
+    expect(ps?.price).toBe('194');
+  });
+
+  it('keeps the priced row for an explicitly priced stop and for an absent mode', () => {
+    const priced = (m: PreviewModel) => {
+      const ps = row(m, 'protective-stop');
+      expect(ps?.label).toBe('Protective stop');
+      expect(ps?.price).toBe('9.69');
+      expect(ps?.limitPrice).toBe(new Decimal('9.69').mul('0.98').toString());
+      expect(ps?.note).toBeUndefined();
+    };
+    priced(model({ enabled: true, mode: 'priced', limitOffsetPercentage: '0.98' }));
+    priced(model({ enabled: true, limitOffsetPercentage: '0.98' }));
+  });
+
+  it('keeps the priced row when the symbol will not accept the distance', () => {
+    // Selecting the mode is not enough: with no usable TRAILING_DELTA bounds the
+    // arm can build no native order and prices the stop instead, so promising a
+    // trail here would describe an order that never goes out.
+    const ps = row(
+      model({ enabled: true, mode: 'native-trail', limitOffsetPercentage: '0.98' }, FILTERS),
+      'protective-stop',
+    );
+    expect(ps?.label).toBe('Protective stop');
+    expect(ps?.price).toBe('9.69');
     expect(ps?.note).toBeUndefined();
   });
 });

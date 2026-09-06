@@ -13,6 +13,18 @@ export const roundToStep = (value: Decimal, step: Decimal): Decimal => {
   return value.div(step).floor().mul(step);
 };
 
+/** Quantize a value up to the nearest multiple of `step` when a minimum quantity must be preserved.
+ * @param value - The Decimal value to quantize.
+ * @param step - The positive exchange quantity step.
+ * @returns The smallest step-aligned value greater than or equal to `value`.
+ */
+export const ceilToStep = (value: Decimal, step: Decimal): Decimal => {
+  if (step.lte(0)) {
+    throw new Error('@app/money/ceilToStep: step must be positive');
+  }
+  return value.div(step).ceil().mul(step);
+};
+
 /**
  * Quantize a price down to the nearest multiple of `tickSize`. Mirror of
  * {@link roundToStep} for Binance `PRICE_FILTER`. Same flooring rationale:

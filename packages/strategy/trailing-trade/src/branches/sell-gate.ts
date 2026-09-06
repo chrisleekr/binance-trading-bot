@@ -8,7 +8,7 @@ import { buildSellDecision } from '../decisions.js';
 import { computeSellQuantity, type SellSkipReason } from '../quantity.js';
 import type { ExitBlocker, TTAtrTrailing, TTBundle, TTConfig, TTState } from '../schema.js';
 import {
-  hasDownsideExitConfigured,
+  assessHeldDownsideExit,
   noExitCandidates,
   resolveExitBlocker,
   type ExitCandidates,
@@ -655,7 +655,7 @@ export const evaluateSellGate = (
       sellDisabled: false,
       openSellOrder: false,
       currentPrice: safeDecimal(input.market.currentPrice),
-      hasDownsideExit: hasDownsideExitConfigured(input.config, state.discoveryEntry === true),
+      ...assessHeldDownsideExit(input.config, state, input.market),
     }),
   };
 };
@@ -703,8 +703,8 @@ export const technicalsForceSellTriggerPriceOf = (
  *
  * `reclaimable` adds back base the bot's OWN resting SELL orders lock — a
  * resting STOP_LOSS_LIMIT locks the base on Binance, dropping wallet `free`
- * to zero. That balance is reclaimable: the protective-stop re-arm replaces
- * its own order, and a closing batch cancels it before the market sell. Without
+ * to zero. That balance is reclaimable: both the protective-stop re-arm and a
+ * closing sell retire that order in the same exchange request that replaces it. Without
  * adding it back the cap reads zero free and the stop cancels itself every tick
  * (a place/cancel churn) while in-process exits can't size. Defaults to zero,
  * so a symbol with no own resting SELL is byte-identical to the prior behaviour.
@@ -763,10 +763,10 @@ export const sellEmissionOrSkip = (
   extraLog?: Readonly<Record<string, unknown>>,
 ): SellEmissionResult => {
   const baseAsset = input.market.symbolInfo.baseAsset;
-  // A closing batch cancels the bot's own resting protective stop before the
-  // market sell, so the base that stop locks is reclaimable for sizing here —
-  // otherwise a held position with a resting stop reads zero free and the exit
-  // can never size.
+  // A closing sell retires the bot's own resting protective stop in the same
+  // exchange request that places it, so the base that stop locks is reclaimable
+  // for sizing here — otherwise a held position with a resting stop reads zero
+  // free and the exit can never size.
   const free = resolveHeldForSell(state, baseAsset, input.account, reclaimableOwnSellBase(input));
   // The one boundary that knows the sell was sized off the tracked position
   // rather than off the wallet. Stamped only on the UNKNOWN branch so a normal

@@ -1,6 +1,6 @@
 import type { Decision, TickInput } from '@app/strategy-core';
 import { buildFirstBuyDecision, hasOpenBuyForSymbol } from '../decisions.js';
-import { computeFirstBuyQuantity, type FirstBuySkipReason } from '../quantity.js';
+import { computeFirstBuyQuantity, ttEntryStopFloor, type FirstBuySkipReason } from '../quantity.js';
 import { resolveEntryBudget, type EntrySizingSkip } from '../sizing.js';
 import type { TTBundle, TTConfig, TTState } from '../schema.js';
 import { evaluateGridBuy } from './grid-buy.js';
@@ -42,6 +42,8 @@ export const emitFirstBuyTvForced = (
           budget.budget,
           input.market.currentPrice,
           input.market.symbolInfo.filters,
+          '',
+          state.avgEntryPrice === null ? ttEntryStopFloor(input.config) : null,
         );
   if ('quantity' in result) {
     return {

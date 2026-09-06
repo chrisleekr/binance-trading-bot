@@ -923,6 +923,30 @@ describe('@app/strategy-trailing-trade tick — TV gate + first-buy emission', (
     },
   );
 
+  it('skips a no-grid entry whose stop notional is below the exchange minimum', () => {
+    const bundle = bundleWith({ symbol: 'BTCUSDT', recommendation: 'BUY', receivedAtMs: 0 });
+    const config = cfg();
+    const input = baseInput({
+      bundle,
+      config: {
+        ...config,
+        buy: {
+          ...config.buy,
+          entrySizing: { ...config.buy.entrySizing, amount: '10' },
+        },
+      },
+    });
+    // The $10 budget buys 0.0002 BTC, but 3%-below entry is worth only $9.70.
+    const out = trailingTrade.tick(input);
+    expect(out.decisions.some((decision) => decision.type === 'place-order')).toBe(false);
+    expect(out.metrics).toContainEqual({
+      name: 'tt_first_buy_skipped',
+      value: 1,
+      tags: { symbol: 'BTCUSDT', reason: 'entry-below-stop-notional' },
+    });
+    expect(out.nextState.entryBlocker?.reason).toBe('entry-below-stop-notional');
+  });
+
   it('skips the no-grid entry with reason=sizing-unconfigured when the unparsed config lacks entrySizing', () => {
     const bundle = bundleWith({ symbol: 'BTCUSDT', recommendation: 'BUY', receivedAtMs: 0 });
     const input = baseInput({ bundle });

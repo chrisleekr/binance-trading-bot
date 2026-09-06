@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { decimalString, ManualOverridePayload } from '@app/contracts';
 import { Decimal } from '@app/money';
+import { MAX_CANDLE_WINDOW } from '@app/strategy-core';
+import { ENTRY_SIZING_SKIPS } from './sizing.js';
 
 /**
  * Candle intervals this strategy supports. The worker subscribes to the
@@ -10,6 +12,17 @@ import { Decimal } from '@app/money';
  * {@link Strategy.capabilities.candleIntervals}.
  */
 export const MOMENTUM_CANDLE_INTERVALS = ['1m', '5m', '15m', '30m', '1h', '4h', '1d'] as const;
+
+/**
+ * Exit-protection states this strategy persists for held positions. The tuple is the single source for the state schema and its inferred reason union, so every emitted diagnosis remains schema-valid.
+ */
+export const MOMENTUM_EXIT_BLOCKER_REASONS = [
+  'native-trail-resting',
+  'profit-leg-armed',
+  'native-trail-unavailable',
+  'protective-stop-unplaced',
+  'priced-stop-resting',
+] as const;
 
 const MOMENTUM_DEFAULT_INTERVAL = '1h' as const;
 
@@ -31,6 +44,8 @@ const MomentumEmaSchema = z
       .number()
       .int()
       .min(2)
+      // The EMA gate fails closed: it holds until it holds `slow + 1` candles, so a period the candle window can never reach suppresses every entry while the profile keeps reporting warm-up. Bounded here so the config is refused instead.
+      .max(MAX_CANDLE_WINDOW - 1)
       .describe('Slow EMA period, in candles. Must be longer than the fast period.'),
   })
   .superRefine((val, ctx) => {
@@ -54,7 +69,15 @@ const MomentumProtectiveStopSchema = z.object({
   enabled: z
     .boolean()
     .default(false)
-    .describe('Rest a STOP_LOSS_LIMIT on the exchange that tracks the trailing-stop level.'),
+    .describe(
+      'Rest a protective stop on Binance that tracks the trailing-stop level: a STOP_LOSS_LIMIT in `priced` mode, an exchange-trailed STOP_LOSS in `native-trail` mode.',
+    ),
+  mode: z
+    .enum(['priced', 'native-trail'])
+    .default('priced')
+    .describe(
+      'Who moves the stop. "priced" rests a fixed trigger the bot re-prices; "native-trail" rests one exchange-side trailing stop that Binance tightens on every trade; the bot re-arms it only to tighten the distance or fix its size, and a size correction or a switch from priced mode restarts the exchange high-water mark.',
+    ),
   // Limit price as a fraction of the stop trigger, so a triggered stop crosses
   // the book and fills. 0.98 places the limit 2% below the trigger.
   limitOffsetPercentage: decimalString('limitOffsetPercentage must be in (0, 1)', {
@@ -205,6 +228,34 @@ const MomentumAtrTrailingStopSchema = z.object({
     .default('3')
     .describe(
       'How many ATRs below the peak the stop sits. 3 means sell when price falls 3 ATRs from the high reached since entry.',
+    ),
+});
+
+/**
+ * Risk-based entry sizing: cap each buy so that, if its first stop fires, the
+ * loss is the same share of the account whatever coin it was.
+ *
+ * `entrySizing` picks a buy size and the stop distance is chosen separately, so
+ * the two never talk. With the volatility-scaled stop on, that means a coin
+ * whose stop sits 11% below entry loses nearly four times as much on the same
+ * budget as one whose stop sits 3% below. This block re-derives the budget from
+ * the loss instead: `riskPct × equity ÷ initial stop distance`. It is a CAP —
+ * it can only shrink what `entrySizing` allowed, never raise it — so a calm coin
+ * still buys at most the normal size. Off by default (budgets and golden replays
+ * stay byte-identical); optional so the live worker, reading config unparsed,
+ * treats an absent block as disabled.
+ */
+const MomentumRiskSizingSchema = z.object({
+  enabled: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Size each buy by what it would lose rather than by a flat share of the account. With the volatility-scaled stop on, a jumpy coin, whose stop has to sit further below the price, gets a smaller buy and a calm one gets up to your normal size; with a plain percent stop every coin has the same stop distance, so every coin is scaled by the same amount. It never buys MORE than your entry sizing allows.',
+    ),
+  riskPct: decimalString('riskPct must be in (0, 1)', { gt: 0, lt: 1 })
+    .default('0.01')
+    .describe(
+      '@ui:percent-of How much of the account you accept losing if a buy goes straight to its stop. 1 means a stopped-out trade costs about 1% of the account, whichever coin it was.',
     ),
 });
 
@@ -384,6 +435,10 @@ export const MomentumConfigSchema = z.object({
   // `trailingStopPct` distance with `multiple × ATR` below the high. Off by
   // default so existing configs and golden replays stay byte-identical.
   atrTrailingStop: MomentumAtrTrailingStopSchema.optional(),
+  // Caps the entry budget at the size whose first stop would cost `riskPct` of
+  // equity. Off by default so existing configs and golden replays stay
+  // byte-identical.
+  riskSizing: MomentumRiskSizingSchema.optional(),
   // Profit-side ratchet layered ON TOP of the hard stop above; the effective
   // level is the max of the two. Off by default so existing configs and golden
   // replays stay byte-identical.
@@ -430,6 +485,7 @@ export const MomentumOverrideConfigSchema = z
     trailingStopPct: MomentumConfigSchema.shape.trailingStopPct.unwrap(),
     entryMarginPct: MomentumConfigSchema.shape.entryMarginPct.unwrap(),
     atrTrailingStop: MomentumConfigSchema.shape.atrTrailingStop.unwrap(),
+    riskSizing: MomentumConfigSchema.shape.riskSizing.unwrap(),
     profitTrail: MomentumConfigSchema.shape.profitTrail.unwrap(),
     // The signal shape and risk of a discovery-picked altcoin differ from the
     // BTC-tuned profile default, so these gate/exit levers are per-symbol
@@ -464,10 +520,8 @@ export const MomentumStateSchema = z.object({
   // Entry price of the open long, or null when flat. Set on the entry emit and
   // reconciled by the fill-adopter; cleared on the exit emit.
   entryPrice: z.string().nullable(),
-  // High-water mark of the closed-candle CLOSE since entry; the trailing stop
-  // measures the retrace from this. Ratcheted on closed candles only — never on
-  // a live intra-candle wick — so a transient spike cannot tighten the stop.
-  // Seeded to the entry price on entry; cleared on exit.
+  // High-water mark of the closed-candle CLOSE since entry; the trailing stop measures the retrace from this. Ratcheted on closed candles only — never on a live intra-candle wick — so a transient spike cannot tighten the stop. Seeded to the entry price on entry; cleared on exit.
+  // Bounded like the profit mark but on its own clock: only candles whose close time is strictly after `lastEntryCandleMs` may ratchet it, so a close from before the position existed cannot seed a peak it never held. A null stamp fails OPEN and admits the newest closed candle — a wallet-reconciled position never carries one, and gating on it would pin the mark at the entry price for the life of that position and stop the hard leg ratcheting at all.
   highSinceEntry: z.string().nullable(),
   // High-water mark of the profit trail: the best close among the bucket-end 1m
   // candles seen since entry, floored at the entry price. Separate from
@@ -515,10 +569,15 @@ export const MomentumStateSchema = z.object({
         'falling-trend',
         'overextended',
         'extension-insufficient-history',
-        'sizing-unconfigured',
-        'cap-reached',
+        // Spread from sizing's own vocabulary rather than copied, so a skip added there is
+        // persistable the moment it exists: a hand copy can only be checked for drift after
+        // the fact, and the gap it leaves is a blocker the worker cannot write down. Widening
+        // this enum is additive either way: every previously-persisted state still parses, so
+        // it does NOT bump MOMENTUM_STATE_SCHEMA_VERSION.
+        ...ENTRY_SIZING_SKIPS,
         'min-qty',
         'min-notional',
+        'entry-below-stop-notional',
         'invalid-filters',
       ]),
       detail: z.record(z.string(), z.unknown()).optional(),
@@ -539,6 +598,23 @@ export const MomentumStateSchema = z.object({
         'price-outside-exchange-band',
       ]),
       detail: z.record(z.string(), z.unknown()).optional(),
+    })
+    .nullable()
+    .default(null),
+  // Exit protection is position-scoped diagnosis, while its `changeKey` makes repeated healthy resting states stable for the worker's on-change audit. Additive defaults keep old bodies parseable without a schema-version hop, matching the blocker fields above.
+  exitBlocker: z
+    .object({
+      reason: z.enum(MOMENTUM_EXIT_BLOCKER_REASONS),
+      changeKey: z.string(),
+      detail: z.record(z.string(), z.unknown()).optional(),
+    })
+    .nullable()
+    .default(null),
+  // Binance owns this high-water mark between ticks, so the strategy persists its best local observation only while the same native order remains identifiable. The null default revives bodies written before native mode without a version bump.
+  nativeTrail: z
+    .object({
+      orderId: z.number(),
+      high: z.string(),
     })
     .nullable()
     .default(null),
@@ -573,6 +649,8 @@ export const initialMomentumState = (): MomentumState => ({
   profitTrailSinceMs: null,
   entryBlocker: null,
   protectiveStopBlocker: null,
+  exitBlocker: null,
+  nativeTrail: null,
 });
 
 /**

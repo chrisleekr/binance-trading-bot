@@ -18,6 +18,8 @@ const FIXTURE = resolve(__dirname, '..', 'fixtures', 'replay', 'cross-cycle.json
 // could not make.
 const PROFIT_FIXTURE = resolve(__dirname, '..', 'fixtures', 'replay', 'profit-trail.jsonl');
 
+// The golden data predates these fields: cross-cycle has no protectiveStop config, so both remain null; profit-trail records its priced-stop blocker, and both of its cancel/place pairs — the stop re-arm and the exit that retires the stop — are single replace-order decisions.
+
 // The hard leg across every profit-trail tick: highSinceEntry 13 * (1 - 0.15).
 // It never moves in that corpus, so anything above it came from the profit leg.
 const HARD_LEG = new Decimal('11.05');
@@ -37,20 +39,29 @@ describe('momentum — golden-fixture replay', () => {
   // corpus is non-vacuous even if the fixture is regenerated — it is a count,
   // not a snapshot. A wrapper records each tick's raw decisions; `replayFixture`
   // threads state through it exactly as it does the bare strategy.
-  it('never emits more than one place-order in a single tick', async () => {
+  it('never emits more than one placement in a single tick, counting replacements', async () => {
     const placementsPerTick: number[] = [];
+    const kinds: string[] = [];
     const recording: typeof momentum = {
       ...momentum,
       tick: (input) => {
         const out = momentum.tick(input);
-        placementsPerTick.push(out.decisions.filter((d) => d.type === 'place-order').length);
+        const placements = out.decisions.filter(
+          (d) => d.type === 'place-order' || d.type === 'replace-order',
+        );
+        placementsPerTick.push(placements.length);
+        kinds.push(...placements.map((d) => d.type));
         return out;
       },
     };
+    // BOTH corpora. cross-cycle configures no protective stop, so it can never emit a replacement: run the count over it alone and the `replace-order` half is dominated — deleting that disjunct changes nothing while a fused close or a re-arm slips past the cap unmeasured.
     await replayFixture(recording, FIXTURE);
-    // The corpus must have driven real ticks, or the assertions below are empty.
+    await replayFixture(recording, PROFIT_FIXTURE);
+    // The corpora must have driven real ticks of BOTH placement shapes, or the cap assertion below is empty.
     expect(placementsPerTick.length).toBeGreaterThan(0);
     expect(placementsPerTick.some((n) => n > 0)).toBe(true);
+    expect(kinds).toContain('place-order');
+    expect(kinds).toContain('replace-order');
     expect(Math.max(...placementsPerTick)).toBeLessThanOrEqual(1);
   });
 
@@ -69,7 +80,9 @@ describe('momentum — golden-fixture replay', () => {
       .filter((l) => l.trim().length > 0)
       .map((l) => JSON.parse(l));
     const places = ticks.flatMap((t) =>
-      t.expected.decisions.filter((d: { type: string }) => d.type === 'place-order'),
+      t.expected.decisions.filter(
+        (d: { type: string }) => d.type === 'place-order' || d.type === 'replace-order',
+      ),
     );
     const arms = places.filter(
       (d: { intent: { reason: string } }) => d.intent.reason === 'protective-stop',

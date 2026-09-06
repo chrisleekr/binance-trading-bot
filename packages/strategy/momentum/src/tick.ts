@@ -22,13 +22,20 @@ import {
   type MomentumConfig,
   type MomentumState,
 } from './schema.js';
-import { computeEntryQuantity, computeExitQuantity } from './quantity.js';
+import { computeEntryQuantity, computeExitQuantity, entryStopFloor } from './quantity.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
 import { trendMaType, trendPeriod } from './trend-filter.js';
+import { profitLegDistance } from './profit-leg.js';
 import { profitTrailEpoch, ratchetProfitHigh, resolveStopLevel } from './stop-level.js';
 import { resolveEntryBudget } from './sizing.js';
 import { entryClientOrderId, exitClientOrderId } from './client-order-id.js';
-import { evaluateProtectiveStopArm, protectiveStopCancelDecisions } from './protective-stop.js';
+import {
+  closingSellDecisions,
+  desiredTrailDistance,
+  evaluateProtectiveStopArm,
+  findRestingProtectiveStop,
+  nativeTrailHigh,
+} from './protective-stop.js';
 
 type MomentumInput = TickInput<MomentumConfig, MomentumState, MomentumBundle>;
 type MomentumOutput = TickOutput<MomentumState>;
@@ -285,7 +292,7 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
         );
       }
     }
-    return evaluateEntry(scoped, crossUp, lastCandle.closeTimeMs);
+    return evaluateEntry(scoped, crossUp, lastCandle.closeTimeMs, candles);
   }
   return evaluateExit(scoped, state.entryPrice, crossDown, lastCandle, candles, forceSell);
 };
@@ -294,6 +301,7 @@ const evaluateEntry = (
   input: MomentumInput,
   crossUp: boolean,
   candleCloseMs: number,
+  candles: readonly Candle[],
 ): MomentumOutput => {
   const { state, config, market, profile, account } = input;
   if (!crossUp) {
@@ -303,7 +311,11 @@ const evaluateEntry = (
   }
   // Resolve the quote budget (percentage sizing + reserve cap) before sizing the
   // order; a typed skip here is a held entry with a specific reason, not a guess.
-  const budget = resolveEntryBudget(config, account, market.symbolInfo.quoteAsset);
+  // An ENTRY-TIME measurement: the risk cap inside sizing derives the initial stop distance from this tick's closed window and from the price this entry will fill at, which is also the price the first stop is anchored to (`highSinceEntry` below is seeded to the same `currentPrice`). The resting stop is re-derived from each later tick's own window, so the distance this size was set against can drift after entry. Only volatility can widen it: the high-water mark is monotone, so the ratcheting-high leg only ever tightens.
+  const budget = resolveEntryBudget(config, account, market.symbolInfo.quoteAsset, {
+    price: market.currentPrice,
+    candles,
+  });
   if ('skip' in budget) {
     return hold(
       state,
@@ -312,7 +324,12 @@ const evaluateEntry = (
       { reason: budget.skip },
     );
   }
-  const sized = computeEntryQuantity(budget.budget, market.currentPrice, market.symbolInfo.filters);
+  const sized = computeEntryQuantity(
+    budget.budget,
+    market.currentPrice,
+    market.symbolInfo.filters,
+    entryStopFloor(config, candles, market.currentPrice),
+  );
   if ('skip' in sized) {
     return hold(
       state,
@@ -347,6 +364,8 @@ const evaluateEntry = (
     entryBlocker: null,
     // The stop arms on the next tick, once the fill is known: nothing to report.
     protectiveStopBlocker: null,
+    exitBlocker: null,
+    nativeTrail: null,
   };
   return {
     nextState,
@@ -381,7 +400,13 @@ const evaluateExit = (
   // reset). The trail FIRES against live currentPrice so it reacts intra-candle.
   const prevHigh = new Decimal(state.highSinceEntry ?? entryPrice);
   const closedClose = new Decimal(lastCandle.close);
-  const madeNewHigh = closedClose.gt(prevHigh);
+  // A candle that had already closed when the entry landed is a peak this position never held, so folding it rests the first stop a retrace below yesterday's close instead of below the entry: the operator's configured initial risk stops being the one resting on the exchange, and the realised risk drifts with wherever inside yesterday's range the entry happened to land.
+  // Strictly `>` because the stamp is the close time of the last candle that had already CLOSED when the buy fired — the candle whose close produced the cross, not the one the buy landed in, since a cross stays live for the rest of the following candle — so `>=` would re-admit that pre-entry close.
+  // A null stamp fails OPEN: a wallet-reconciled position never carries one, and gating on it would pin the mark at the entry price for the life of that position and stop the hard leg ratcheting at all, which is strictly worse than admitting a single pre-entry close.
+  // Editing `candleInterval` on a profile that already holds a position leaves the stamp untouched, so switching to a LONGER interval makes the newest closed candle older than the stamp and the hard leg cannot ratchet until the first candle of the new interval closes: bounded to at most one candle of that interval and self-healing. Deliberately not relaxed to fail open when the stamp is ahead of the window — a momentarily stale window would then re-admit exactly the pre-entry close this gate exists to exclude.
+  const entryCandleMs = lastEntryCandle(state);
+  const closedAfterEntry = entryCandleMs === null || lastCandle.closeTimeMs > entryCandleMs;
+  const madeNewHigh = closedAfterEntry && closedClose.gt(prevHigh);
   const effectiveHigh = madeNewHigh ? closedClose : prevHigh;
   const entry = new Decimal(entryPrice);
   // The profit leg advances on closed 1m candles instead, which the worker feeds
@@ -403,10 +428,23 @@ const evaluateExit = (
     market.candlesByInterval['1m'] ?? [],
     profitSinceMs,
   );
-  const level = resolveStopLevel(config, entry, effectiveHigh, profitHigh, candles, {
-    reference: market.currentPrice,
-    band: market.symbolInfo.filters.percentPriceBySide,
-  });
+  const resting = findRestingProtectiveStop(input.openOrders, profile.id, market.symbol);
+  const previousStop =
+    resting !== undefined && resting.trailingDelta === undefined
+      ? decOrNull(resting.stopPrice)
+      : null;
+  const level = resolveStopLevel(
+    config,
+    entry,
+    effectiveHigh,
+    profitHigh,
+    candles,
+    {
+      reference: market.currentPrice,
+      band: market.symbolInfo.filters.percentPriceBySide,
+    },
+    previousStop,
+  );
   const price = new Decimal(market.currentPrice);
   // A null level means NEITHER leg resolved — no usable retrace fraction, no
   // computable ATR, no armed profit leg — so hold, never sell. The resting stop
@@ -494,12 +532,13 @@ const evaluateExit = (
       entryBlocker: null,
       // Flat: there is no position left to protect, so no stop to be blocked.
       protectiveStopBlocker: null,
+      exitBlocker: null,
+      nativeTrail: null,
     };
     return {
       nextState,
-      // Retract the resting protective stop before the market sell so the
-      // exchange does not hold a stale limit against an already-flat position.
-      decisions: [...protectiveStopCancelDecisions(input), sell],
+      // One atomic request retires the resting protective stop AND places the exit. Two separate requests would leave both live against the same base for the round trip between them.
+      decisions: closingSellDecisions(input, sell),
       logs: [
         log('info', 'momentum: exit', {
           symbol: market.symbol,
@@ -530,11 +569,57 @@ const evaluateExit = (
   };
   // The resting stop mirrors the SAME resolved level the trail just tested, so
   // the two cannot report different numbers.
-  const arm = evaluateProtectiveStopArm(input, held, level.stop, level.floorClamped);
+  const arm = evaluateProtectiveStopArm(input, held, level, entry);
+  const attemptedDistance = desiredTrailDistance(config, level, entry);
+  const profitArmed = profitLegDistance(config, level.profitHigh, entry) !== null;
+  // Two orderings carry weight here, and they fail in opposite directions. "Nothing is resting" is tested BEFORE the reason nothing native could rest: `nativeUnavailable` is derived from the config mode, the wanted distance and the symbol's trailingDelta filter alone — it never consults the open orders — so testing it first reported a symbol whose filter refuses the distance as falling back to a priced stop on every held tick, including the ticks where the priced fallback also failed to land and the position was in fact naked, and the unplaced span an unprotected position is watched by never opened. Among the stops that ARE resting, the order's own shape is tested before the cause, because that same cause is derived from the PRIMARY wanted distance alone and cannot see the band escape, which rests its trail at an independently configured distance the filter may well accept: asking the cause first described a resting exchange trail as a resting priced fallback, which is the one shape it cannot be. Neither ordering loses the cause — it rides `detail`.
+  const exitBlocker: MomentumState['exitBlocker'] =
+    config.protectiveStop?.enabled !== true
+      ? null
+      : resting === undefined
+        ? {
+            reason: 'protective-stop-unplaced',
+            // The native-unavailable fact belongs in the identity so that a flip between the two unplaced shapes rewrites `detail`, which is otherwise frozen at the span's start. This key is not stable: under `atrTrailingStop` the wanted distance is recomputed from live candles every tick and the filter bounds are judged strictly, so a distance oscillating across a bound flips it while the position stays unplaced. Each flip costs one `condition_states` rewrite and one activity-feed edge — and never the span, because only a change of CODE restarts `since`, and the code does not move. The stop level stays out because it would pay that cost on every tick rather than on a bound crossing.
+            changeKey: arm.nativeUnavailable ? 'unplaced|native-unavailable' : 'unplaced',
+            detail: {
+              stop: level.stop?.toFixed() ?? null,
+              ...(arm.nativeUnavailable
+                ? { nativeUnavailable: true, distancePct: attemptedDistance?.toFixed() ?? null }
+                : {}),
+            },
+          }
+        : resting.trailingDelta !== undefined
+          ? {
+              reason: profitArmed ? 'profit-leg-armed' : 'native-trail-resting',
+              changeKey: `native|delta=${resting.trailingDelta}`,
+              detail: { trailingDelta: resting.trailingDelta, quantity: resting.origQty },
+            }
+          : arm.nativeUnavailable
+            ? {
+                reason: 'native-trail-unavailable',
+                changeKey: 'native-trail-unavailable',
+                detail: {
+                  distancePct: attemptedDistance?.toFixed() ?? null,
+                  fallback: 'priced',
+                },
+              }
+            : {
+                reason: 'priced-stop-resting',
+                changeKey: `priced|stop=${resting.stopPrice}`,
+                detail: { stop: resting.stopPrice },
+              };
+  const nativeHigh = nativeTrailHigh(input, held, resting);
+  const nativeTrail: MomentumState['nativeTrail'] =
+    nativeHigh === null ? null : { orderId: resting!.orderId, high: nativeHigh.toFixed() };
   // Only the stop-arm outcome writes this field: a refused stop must be visible on
   // the dashboard for as long as it is refused, and must clear itself the tick it
   // arms. It never gates an ENTRY — the position is already open.
-  const nextState: MomentumState = { ...held, protectiveStopBlocker: arm.blocker };
+  const nextState: MomentumState = {
+    ...held,
+    protectiveStopBlocker: arm.blocker,
+    exitBlocker,
+    nativeTrail,
+  };
   return {
     nextState,
     decisions: arm.decisions.length > 0 ? arm.decisions : [{ type: 'noop' }],

@@ -116,6 +116,8 @@ export function glossEntryBlocker(blocker: EntryBlocker): string {
     case 'min-notional':
     case 'min-purchase':
       return "Your buy amount is below the exchange's minimum order size for this coin, so no order can be placed. Raise the purchase amount.";
+    case 'entry-below-stop-notional':
+      return 'The position would be too small to sell if its stop-loss (the automatic sell that caps a loss) triggered, so no order was placed.';
     case 'invalid-filters':
       return "The exchange's trading rules for this coin could not be read, so the buy was skipped.";
     default:

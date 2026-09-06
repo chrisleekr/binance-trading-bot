@@ -1,8 +1,13 @@
-import { Decimal } from '@app/money';
+import { Decimal, roundToTick } from '@app/money';
 import { clampStopToExchangeFloor, decOrNull } from '@app/strategy-core';
-import type { ProtectiveStopBandSettings, StopBandContext } from '@app/strategy-core';
+import type {
+  MarketSnapshot,
+  ProtectiveStopBandSettings,
+  StopBandContext,
+} from '@app/strategy-core';
 
-import type { TTConfig } from './schema.js';
+import { safeDecimal } from './branches/safe-decimal.js';
+import type { TTConfig, TTState } from './schema.js';
 
 // Default limit offset when a stored config predates the field. Kept beside the
 // resolver because the exchange price floor is derived from it: a second copy
@@ -25,6 +30,22 @@ interface RawProtectiveStop {
 /** Narrow a raw `protectiveStop` block, or null when it is not an object at all. */
 export const narrowProtectiveStop = (raw: unknown): RawProtectiveStop | null =>
   typeof raw === 'object' && raw !== null ? (raw as RawProtectiveStop) : null;
+
+/** Resolve the limit offset used by trailing-trade's protective-stop sell floor. Missing, unparseable, or non-positive offsets mean the exchange arm rests no limit leg, so 1 models the in-process MARKET sell at the trigger. An offset above 1 would make the arm rest a limit above the trigger; capping it at 1 prices the sell no higher than the trigger and demands at least as much quantity as the arm's real limit, keeping the floor conservative. A disabled protective stop also has no limit leg and therefore uses 1.
+ * @param protectiveStop - The protective-stop settings, or undefined when the stored config has no block.
+ * @returns The parsed offset in (0, 1], or 1 when no protective-stop limit leg is the effective exit.
+ */
+export const ttStopLimitOffset = (
+  protectiveStop: TTConfig['sell']['protectiveStop'] | undefined,
+): Decimal => {
+  if (protectiveStop?.enabled !== true) return new Decimal(1);
+  const rawLimitOffset = protectiveStop.limitOffsetPercentage;
+  if (typeof rawLimitOffset !== 'string') return new Decimal(1);
+  const limitOffset = safeDecimal(rawLimitOffset);
+  return limitOffset !== null && limitOffset.gt(0) && limitOffset.lte(1)
+    ? limitOffset
+    : new Decimal(1);
+};
 
 /** The loss-side stop level, and whether the exchange band raised it off the configured one. */
 export interface TTStopResolution {
@@ -81,6 +102,49 @@ export const resolveTTStopLevel = (params: {
     limitOffset,
   });
   return { stop: clamped.stop, floorClamped: clamped.clamped };
+};
+
+/** Resolve the actual stop-limit sell price used to assess a held position, including any exchange-band clamp and protective-stop limit offset. The protective-stop arm rests no limit leg when an enabled stop's offset is missing, unparseable, or non-positive, so 1 models the in-process MARKET sell at the trigger. An offset above 1 would make the arm rest a limit above the trigger; capping it at 1 prices the sell no higher than the trigger and demands at least as much quantity as the arm's real limit, keeping the exit-blocker floor conservative. A disabled protective stop also has no limit leg and therefore uses 1.
+ *
+ * The result is quantised onto the symbol's price grid twice, trigger then limit, because the arm quantises at both of those points and Binance judges the minimum on the bytes the order carries, not on the exact product. Both quantisations FLOOR, so the unquantised product sits up to two ticks HIGH: on a coarse-tick pair that is enough for this rung to call a position sellable at its stop while the arm, pricing the same position on the grid, refuses it as below the exchange minimum and rests nothing. Naming the same price here is what makes the two answers one answer.
+ * @param config - The raw trailing-trade configuration containing the loss stop and protective-stop settings.
+ * @param state - The current trailing-trade state containing the average entry price.
+ * @param market - The symbol snapshot supplying the live price, percent-price band and price grid.
+ * @returns The grid-aligned stop-limit sell price, or null when the entry, stop percentage or tick size is not a positive valid decimal, or when the quantised price floors to zero.
+ */
+export const ttStopSellPrice = (
+  config: TTConfig,
+  state: TTState,
+  market: MarketSnapshot,
+): Decimal | null => {
+  const avgEntry = decOrNull(state.avgEntryPrice);
+  const stopPct = decOrNull(config.sell.stopLossPercentage);
+  // An unusable tick leaves the arm unable to build a level at all, so it rests nothing. Claiming a sell price here would be claiming a price no order can carry.
+  const tick = decOrNull(market.symbolInfo.filters.tickSize);
+  if (
+    avgEntry === null ||
+    !avgEntry.gt(0) ||
+    stopPct === null ||
+    !stopPct.gt(0) ||
+    !stopPct.lte(1) ||
+    tick === null ||
+    !tick.gt(0)
+  ) {
+    return null;
+  }
+
+  const { stop } = resolveTTStopLevel({
+    avgEntry,
+    stopPct,
+    protectiveStop: config.sell.protectiveStop,
+    bandContext: {
+      reference: market.currentPrice,
+      band: market.symbolInfo.filters.percentPriceBySide,
+    },
+  });
+  const limitOffset = ttStopLimitOffset(config.sell.protectiveStop);
+  const sellPrice = roundToTick(roundToTick(stop, tick).mul(limitOffset), tick);
+  return sellPrice.gt(0) ? sellPrice : null;
 };
 
 /**

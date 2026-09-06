@@ -102,10 +102,13 @@ export const evaluateBullPyramid = (
   if (hasOpenBuyForSymbol(input.openOrders, market.symbol)) return { kind: 'noop' };
 
   // Size the add against the per-add budget under the symbol filters.
+  // Add-on buys enter an existing position, so stop sellability is judged against the whole holding, not this increment; the entry floor applies only to opening buys.
   const sized = computeFirstBuyQuantity(
     pyramid.maxPurchaseAmount,
     market.currentPrice,
     market.symbolInfo.filters,
+    '',
+    null,
   );
   if (!('quantity' in sized)) return { kind: 'noop' };
 

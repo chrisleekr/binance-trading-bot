@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import Decimal from 'decimal.js';
-import { meetsMinNotional, roundToStep, roundToTick } from '../src/quantize.js';
+import { ceilToStep, meetsMinNotional, roundToStep, roundToTick } from '../src/quantize.js';
+
+describe('ceilToStep', () => {
+  it('rounds up to the step grid', () => {
+    expect(ceilToStep(new Decimal('0.12345'), new Decimal('0.001')).toString()).toBe('0.124');
+  });
+
+  it('leaves an exact multiple unchanged', () => {
+    expect(ceilToStep(new Decimal('10'), new Decimal('0.5')).toString()).toBe('10');
+  });
+
+  it('throws on a non-positive step', () => {
+    expect(() => ceilToStep(new Decimal('1'), new Decimal('0'))).toThrow(/positive/);
+    expect(() => ceilToStep(new Decimal('1'), new Decimal('-0.1'))).toThrow(/positive/);
+  });
+});
 
 describe('roundToStep', () => {
   it('floors to nearest multiple of step', () => {

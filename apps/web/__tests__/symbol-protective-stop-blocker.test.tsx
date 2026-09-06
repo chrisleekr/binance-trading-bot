@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
 import { SymbolProtectiveStopBlocker } from '@/features/symbol/components/symbol-protective-stop-blocker';
-import { glossProtectiveStopBlocker } from '@/shared/lib/gloss-protective-stop-blocker';
+import {
+  blockerPositionGuarded,
+  glossProtectiveStopBlocker,
+} from '@/shared/lib/gloss-protective-stop-blocker';
 
 describe('<SymbolProtectiveStopBlocker>', () => {
   it('renders nothing when the stop is armed', () => {
@@ -45,9 +48,193 @@ describe('<SymbolProtectiveStopBlocker>', () => {
     expect(panel.className).toMatch(/warning/);
     expect(panel.className).not.toMatch(/danger/);
   });
+
+  it('uses a warning when a minimum-size blocker leaves the whole position covered', () => {
+    render(
+      <SymbolProtectiveStopBlocker
+        protectiveStopBlocker={{
+          reason: 'base-below-exchange-minimum',
+          detail: { resting: '0.020', held: '0.020', guarded: true },
+        }}
+      />,
+    );
+    const panel = screen.getByTestId('symbol-protective-stop-blocker');
+    expect(panel.className).toMatch(/warning/);
+    expect(panel.className).not.toMatch(/danger/);
+  });
+
+  it('uses danger when a minimum-size blocker has no coverage flag', () => {
+    render(
+      <SymbolProtectiveStopBlocker
+        protectiveStopBlocker={{
+          reason: 'base-below-exchange-minimum',
+          detail: { resting: '0.020', held: '0.020' },
+        }}
+      />,
+    );
+    const panel = screen.getByTestId('symbol-protective-stop-blocker');
+    expect(panel.className).toMatch(/danger/);
+    expect(panel.className).not.toMatch(/warning/);
+  });
 });
 
 describe('glossProtectiveStopBlocker', () => {
+  it('explains that a resting stop stays at its old trigger', () => {
+    const blocker = {
+      reason: 'base-below-exchange-minimum',
+      detail: { resting: '0.020', held: '0.020', guarded: true },
+    };
+    const gloss = glossProtectiveStopBlocker(blocker);
+
+    expect(gloss).toMatch(/stays in place/);
+    expect(gloss).not.toMatch(/no safety net/);
+    expect(blockerPositionGuarded(blocker)).toBe(true);
+  });
+
+  it('describes the uncovered remainder when a resting stop covers only part of the position', () => {
+    const blocker = {
+      reason: 'base-below-exchange-minimum',
+      detail: { resting: '0.010', held: '0.020' },
+    };
+    const gloss = glossProtectiveStopBlocker(blocker);
+
+    expect(gloss).toMatch(/covers only 0\.010 of the 0\.020/);
+    expect(gloss).toMatch(/no safety net/);
+    expect(blockerPositionGuarded(blocker)).toBe(false);
+  });
+
+  it('keeps the no-safety-net warning when no stop is resting', () => {
+    const blocker = { reason: 'base-below-exchange-minimum' };
+    const gloss = glossProtectiveStopBlocker(blocker);
+
+    expect(gloss).toMatch(/no safety net/);
+    expect(blockerPositionGuarded(blocker)).toBe(false);
+  });
+
+  it('tells the operator to top up or sell by hand for a naked full-size refusal', () => {
+    const gloss = glossProtectiveStopBlocker({
+      reason: 'base-below-exchange-minimum',
+      detail: {
+        held: '0.00999',
+        required: '0.010',
+        free: '0.00999',
+        available: '0.00999',
+        skip: 'min-notional',
+        resting: null,
+        guarded: false,
+      },
+    });
+
+    expect(gloss).not.toMatch(/cancel other sell orders/);
+    expect(gloss).toMatch(/sell it by hand/);
+    expect(gloss).toMatch(/no safety net/);
+  });
+
+  it('keeps the foreign-lock remedy for a naked foreign-lock refusal', () => {
+    const gloss = glossProtectiveStopBlocker({
+      reason: 'base-below-exchange-minimum',
+      detail: { free: '0.00999', resting: null, guarded: false },
+    });
+
+    expect(gloss).toMatch(/cancel other sell orders/);
+  });
+
+  it('names the price the minimum was actually checked at', () => {
+    // `required` is derived from the limit leg, so quoting the trigger instead would leave the operator dividing the exchange minimum by the wrong number and concluding the bot miscounted their coins.
+    const gloss = glossProtectiveStopBlocker({
+      reason: 'base-below-exchange-minimum',
+      detail: {
+        held: '0.106',
+        required: '0.107',
+        stop: '95',
+        checkedAt: '94',
+        skip: 'min-notional',
+        resting: null,
+        guarded: false,
+      },
+    });
+
+    expect(gloss).toMatch(/at the price it would sell at \(94\)/);
+    expect(gloss).not.toMatch(/at the stop price/);
+    // A blocker persisted before the leg field existed was a priced stop; it must still read as the limit sentence rather than leaking a hole where the leg goes.
+    expect(gloss).not.toMatch(/undefined|null/i);
+  });
+
+  it('names the market price, not a sale price, when a native trailing stop is what would rest', () => {
+    // A native trailing STOP_LOSS carries only a quantity and a delta and sells at market, so "the price it would sell at" would name the one price that order will not sell at.
+    const gloss = glossProtectiveStopBlocker({
+      reason: 'base-below-exchange-minimum',
+      detail: {
+        held: '0.106',
+        required: '0.107',
+        stop: '95',
+        checkedAt: '100',
+        checkedAtLeg: 'market',
+        skip: 'min-notional',
+        resting: null,
+        guarded: false,
+      },
+    });
+
+    expect(gloss).toMatch(/at the current market price \(100\)/);
+    expect(gloss).toMatch(/sells at whatever the market pays/);
+    // Binance does not judge a market-type order at a price of the bot's choosing: it values one at an average of recent trade prices, and only when `applyMinToMarket` is set. Which price the bot sized at is the bot's decision, so the copy has to attribute it there. Naming the exchange as the one that measured sends the operator to divide the minimum by a price Binance never looked at.
+    expect(gloss).toMatch(/the bot sizes it against the market price/);
+    expect(gloss).not.toMatch(/Binance measures it/);
+    expect(gloss).not.toMatch(/price it would sell at/);
+    expect(gloss).not.toMatch(/at the stop price/);
+  });
+
+  it('says it fell back to the trigger, and which way that errs, when no market price was readable', () => {
+    // The trigger is the degraded native case, not the normal one. It has to read as a fallback with a stated direction, or the operator cannot tell whether the required figure is too high or too low.
+    const gloss = glossProtectiveStopBlocker({
+      reason: 'base-below-exchange-minimum',
+      detail: {
+        held: '0.106',
+        required: '0.107',
+        stop: '95',
+        checkedAt: '95',
+        checkedAtLeg: 'trigger',
+        skip: 'min-notional',
+        resting: null,
+        guarded: false,
+      },
+    });
+
+    expect(gloss).toMatch(/at its trigger price \(95\)/);
+    expect(gloss).toMatch(/could not read a usable market price/);
+    expect(gloss).toMatch(/more coins than it strictly needs/);
+    expect(gloss).not.toMatch(/Binance measures it/);
+    expect(gloss).not.toMatch(/price it would sell at/);
+  });
+
+  it('falls back to the old wording for a blocker persisted before checkedAt existed', () => {
+    // Blockers already sitting on strategy state carry no `checkedAt`, and the sentence has to degrade to the previous phrasing rather than printing a hole where the price goes.
+    const gloss = glossProtectiveStopBlocker({
+      reason: 'base-below-exchange-minimum',
+      detail: {
+        held: '0.106',
+        required: '0.107',
+        skip: 'min-notional',
+        resting: null,
+        guarded: false,
+      },
+    });
+
+    expect(gloss).toMatch(/at the stop price/);
+    expect(gloss).not.toMatch(/undefined/);
+  });
+
+  it('treats a resting stop larger than the holding as fully covered', () => {
+    const gloss = glossProtectiveStopBlocker({
+      reason: 'base-below-exchange-minimum',
+      detail: { resting: '2', held: '0.0001', guarded: true, skip: 'min-qty' },
+    });
+
+    expect(gloss).not.toMatch(/covers only/);
+    expect(gloss).toMatch(/stays in place/);
+  });
+
   it('drops the numbers when the detail is absent, and still reads as a sentence', () => {
     const line = glossProtectiveStopBlocker({ reason: 'base-locked-by-foreign-order' });
     expect(line).toMatch(/locked by another sell order/i);

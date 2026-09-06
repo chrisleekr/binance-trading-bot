@@ -12,6 +12,7 @@ import {
   TechnicalsIntervalConfigSchema,
   TECHNICALS_INTERVALS_DESCRIBE,
 } from '@app/contracts';
+import { MAX_CANDLE_WINDOW } from '@app/strategy-core';
 import { resolveForceSellGuards } from './force-sell-guards.js';
 
 /**
@@ -1069,11 +1070,12 @@ export const TTConfigSchema = z
         // Candle-window length for the 'lowest-price' basis.
         // A count, not money, so `number` is correct (mirrors triggerAfterMinutes).
         // Ignored in 'immediate' mode; clamped to the candles actually supplied.
+        // Bounded by the candle window so the number is truthful: the branch clamps to whatever candles arrive, so a larger value never refuses a buy, it just advertises a lookback the pipeline cannot deliver.
         candleLimit: z
           .number()
           .int()
           .min(1)
-          .max(1000)
+          .max(MAX_CANDLE_WINDOW)
           .default(60)
           .describe(
             '@ui:advanced How many recent candles the "lowest-price" first buy looks back over to find that low. Only used when First Buy Trigger Basis is lowest-price.',
@@ -1405,6 +1407,7 @@ export const EXIT_BLOCKER_REASONS = [
   'exit-order-open',
   'exit-unsellable',
   'exit-config-invalid',
+  'stop-infeasible-dust',
   'trail-high-raised',
   'atr-trail-above-price',
   'trail-above-price',
@@ -1581,6 +1584,7 @@ export const TTStateSchema = z.object({
         'knife-guard',
         'min-qty',
         'min-notional',
+        'entry-below-stop-notional',
         'min-purchase',
         'invalid-filters',
         'sizing-unconfigured',

@@ -26,10 +26,12 @@ import {
 } from './asset-policy-abort.js';
 
 /**
- * The ladder, in order. Position IS the ranking: the first rung that finds
- * something owns the headline, because a dead worker makes every later answer
- * moot. All findings are still listed — the operator sees the whole picture, not
- * just the top of it.
+ * The ladder, in order. Position is the ranking WITHIN one severity: among
+ * equally serious findings the earliest rung wins, because a dead worker makes
+ * every later answer moot. Severity outranks position, so a by-design finding
+ * from rung 2 never fronts a report that also holds a real problem from rung 11.
+ * All findings are still listed — the operator sees the whole picture, not just
+ * the top of it.
  */
 export const DIAGNOSIS_STEPS = [
   'worker-alive',
@@ -123,11 +125,24 @@ export const diagnosisSymbolRefSchema = z.object({
 
 export type DiagnosisSymbolRef = z.infer<typeof diagnosisSymbolRefSchema>;
 
+/**
+ * How much a finding asks of the operator. Three values because two collapsed two opposite meanings onto one word: a profile that is switched off and a position sitting with nothing guarding it both raised `degraded`, and the verdict built on top of that then told the operator a naked position was idle on purpose.
+ *
+ * `blocking` — the profile cannot trade and someone has to act before it will.
+ * `degraded` — something is wrong or money is exposed. Trading has not fully stopped, and the operator still has to act.
+ * `by-design` — the profile is doing exactly what its settings say. Reported so the operator can see WHY it is quiet, never because anything needs fixing.
+ *
+ * The split is what lets the verdict distinguish "quiet because you configured it that way" from "quiet and something is wrong", which is the whole reason an operator opens this report.
+ */
+const DIAGNOSIS_ITEM_SEVERITIES = ['blocking', 'degraded', 'by-design'] as const;
+
+export type DiagnosisItemSeverity = (typeof DIAGNOSIS_ITEM_SEVERITIES)[number];
+
 export const diagnosisItemSchema = z.object({
   id: z.string(),
   condition: z.string(),
   code: z.string().nullable(),
-  severity: z.enum(['blocking', 'degraded']),
+  severity: z.enum(DIAGNOSIS_ITEM_SEVERITIES),
   title: z.string(),
   detail: z.string().nullable(),
   /** When this became true, epoch ms; null when the start is not known. */
@@ -144,10 +159,17 @@ export type DiagnosisItem = z.infer<typeof diagnosisItemSchema>;
  * `idle-by-design` is a first-class answer, not a fallback. A profile that is
  * switched off, or whose settings are simply strict, is working correctly, and
  * saying "blocked" there would train the operator to ignore the word.
+ * `needs-attention` is the reading between the two: nothing has halted the profile, so `blocked` would overstate it, but a finding says money is exposed or a path is failing, and calling that idle-on-purpose is the flat opposite of what the operator must do about it.
  * `unknown` means the ladder could not establish anything — never dressed up as
  * `trading`.
  */
-const DIAGNOSIS_VERDICTS = ['trading', 'blocked', 'idle-by-design', 'unknown'] as const;
+const DIAGNOSIS_VERDICTS = [
+  'trading',
+  'blocked',
+  'needs-attention',
+  'idle-by-design',
+  'unknown',
+] as const;
 
 export type DiagnosisVerdict = (typeof DIAGNOSIS_VERDICTS)[number];
 
@@ -397,6 +419,11 @@ const surfaceForPath = (path: string): DiagnosisSurface => {
   return 'config';
 };
 
+/**
+ * The shared condition catalogue's ranking, which is deliberately narrower than an item's severity: it answers "how much does this condition matter when several are open", never "is this the profile working as configured". It therefore never yields `by-design`, and the one rung whose condition IS the configured behaviour says so at its own site rather than through here.
+ *
+ * An unknown condition falls back to `degraded` because that is the direction that cannot hide a fault: over-reporting a by-design state as needing attention is a nuisance, while the reverse buries an exposed position under "idle on purpose".
+ */
 const severityOf = (condition: string): ConditionSeverity =>
   CONDITION_SEVERITY[condition as Condition] ?? 'degraded';
 
@@ -546,12 +573,8 @@ const stepProfileActive = (input: ProfileDiagnosisInput): DiagnosisStepResult =>
       id: 'profile-disabled',
       condition: 'profile-disabled',
       code: 'disabled',
-      // `degraded`, not `blocking`, and that choice sets the verdict: a
-      // blocking item renders as "something is blocking it", which is the
-      // wrong word for the state the operator asked for. Off is
-      // idle-by-design, and calling it a block would train them to ignore
-      // the one word reserved for a real fault.
-      severity: 'degraded',
+      // `by-design`, and that choice sets the verdict: off is the state the operator asked for, so neither of the two words reserved for a fault fits it. `blocking` would claim something is in the way; `degraded` would claim something is wrong and ask them to act, and spending either on a switch they threw themselves is how both stop being read.
+      severity: 'by-design',
       title: 'This profile is switched off',
       // Deliberately not phrased as a fault: resting orders stay live by design.
       detail: 'It will not open new positions until you enable it.',
@@ -868,6 +891,7 @@ const stepMarketBreadth = (input: ProfileDiagnosisInput): DiagnosisStepResult =>
         id: 'discovery-breadth-blocked',
         condition: 'discovery-breadth-blocked',
         code: c?.code ?? 'breadth-floor',
+        // The floor being a number the operator chose is what makes ONE blocked scan by design, and this rung never reports one: it is raised only once the whole health window has been blocked, or once the condition row has been sitting open. Sustained is the case the platform already treats as a fault — the `discovery-health` notification calls exactly this state "Discovery not working" and pages on it by default — and the auto-set silently stops rotating for as long as it lasts. Calling that by design here would have two surfaces telling the operator opposite things about one fact.
         severity: 'degraded',
         title: 'The market-breadth floor is blocking every add',
         detail: `Discovery only adds coins when enough of the ${input.profile.quoteAsset} market is rising. That bar has not been met.`,
@@ -1006,7 +1030,8 @@ const stepCandidateFunnel = (input: ProfileDiagnosisInput): DiagnosisStepResult 
         id: `funnel-choke:${choke.stage}`,
         condition: 'discovery-no-candidates',
         code: choke.stage,
-        severity: 'degraded',
+        // Discovery ran, evaluated every coin and admitted none. Whether the stage that removed them is a setting or a fact about the coins, the machinery worked; the answer is "your filters are this strict", which is the report telling the operator why it is quiet rather than reporting a fault.
+        severity: 'by-design',
         title: `No coin gets past "${funnelStageLabel(choke.stage)}"`,
         // Branched on whether a lever exists, because the generic sentence promises one. `assetPolicy` deliberately has no lever — it is a fact about the coins, not a setting — so an operator told to loosen it would look for a control that is not there and find no "Fix this" link either.
         detail:
@@ -1080,7 +1105,8 @@ const stepSymbolSlots = (input: ProfileDiagnosisInput): DiagnosisStepResult => {
         id: 'symbol-slots-full',
         condition: 'symbol-slots-full',
         code: 'at-limit',
-        severity: 'degraded',
+        // A full slot list is the limit doing its job. It is the commonest reason a healthy profile adds nothing, and reporting it as a problem would put "needs your attention" on a bot that is simply full.
+        severity: 'by-design',
         title: 'Every auto-discovery slot is taken',
         detail: 'A new coin can only be added once one is released or the limit is raised.',
         sinceMs: null,
@@ -1106,7 +1132,8 @@ const stepEntryBlockers = (input: ProfileDiagnosisInput): DiagnosisStepResult =>
         id: `entry-blocked:${code}`,
         condition: 'entry-blocked',
         code,
-        severity: severityOf('entry-blocked'),
+        // Not `severityOf`: a strategy declining to open a position is the strategy working, on every code it can raise. This rung reports EVERY open entry reason, so routing it through the catalogue's `degraded` would put "needs your attention" on a profile whose buy guard is simply saying no — the single commonest state a healthy bot is in. The codes are strategy-owned and unknowable here, so no per-code split is possible even in principle; a genuine entry-side fault surfaces as its own condition, on its own rung, with its own severity.
+        severity: 'by-design' as const,
         title: gloss,
         detail: input.reasonAttribution[code]?.note ?? null,
         sinceMs: oldest,
@@ -1174,14 +1201,50 @@ const EXIT_LINE_SYMBOL_CAP = 3;
  * Exit rungs that are a FAULT rather than a position doing its job.
  *
  * A coin waiting for its sell trigger is the normal, correct state of a held
- * position, and raising a finding for it would flip the verdict of every healthy
- * profile that happens to hold something to "idle on purpose" and hand it a
- * headline about selling. Those rungs are still reported — in this step's line,
- * with their levels — but only a rung the operator must act on becomes an item.
+ * position, and raising a finding for it would hand every healthy profile that
+ * happens to hold something a headline about selling. Those rungs are still
+ * reported — in this step's line, with their levels — but only a rung the
+ * operator must act on becomes an item. That filter is also why every item this
+ * rung DOES emit is `degraded`: the by-design population is excluded before an
+ * item exists, so what is left is a fault or a state that has outlasted its
+ * persistence window.
  * `no-exit-configured` is deliberately absent: the protection rung owns it, and
  * catches it on every reason rather than only on that one.
  */
-const EXIT_FAULT_CODES = new Set(['sell-disabled', 'exit-unsellable', 'exit-config-invalid']);
+const EXIT_FAULT_CODES = new Set([
+  'sell-disabled',
+  'exit-unsellable',
+  'exit-config-invalid',
+  'stop-infeasible-dust',
+  'native-trail-unavailable',
+]);
+
+/**
+ * How long a held coin may report no protective stop resting on the exchange before the report stops treating it as the ordinary wait.
+ *
+ * One tick of it is what a fresh entry looks like: the position opens, and the stop goes on the next pass. The SAME span still open a quarter of an hour later is the opposite reading — every arm since has been refused, and the coin has been sitting with nothing on the exchange that would sell it if the price fell. Only the duration separates the two, so only the duration can decide which one the operator is shown.
+ */
+export const PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS = 900_000;
+
+/**
+ * The strategy reason meaning "this position is held and no protective stop is resting on the exchange".
+ *
+ * Shared because two packages gate on it independently: this rung decides whether to raise a finding, and the worker's tick decides whether to alert. The strategy owns the string, so neither consumer can validate it, and a bare literal at each site is one rename away from both gates silently matching nothing — no type error, no failing test, and a symptom that IS the absence of the alert this exists to send. One constant makes that rename a single edit with two visible consumers.
+ *
+ * Naming a strategy's reason here is not a plugin import; it is the same standard {@link EXIT_FAULT_CODES} already meets by naming `native-trail-unavailable`.
+ */
+export const PROTECTIVE_STOP_UNPLACED_CODE = 'protective-stop-unplaced';
+
+/**
+ * Exit rungs that become a finding only once they have PERSISTED, and how long each needs.
+ *
+ * A different question from {@link EXIT_FAULT_CODES}: a fault is wrong the instant it is recorded, whereas these codes describe a state that is correct briefly and alarming if it lasts. Raising them on first sight would put a headline on every fresh entry, and never raising them leaves the alarming case invisible at any duration, which is what this tier exists to end.
+ *
+ * A `Map` rather than an object literal so a reason named `constructor` or `toString` cannot resolve a threshold off `Object.prototype` and quietly gate a code nobody put here.
+ */
+const EXIT_PERSISTENCE_MS = new Map<string, number>([
+  [PROTECTIVE_STOP_UNPLACED_CODE, PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS],
+]);
 
 const stepExitBlockers = (input: ProfileDiagnosisInput): DiagnosisStepResult => {
   const open = openOf(input, 'exit-blocked');
@@ -1193,24 +1256,42 @@ const stepExitBlockers = (input: ProfileDiagnosisInput): DiagnosisStepResult => 
   const line = `${named.join('; ')}${rest > 0 ? `; and ${rest} more` : ''}.`;
 
   const items = [...byCode(open).entries()]
-    .filter(([code]) => EXIT_FAULT_CODES.has(code))
-    .map(([code, group]) => {
-      const oldest = Math.min(...group.map((g) => g.sinceMs));
-      return {
-        id: `exit-blocked:${code}`,
-        condition: 'exit-blocked',
-        code,
-        severity: severityOf('exit-blocked'),
-        title: input.reasonAttribution[code]?.gloss ?? code,
-        detail: input.reasonAttribution[code]?.note ?? null,
-        sinceMs: oldest,
-        evidence: [
-          `${group.length} held coin${group.length === 1 ? '' : 's'} affected.`,
-          `Longest-running for ${humanizeDuration(input.nowMs - oldest)}.`,
-        ],
-        symbols: symbolRefs(group),
-        lever: leverFor(input, code),
-      };
+    .flatMap(([code, group]) => {
+      const fault = EXIT_FAULT_CODES.has(code);
+      const persistenceMs = fault ? undefined : EXIT_PERSISTENCE_MS.get(code);
+      // A fault keeps its whole group and never meets a span comparison at all. Passing it through the filter below with a threshold of zero would read as equivalent and is not: `nowMs - sinceMs >= 0` is false the moment a row is dated ahead of the reader's clock, which two machines and two clocks make ordinary, and an existing fault finding would then disappear with nothing saying why.
+      //
+      // The persistence tier filters MEMBERS rather than the whole group, because a profile mid-entry on one coin and stuck on another shares one code between them: counting the fresh coin would overstate the finding, and naming it would send the operator to look at a position that is behaving.
+      const members = fault
+        ? group
+        : persistenceMs === undefined
+          ? []
+          : group.filter((c) => input.nowMs - c.sinceMs >= persistenceMs);
+      if (members.length === 0) return [];
+      const oldest = Math.min(...members.map((g) => g.sinceMs));
+      return [
+        {
+          id: `exit-blocked:${code}`,
+          condition: 'exit-blocked',
+          code,
+          severity: severityOf('exit-blocked'),
+          title: input.reasonAttribution[code]?.gloss ?? code,
+          detail: input.reasonAttribution[code]?.note ?? null,
+          sinceMs: oldest,
+          evidence: [
+            `${members.length} held coin${members.length === 1 ? '' : 's'} affected.`,
+            `Longest-running for ${humanizeDuration(input.nowMs - oldest)}.`,
+            // Without this the operator reads a finding for a state the same screen calls normal on every fresh entry, and has no way to tell which of the two they are looking at.
+            ...(persistenceMs === undefined
+              ? []
+              : [
+                  `Raised because it has lasted more than ${humanizeDuration(persistenceMs)}; anything shorter is the ordinary wait after a fresh entry.`,
+                ]),
+          ],
+          symbols: symbolRefs(members),
+          lever: leverFor(input, code),
+        },
+      ];
     })
     .sort((a, b) => b.symbols.length - a.symbols.length);
 
@@ -1427,12 +1508,27 @@ export const projectDiagnosisFunnel = (input: DiagnosisFunnelInput): DiagnosisFu
   };
 };
 
+/** Worst first. Total over the union so a fourth severity cannot be added without deciding where it ranks. */
+const SEVERITY_RANK: Record<DiagnosisItemSeverity, number> = {
+  blocking: 0,
+  degraded: 1,
+  'by-design': 2,
+};
+
 /**
- * The four verdicts, in the order they are ruled out. `trading` is last and
- * strictly earned: every rung ran, none returned `unknown`, and none found
- * anything. A ladder that did not finish reads as `unknown`, because "we found
- * no problem" and "we did not finish looking" must never render as the same
- * answer.
+ * The five verdicts, in the order they are ruled out. Severity decides the first
+ * three, worst first, so `idle-by-design` is reached only when every finding is
+ * by-design — a report holding one exposed position and five configured-quiet
+ * findings must not answer "idle on purpose" on the strength of the five.
+ * `trading` is last and strictly earned: every rung ran, none returned
+ * `unknown`, and none found anything. A ladder that did not finish reads as
+ * `unknown`, because "we found no problem" and "we did not finish looking" must
+ * never render as the same answer.
+ *
+ * @param items - Every finding the ladder raised, from all rungs; their severities alone decide the first three verdicts.
+ * @param steps - The assembled per-rung rows, read only for a rung that ran but could not decide.
+ * @param results - The raw rung results, read only to tell a ladder that finished from one that stopped early.
+ * @returns The single verdict shown above the report.
  */
 const verdictFor = (
   items: readonly DiagnosisItem[],
@@ -1440,6 +1536,7 @@ const verdictFor = (
   results: ReadonlyMap<DiagnosisStepId, DiagnosisStepResult>,
 ): DiagnosisVerdict => {
   if (items.some((i) => i.severity === 'blocking')) return 'blocked';
+  if (items.some((i) => i.severity === 'degraded')) return 'needs-attention';
   if (items.length > 0) return 'idle-by-design';
   if (!DIAGNOSIS_STEPS.every((id) => results.has(id))) return 'unknown';
   if (steps.some((s) => s.status === 'unknown')) return 'unknown';
@@ -1464,7 +1561,10 @@ export const buildProfileDiagnosis = (
       line: r?.line ?? '',
     };
   });
-  const items = DIAGNOSIS_STEPS.flatMap((id) => results.get(id)?.items ?? []);
+  // Severity first, ladder position second. A STABLE sort, so within one severity the ladder's own ranking survives untouched — a dead engine still leads the blocking band, and the rest of the report still reads top-of-ladder down, which is what makes it followable. Without the outer key the headline is whichever rung fired first, and rung 2's "this profile is switched off" would front a report whose rung 11 says a position is sitting unguarded.
+  const items = DIAGNOSIS_STEPS.flatMap((id) => results.get(id)?.items ?? []).sort(
+    (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
+  );
   const verdict = verdictFor(items, steps, results);
 
   const headline =

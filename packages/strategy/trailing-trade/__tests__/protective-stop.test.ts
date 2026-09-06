@@ -3,7 +3,8 @@
 // resting STOP_LOSS_LIMIT SELL at `avgEntryPrice × stopLossPercentage` (full
 // held quantity, intent reason `protective-stop`) so the holding stays defended
 // while the bot is offline. The in-process MARKET stop-loss is the primary
-// path; this is the backstop, cancelled ahead of any closing sell.
+// path; this is the backstop, retired by the same `cancelReplace` that transmits
+// the closing sell.
 
 import { describe, expect, it } from 'vitest';
 import { Decimal } from '@app/money';
@@ -26,11 +27,12 @@ import {
   type TTConfig,
 } from '../src/index.js';
 import {
+  closingSellDecisions,
+  evaluateProtectiveStop,
   evaluateProtectiveStopArm,
   findRestingProtectiveStop,
-  protectiveStopCancelDecisions,
 } from '../src/branches/protective-stop.js';
-import { buildSellDecision } from '../src/decisions.js';
+import { buildProtectiveStopReplace, buildSellDecision } from '../src/decisions.js';
 import { reclaimableOwnSellBase, resolveHeldForSell } from '../src/branches/sell-gate.js';
 import { protectiveStopClientOrderId } from '../src/client-order-id.js';
 
@@ -197,6 +199,8 @@ const isPlace = (d: Decision): d is Extract<Decision, { type: 'place-order' }> =
   d.type === 'place-order';
 const isCancel = (d: Decision): d is Extract<Decision, { type: 'cancel-order' }> =>
   d.type === 'cancel-order';
+const isReplace = (d: Decision): d is Extract<Decision, { type: 'replace-order' }> =>
+  d.type === 'replace-order';
 
 describe('trailingTrade tick — protective stop arms a resting STOP_LOSS_LIMIT SELL', () => {
   it('arms STOP_LOSS_LIMIT SELL at avgEntry x stopLoss when none resting', () => {
@@ -279,7 +283,7 @@ describe('evaluateProtectiveStopArm — arming logic', () => {
     expect(decisions).toEqual([]);
   });
 
-  it('re-arms (cancel old + place new) when avgEntry drifts past the band', () => {
+  it('re-arms with one replace-order when avgEntry drifts past the band', () => {
     // avgEntry 110 → stop 105.60; resting stop is 96.00, far past the 0.1% band.
     const decisions = evaluateProtectiveStopArm(
       buildInput({ avgEntryPrice: '110', openOrders: [restingProtectiveStop()] }),
@@ -289,14 +293,52 @@ describe('evaluateProtectiveStopArm — arming logic', () => {
         heldQuantity: '2',
       },
     );
-    expect(decisions).toHaveLength(2);
-    expect(isCancel(decisions[0])).toBe(true);
-    if (!isCancel(decisions[0])) throw new Error('expected cancel first');
-    expect(decisions[0].orderId).toBe(9001);
-    expect(decisions[0].reason).toBe('tt-protective-stop-superseded');
-    expect(isPlace(decisions[1])).toBe(true);
-    if (!isPlace(decisions[1])) throw new Error('expected place second');
-    expect(decisions[1].params.stopPrice).toBe('105.60');
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]).toMatchObject({
+      type: 'replace-order',
+      cancelOrderId: 9001,
+      reason: 'tt-protective-stop-superseded',
+      params: { stopPrice: '105.60' },
+    });
+  });
+
+  // Guard: a priced re-arm must carry the former successor through one atomic replace-order.
+  it('re-arms a drifted priced stop with one replace-order and no cancel-order', () => {
+    const resting = restingProtectiveStop();
+    const decisions = evaluateProtectiveStopArm(
+      buildInput({ avgEntryPrice: '110', openOrders: [resting] }),
+      {
+        ...trailingTrade.initialState(buildInput().config),
+        avgEntryPrice: '110',
+        heldQuantity: '2',
+      },
+    );
+    const successor = {
+      type: 'place-order' as const,
+      intent: {
+        symbol: SYMBOL,
+        side: 'SELL' as const,
+        reason: 'protective-stop',
+        clientOrderId: PROTECTIVE_ID,
+        deferrable: true,
+      },
+      params: {
+        type: 'STOP_LOSS_LIMIT' as const,
+        stopPrice: '105.60',
+        price: '105.07',
+        quantity: '2.0000',
+        timeInForce: 'GTC' as const,
+      },
+    };
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]).toEqual({
+      type: 'replace-order',
+      cancelOrderId: resting.orderId,
+      reason: 'tt-protective-stop-superseded',
+      intent: successor.intent,
+      params: successor.params,
+    });
+    expect(decisions.some((decision) => decision.type === 'cancel-order')).toBe(false);
   });
 
   it('leaves a resting stop with no readable stopPrice in place (no cancel/replace churn)', () => {
@@ -340,6 +382,28 @@ describe('evaluateProtectiveStopArm — arming logic', () => {
     expect(decisions).toEqual([]);
   });
 
+  // Guard: pins buildCancel, not buildReplace, when the resting stop has no successor to hand back.
+  it('no resolved level with a resting stop ⇒ one bare cancel-order', () => {
+    const resting = restingProtectiveStop();
+    const decisions = evaluateProtectiveStopArm(
+      buildInput({ stopLossPercentage: '', openOrders: [resting] }),
+      {
+        ...trailingTrade.initialState(buildInput().config),
+        avgEntryPrice: '100',
+        heldQuantity: '2',
+      },
+    );
+    expect(decisions).toEqual([
+      {
+        type: 'cancel-order',
+        orderId: resting.orderId,
+        symbol: resting.symbol,
+        reason: 'tt-protective-stop-superseded',
+      },
+    ]);
+    expect(decisions.some((decision) => decision.type === 'replace-order')).toBe(false);
+  });
+
   it('missing protectiveStop block (raw stored config) ⇒ no decisions', () => {
     const input = buildInput();
     // Simulate a pre-feature raw config row: drop the block entirely.
@@ -381,34 +445,42 @@ describe('evaluateProtectiveStopArm — arming logic', () => {
     expect(decisions).toEqual([]);
   });
 
-  it('position decayed below minNotional WHILE a stop is resting ⇒ cancels the stale stop', () => {
-    // held 0.05 at stop 96 ⇒ notional 4.8 < minNotional 10 ⇒ finalise skips ⇒
-    // desired null. A resting protective stop must then be CANCELLED, not left
-    // to reject (-2010) against the shrunken position when it triggers.
-    const input = buildInput({ heldQuantity: '0.05', openOrders: [restingProtectiveStop()] });
-    const decisions = evaluateProtectiveStopArm(input, {
+  it('position decayed below minNotional WHILE a stop is resting ⇒ leaves it resting and reports base-below-exchange-minimum', () => {
+    // The resting stop still protects more than the wallet can currently arm, and cancelling it would leave the held position naked with no replacement possible.
+    const input = buildInput({
+      currentPrice: '100',
+      heldQuantity: '0.05',
+      openOrders: [restingProtectiveStop()],
+    });
+    const out = trailingTrade.tick(input);
+    const decisions = out.decisions;
+    const arm = evaluateProtectiveStop(input, {
       ...trailingTrade.initialState(input.config),
       avgEntryPrice: '100',
       heldQuantity: '0.05',
     });
-    expect(decisions).toHaveLength(1);
-    expect(isCancel(decisions[0])).toBe(true);
-    if (isCancel(decisions[0])) {
-      expect(decisions[0].orderId).toBe(9001);
-      expect(decisions[0].reason).toBe('tt-protective-stop-superseded');
-    }
+    expect(decisions.some((d) => d.type === 'cancel-order')).toBe(false);
+    expect(arm.decisions).toEqual([]);
+    expect(out.nextState.protectiveStopBlocker?.reason).toBe('base-below-exchange-minimum');
+    expect(out.logs).toEqual([
+      expect.objectContaining({
+        level: 'warn',
+        message: 'tt-protective-stop-blocked',
+        context: expect.objectContaining({ reason: 'base-below-exchange-minimum' }),
+      }),
+    ]);
   });
 
-  it('position decayed below minNotional with NO stop resting ⇒ no decisions', () => {
-    // Same decay, but nothing resting: there is nothing to cancel and nothing to
-    // arm, so the arm path is a no-op (no spurious cancel).
+  it('position decayed below minNotional with NO stop resting ⇒ records the exchange minimum blocker', () => {
+    // Same decay, but nothing resting: there is nothing to cancel; the tick records the sizing refusal with no resting stop detail.
     const input = buildInput({ heldQuantity: '0.05' });
-    const decisions = evaluateProtectiveStopArm(input, {
-      ...trailingTrade.initialState(input.config),
-      avgEntryPrice: '100',
-      heldQuantity: '0.05',
+    const out = trailingTrade.tick(input);
+
+    expect(out.decisions.some((d) => d.type === 'cancel-order')).toBe(false);
+    expect(out.nextState.protectiveStopBlocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: expect.objectContaining({ resting: null }),
     });
-    expect(decisions).toEqual([]);
   });
 
   it('non-positive avgEntryPrice ⇒ no decisions', () => {
@@ -669,14 +741,17 @@ describe('protective stop — quantity drift on the resting stop (#613)', () => 
 
     const out = trailingTrade.tick(input);
 
-    const cancel = out.decisions.find(isCancel);
-    expect(cancel).toBeDefined();
-    expect(cancel?.orderId).toBe(9001);
-    const place = out.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
-    expect(place).toBeDefined();
-    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
-    expect(place.params.quantity).toBe('2.0000');
-    expect(place.params.stopPrice).toBe('96.00');
+    const replacement = out.decisions.find((d) => d.type === 'replace-order');
+    expect(replacement).toBeDefined();
+    if (replacement === undefined || replacement.type !== 'replace-order') {
+      throw new Error('expected a protective-stop replacement');
+    }
+    expect(replacement.cancelOrderId).toBe(9001);
+    expect(replacement.reason).toBe('tt-protective-stop-superseded');
+    expect(replacement.intent.reason).toBe('protective-stop');
+    expect(replacement.params.quantity).toBe('2.0000');
+    expect(replacement.params.stopPrice).toBe('96.00');
+    expect(out.decisions.some((d) => isCancel(d) && d.orderId === 9001)).toBe(false);
   });
 });
 
@@ -735,20 +810,47 @@ describe('findRestingProtectiveStop — status + identity filter', () => {
   });
 });
 
-describe('protectiveStopCancelDecisions', () => {
-  it('one cancel when a protective stop is resting', () => {
-    const decisions = protectiveStopCancelDecisions(
+describe('closingSellDecisions', () => {
+  const closingSell = (): Decision =>
+    buildSellDecision(buildInput(), 'grid-stop-loss', '2', 'stop-100');
+
+  it('fuses the retraction and the close into one replace-order when a protective stop is resting', () => {
+    const sell = closingSell();
+    if (!isPlace(sell)) throw new Error('expected a place-order sell');
+    const decisions = closingSellDecisions(
       buildInput({ openOrders: [restingProtectiveStop()] }),
+      sell,
     );
     expect(decisions).toHaveLength(1);
-    expect(isCancel(decisions[0])).toBe(true);
-    if (!isCancel(decisions[0])) throw new Error('expected cancel');
-    expect(decisions[0].orderId).toBe(9001);
-    expect(decisions[0].symbol).toBe(SYMBOL);
+    const fused = decisions[0];
+    if (!isReplace(fused)) throw new Error('expected replace');
+    expect(fused.cancelOrderId).toBe(9001);
+    expect(fused.reason).toBe('tt-protective-stop-superseded');
+    // The successor is the exit verbatim: fusing changes when the base is claimable, never what is sold.
+    expect(fused.intent).toEqual(sell.intent);
+    expect(fused.params).toEqual(sell.params);
+    // A close is never sheddable. Deferring it under budget pressure would retire the stop and leave the position open behind nothing.
+    expect('deferrable' in fused.intent).toBe(false);
   });
 
-  it('empty when no protective stop is resting', () => {
-    expect(protectiveStopCancelDecisions(buildInput())).toEqual([]);
+  it('returns the sell untouched when no protective stop is resting', () => {
+    const sell = closingSell();
+    const decisions = closingSellDecisions(buildInput(), sell);
+    expect(decisions).toHaveLength(1);
+    // Identity, not equality: the common no-stop path cannot drift from the plain close by construction.
+    expect(decisions[0]).toBe(sell);
+  });
+});
+
+describe('buildProtectiveStopReplace', () => {
+  it('rejects a non-place successor', () => {
+    expect(() =>
+      buildProtectiveStopReplace(
+        restingProtectiveStop(),
+        { type: 'noop' },
+        'tt-protective-stop-superseded',
+      ),
+    ).toThrow('protective stop replacement requires a place-order successor');
   });
 });
 
@@ -869,27 +971,27 @@ describe('buildSellDecision — MARKET shape unchanged when stopLimit omitted', 
   });
 });
 
-// Ordering tests: for each position-closing sell path, with a protective stop
-// resting, the cancel must precede the MARKET close (cancel index < sell index)
-// and there must be exactly one MARKET SELL place-order (the close itself).
-describe('closing-sell ordering — cancel precedes the MARKET sell', () => {
-  const assertCancelBeforeMarketSell = (decisions: readonly Decision[]): void => {
-    const cancelIdx = decisions.findIndex(isCancel);
-    const placeMarketIdxs = decisions
-      .map((d, i) =>
-        isPlace(d) && d.params.type === 'MARKET' && d.intent.side === 'SELL' ? i : -1,
-      )
-      .filter((i) => i >= 0);
-    expect(cancelIdx).toBeGreaterThanOrEqual(0);
-    expect(placeMarketIdxs).toHaveLength(1);
-    expect(cancelIdx).toBeLessThan(placeMarketIdxs[0]);
-    // The protective limit is retracted, not left resting.
-    expect(decisions.filter((d) => isPlace(d) && d.params.type === 'STOP_LOSS_LIMIT')).toHaveLength(
-      0,
-    );
+// Fusion tests: for each position-closing sell path, with a protective stop resting, ONE replace-order both retires the stop and places the close. Ordering was never enough — between a separate cancel request and a separate place request the same base is claimable by the stop and by the exit, which is how one position gets sold twice.
+describe('closing-sell fusion — one replace-order retires the stop and closes the position', () => {
+  const fusedClose = (
+    decisions: readonly Decision[],
+    reason: string,
+  ): Extract<Decision, { type: 'replace-order' }> => {
+    const replaces = decisions.filter(isReplace);
+    expect(replaces).toHaveLength(1);
+    const fused = replaces[0];
+    expect(fused.cancelOrderId).toBe(9001);
+    expect(fused.reason).toBe('tt-protective-stop-superseded');
+    expect(fused.intent.reason).toBe(reason);
+    expect(fused.intent.side).toBe('SELL');
+    expect(fused.params.type).toBe('MARKET');
+    // The split shape is exactly what the fusion removes: no standalone retraction, and no second SELL placement behind it.
+    expect(decisions.filter(isCancel)).toHaveLength(0);
+    expect(decisions.filter((d) => isPlace(d) && d.intent.side === 'SELL')).toHaveLength(0);
+    return fused;
   };
 
-  it('stop-loss close cancels the resting protective stop first', () => {
+  it('stop-loss close fuses the retraction into the MARKET sell', () => {
     const out = trailingTrade.tick(
       buildInput({
         // Below 96 stop ⇒ in-process MARKET stop-loss fires.
@@ -897,10 +999,7 @@ describe('closing-sell ordering — cancel precedes the MARKET sell', () => {
         openOrders: [restingProtectiveStop()],
       }),
     );
-    expect(out.decisions.some((d) => isPlace(d) && d.intent.reason === 'grid-stop-loss')).toBe(
-      true,
-    );
-    assertCancelBeforeMarketSell(out.decisions);
+    fusedClose(out.decisions, 'grid-stop-loss');
   });
 
   it('sizes the in-process stop-loss off the real position when the resting stop locks the whole free balance', () => {
@@ -917,19 +1016,12 @@ describe('closing-sell ordering — cancel precedes the MARKET sell', () => {
       },
     } as unknown as TickInput<TTConfig, TTState, TTBundle>;
     const out = trailingTrade.tick(input);
-    const sell = out.decisions.find(
-      (d) => isPlace(d) && d.params.type === 'MARKET' && d.intent.side === 'SELL',
-    );
-    expect(sell).toBeDefined();
-    if (sell === undefined || !isPlace(sell)) throw new Error('expected a MARKET SELL');
-    expect(sell.intent.reason).toBe('grid-stop-loss');
+    const fused = fusedClose(out.decisions, 'grid-stop-loss');
     // Full position, floored to stepSize 0.0001 (not skipped to no-balance).
-    expect(sell.params.quantity).toBe('2.0000');
-    // The resting protective stop is still cancelled ahead of the close.
-    assertCancelBeforeMarketSell(out.decisions);
+    expect(fused.params.quantity).toBe('2.0000');
   });
 
-  it('trailing-stop close cancels the resting protective stop first', () => {
+  it('trailing-stop close fuses the retraction into the MARKET sell', () => {
     const out = trailingTrade.tick(
       buildInput({
         // highSinceBuy 110, trailingStop 0.98 ⇒ trailing sell at <= 107.8.
@@ -941,11 +1033,10 @@ describe('closing-sell ordering — cancel precedes the MARKET sell', () => {
         openOrders: [restingProtectiveStop()],
       }),
     );
-    expect(out.decisions.some((d) => isPlace(d) && d.intent.reason === 'grid-sell')).toBe(true);
-    assertCancelBeforeMarketSell(out.decisions);
+    fusedClose(out.decisions, 'grid-sell');
   });
 
-  it('technicals-force-sell close cancels the resting protective stop first', () => {
+  it('technicals-force-sell close fuses the retraction into the MARKET sell', () => {
     const technicals: TTConfig['technicals'] = {
       useOnlyWithinMin: 2,
       ifExpires: 'do-not-buy',
@@ -987,13 +1078,10 @@ describe('closing-sell ordering — cancel precedes the MARKET sell', () => {
         openOrders: [restingProtectiveStop()],
       }),
     );
-    expect(
-      out.decisions.some((d) => isPlace(d) && d.intent.reason === 'technicals-force-sell'),
-    ).toBe(true);
-    assertCancelBeforeMarketSell(out.decisions);
+    fusedClose(out.decisions, 'technicals-force-sell');
   });
 
-  it('regime-exit close cancels the resting protective stop first', () => {
+  it('regime-exit close fuses the retraction into the MARKET sell', () => {
     const out = trailingTrade.tick(
       buildInput({
         // No stop-loss configured (so neither the in-process stop nor the
@@ -1008,11 +1096,10 @@ describe('closing-sell ordering — cancel precedes the MARKET sell', () => {
         openOrders: [restingProtectiveStop()],
       }),
     );
-    expect(out.decisions.some((d) => isPlace(d) && d.intent.reason === 'regime-exit')).toBe(true);
-    assertCancelBeforeMarketSell(out.decisions);
+    fusedClose(out.decisions, 'regime-exit');
   });
 
-  it('operator trigger-sell override cancels the resting protective stop first', () => {
+  it('operator trigger-sell override fuses the retraction into the MARKET sell', () => {
     const out = trailingTrade.tick(
       buildInput({
         avgEntryPrice: '100',
@@ -1024,11 +1111,12 @@ describe('closing-sell ordering — cancel precedes the MARKET sell', () => {
         openOrders: [restingProtectiveStop()],
       }),
     );
-    expect(out.decisions.some((d) => isPlace(d) && d.intent.reason === 'manual')).toBe(true);
-    assertCancelBeforeMarketSell(out.decisions);
+    const fused = fusedClose(out.decisions, 'manual');
+    // Attribution rides the successor intent. Lose it in the fusion and an operator-triggered close becomes indistinguishable from an automated one.
+    expect(fused.intent.overrideActionId).toBe('01234567-89ab-4cde-89ab-cdef01234567');
   });
 
-  it('manual-order SELL override cancels the resting protective stop first', () => {
+  it('manual-order SELL override fuses the retraction into the MARKET sell', () => {
     const out = trailingTrade.tick(
       buildInput({
         avgEntryPrice: '100',
@@ -1041,11 +1129,11 @@ describe('closing-sell ordering — cancel precedes the MARKET sell', () => {
         openOrders: [restingProtectiveStop()],
       }),
     );
-    expect(out.decisions.some((d) => isPlace(d) && d.intent.reason === 'manual')).toBe(true);
-    assertCancelBeforeMarketSell(out.decisions);
+    const fused = fusedClose(out.decisions, 'manual');
+    expect(fused.intent.overrideActionId).toBe('01234567-89ab-4cde-89ab-cdef01234568');
   });
 
-  it('manual-order BUY override does NOT cancel the resting protective stop', () => {
+  it('manual-order BUY override does NOT retire the resting protective stop', () => {
     const out = trailingTrade.tick(
       buildInput({
         avgEntryPrice: '100',
@@ -1058,8 +1146,9 @@ describe('closing-sell ordering — cancel precedes the MARKET sell', () => {
         openOrders: [restingProtectiveStop()],
       }),
     );
-    // A BUY adds exposure; the stop stays correctly in place ⇒ no cancel.
+    // A BUY adds exposure; the stop stays correctly in place ⇒ neither a cancel nor a replacement retires it.
     expect(out.decisions.some(isCancel)).toBe(false);
+    expect(out.decisions.some(isReplace)).toBe(false);
     expect(out.decisions.some((d) => isPlace(d) && d.intent.side === 'BUY')).toBe(true);
   });
 });
@@ -1160,9 +1249,12 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
       }),
     );
     expect(blockerOf(out.nextState)).toBeNull();
-    const place = out.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
-    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
-    const params = place.params as { stopPrice: string; price: string };
+    const replacement = out.decisions.find((d) => d.type === 'replace-order');
+    if (replacement === undefined || replacement.type !== 'replace-order') {
+      throw new Error('expected a protective-stop replacement');
+    }
+    expect(replacement.intent.reason).toBe('protective-stop');
+    const params = replacement.params as { stopPrice: string; price: string };
     // The trigger moved off the configured `100 × 0.96` to the exchange floor.
     expect(params.stopPrice).toBe('101.25');
     // The criterion that decides whether Binance accepts it: the LIMIT leg, the
@@ -1184,9 +1276,12 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
         openOrders: [restingProtectiveStop({ stopPrice: '80.00' })],
       }),
     );
-    const place = out.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
-    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
-    expect((place.params as { stopPrice: string }).stopPrice).toBe('96.00');
+    const replacement = out.decisions.find((d) => d.type === 'replace-order');
+    if (replacement === undefined || replacement.type !== 'replace-order') {
+      throw new Error('expected a protective-stop replacement');
+    }
+    expect(replacement.intent.reason).toBe('protective-stop');
+    expect((replacement.params as { stopPrice: string }).stopPrice).toBe('96.00');
   });
 
   it('arms unchanged on a symbol Binance publishes no band for', () => {
@@ -1194,9 +1289,11 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
       buildInput({ openOrders: [restingProtectiveStop({ stopPrice: '80.00' })] }),
     );
     expect(blockerOf(out.nextState)).toBeNull();
-    expect(out.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop')).toBe(
-      true,
-    );
+    expect(
+      out.decisions.some(
+        (d) => d.type === 'replace-order' && d.intent.reason === 'protective-stop',
+      ),
+    ).toBe(true);
   });
 
   const TRAIL_BOUNDS: TrailingDeltaFilter = {
@@ -1224,19 +1321,38 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
   it('onBandBlock native-trail places a STOP_LOSS carrying only the distance', () => {
     const out = nativeTrail();
     expect(blockerOf(out.nextState)).toBeNull();
-    const place = out.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
-    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
+    const replacement = out.decisions.find((d) => d.type === 'replace-order');
+    if (replacement === undefined || replacement.type !== 'replace-order') {
+      throw new Error('expected a protective-stop replacement');
+    }
+    expect(replacement.intent.reason).toBe('protective-stop');
     // `sell.stopLossPercentage: 0.96` is a 4% stop, so 400 bips go to Binance —
     // the configured distance, where `clamp` would have moved the trigger up to
     // 101.25 and left under 4%.
-    expect(place.params).toEqual({
+    expect(replacement.params).toEqual({
       type: 'STOP_LOSS',
       quantity: '2.0000',
       trailingDelta: 400,
     });
     // The old priced stop goes in the same batch — leaving both would double the
     // sell size the moment either triggers.
-    expect(out.decisions.some(isCancel)).toBe(true);
+    expect(out.decisions.some((d) => isCancel(d) && d.orderId === 9001)).toBe(false);
+  });
+
+  // Guard: pins the rearm === false arm of the native-trail build callback on a cold start, not the already-covered priced-to-native switch or native re-arm paths (both rearm: true).
+  // WHY: A first arm is never deferrable because nothing is resting behind it.
+  it('onBandBlock native-trail cold-start places one non-deferrable STOP_LOSS', () => {
+    const out = nativeTrail({ openOrders: [] });
+    expect(out.decisions).toHaveLength(1);
+    const place = out.decisions[0];
+    expect(isPlace(place)).toBe(true);
+    if (!isPlace(place)) throw new Error('expected one protective-stop place-order');
+    expect(place.params).toEqual({
+      type: 'STOP_LOSS',
+      quantity: '2.0000',
+      trailingDelta: 400,
+    });
+    expect(place.intent.deferrable).toBeUndefined();
   });
 
   it('falls back to the refusal when the symbol publishes no TRAILING_DELTA bounds', () => {
@@ -1279,9 +1395,12 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
     expect(settled.decisions.some(isCancel)).toBe(false);
 
     const stale = nativeTrail({ openOrders: [trailing(500)] });
-    const place = stale.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
-    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
-    expect(place.params).toMatchObject({ trailingDelta: 400 });
+    const replacement = stale.decisions.find((d) => d.type === 'replace-order');
+    if (replacement === undefined || replacement.type !== 'replace-order') {
+      throw new Error('expected a protective-stop replacement');
+    }
+    expect(replacement.intent.reason).toBe('protective-stop');
+    expect(replacement.params).toMatchObject({ trailingDelta: 400 });
   });
   // Both escapes leave no blocker behind — nothing was refused in the end — so a
   // metric is the only trace that the order resting at Binance is not the one
@@ -1323,9 +1442,11 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
         }),
       );
     const armed = clamp([restingProtectiveStop({ stopPrice: '80.00' })]);
-    const place = armed.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
-    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
-    const params = place.params as { stopPrice: string; price: string; quantity: string };
+    const replacement = armed.decisions.find((d) => d.type === 'replace-order');
+    if (replacement === undefined || replacement.type !== 'replace-order') {
+      throw new Error('expected a protective-stop replacement');
+    }
+    const params = replacement.params as { stopPrice: string; price: string; quantity: string };
 
     const settled = clamp([
       restingProtectiveStop({
@@ -1354,9 +1475,11 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
         }),
       );
     const armed = clamp([restingProtectiveStop({ stopPrice: '80.00' })]);
-    const place = armed.decisions.find((d) => isPlace(d) && d.intent.reason === 'protective-stop');
-    if (place === undefined || !isPlace(place)) throw new Error('expected a protective-stop place');
-    const params = place.params as { stopPrice: string; price: string; quantity: string };
+    const replacement = armed.decisions.find((d) => d.type === 'replace-order');
+    if (replacement === undefined || replacement.type !== 'replace-order') {
+      throw new Error('expected a protective-stop replacement');
+    }
+    const params = replacement.params as { stopPrice: string; price: string; quantity: string };
     const drifted = (by: string): OpenOrder =>
       restingProtectiveStop({
         stopPrice: new Decimal(params.stopPrice).mul(by).toFixed(4),
@@ -1365,13 +1488,17 @@ describe('protective stop — outside Binance’s PERCENT_PRICE_BY_SIDE band', (
       });
 
     const held = clamp([drifted('1.005')]);
-    expect(held.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop')).toBe(
-      false,
-    );
+    expect(
+      held.decisions.some(
+        (d) => d.type === 'replace-order' && d.intent.reason === 'protective-stop',
+      ),
+    ).toBe(false);
 
     const rewritten = clamp([drifted('1.02')]);
     expect(
-      rewritten.decisions.some((d) => isPlace(d) && d.intent.reason === 'protective-stop'),
+      rewritten.decisions.some(
+        (d) => d.type === 'replace-order' && d.intent.reason === 'protective-stop',
+      ),
     ).toBe(true);
   });
 

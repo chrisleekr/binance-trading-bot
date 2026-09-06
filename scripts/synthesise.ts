@@ -735,7 +735,15 @@ const SCENARIO_BUILDERS: Record<Scenario, () => TickInput<TTConfig, TTState, TTB
   // (reads 1/3, 2/3); tick 2 reaches the threshold and the buy fires. Pins the
   // streak so a refactor that off-by-ones the count or drops the gate diverges.
   'entry-confirm-reads': () => {
-    const c = confirmReadsCfg();
+    // This scenario exercises the entryConfirmReads=3 counter, so its entry must be sellable at its own stop: $10 buys 0.0002 BTC at $50000, worth only $9.70 at the 3%-below stop ($48500), below the exchange's $10 minNotional; $25 buys 0.0005 BTC, worth $24.25, comfortably above the floor.
+    const base = confirmReadsCfg();
+    const c = {
+      ...base,
+      buy: {
+        ...base.buy,
+        entrySizing: { ...base.buy.entrySizing, amount: '25' },
+      },
+    };
     const buyBundle = (nowMs: number): TTBundle =>
       tvBundle({
         useOnlyWithinMin: c.technicals.useOnlyWithinMin,
@@ -748,9 +756,10 @@ const SCENARIO_BUILDERS: Record<Scenario, () => TickInput<TTConfig, TTState, TTB
     ];
   },
   // Gap-through: price drops below the in-process stop while an exchange-side
-  // protective stop is already resting. The closing batch must cancel the
-  // resting STOP_LOSS_LIMIT and then market-sell, in that order. Pins the
-  // cancel-before-sell ordering of the backstop's primary path.
+  // protective stop is already resting. The closing batch must retire the
+  // resting STOP_LOSS_LIMIT and place the market sell as ONE atomic request.
+  // Pins the fused shape of the backstop's primary path, where a split cancel
+  // and place would leave both live against the same base in between.
   'protective-stop-cancel-on-sell': () => [
     buildInput({
       config: protectiveCfg(),

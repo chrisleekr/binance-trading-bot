@@ -249,6 +249,82 @@ describe('@app/contracts/form-builder', () => {
     expect(count).toMatchObject({ kind: 'number', integer: true });
   });
 
+  // zod stamps the JS safe-integer range onto every `z.number().int()` that lacks an explicit bound, so an unbounded integer arrives over the wire carrying `maximum: 9007199254740991` (and `minimum: -9007199254740991`). That is a representation artefact, not an author-declared limit: rendered into a form it becomes an absurd spinner bound and it leaks into generated config docs. These cases run through the real `z.toJSONSchema` rather than a hand-written schema fixture so they pin what zod actually emits.
+  describe('safe-integer sentinel bounds', () => {
+    it('drops the sentinel maximum while keeping the declared minimum', () => {
+      const fields = buildFromZod(z.object({ count: z.number().int().min(1) }));
+      const count = fields[0];
+      expect(count).toMatchObject({ kind: 'number', integer: true, minimum: 1 });
+      expect(count).not.toHaveProperty('maximum');
+    });
+
+    it('drops both sentinels from a fully unbounded integer', () => {
+      const fields = buildFromZod(z.object({ count: z.number().int() }));
+      const count = fields[0];
+      expect(count).toMatchObject({ kind: 'number', integer: true });
+      expect(count).not.toHaveProperty('minimum');
+      expect(count).not.toHaveProperty('maximum');
+    });
+
+    it('keeps a declared integer range on both ends', () => {
+      const fields = buildFromZod(z.object({ window: z.number().int().min(2).max(998) }));
+      expect(fields[0]).toMatchObject({ kind: 'number', integer: true, minimum: 2, maximum: 998 });
+    });
+
+    it('keeps a declared exclusive minimum while dropping the sentinel maximum', () => {
+      // `.positive()` emits `exclusiveMinimum: 0` and no `minimum`, so the sentinel rule must not take the exclusive bound with it.
+      const fields = buildFromZod(z.object({ size: z.number().int().positive() }));
+      const size = fields[0];
+      expect(size).toMatchObject({ kind: 'number', integer: true, exclusiveMinimum: 0 });
+      expect(size).not.toHaveProperty('maximum');
+    });
+
+    it('keeps a large declared maximum that is not the sentinel', () => {
+      // Proves the rule keys on the exact safe-integer value, not on "the number looks big".
+      const fields = buildFromZod(z.object({ cap: z.number().int().min(1).max(1_000_000) }));
+      expect(fields[0]).toMatchObject({
+        kind: 'number',
+        integer: true,
+        minimum: 1,
+        maximum: 1_000_000,
+      });
+    });
+
+    it('keeps a declared minimum that happens to equal the opposite sentinel', () => {
+      // The rule is per-end: only MIN_SAFE_INTEGER is a sentinel on the low side. An integer declaring MAX_SAFE_INTEGER as its FLOOR emits that value at both ends, and the two must be treated differently — the floor is the author's, the ceiling is the artefact. A rewrite that dropped any sentinel-valued bound would silently lose the floor.
+      const fields = buildFromZod(
+        z.object({ floor: z.number().int().min(Number.MAX_SAFE_INTEGER) }),
+      );
+      const floor = fields[0];
+      expect(floor).toMatchObject({
+        kind: 'number',
+        integer: true,
+        minimum: Number.MAX_SAFE_INTEGER,
+      });
+      expect(floor).not.toHaveProperty('maximum');
+    });
+
+    it('keeps sentinel-valued bounds an author declared on a non-integer', () => {
+      // A non-integer schema carries no bounds unless the author wrote them, so a sentinel value here is a real declaration and the drop must not reach it. This is the only case that exercises the integer-only carve-out: an ordinary non-integer range never comes near the sentinel and would pass with the carve-out deleted.
+      const fields = buildFromZod(
+        z.object({
+          span: z.number().min(Number.MIN_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER),
+        }),
+      );
+      expect(fields[0]).toMatchObject({
+        kind: 'number',
+        integer: false,
+        minimum: Number.MIN_SAFE_INTEGER,
+        maximum: Number.MAX_SAFE_INTEGER,
+      });
+    });
+
+    it('keeps ordinary non-integer bounds', () => {
+      const fields = buildFromZod(z.object({ pct: z.number().min(0).max(1) }));
+      expect(fields[0]).toMatchObject({ kind: 'number', integer: false, minimum: 0, maximum: 1 });
+    });
+  });
+
   it('treats `string | null` as a plain string (nullable variant collapsed)', () => {
     const schema = z.object({ note: z.string().nullable() });
     const fields = buildFromZod(schema);

@@ -161,8 +161,8 @@ const REVIEWED_IGNORES: Record<string, readonly string[]> = {
 
 const REVIEWED_IDENTITY_DIGESTS: Record<string, string> = {
   'packages/binance/src/market-data/fake-port.ts': '64e259fdba0be49f',
-  'packages/binance/src/market-data/kline-fetcher.ts': '8bc0a3461d279b30',
-  'packages/binance/src/public-klines.ts': '009866645bd7ee6e',
+  'packages/binance/src/market-data/kline-fetcher.ts': 'c6f4e6d2a4c6df2d',
+  'packages/binance/src/public-klines.ts': '98d9f9ce763a512b',
   'packages/binance/src/rate-limit/order-governor.ts': 'f171fcf59bdcd4ef',
   'packages/binance/src/rate-limit/redis-weight-governor.ts': '80050d886ff3f55c',
   'packages/binance/src/rate-limit/weight-governor.ts': '4e4c7987ba8df2db',
@@ -176,11 +176,11 @@ const REVIEWED_IDENTITY_DIGESTS: Record<string, string> = {
   'packages/indicators/src/index.ts': '8fb4495c172df93a',
   'packages/strategy/core/src/replay.ts': '0bce841953ec4aed',
   'packages/strategy/rebalance/src/momentum.ts': '6061dccad62477d7',
-  'packages/strategy/trailing-trade/src/schema.ts': '46e2fd3326ca1e54',
-  'packages/strategy/trailing-trade/src/tick.ts': 'a2a7cfe9f8b8fee7',
-  'packages/strategy/trailing-trade/src/decisions.ts': 'a7edd3eb4db66c74',
-  'packages/strategy/trailing-trade/src/branches/grid-buy.ts': '9012a88c1e801aff',
-  'packages/strategy/trailing-trade/src/branches/first-entry.ts': '4b1e546afb25908a',
+  'packages/strategy/trailing-trade/src/schema.ts': '4328297803577dd1',
+  'packages/strategy/trailing-trade/src/tick.ts': 'ff6c04eb84784c96',
+  'packages/strategy/trailing-trade/src/decisions.ts': 'e88f78482121a9ce',
+  'packages/strategy/trailing-trade/src/branches/grid-buy.ts': '4266e92e6096e9ba',
+  'packages/strategy/trailing-trade/src/branches/first-entry.ts': '328cc17494645065',
 };
 
 const sourceFiles = (root: string): string[] =>

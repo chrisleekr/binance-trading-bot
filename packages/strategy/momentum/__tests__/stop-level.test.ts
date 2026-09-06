@@ -180,43 +180,92 @@ describe('stop-level — resolveStopLevel', () => {
   const lowHigh = new Decimal('106');
 
   it('reports the hard leg alone while the profit trail is off', () => {
-    const out = resolveStopLevel(cfg(), entry, high, null, [], NO_BAND);
+    const out = resolveStopLevel(cfg(), entry, high, null, [], NO_BAND, null);
     expect(out.profitHigh).toBeNull();
     expect(out.stop?.toString()).toBe('114');
+  });
+
+  it('returns the effective high and pins a priced level to the resting trigger', () => {
+    const out = resolveStopLevel(cfg(), entry, high, null, [], NO_BAND, new Decimal('118'));
+    expect(out.effectiveHigh).toBe(high);
+    expect(out.stop?.toString()).toBe('118');
+    expect(out.floorClamped).toBe(false);
+  });
+
+  it('keeps pin-up behavior when a non-clamp candidate moves below the resting trigger', () => {
+    const config = cfg({ protectiveStop: { enabled: true, onBandBlock: 'notify' } });
+    const out = resolveStopLevel(config, entry, high, null, [], NO_BAND, new Decimal('118'));
+    expect(out.stop?.toString()).toBe('118');
+  });
+
+  it('does not manufacture a level from a resting trigger when no leg resolves', () => {
+    const out = resolveStopLevel(
+      rawCfg({ trailingStopPct: 'nope' }),
+      entry,
+      high,
+      null,
+      [],
+      NO_BAND,
+      new Decimal('118'),
+    );
+    expect(out.stop).toBeNull();
   });
 
   it('does not arm a hair below the activation threshold', () => {
     // 104.99 < 100 * 1.05, so the profit leg contributes nothing and the hard
     // leg stands alone.
-    const out = resolveStopLevel(cfg(TRAIL_ON), entry, lowHigh, new Decimal('104.99'), [], NO_BAND);
+    const out = resolveStopLevel(
+      cfg(TRAIL_ON),
+      entry,
+      lowHigh,
+      new Decimal('104.99'),
+      [],
+      NO_BAND,
+      null,
+    );
     expect(out.stop?.toString()).toBe('100.7');
   });
 
   it('arms exactly at the activation threshold', () => {
     // 105 = 100 * 1.05 exactly. Armed: 105 * 0.97 = 101.85 now outranks the
     // 100.7 hard leg, so the reported level moves.
-    const out = resolveStopLevel(cfg(TRAIL_ON), entry, lowHigh, new Decimal('105'), [], NO_BAND);
+    const out = resolveStopLevel(
+      cfg(TRAIL_ON),
+      entry,
+      lowHigh,
+      new Decimal('105'),
+      [],
+      NO_BAND,
+      null,
+    );
     expect(out.stop?.toString()).toBe('101.85');
   });
 
   it('still reports the hard leg when it outranks an armed profit leg', () => {
     // Armed at 105, but 101.85 < 120 * 0.95 = 114, so `max` keeps the hard leg.
-    const out = resolveStopLevel(cfg(TRAIL_ON), entry, high, new Decimal('105'), [], NO_BAND);
+    const out = resolveStopLevel(cfg(TRAIL_ON), entry, high, new Decimal('105'), [], NO_BAND, null);
     expect(out.stop?.toString()).toBe('114');
   });
 
   it('takes the profit leg once it climbs above the hard leg', () => {
     // 200 * 0.97 = 194 > 120 * 0.95 = 114.
-    const out = resolveStopLevel(cfg(TRAIL_ON), entry, high, new Decimal('200'), [], NO_BAND);
+    const out = resolveStopLevel(cfg(TRAIL_ON), entry, high, new Decimal('200'), [], NO_BAND, null);
     expect(out.stop?.toString()).toBe('194');
     expect(out.profitHigh?.toString()).toBe('200');
   });
 
   it('never sits below the hard leg, so protection can only tighten', () => {
-    const hard = resolveStopLevel(cfg(), entry, high, null, [], NO_BAND).stop as Decimal;
+    const hard = resolveStopLevel(cfg(), entry, high, null, [], NO_BAND, null).stop as Decimal;
     for (const mark of ['105', '130', '200']) {
-      const both = resolveStopLevel(cfg(TRAIL_ON), entry, high, new Decimal(mark), [], NO_BAND)
-        .stop as Decimal;
+      const both = resolveStopLevel(
+        cfg(TRAIL_ON),
+        entry,
+        high,
+        new Decimal(mark),
+        [],
+        NO_BAND,
+        null,
+      ).stop as Decimal;
       expect(both.gte(hard)).toBe(true);
     }
   });
@@ -224,7 +273,15 @@ describe('stop-level — resolveStopLevel', () => {
   it('cannot arm below entry, whatever the marks say', () => {
     // The schema forbids trailPct >= activationPct / (1 + activationPct); the
     // invariant it buys is that an armed profit stop is always above entry.
-    const out = resolveStopLevel(cfg(TRAIL_ON), entry, entry, new Decimal('105'), [], NO_BAND);
+    const out = resolveStopLevel(
+      cfg(TRAIL_ON),
+      entry,
+      entry,
+      new Decimal('105'),
+      [],
+      NO_BAND,
+      null,
+    );
     // max(hard 95, profit 101.85) = 101.85 > entry 100.
     expect(out.stop?.toString()).toBe('101.85');
   });
@@ -239,7 +296,7 @@ describe('stop-level — resolveStopLevel', () => {
       trailingStopPct: 'nope',
       profitTrail: { enabled: true, activationPct: '0.05', trailPct: '0.5' },
     });
-    const out = resolveStopLevel(config, entry, high, new Decimal('105'), [], NO_BAND);
+    const out = resolveStopLevel(config, entry, high, new Decimal('105'), [], NO_BAND, null);
     expect(out.stop?.toString()).toBe('100');
   });
 
@@ -255,7 +312,7 @@ describe('stop-level — resolveStopLevel', () => {
       isClosed: true,
     }));
     const config = cfg({ atrTrailingStop: { enabled: true, period: 3, multiple: '2' } });
-    const out = resolveStopLevel(config, entry, high, null, candles, NO_BAND);
+    const out = resolveStopLevel(config, entry, high, null, candles, NO_BAND, null);
     // Anything but the fixed 120 * 0.95 proves the ATR leg was taken.
     expect(out.stop?.toString()).not.toBe('114');
     expect((out.stop as Decimal).lt(high)).toBe(true);
@@ -267,14 +324,15 @@ describe('stop-level — resolveStopLevel', () => {
     // holds instead.
     for (const pct of ['nope', '0', '1.5']) {
       expect(
-        resolveStopLevel(rawCfg({ trailingStopPct: pct }), entry, high, null, [], NO_BAND).stop,
+        resolveStopLevel(rawCfg({ trailingStopPct: pct }), entry, high, null, [], NO_BAND, null)
+          .stop,
       ).toBe(null);
     }
   });
 
   it('still reports the profit leg when the hard leg is unusable', () => {
     const config = rawCfg({ trailingStopPct: 'nope', ...TRAIL_ON });
-    const out = resolveStopLevel(config, entry, high, new Decimal('200'), [], NO_BAND);
+    const out = resolveStopLevel(config, entry, high, new Decimal('200'), [], NO_BAND, null);
     expect(out.stop?.toString()).toBe('194');
   });
 
@@ -283,7 +341,7 @@ describe('stop-level — resolveStopLevel', () => {
       profitTrail: { enabled: true, activationPct: 'x', trailPct: 'y' },
     });
     // Defaults 0.05 / 0.03 → armed at 105, stop 200 * 0.97 = 194.
-    const out = resolveStopLevel(config, entry, high, new Decimal('200'), [], NO_BAND);
+    const out = resolveStopLevel(config, entry, high, new Decimal('200'), [], NO_BAND, null);
     expect(out.stop?.toString()).toBe('194');
   });
 
@@ -304,11 +362,23 @@ describe('stop-level — resolveStopLevel', () => {
       protectiveStop: { enabled: true, onBandBlock: 'clamp', ...over },
     });
 
+    it('follows a falling exchange floor instead of pinning to the prior clamped stop', () => {
+      const config = cfg({ trailingStopPct: '0.2', ...clamp() });
+      const first = resolveStopLevel(config, entry, high, null, [], BAND, null);
+      const lowerBand = { ...BAND, reference: '110' };
+      const expectedSecond = resolveStopLevel(config, entry, high, null, [], lowerBand, null);
+
+      const second = resolveStopLevel(config, entry, high, null, [], lowerBand, first.stop);
+
+      expect(second.stop?.toString()).toBe(expectedSecond.stop?.toString());
+      expect(second.stop?.lt(first.stop as Decimal)).toBe(true);
+    });
+
     it('reads the same default offset the resting order prices its limit leg from', () => {
       // A profile saved before `limitOffsetPercentage` existed carries no key, so
       // the floor has to come from the same default the order itself uses. A
       // second default here would floor at a price the order never carries.
-      const out = resolveStopLevel(rawCfg(clamp()), entry, high, null, [], BAND);
+      const out = resolveStopLevel(rawCfg(clamp()), entry, high, null, [], BAND, null);
       expect(out.floorClamped).toBe(true);
       expect(out.stop?.gt(new Decimal('114'))).toBe(true);
     });
@@ -323,6 +393,7 @@ describe('stop-level — resolveStopLevel', () => {
         null,
         [],
         BAND,
+        null,
       );
       expect(out.floorClamped).toBe(false);
       expect(out.stop?.toString()).toBe('114');
@@ -342,6 +413,7 @@ describe('stop-level — resolveStopLevel', () => {
           null,
           [],
           BAND,
+          null,
         );
         expect(out.floorClamped).toBe(false);
         expect(out.stop?.toString()).toBe('114');
@@ -351,10 +423,18 @@ describe('stop-level — resolveStopLevel', () => {
     it('leaves the level alone when the band has no reference price to sit against', () => {
       // The band is published but the tick carries no price to apply it to, which
       // is the fail-open case every other band guard already takes.
-      const out = resolveStopLevel(rawCfg(clamp()), entry, high, null, [], {
-        reference: null,
-        band: BAND.band,
-      });
+      const out = resolveStopLevel(
+        rawCfg(clamp()),
+        entry,
+        high,
+        null,
+        [],
+        {
+          reference: null,
+          band: BAND.band,
+        },
+        null,
+      );
       expect(out.floorClamped).toBe(false);
       expect(out.stop?.toString()).toBe('114');
     });

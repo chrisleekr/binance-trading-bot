@@ -3,6 +3,7 @@
 // emitFirstBuyTvForced and the wait/skip-filter arms of emitForcedFirstEntry.
 
 import { describe, expect, it } from 'vitest';
+import { Decimal } from '@app/money';
 import { emitFirstBuyTvForced, emitForcedFirstEntry } from '../src/branches/first-entry.js';
 import { handleOverride } from '../src/branches/override.js';
 import { initialTTState, type TTConfig, type TTState, type TTBundle } from '../src/schema.js';
@@ -35,7 +36,13 @@ const config = (gridLevels: unknown[] = []): TTConfig =>
 
 const makeInput = (
   cfg: TTConfig,
-  opts: { currentPrice?: string; openOrders?: readonly OpenOrder[]; candles1h?: unknown[] } = {},
+  opts: {
+    currentPrice?: string;
+    openOrders?: readonly OpenOrder[];
+    candles1h?: unknown[];
+    filters?: typeof FILTERS;
+    balances?: Record<string, unknown>;
+  } = {},
 ): TickInput<TTConfig, TTState, TTBundle> =>
   ({
     config: cfg,
@@ -48,13 +55,13 @@ const makeInput = (
         baseAsset: 'BTC',
         quoteAsset: 'USDT',
         status: 'TRADING',
-        filters: FILTERS,
+        filters: opts.filters ?? FILTERS,
       },
     },
     openOrders: opts.openOrders ?? [],
     profile: { id: 'p1' },
     bundle: { technicals: {}, override: null },
-    account: { balances: {}, readable: true },
+    account: { balances: opts.balances ?? {}, readable: true },
   }) as unknown as TickInput<TTConfig, TTState, TTBundle>;
 
 const disabledState = (): TTState => ({ ...initialTTState(), disabledUntilMs: 9_999_999_999_999 });
@@ -107,6 +114,85 @@ describe('emitFirstBuyTvForced', () => {
       initialTTState(),
     );
     expect(out).toEqual({ kind: 'skip', reason: 'open-buy' });
+  });
+
+  it('refuses a cap-headroom dust budget with entry-below-stop-notional, not bought', () => {
+    const zecFilters = {
+      ...FILTERS,
+      minNotional: '0.0001',
+      tickSize: '0.000001',
+      stepSize: '0.001',
+      minQty: '0.001',
+    };
+    const cappedConfig = trailingTrade.configSchema.parse({
+      symbol: 'ZECBTC',
+      candleInterval: '1h',
+      buy: {
+        enabled: true,
+        entrySizing: { mode: 'fixed', amount: '0.00013' },
+        accountCap: { mode: 'amount', amount: '0.00012' },
+        avgEntryPriceRemoveThreshold: '0',
+      },
+      sell: {
+        enabled: true,
+        stopLossPercentage: '0.9',
+        triggerPercentage: '1.05',
+        protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+      },
+    }) as TTConfig;
+    const out = emitFirstBuyTvForced(
+      makeInput(cappedConfig, {
+        currentPrice: '0.0118',
+        filters: zecFilters,
+        balances: {
+          USDT: { asset: 'USDT', free: new Decimal('0.00013'), locked: new Decimal('0') },
+        },
+      }),
+      initialTTState(),
+    );
+
+    expect(out).toEqual({ kind: 'skip', reason: 'entry-below-stop-notional' });
+  });
+
+  it('emits a forced buy for a held position without the flat-entry stop floor', () => {
+    const zecFilters = {
+      ...FILTERS,
+      minNotional: '0.0001',
+      tickSize: '0.000001',
+      stepSize: '0.001',
+      minQty: '0.001',
+    };
+    const cappedConfig = trailingTrade.configSchema.parse({
+      symbol: 'ZECBTC',
+      candleInterval: '1h',
+      buy: {
+        enabled: true,
+        entrySizing: { mode: 'fixed', amount: '0.00013' },
+        accountCap: { mode: 'amount', amount: '0.00012' },
+        avgEntryPriceRemoveThreshold: '0',
+      },
+      sell: {
+        enabled: true,
+        stopLossPercentage: '0.9',
+        triggerPercentage: '1.05',
+        protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+      },
+    }) as TTConfig;
+    const out = emitFirstBuyTvForced(
+      makeInput(cappedConfig, {
+        currentPrice: '0.0118',
+        filters: zecFilters,
+        balances: {
+          USDT: { asset: 'USDT', free: new Decimal('0.00013'), locked: new Decimal('0') },
+        },
+      }),
+      { ...initialTTState(), avgEntryPrice: '0.0118' },
+    );
+
+    expect(out.kind).toBe('emit');
+    if (out.kind !== 'emit') throw new Error('expected a forced buy');
+    expect(out.quantity).toBe('0.010');
+    expect(out.decision).toMatchObject({ type: 'place-order', intent: { side: 'BUY' } });
   });
 });
 

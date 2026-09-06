@@ -1,10 +1,10 @@
+import { BINANCE_MAX_KLINE_LIMIT } from '@app/binance';
 import { Decimal } from '@app/money';
 import type { Candle } from '@app/strategy-core';
 
-// The latest Binance row is normally open, so a maximum-size request yields
-// at most 999 closed source bars for the live computation.
-export const TECHNICALS_KLINE_REQUEST_LIMIT = 1_000;
-export const TECHNICALS_SOURCE_CANDLE_LIMIT = 999;
+// Ask for the largest page Binance serves. The latest row in that page is normally still open, so a maximum-size request yields one fewer closed source bar than it returns.
+export const TECHNICALS_KLINE_REQUEST_LIMIT: number = BINANCE_MAX_KLINE_LIMIT;
+export const TECHNICALS_SOURCE_CANDLE_LIMIT: number = BINANCE_MAX_KLINE_LIMIT - 1;
 export const TECHNICALS_RATING_BAR_LIMIT = 250;
 
 /** Match TradingView's traded-bar sequence, then retain the bounded rating tail. */

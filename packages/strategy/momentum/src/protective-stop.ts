@@ -4,6 +4,7 @@ import {
   findRestingProtectiveStop as coreFindRestingProtectiveStop,
   clampedStopDrift,
   decOrNull,
+  nativeTrailingDelta,
   ownRestingSellBase,
   parseFilters,
 } from '@app/strategy-core';
@@ -19,7 +20,9 @@ import type {
 } from '@app/strategy-core';
 
 import { protectiveStopClientOrderId } from './client-order-id.js';
+import { profitLegDistance } from './profit-leg.js';
 import type { MomentumBundle, MomentumConfig, MomentumState } from './schema.js';
+import type { StopResolution } from './stop-level.js';
 
 type MomentumInput = TickInput<MomentumConfig, MomentumState, MomentumBundle>;
 
@@ -62,13 +65,11 @@ export { findForeignRestingSell } from '@app/strategy-core';
 export type { ProtectiveStopArm } from '@app/strategy-core';
 
 /**
- * The shared arm's outcome plus whether a band refusal was answered with an
- * exchange-native trailing stop. A substitution leaves no blocker — nothing was
- * refused in the end — so without this flag the swap is invisible to the tick
- * that has to report it.
+ * The shared arm's outcome plus native-mode binding facts. A band substitution leaves no blocker, while an unavailable primary trail falls back to pricing; the tick needs both facts to report the exchange protection honestly.
  */
 export interface MomentumProtectiveStopArm extends ProtectiveStopArm {
   readonly nativeTrailed: boolean;
+  readonly nativeUnavailable: boolean;
 }
 
 /**
@@ -136,6 +137,32 @@ const placeDecision = (
 });
 
 /**
+ * Wrap a successor in one atomic exchange replacement that also retires the resting protective order.
+ *
+ * The successor is not required to be another protective stop. A re-arm at a new level and a position-closing exit SELL are both legitimate, because the `replace-order` contract constrains nothing about the successor's intent — it pairs a cancel with a placement, and the two need only concern the same base.
+ *
+ * `STOP_ON_FAILURE` is the right pairing for both. The only reason to retire the stop is to free the base the successor needs, so a refused cancel leaves the successor unplaceable anyway, and the still-resting stop keeps protecting the position until the next tick retries. A split cancel and place failed the opposite way: the cancel could fail while the successor went out regardless, leaving the stop and the exit both live against one base.
+ *
+ * @param resting - The currently resting protective order to cancel atomically.
+ * @param place - The exact successor to transmit, from the arm's priced or native place builder or from a closing sell.
+ * @returns One replace-order decision carrying the successor intent and params unchanged.
+ */
+export const replaceDecision = (resting: OpenOrder, place: Decision): Decision => {
+  if (place.type !== 'place-order') {
+    throw new Error(
+      'protective-stop successor builder returned a decision that was not place-order',
+    );
+  }
+  return {
+    type: 'replace-order',
+    cancelOrderId: resting.orderId,
+    reason: 'momentum-protective-stop-superseded',
+    intent: place.intent,
+    params: place.params,
+  };
+};
+
+/**
  * The exchange-native trailing form of the same protective stop: a `STOP_LOSS`
  * carrying only a size and a trailing distance. No `stopPrice` and no `price` —
  * both would be banded, and a limit price fixed today cannot fill after the drop
@@ -173,17 +200,21 @@ const cancelDecision = (resting: OpenOrder, symbol: string): Decision => ({
 });
 
 /**
- * Cancel any resting protective stop. Prepended before a position-closing SELL
- * so the exchange does not hold a stale limit against an already-flat position.
- * Empty (the common case) when none is resting, so closing batches stay minimal.
+ * Fuse a position-closing SELL with the retraction of the resting protective stop into ONE exchange request.
+ *
+ * A separate cancel followed by a separate place leaves a window in which the retired stop and the exit are both live against the same base, so a gap-down inside that window sells one position twice. The atomic replacement removes the window: the exit is transmitted only once the cancel has succeeded, and a refused cancel leaves the stop resting and still protecting the position until the next tick retries.
+ *
+ * @param input - The tick input whose open orders are searched for our own resting protective stop.
+ * @param sell - The position-closing SELL this batch would emit on its own.
+ * @returns One fused replacement when the protective stop is resting, else the sell unchanged (the common case, so a profile that never armed a stop emits the batch it always did).
  */
-export const protectiveStopCancelDecisions = (input: MomentumInput): Decision[] => {
+export const closingSellDecisions = (input: MomentumInput, sell: Decision): Decision[] => {
   const resting = findRestingProtectiveStop(
     input.openOrders,
     input.profile.id,
     input.market.symbol,
   );
-  return resting === undefined ? [] : [cancelDecision(resting, input.market.symbol)];
+  return resting === undefined ? [sell] : [replaceDecision(resting, sell)];
 };
 
 /**
@@ -231,19 +262,76 @@ export const momentumStopBandSettings = (
   };
 };
 
+const ONE_MINUTE_MS = 60_000; // Fixed width of the '1m' candle feed the worker always supplies here.
+
 /**
- * Arm or re-arm the exchange-side protective stop while holding, by resolving
- * momentum's seams — the ATR/trail level, its own reclaimable resting base, its
- * `-ps` clientOrderId, and its place/cancel builders — and handing them to the
- * shared orchestrator, which owns the full/partial sizing, the foreign-lock
- * refusal, and the re-arm drift band. An ARM, not a sell: the caller preserves
- * the position state.
+ * Resolve the stable trailing distance momentum asks Binance to maintain. The profit leg takes priority; the ATR mode uses the already-resolved level; the fixed retrace is the final configured fallback.
+ *
+ * @param config - The possibly unparsed momentum config for this tick.
+ * @param level - The single stop resolution shared by the in-process and exchange arms.
+ * @param entry - The open position's cost basis used by profit activation.
+ * @returns The desired retrace fraction, or null when no usable distance resolves.
+ */
+export const desiredTrailDistance = (
+  config: MomentumConfig,
+  level: StopResolution,
+  entry: Decimal,
+): Decimal | null => {
+  const profitDistance = profitLegDistance(config, level.profitHigh, entry);
+  if (profitDistance !== null) return profitDistance;
+  if (
+    config.atrTrailingStop?.enabled === true &&
+    level.stop !== null &&
+    level.stop.gt(0) &&
+    level.effectiveHigh.gt(0)
+  ) {
+    return new Decimal(1).minus(level.stop.div(level.effectiveHigh));
+  }
+  const fixed = decOrNull(config.trailingStopPct);
+  return fixed !== null && fixed.gt(0) && fixed.lt(1) ? fixed : null;
+};
+
+/**
+ * Reconstruct the best high Binance can have observed for one resting native order. Order identity gates persisted state because a replacement starts a fresh exchange high-water mark.
+ *
+ * @param input - The current tick snapshot containing mark price and 1m candle highs.
+ * @param state - Momentum's persisted native-order observation from the prior tick.
+ * @param resting - Momentum's currently resting protective order, if any.
+ * @returns The native order's reconstructed high, or null when no native order rests.
+ */
+export const nativeTrailHigh = (
+  input: MomentumInput,
+  state: MomentumState,
+  resting: OpenOrder | undefined,
+): Decimal | null => {
+  if (resting === undefined || resting.trailingDelta === undefined) return null;
+  const mark = new Decimal(input.market.currentPrice);
+  return Decimal.max(
+    mark,
+    ...(state.nativeTrail?.orderId === resting.orderId
+      ? [new Decimal(state.nativeTrail.high)]
+      : []),
+    ...(input.market.candlesByInterval['1m'] ?? [])
+      // The placement instant can fall inside an earlier-opening candle; + ONE_MINUTE_MS > includes its post-placement high, while >= would understate Binance's high, and overstatement is safe for a protective stop.
+      .filter((candle) => candle.openTimeMs + ONE_MINUTE_MS > resting.transactTimeMs)
+      .map((candle) => new Decimal(candle.high)),
+  );
+};
+
+/**
+ * Arm or re-arm the exchange-side protective stop while preserving the position. Momentum supplies its resolved level, reclaimable base, order identity, and decision builders to the shared orchestrator so sizing, foreign-lock refusal, native replacement safety, and re-arm drift stay single-sourced.
+ *
+ * @param input - The current account, market, open-order, and config snapshot used to size and bind the exchange stop.
+ * @param state - The held-position state supplying tracked quantity and native-order high-water continuity.
+ * @param level - The single stop resolution already shared with the in-process exit and operator preview.
+ * @param entry - The open position's cost basis used to resolve profit activation and the native trailing distance.
+ * @returns The exchange decisions, any protective-stop blocker, and native-mode attribution facts for this tick.
  */
 export const evaluateProtectiveStopArm = (
   input: MomentumInput,
   state: MomentumState,
-  rawStop: Decimal | null,
-  floorClamped: boolean,
+  level: StopResolution,
+  entry: Decimal,
 ): MomentumProtectiveStopArm => {
   const symbol = input.market.symbol;
   const ourId = protectiveStopClientOrderId(input.profile.id, symbol);
@@ -251,19 +339,34 @@ export const evaluateProtectiveStopArm = (
   // live worker does not schema-parse): undefined ⇒ disabled. The level is
   // computed only when enabled, mirroring the pre-refactor short-circuit.
   const enabled = input.config.protectiveStop?.enabled === true;
+  const nativeMode = input.config.protectiveStop?.mode === 'native-trail';
+  const distance = nativeMode ? desiredTrailDistance(input.config, level, entry) : null;
+  const nativeUnavailable =
+    nativeMode &&
+    enabled &&
+    (distance === null ||
+      nativeTrailingDelta({
+        stopDistancePct: distance,
+        filter: input.market.symbolInfo.filters.trailingDelta,
+      }) === null);
+  const resting = findRestingProtectiveStop(input.openOrders, input.profile.id, symbol);
+  const mark = new Decimal(input.market.currentPrice);
+  const restingHigh = nativeTrailHigh(input, state, resting);
   const rawBand = decOrNull(input.config.protectiveStop?.minRearmDriftPct);
   const operatorBand = rawBand !== null && rawBand.gt(0) && rawBand.lt(1) ? rawBand : null;
   // A clamped level tracks the market, so the operator's band (or the shared
   // default) would re-place the order on nearly every tick for as long as the
   // exchange floor is what is holding the stop up.
-  const driftBand = floorClamped ? clampedStopDrift(operatorBand) : operatorBand;
+  const driftBand = level.floorClamped ? clampedStopDrift(operatorBand) : operatorBand;
   // Same optional-chaining discipline: a stored config saved before this leaf
   // existed carries no `onBandBlock` key, which reads as the `notify` default.
   // Routed through the band settings so the trail distance and the operator
   // warning quote ONE derivation of `trailingStopPct`; null here means the
   // fraction is unusable, which is a reason not to offer the escape at all.
   const bandSettings = momentumStopBandSettings(input.config);
-  const nativeTrail = bandSettings !== null && bandSettings.onBandBlock === 'native-trail';
+  const bandEscapeNative = bandSettings !== null && bandSettings.onBandBlock === 'native-trail';
+  const primaryNative = nativeMode && !nativeUnavailable && distance !== null;
+  const nativeStopDistance = bandSettings?.stopDistancePct ?? distance;
   // Set from inside the builder rather than inferred from the returned
   // decisions: the shared arm calls it EXACTLY when it substitutes a trail for a
   // band-refused priced stop, which is the fact worth reporting. Reading the
@@ -275,7 +378,8 @@ export const evaluateProtectiveStopArm = (
     enabled,
     // A null level is "no usable trail this tick", which the shared arm answers
     // by retracting a resting stop rather than leaving a mismatched one.
-    level: enabled && rawStop !== null ? computeProtectiveStopLevel(input, state, rawStop) : null,
+    level:
+      enabled && level.stop !== null ? computeProtectiveStopLevel(input, state, level.stop) : null,
     // Credit back the base our OWN resting stop locks: we cancel it in the same
     // batch that replaces it, so that base is ours to re-commit.
     reclaimableBase: ownRestingSellBase(input.openOrders, ourId, symbol),
@@ -285,14 +389,23 @@ export const evaluateProtectiveStopArm = (
     // orders. Absent / unparseable falls back to the shared default.
     ...(driftBand === null ? {} : { minStopDrift: driftBand }),
     buildPlace: (desired, rearm) => placeDecision(input, desired, rearm),
-    // Supplied only under `native-trail`: its presence is what tells the shared
-    // arm a band refusal has an escape rather than being a dead end.
-    ...(nativeTrail && bandSettings !== null
+    buildReplace: replaceDecision,
+    ...(primaryNative
+      ? {
+          primaryTrail: {
+            desiredDistancePct: distance,
+            markPrice: mark,
+            restingHigh,
+          },
+        }
+      : {}),
+    // The builder carries the selected primary trail, or the independently configured band escape when native primary had to fall back to pricing.
+    ...((primaryNative || bandEscapeNative) && nativeStopDistance !== null
       ? {
           nativeTrail: {
-            stopDistancePct: bandSettings.stopDistancePct,
+            stopDistancePct: nativeStopDistance,
             build: (desired: DesiredNativeTrailingStop, rearm: boolean) => {
-              nativeTrailed = true;
+              if (!primaryNative) nativeTrailed = true;
               return nativeTrailPlaceDecision(input, desired, rearm);
             },
           },
@@ -300,5 +413,5 @@ export const evaluateProtectiveStopArm = (
       : {}),
     buildCancel: (resting) => cancelDecision(resting, symbol),
   });
-  return { ...arm, nativeTrailed };
+  return { ...arm, nativeTrailed, nativeUnavailable };
 };

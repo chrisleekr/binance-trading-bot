@@ -11,7 +11,7 @@ import { Decimal } from '@app/money';
 import { buildFirstBuyDecision, hasOpenBuyForSymbol } from './decisions.js';
 import type { BranchHandler, BranchOutcome } from './branch.js';
 import { buildScalars } from './scalars.js';
-import { computeFirstBuyQuantity, type FirstBuySkipReason } from './quantity.js';
+import { computeFirstBuyQuantity, ttEntryStopFloor, type FirstBuySkipReason } from './quantity.js';
 import { resolveEntryBudget, type EntrySizingSkip } from './sizing.js';
 import { effectiveForceSellMinProfitPercent } from './fees.js';
 import type { ExitBlocker, TTBundle, TTConfig, TTState } from './schema.js';
@@ -46,10 +46,7 @@ import {
 } from './branches/sell-gate.js';
 import { evaluateGridBuy } from './branches/grid-buy.js';
 import type { ChaseGuardVeto, KnifeGuardVeto } from './branches/entry-guards.js';
-import {
-  evaluateProtectiveStop,
-  protectiveStopCancelDecisions,
-} from './branches/protective-stop.js';
+import { closingSellDecisions, evaluateProtectiveStop } from './branches/protective-stop.js';
 import { evaluateBullPyramid } from './branches/bull-pyramid.js';
 import type { RiskCap, RiskCapVeto } from './branches/risk-caps.js';
 import type { RegimeVeto } from './branches/regime-filter.js';
@@ -61,7 +58,7 @@ import {
   evaluateRegimeRearm,
 } from './branches/regime-exit.js';
 import { resolveEntryBlocker, type AwaitingTriggerDetail } from './entry-blocker.js';
-import { hasDownsideExitConfigured, noExitCandidates, resolveExitBlocker } from './exit-blocker.js';
+import { assessHeldDownsideExit, noExitCandidates, resolveExitBlocker } from './exit-blocker.js';
 
 // Loss-exit stamp for the re-entry cooldown. Returns the two state fields to
 // merge when a sell-side exit realised a loss (currentPrice strictly below the
@@ -439,9 +436,8 @@ const sellGateBranch: BranchHandler = (ctx) => {
             kind: 'terminal',
             output: {
               nextState: postSellState,
-              // Retract any resting protective stop before the market sell so a
-              // gap-through that armed it does not leave a stale limit order.
-              decisions: [...protectiveStopCancelDecisions(ctx.input), emission.decision],
+              // One atomic request retires any resting protective stop AND places the force-sell. Two separate requests would leave both live against the same base for the round trip between them.
+              decisions: closingSellDecisions(ctx.input, emission.decision),
               logs: [
                 ...preambleLogs,
                 {
@@ -484,7 +480,7 @@ const sellGateBranch: BranchHandler = (ctx) => {
                   sellDisabled: false,
                   openSellOrder: false,
                   currentPrice: safeDecimal(market.currentPrice),
-                  hasDownsideExit: hasDownsideExitConfigured(config, state.discoveryEntry === true),
+                  ...assessHeldDownsideExit(config, state, market),
                 }),
               },
               decisions: [
@@ -530,11 +526,8 @@ const sellGateBranch: BranchHandler = (ctx) => {
         kind: 'terminal',
         output: {
           nextState: postSellState,
-          // Cancel any resting protective stop ahead of the close. This is the
-          // backstop's primary path: a gap-through fires the in-process MARKET
-          // stop-loss here, and the resting exchange stop is retracted in the
-          // same ordered batch so it cannot also fire against a flat position.
-          decisions: [...protectiveStopCancelDecisions(ctx.input), sellResult.decision],
+          // The backstop's primary path: a gap-through fires the in-process MARKET stop-loss here, and the resting exchange stop is retired in the SAME request, so it can never fire against a position this close already emptied.
+          decisions: closingSellDecisions(ctx.input, sellResult.decision),
           logs: [...preambleLogs, sellResult.log],
           metrics: [metric(sellResult.metricName, { symbol: market.symbol })],
         },
@@ -580,8 +573,8 @@ const sellGateBranch: BranchHandler = (ctx) => {
           kind: 'terminal',
           output: {
             nextState: postSellState,
-            // Retract any resting protective stop before the cash-rotation exit.
-            decisions: [...protectiveStopCancelDecisions(ctx.input), emission.decision],
+            // One atomic request retires any resting protective stop AND places the cash-rotation exit.
+            decisions: closingSellDecisions(ctx.input, emission.decision),
             logs: [
               ...preambleLogs,
               {
@@ -614,7 +607,7 @@ const sellGateBranch: BranchHandler = (ctx) => {
           sellDisabled: false,
           openSellOrder: false,
           currentPrice: safeDecimal(market.currentPrice),
-          hasDownsideExit: hasDownsideExitConfigured(config, state.discoveryEntry === true),
+          ...assessHeldDownsideExit(config, state, market),
         });
       }
       /* v8 ignore stop -- reason: end of the unreachable emit|skip else arm above */
@@ -635,7 +628,7 @@ const sellGateBranch: BranchHandler = (ctx) => {
           sellDisabled: !config.sell.enabled,
           openSellOrder: scalars.hasOpenSell,
           currentPrice: safeDecimal(market.currentPrice),
-          hasDownsideExit: hasDownsideExitConfigured(config, state.discoveryEntry === true),
+          ...assessHeldDownsideExit(config, state, market),
         }),
     };
   } else if (state.exitBlocker !== null) {
@@ -1042,6 +1035,8 @@ const buyAndSnapshotBranch: BranchHandler = (ctx) => {
                     : new Decimal(budget.budget).mul(exposure.scalar).toString(),
                   market.currentPrice,
                   market.symbolInfo.filters,
+                  '',
+                  ttEntryStopFloor(config),
                 );
           if ('quantity' in result) {
             return {

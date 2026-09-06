@@ -8,6 +8,7 @@ import {
   buildProfileDiagnosis,
   DIAGNOSIS_STEPS,
   humanizeDuration,
+  PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS,
   runDiagnosisStep,
   type DiagnosisSnapshot,
   type DiagnosisStepId,
@@ -329,12 +330,12 @@ describe('rung 4: order execution', () => {
     }
   });
 
-  it('adds the degraded finding without changing the existing verdict taxonomy', () => {
+  it('raises the verdict to needs-attention, since a refused order is not the profile idling on purpose', () => {
     const i = input({ conditions: [refusal('BTCUSDT', 'Market is closed.')] });
     const report = buildProfileDiagnosis(i, runAll(i));
 
     expect(report.items.some((item) => item.condition === 'order-refusal-loop')).toBe(true);
-    expect(report.verdict).toBe('idle-by-design');
+    expect(report.verdict).toBe('needs-attention');
   });
 });
 
@@ -482,6 +483,27 @@ describe('rung 6: market breadth', () => {
     );
     expect(runDiagnosisStep('market-breadth', input({ snapshots: blocked })).status).toBe(
       'finding',
+    );
+  });
+
+  it('does not call a sustained breadth block the profile working as configured', () => {
+    // This rung cannot see a single blocked scan: it is raised only once the whole health window has been blocked. That is the state the `discovery-health` notification already calls "Discovery not working" and pages on by default, so reporting it here as by-design would leave two surfaces making opposite claims about one fact, and would let a profile whose auto-set has stopped rotating read as idle on purpose.
+    const blocked = Array.from({ length: 8 }, (_, i) =>
+      snapshot({
+        capturedAtMs: NOW - i * 60_000,
+        breadthOk: false,
+        funnel: funnel({ breadthOk: false }),
+      }),
+    );
+    const r = runDiagnosisStep('market-breadth', input({ snapshots: blocked }));
+
+    expect(r.items[0]?.severity).toBe('degraded');
+    // The sibling finding in the same notification category, so the two cannot drift apart unnoticed.
+    expect(r.items[0]?.severity).toBe(
+      runDiagnosisStep(
+        'discovery-running',
+        input({ conditions: [cond({ condition: 'discovery-stale', code: 'no-scan' })] }),
+      ).items[0]?.severity,
     );
   });
 
@@ -792,7 +814,16 @@ const EXIT_ATTRIBUTION = {
     gloss: 'This position has no exit below the entry price',
     paths: ['sell.stopLossPercentage'],
   },
+  'protective-stop-unplaced': {
+    gloss: 'No protective stop is resting on Binance yet for this position',
+  },
+  'priced-stop-resting': {
+    gloss: 'A fixed-price protective stop is resting on Binance for this position',
+  },
 };
+
+// How long a coin has to stay without a resting protective stop before the state stops being an ordinary post-entry tick and becomes something the operator has to act on. One tick of it is the stop going on next tick; the same span still open a quarter of an hour later means every arm is being refused and the position has nothing under it.
+const UNPLACED_PERSIST_MS = PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS;
 
 describe('rung 10: exit blockers', () => {
   it('names the rung and the level each held coin is waiting on', () => {
@@ -834,6 +865,226 @@ describe('rung 10: exit blockers', () => {
     expect(r.items.map((i) => i.code)).toEqual(['exit-unsellable']);
     expect(r.items[0]?.symbols).toEqual([{ symbol: 'BTCUSDT', sinceMs: NOW - DAY }]);
     expect(r.items[0]?.severity).toBe('degraded');
+  });
+
+  it('raises a finding for a held stop that can never sell the tracked dust', () => {
+    const r = runDiagnosisStep(
+      'exit-blockers',
+      input({
+        conditions: [
+          exitCond({
+            symbol: 'ZECBTC',
+            code: 'stop-infeasible-dust',
+            detail: {
+              heldQuantity: '0.00999',
+              stopPrice: '0.010404',
+              minNotional: '0.0001',
+              hasDownsideExit: false,
+            },
+          }),
+        ],
+        reasonAttribution: EXIT_ATTRIBUTION,
+      }),
+    );
+
+    expect(r.status).toBe('finding');
+    expect(r.items.map((i) => i.code)).toEqual(['stop-infeasible-dust']);
+  });
+
+  it('raises a finding when native trailing is unavailable', () => {
+    const r = runDiagnosisStep(
+      'exit-blockers',
+      input({
+        conditions: [exitCond({ code: 'native-trail-unavailable' })],
+        reasonAttribution: EXIT_ATTRIBUTION,
+      }),
+    );
+
+    expect(r.status).toBe('finding');
+    expect(r.items.map((i) => i.code)).toEqual(['native-trail-unavailable']);
+  });
+
+  it('does not raise a finding while the protective stop has only just gone unplaced', () => {
+    // One millisecond short of the window, so the report stays quiet for the tick immediately after a fresh entry, when the stop legitimately has not been placed yet.
+    const r = runDiagnosisStep(
+      'exit-blockers',
+      input({
+        conditions: [
+          exitCond({
+            code: 'protective-stop-unplaced',
+            sinceMs: NOW - (UNPLACED_PERSIST_MS - 1),
+          }),
+        ],
+        reasonAttribution: EXIT_ATTRIBUTION,
+      }),
+    );
+
+    expect(r.status).toBe('ok');
+    expect(r.items).toEqual([]);
+    // Raising no item is not the same as saying nothing: the coin and its rung stay in the summary line, so the operator watching a fresh entry can still see which state it is in.
+    expect(r.line).toContain('BTCUSDT');
+    expect(r.line).toContain('No protective stop is resting on Binance yet for this position');
+  });
+
+  it('raises a finding once a coin has held the whole window with no protective stop resting', () => {
+    // Exactly at the boundary, because the gate is inclusive: a span measured as one tick longer than the window must not fall through a strict comparison.
+    const r = runDiagnosisStep(
+      'exit-blockers',
+      input({
+        conditions: [
+          exitCond({ code: 'protective-stop-unplaced', sinceMs: NOW - UNPLACED_PERSIST_MS }),
+        ],
+        reasonAttribution: EXIT_ATTRIBUTION,
+      }),
+    );
+
+    expect(r.status).toBe('finding');
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]?.code).toBe('protective-stop-unplaced');
+    expect(r.items[0]?.sinceMs).toBe(NOW - UNPLACED_PERSIST_MS);
+    expect(r.items[0]?.symbols).toEqual([
+      { symbol: 'BTCUSDT', sinceMs: NOW - UNPLACED_PERSIST_MS },
+    ]);
+    // The duration is the whole reason this is a finding rather than noise, so it has to be readable in the evidence and not merely implied by the item existing.
+    expect(r.items[0]?.evidence).toContain(`Longest-running for ${humanizeDuration(900_000)}.`);
+    // And the window itself, because the same rung calls this state ordinary on every fresh entry: without the threshold on screen the operator has no way to tell why the one they are looking at is a finding, and no number to judge it against. Built from the shipped constant so the sentence cannot go on claiming a window the gate no longer uses.
+    expect(r.items[0]?.evidence).toContain(
+      `Raised because it has lasted more than ${humanizeDuration(PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS)}; anything shorter is the ordinary wait after a fresh entry.`,
+    );
+    // Pinned to the literal, not to the constant, so a shipped threshold that drifts fails here rather than silently moving every case in this file with it.
+    expect(PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS).toBe(900_000);
+  });
+
+  it('counts only the coins that have crossed the window, not every coin on the code', () => {
+    // A profile mid-entry on one coin and stuck on another must not have the stuck one's severity diluted, nor the fresh one dragged into the finding by sharing a code.
+    const r = runDiagnosisStep(
+      'exit-blockers',
+      input({
+        conditions: [
+          exitCond({
+            symbol: 'ETHUSDT',
+            code: 'protective-stop-unplaced',
+            sinceMs: NOW - UNPLACED_PERSIST_MS * 2,
+          }),
+          exitCond({
+            symbol: 'SOLUSDT',
+            code: 'protective-stop-unplaced',
+            sinceMs: NOW - 1000,
+          }),
+        ],
+        reasonAttribution: EXIT_ATTRIBUTION,
+      }),
+    );
+
+    expect(r.status).toBe('finding');
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]?.symbols).toEqual([
+      { symbol: 'ETHUSDT', sinceMs: NOW - UNPLACED_PERSIST_MS * 2 },
+    ]);
+    expect(r.items[0]?.evidence).toContain('1 held coin affected.');
+  });
+
+  it('leaves a fault code raising on first sight, with no window in front of it', () => {
+    // The window belongs to one code. A fault is actionable the moment it is recorded, so gating every exit item on a duration would delay the ones that were never noisy.
+    const r = runDiagnosisStep(
+      'exit-blockers',
+      input({
+        conditions: [
+          exitCond({ code: 'exit-unsellable', detail: { skip: 'no-balance' }, sinceMs: NOW }),
+        ],
+        reasonAttribution: EXIT_ATTRIBUTION,
+      }),
+    );
+
+    expect(r.status).toBe('finding');
+    expect(r.items.map((i) => i.code)).toEqual(['exit-unsellable']);
+    // No window admitted this one, so it must not claim one was waited out. A fault is wrong the instant it is recorded, and "raised because it lasted" would tell the operator the opposite of why it is on screen — and imply a quieter first few minutes that never existed.
+    expect(r.items[0]?.evidence).not.toContainEqual(expect.stringMatching(/Raised because/));
+  });
+
+  it('still reports a fault whose row is dated slightly ahead of the reader clock', () => {
+    // The row is stamped by Postgres and the span is measured against the caller's clock, so a few milliseconds of skew makes a negative age routine. A fault must never be gated on an age at all: a shared filter that let one through at "age >= 0" would drop exactly these rows, and the finding would vanish with nothing on screen saying why.
+    const r = runDiagnosisStep(
+      'exit-blockers',
+      input({
+        conditions: [
+          exitCond({
+            code: 'exit-unsellable',
+            detail: { skip: 'no-balance' },
+            sinceMs: NOW + 1000,
+          }),
+        ],
+        reasonAttribution: EXIT_ATTRIBUTION,
+      }),
+    );
+
+    expect(r.status).toBe('finding');
+    expect(r.items.map((i) => i.code)).toEqual(['exit-unsellable']);
+  });
+
+  it('stays silent on a resting priced stop however long it has rested', () => {
+    // A stop that IS resting is the healthy steady state and has no end: gating on duration alone rather than on the code would page the operator about every long-held guarded position.
+    const r = runDiagnosisStep(
+      'exit-blockers',
+      input({
+        conditions: [
+          exitCond({
+            code: 'priced-stop-resting',
+            detail: { stop: '11.55' },
+            sinceMs: NOW - UNPLACED_PERSIST_MS * 10,
+          }),
+        ],
+        reasonAttribution: EXIT_ATTRIBUTION,
+      }),
+    );
+
+    expect(r.status).toBe('ok');
+    expect(r.items).toEqual([]);
+  });
+
+  it('serves the strategy note through to the raised item unaltered', () => {
+    // The pass-through is the invariant, and it is what makes the strategy-side wording gate load-bearing: this rung never rewrites a strategy's copy, because the same string is also the symbol screen's and the backtest breakdown's explanation and two versions of it would put two answers on screen for one state. Were the pass-through to break, the strategy package's test on the note would stay green while the operator saw nothing at all — so this asserts the whole string arrives, not merely that some string did.
+    const note =
+      'Expected for a moment right after a new position opens, while the bot places the stop. If it is still showing minutes later, every attempt to place it is being refused and nothing on Binance would sell this position if the price fell: check whether another order is holding the coins, and whether Binance will accept a stop at the price your settings ask for.';
+    const r = runDiagnosisStep(
+      'exit-blockers',
+      input({
+        conditions: [
+          exitCond({ code: 'protective-stop-unplaced', sinceMs: NOW - UNPLACED_PERSIST_MS }),
+        ],
+        reasonAttribution: {
+          ...EXIT_ATTRIBUTION,
+          'protective-stop-unplaced': {
+            gloss: 'No protective stop is resting on Binance yet for this position',
+            note,
+          },
+        },
+      }),
+    );
+
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]?.detail).toBe(note);
+  });
+
+  it('leaves the explanation empty when the strategy ships no note', () => {
+    // This rung carries no wording of its own, unlike the protective-stop rung below it, which does substitute a sentence when a strategy ships none. Anything this one invented would reach the operator as the strategy's own account of a state only the strategy understands. `null` is how the contract says there is none, and it is what the symbol screen and the backtest breakdown read to decide whether to draw a second line at all.
+    const r = runDiagnosisStep(
+      'exit-blockers',
+      input({
+        conditions: [
+          exitCond({ code: 'protective-stop-unplaced', sinceMs: NOW - UNPLACED_PERSIST_MS }),
+        ],
+        reasonAttribution: {
+          ...EXIT_ATTRIBUTION,
+          'protective-stop-unplaced': {
+            gloss: 'No protective stop is resting on Binance yet for this position',
+          },
+        },
+      }),
+    );
+
+    expect(r.items).toHaveLength(1);
+    expect(r.items[0]?.detail).toBeNull();
   });
 
   it('collapses to a count past the first few coins', () => {
@@ -976,11 +1227,12 @@ describe('rung 11: exit protection', () => {
     });
 
     it('C7: reports it in the assembled diagnosis without calling the profile blocked', () => {
+      // Not `blocked`: the profile keeps trading everything else. Not `idle-by-design` either — the position is sitting with nothing guarding it, and "idle on purpose" is the one reading that tells the operator to leave it alone.
       const i = input({ conditions: [stopBlocked()] });
       const report = buildProfileDiagnosis(i, runAll(i));
 
       expect(report.items.some((it) => it.condition === 'protective-stop-blocked')).toBe(true);
-      expect(report.verdict).toBe('idle-by-design');
+      expect(report.verdict).toBe('needs-attention');
     });
   });
 });
@@ -1107,7 +1359,74 @@ describe('buildProfileDiagnosis', () => {
     const i = input({ profile: { ...input().profile, enabled: false } });
     const report = buildProfileDiagnosis(i, runAll(i));
     expect(report.verdict).toBe('idle-by-design');
-    expect(report.items.find((it) => it.id === 'profile-disabled')?.severity).toBe('degraded');
+    expect(report.items.find((it) => it.id === 'profile-disabled')?.severity).toBe('by-design');
+  });
+
+  it('stays idle-by-design when every finding is the profile working as configured', () => {
+    // Two separate reasons the profile is quiet, neither of them a fault: the slot list is full and the buy guard is saying no. Nothing here asks the operator for anything, so the verdict must not. A sustained breadth block deliberately does NOT belong in this fixture: that one is reported only once the whole health window has been blocked, which is a fault the platform pages on.
+    const i = input({
+      profile: { ...input().profile, autoSymbolCount: 5 },
+      conditions: [cond()],
+    });
+    const report = buildProfileDiagnosis(i, runAll(i));
+
+    expect(report.items.length).toBeGreaterThan(1);
+    expect(report.items.every((it) => it.severity === 'by-design')).toBe(true);
+    expect(report.verdict).toBe('idle-by-design');
+  });
+
+  it('answers needs-attention when one real problem sits among by-design findings, and headlines the problem', () => {
+    // The defect this taxonomy exists to close: a naked position outnumbered by configured-quiet findings used to read as "idle on purpose", and the by-design finding from the earlier rung owned the headline on top of it.
+    const i = input({
+      profile: { ...input().profile, autoSymbolCount: 5 },
+      conditions: [
+        cond(),
+        cond({
+          condition: 'protective-stop-blocked',
+          symbol: 'LINKUSDT',
+          code: 'price-outside-exchange-band',
+        }),
+      ],
+    });
+    const report = buildProfileDiagnosis(i, runAll(i));
+
+    expect(report.verdict).toBe('needs-attention');
+    expect(report.headline).toBe('A protective stop could not be placed');
+    expect(report.items[0]?.severity).toBe('degraded');
+    // Ranking is not suppression: the quiet-by-configuration findings are still there, below the one that matters.
+    expect(report.items.filter((it) => it.severity === 'by-design').length).toBeGreaterThan(1);
+  });
+
+  it('still answers blocked when a blocking finding and a degraded one are both open', () => {
+    // `blocked` outranks `needs-attention`: a dead engine makes the unguarded position moot until it is back.
+    const i = input({
+      worker: { heartbeatPresent: false },
+      conditions: [
+        cond({
+          condition: 'protective-stop-blocked',
+          symbol: 'LINKUSDT',
+          code: 'price-outside-exchange-band',
+        }),
+      ],
+    });
+    const report = buildProfileDiagnosis(i, runAll(i));
+
+    expect(report.verdict).toBe('blocked');
+    expect(report.items.some((it) => it.severity === 'degraded')).toBe(true);
+  });
+
+  it('never calls a coin that has held the whole window with no resting stop idle-by-design', () => {
+    // The persistence tier's whole point is that this state is ordinary for one tick and alarming a quarter of an hour later. "Idle on purpose" is the reading that tells the operator the alarming one is fine.
+    const i = input({
+      conditions: [
+        exitCond({ code: 'protective-stop-unplaced', sinceMs: NOW - UNPLACED_PERSIST_MS }),
+      ],
+      reasonAttribution: EXIT_ATTRIBUTION,
+    });
+    const report = buildProfileDiagnosis(i, runAll(i));
+
+    expect(report.items.some((it) => it.code === 'protective-stop-unplaced')).toBe(true);
+    expect(report.verdict).toBe('needs-attention');
   });
 
   it('ranks by ladder position, so a dead engine owns the headline', () => {

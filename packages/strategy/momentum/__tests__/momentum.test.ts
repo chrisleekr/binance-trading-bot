@@ -7,7 +7,14 @@ import {
   POSITION_SCOPED_STATE_FIELDS,
   PROTECTIVE_STOP_BLOCKER_REASONS,
 } from '@app/strategy-core';
-import type { Candle, OpenOrder, ProfileSnapshot, SymbolInfo, TickInput } from '@app/strategy-core';
+import type {
+  Candle,
+  Decision,
+  OpenOrder,
+  ProfileSnapshot,
+  SymbolInfo,
+  TickInput,
+} from '@app/strategy-core';
 
 import {
   defaultMomentumConfig,
@@ -22,14 +29,15 @@ import {
   type MomentumConfig,
   type MomentumState,
 } from '../src/index.js';
-import { computeEntryQuantity, computeExitQuantity } from '../src/quantity.js';
+import { computeEntryQuantity, computeExitQuantity, entryStopFloor } from '../src/quantity.js';
 import {
+  closingSellDecisions,
   evaluateProtectiveStopArm,
   findForeignRestingSell,
   findRestingProtectiveStop,
-  protectiveStopCancelDecisions,
 } from '../src/protective-stop.js';
 import { protectiveStopClientOrderId } from '../src/client-order-id.js';
+import { ENTRY_SIZING_SKIPS, resolveEntryBudget } from '../src/sizing.js';
 import { resolveStopLevel } from '../src/stop-level.js';
 
 const FILTERS: SymbolInfo['filters'] = {
@@ -88,6 +96,7 @@ interface InputOpts {
   readonly closes: readonly Candle[];
   readonly currentPrice: string;
   readonly state: MomentumState;
+  readonly symbol?: string;
   readonly config?: MomentumConfig;
   readonly openOrders?: readonly OpenOrder[];
   readonly filters?: SymbolInfo['filters'];
@@ -110,13 +119,15 @@ const mkInput = (opts: InputOpts): TickInput<MomentumConfig, MomentumState, Mome
   config: opts.config ?? cfg(),
   state: opts.state,
   market: {
-    symbol: 'BTCUSDT',
+    symbol: opts.symbol ?? 'BTCUSDT',
     currentPrice: opts.currentPrice,
     candlesByInterval: {
       '1h': opts.closes,
       ...(opts.oneMinute === undefined ? {} : { '1m': opts.oneMinute }),
     },
-    symbolInfo: opts.filters ? { ...SYMBOL_INFO, filters: opts.filters } : SYMBOL_INFO,
+    symbolInfo: opts.filters
+      ? { ...SYMBOL_INFO, symbol: opts.symbol ?? 'BTCUSDT', filters: opts.filters }
+      : { ...SYMBOL_INFO, symbol: opts.symbol ?? 'BTCUSDT' },
     indicatorsByInterval: {},
   },
   account: {
@@ -150,7 +161,7 @@ const BLOCKED_PROTECTIVE_STOP: NonNullable<MomentumState['protectiveStopBlocker'
   reason: 'price-outside-exchange-band',
 };
 
-// Driven off the exported vocabulary, not a hand-copy. The core list is declared as a value precisely so a plugin suite covers whatever is on it today; hard-coding the name here would let a field added tomorrow ship through both adapter paths with every test still green. Momentum's body carries no `exitBlocker`, so the schema filter is what keeps the derived cases to the fields this plugin actually has.
+// Driven off the exported vocabulary, not a hand-copy. The core list is declared as a value precisely so a plugin suite covers whatever is on it today; filtering through the schema keeps the derived cases to the position-scoped fields this plugin actually declares.
 const SCOPED_FIELDS = POSITION_SCOPED_STATE_FIELDS.filter((f) => f in MomentumStateSchema.shape);
 
 // Close time of the last closed candle in those 4-bar series — the value `tick`
@@ -168,9 +179,19 @@ const armOut = (
   state: MomentumState,
   high: Decimal,
 ): ReturnType<typeof evaluateProtectiveStopArm> => {
+  const entry = new Decimal(state.entryPrice ?? '0');
+  const resting = findRestingProtectiveStop(
+    input.openOrders,
+    input.profile.id,
+    input.market.symbol,
+  );
+  const previousStop =
+    resting !== undefined && resting.trailingDelta === undefined
+      ? decOrNull(resting.stopPrice)
+      : null;
   const level = resolveStopLevel(
     input.config,
-    new Decimal(state.entryPrice ?? '0'),
+    entry,
     high,
     decOrNull(state.profitHigh),
     (input.market.candlesByInterval[input.config.candleInterval] ?? []).filter((c) => c.isClosed),
@@ -178,11 +199,12 @@ const armOut = (
       reference: input.market.currentPrice,
       band: input.market.symbolInfo.filters.percentPriceBySide,
     },
+    previousStop,
   );
   // `floorClamped` comes from the same resolve, not a hand-written false: a clamp
   // widens the re-arm drift band, so passing false would exercise the operator
   // band on levels the tick would have clamped.
-  return evaluateProtectiveStopArm(input, state, level.stop, level.floorClamped);
+  return evaluateProtectiveStopArm(input, state, level, entry);
 };
 
 /**
@@ -222,6 +244,8 @@ describe('momentum.tick — entry', () => {
       // A fired entry clears any prior suppression breadcrumb.
       entryBlocker: null,
       protectiveStopBlocker: null,
+      exitBlocker: null,
+      nativeTrail: null,
     });
     expect(out.metrics).toEqual([{ name: 'momentum.entry', value: 1 }]);
   });
@@ -374,6 +398,77 @@ describe('momentum.tick — entry', () => {
     expect(out.nextState.entryBlocker?.reason).toBe('min-qty');
   });
 
+  it('refuses an entry whose stop could not be sold with entry-below-stop-notional', () => {
+    const zecFilters = {
+      ...FILTERS,
+      minNotional: '0.0001',
+      stepSize: '0.001',
+      minQty: '0.001',
+      tickSize: '0.000001',
+    };
+    const out = momentum.tick(
+      mkInput({
+        symbol: 'ZECBTC',
+        filters: zecFilters,
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '0.0118',
+        state: flat(),
+        config: cfg({
+          entrySizing: { mode: 'fixed', amount: '0.00012' },
+          trailingStopPct: '0.1',
+          protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+        }),
+      }),
+    );
+
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.entryBlocker?.reason).toBe('entry-below-stop-notional');
+    expect(out.metrics).toEqual([
+      {
+        name: 'momentum.skip',
+        value: 1,
+        tags: { side: 'entry', reason: 'entry-below-stop-notional' },
+      },
+    ]);
+    expect(out.logs).toEqual([
+      {
+        level: 'warn',
+        message: 'momentum: entry skipped',
+        context: { reason: 'entry-below-stop-notional', symbol: 'ZECBTC' },
+      },
+    ]);
+  });
+
+  it('places an entry whose quantity meets the stop floor unchanged', () => {
+    const zecFilters = {
+      ...FILTERS,
+      minNotional: '0.0001',
+      stepSize: '0.001',
+      minQty: '0.001',
+      tickSize: '0.000001',
+    };
+    const out = momentum.tick(
+      mkInput({
+        symbol: 'ZECBTC',
+        filters: zecFilters,
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '0.0118',
+        state: flat(),
+        config: cfg({
+          entrySizing: { mode: 'fixed', amount: '0.0001298' },
+          trailingStopPct: '0.1',
+          protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+        }),
+      }),
+    );
+
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { symbol: 'ZECBTC', side: 'BUY', reason: 'entry' },
+      params: { type: 'MARKET', quantity: '0.011' },
+    });
+  });
+
   it('records an invalid-filters blocker when a cross-up entry hits malformed symbol filters', () => {
     const out = momentum.tick(
       mkInput({
@@ -381,6 +476,19 @@ describe('momentum.tick — entry', () => {
         currentPrice: '14',
         state: flat(),
         filters: { ...FILTERS, stepSize: 'abc' },
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.metrics[0]?.tags).toEqual({ side: 'entry', reason: 'invalid-filters' });
+    expect(out.nextState.entryBlocker?.reason).toBe('invalid-filters');
+  });
+
+  it('records an invalid-filters blocker when a flat entry has a malformed market price', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: 'abc',
+        state: flat(),
       }),
     );
     expect(out.decisions).toEqual([{ type: 'noop' }]);
@@ -463,6 +571,124 @@ describe('momentum.tick — entry', () => {
     ]);
     expect(out.nextState).toEqual({ ...flat(), entryBlocker: { reason: 'cap-reached' } });
     expect(out.nextState.entryBlocker?.reason).toBe('cap-reached');
+  });
+
+  it('holds with a risk-sizing-unavailable reason when the stop distance cannot be resolved', () => {
+    // Risk sizing on with the volatility-scaled stop: ATR(14) needs 15 candles and CROSS_UP has 4, so there is no stop distance to divide the equity risk by yet. Sizing off the fixed percent instead would quote a per-trade loss the resting ATR stop will not match, so the entry is held.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '14',
+        state: flat(),
+        config: cfg({
+          entrySizing: { mode: 'fixed', amount: '140' },
+          atrTrailingStop: { enabled: true, period: 14 },
+          riskSizing: { enabled: true, riskPct: '0.01' },
+        }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.metrics).toEqual([
+      {
+        name: 'momentum.skip',
+        value: 1,
+        tags: { side: 'entry', reason: 'risk-sizing-unavailable' },
+      },
+    ]);
+    expect(out.nextState).toEqual({
+      ...flat(),
+      entryBlocker: { reason: 'risk-sizing-unavailable' },
+    });
+  });
+
+  it('funds a risk-capped entry off this tick’s own price and closed window', () => {
+    // The preceding case only proves the cap can REFUSE, and it refuses on a window too short
+    // to measure — so it stays green even if the tick handed the cap an empty window or the
+    // wrong price. The tick is the side that spends money, so both inputs need pinning here.
+    // An empty window turns every ATR-mode entry into a permanent hold: fail-closed, but the
+    // feature never funds a trade. A price above the real one is worse and fails OPEN, because
+    // the distance is `multiple x ATR / price`: a higher price yields a SMALLER distance and
+    // therefore a LARGER budget, an order sized past what `riskPct` permits and unrecoverable
+    // once filled.
+    // ATR(2) over CROSS_UP is exactly 4 (true ranges 2, 2, 6 under Wilder smoothing), so the
+    // stop sits `3 x 4 / 14` of the price below entry and the cap binds well under the 140
+    // fixed amount on 1000 of equity.
+    const riskCfg = (enabled: boolean): MomentumConfig =>
+      cfg({
+        entrySizing: { mode: 'fixed', amount: '140' },
+        atrTrailingStop: { enabled: true, period: 2, multiple: '3' },
+        riskSizing: { enabled, riskPct: '0.01' },
+      });
+    const riskFilters = { ...FILTERS, minNotional: '1' };
+    // Free cash covers the whole uncapped 140, so the risk cap is the only term that can be
+    // making the capped order smaller.
+    const balances = {
+      USDT: { asset: 'USDT', free: new Decimal('1000'), locked: new Decimal('0') },
+    };
+    const entryQty = (config: MomentumConfig): Decimal => {
+      const out = momentum.tick(
+        mkInput({
+          closes: mkCandles(CROSS_UP),
+          currentPrice: '14',
+          state: flat(),
+          config,
+          filters: riskFilters,
+          balances,
+        }),
+      );
+      const decision = out.decisions[0];
+      if (decision?.type !== 'place-order' || decision.intent.reason !== 'entry') {
+        throw new Error(`expected a funded entry, got ${JSON.stringify(out.decisions)}`);
+      }
+      expect(out.nextState.entryBlocker).toBeNull();
+      return new Decimal((decision.params as { quantity: string }).quantity);
+    };
+
+    // The oracle is fed the price and window the tick is SUPPOSED to forward, so a tick that
+    // forwards anything else lands on a different quantity.
+    const budget = resolveEntryBudget(riskCfg(true), { balances, readable: true }, 'USDT', {
+      price: '14',
+      candles: mkCandles(CROSS_UP),
+    });
+    if (!('budget' in budget)) throw new Error('expected a fundable budget');
+    const expected = computeEntryQuantity(
+      budget.budget,
+      '14',
+      riskFilters,
+      entryStopFloor(riskCfg(true), mkCandles(CROSS_UP), '14'),
+    );
+    if (!('quantity' in expected)) throw new Error('expected a sizable quantity');
+
+    const capped = entryQty(riskCfg(true));
+    expect(capped.toString()).toBe(expected.quantity);
+    // Matching the oracle alone would pass with the cap unwired on both sides; the same config
+    // with the block off must fund strictly more, which is what proves the cap moved the size.
+    expect(capped.lt(entryQty(riskCfg(false)))).toBe(true);
+    // Only closed candles may set the stop distance an entry size is derived from, because a forming bar keeps moving and would make the placed quantity non-deterministic within a tick: the same window with a forming spike appended must place exactly the order above.
+    const withForming = mkCandles([...CROSS_UP, '40']).map((c, i) =>
+      i === CROSS_UP.length ? { ...c, isClosed: false } : c,
+    );
+    const formingOut = momentum.tick(
+      mkInput({
+        closes: withForming,
+        currentPrice: '14',
+        state: flat(),
+        config: riskCfg(true),
+        filters: riskFilters,
+        balances,
+      }),
+    );
+    expect(formingOut.decisions[0]).toMatchObject({
+      type: 'place-order',
+      params: { quantity: capped.toString() },
+    });
+    // And the spike is one the cap would really have felt, so the equality above is the filter holding rather than a bar that changed nothing.
+    expect(
+      resolveEntryBudget(riskCfg(true), { balances, readable: true }, 'USDT', {
+        price: '14',
+        candles: withForming,
+      }),
+    ).toEqual({ skip: 'risk-sizing-unavailable' });
   });
 
   it('fails safe (holds) when entrySizing is absent — the live unparsed-config transition', () => {
@@ -591,6 +817,8 @@ describe('momentum.tick — exit', () => {
       entryBlocker: null,
       // Flat: nothing to protect, so no stop can be blocked.
       protectiveStopBlocker: null,
+      exitBlocker: null,
+      nativeTrail: null,
     });
   });
 
@@ -1132,18 +1360,19 @@ describe('protective stop — evaluateProtectiveStopArm', () => {
     expect(armDecisions(armInput({ openOrders: [psOrder()] }), longState(), HIGH)).toEqual([]);
   });
 
-  it('cancels and re-places when the trigger drifts beyond the band', () => {
+  it('atomically replaces when the trigger drifts beyond the band', () => {
     const out = armDecisions(
       armInput({ openOrders: [psOrder({ stopPrice: '90.00' })] }),
       longState(),
       HIGH,
     );
-    expect(out).toHaveLength(2);
-    expect(out[0]).toMatchObject({ type: 'cancel-order', orderId: 555, symbol: 'BTCUSDT' });
-    // Deferrable ONLY here: the order being replaced keeps resting until the
-    // cancel above lands, so the executor may shed the pair on an exhausted
-    // order budget. The first-arm case above pins the absence of the flag.
-    expect(out[1]).toMatchObject({ type: 'place-order', intent: { deferrable: true } });
+    expect(out).toHaveLength(1);
+    // Deferrable ONLY here: the order being replaced remains protection if the atomic request is shed on an exhausted order budget. The first-arm case above pins the absence of the flag.
+    expect(out[0]).toMatchObject({
+      type: 'replace-order',
+      cancelOrderId: 555,
+      intent: { deferrable: true },
+    });
   });
 
   it('leaves a resting stop whose stopPrice reads back unparseable', () => {
@@ -1232,7 +1461,7 @@ describe('protective stop — evaluateProtectiveStopArm', () => {
   });
 
   it('does not arm a dust position below minNotional', () => {
-    // held 0.001 at stop 95 → notional 0.095 < minNotional 10 → sizing skip.
+    // held 0.001 at the 93.10 limit leg the order rests at → notional 0.0931 < minNotional 10 → sizing skip.
     expect(armDecisions(armInput(), longState({ heldQuantity: '0.001' }), HIGH)).toEqual([]);
   });
 
@@ -1246,20 +1475,30 @@ describe('protective stop — evaluateProtectiveStopArm', () => {
   });
 });
 
-describe('protective stop — protectiveStopCancelDecisions', () => {
-  it('cancels a resting protective stop', () => {
-    expect(protectiveStopCancelDecisions(armInput({ openOrders: [psOrder()] }))).toEqual([
+describe('protective stop — closingSellDecisions', () => {
+  const exitSell: Extract<Decision, { type: 'place-order' }> = {
+    type: 'place-order',
+    intent: { symbol: 'BTCUSDT', side: 'SELL', reason: 'exit', clientOrderId: 'mo-fixture-x' },
+    params: { type: 'MARKET', quantity: '1' },
+  };
+
+  it('fuses the retraction of a resting protective stop into the close', () => {
+    expect(closingSellDecisions(armInput({ openOrders: [psOrder()] }), exitSell)).toEqual([
       {
-        type: 'cancel-order',
-        orderId: 555,
+        type: 'replace-order',
+        cancelOrderId: 555,
         reason: 'momentum-protective-stop-superseded',
-        symbol: 'BTCUSDT',
+        intent: exitSell.intent,
+        params: exitSell.params,
       },
     ]);
   });
 
-  it('emits nothing when none is resting', () => {
-    expect(protectiveStopCancelDecisions(armInput())).toEqual([]);
+  it('returns the close untouched when none is resting', () => {
+    const out = closingSellDecisions(armInput(), exitSell);
+    expect(out).toHaveLength(1);
+    // Identity, not equality: the common no-stop path cannot drift from the plain close by construction.
+    expect(out[0]).toBe(exitSell);
   });
 });
 
@@ -1273,14 +1512,34 @@ describe('momentum.tick — protective stop wiring', () => {
     });
   });
 
-  it('cancels the resting stop before the market sell on exit', () => {
+  it('retires the resting stop inside the market sell on exit', () => {
     const out = momentum.tick(armInput({ currentPrice: '90', openOrders: [psOrder()] }));
-    expect(out.decisions).toHaveLength(2);
-    expect(out.decisions[0]).toMatchObject({ type: 'cancel-order', orderId: 555 });
-    expect(out.decisions[1]).toMatchObject({
-      type: 'place-order',
+    expect(out.decisions).toHaveLength(1);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'replace-order',
+      cancelOrderId: 555,
+      reason: 'momentum-protective-stop-superseded',
       intent: { side: 'SELL', reason: 'exit' },
+      params: { type: 'MARKET' },
     });
+    // A standalone retraction hands the base back before the close reaches the exchange, so both legs can claim it.
+    expect(out.decisions.some((d) => d.type === 'cancel-order')).toBe(false);
+  });
+
+  it('carries the override id on a fused operator close', () => {
+    // The stamp rides the successor intent the fusion wraps. Lose it and the worker settles the operator's force-sell on nothing, reporting "the strategy did not act" while the MARKET SELL is live on Binance — and no place-order exists on this path for the other stamp tests to catch it.
+    const out = momentum.tick(
+      armInput({
+        openOrders: [psOrder()],
+        override: { kind: 'trigger-sell' as const, overrideActionId: 'op-fused' },
+      }),
+    );
+    const fused = out.decisions.find((d) => d.type === 'replace-order');
+    if (fused?.type !== 'replace-order') throw new Error('expected a replace-order decision');
+    expect(fused.cancelOrderId).toBe(555);
+    expect(fused.params.type).toBe('MARKET');
+    expect(fused.intent.overrideActionId).toBe('op-fused');
+    expect(out.decisions.some((d) => d.type === 'cancel-order')).toBe(false);
   });
 
   it('does not arm on the entry tick (base not yet held on the exchange)', () => {
@@ -1290,11 +1549,140 @@ describe('momentum.tick — protective stop wiring', () => {
     expect(out.decisions).toHaveLength(1);
     expect(out.decisions[0]).toMatchObject({ intent: { reason: 'entry' } });
   });
+
+  it('reports a null attempted distance when native mode has no usable stop leg', () => {
+    const config = {
+      ...PS_CFG,
+      trailingStopPct: 'nope',
+      protectiveStop: { ...PS_CFG.protectiveStop, mode: 'native-trail' as const },
+    };
+    const out = momentum.tick(armInput({ config }));
+    // Nothing rests on this tick, so the unplaced reason wins and the unusable native distance is carried as detail rather than reported as the reason. Naming the cause here would leave a naked position claiming a priced stop is protecting it.
+    expect(out.nextState.exitBlocker).toMatchObject({
+      reason: 'protective-stop-unplaced',
+      changeKey: 'unplaced|native-unavailable',
+      detail: { nativeUnavailable: true, distancePct: null },
+    });
+
+    const resting = momentum.tick(armInput({ config, openOrders: [psOrder()] }));
+    expect(resting.nextState.exitBlocker).toMatchObject({
+      reason: 'native-trail-unavailable',
+      detail: { distancePct: null, fallback: 'priced' },
+    });
+  });
+
+  it('reports an unplaced priced stop with a null level when no stop leg resolves', () => {
+    const config = { ...PS_CFG, trailingStopPct: 'nope' };
+    const out = momentum.tick(armInput({ config }));
+    expect(out.nextState.exitBlocker).toMatchObject({
+      reason: 'protective-stop-unplaced',
+      detail: { stop: null },
+    });
+  });
+
+  it('attributes a resting native order to an armed profit leg while the price remains above it', () => {
+    const config = cfg({
+      trailingStopPct: '0.1',
+      profitTrail: { enabled: true, activationPct: '0.05', trailPct: '0.03' },
+      protectiveStop: { enabled: true, mode: 'native-trail' },
+    });
+    const out = momentum.tick(
+      armInput({
+        currentPrice: '110',
+        config,
+        state: longState({ profitHigh: '110' }),
+        filters: {
+          ...FILTERS,
+          trailingDelta: {
+            minTrailingAboveDelta: 10,
+            maxTrailingAboveDelta: 2000,
+            minTrailingBelowDelta: 10,
+            maxTrailingBelowDelta: 2000,
+          },
+        },
+        openOrders: [
+          psOrder({ type: 'STOP_LOSS', price: '0', stopPrice: undefined, trailingDelta: 1000 }),
+        ],
+      }),
+    );
+    expect(out.nextState.exitBlocker?.reason).toBe('profit-leg-armed');
+  });
+
+  it('reports a held full-size stop refusal as base-below-exchange-minimum', () => {
+    const zecFilters = {
+      ...FILTERS,
+      minNotional: '0.0001',
+      stepSize: '0.001',
+      minQty: '0.001',
+      tickSize: '0.000001',
+    };
+    const out = momentum.tick(
+      armInput({
+        closes: mkCandles(['0.0118', '0.0118', '0.0118', '0.0118']),
+        currentPrice: '0.0118',
+        filters: zecFilters,
+        config: cfg({
+          trailingStopPct: '0.1',
+          protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+        }),
+        state: longState({
+          entryPrice: '0.0118',
+          highSinceEntry: '0.0118',
+          heldQuantity: '0.00999',
+        }),
+        balances: {
+          BTC: { asset: 'BTC', free: new Decimal('0.00999'), locked: new Decimal('0') },
+        },
+      }),
+    );
+
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: { held: '0.00999', skip: 'min-notional' },
+    });
+    expect(out.logs).toEqual([
+      expect.objectContaining({
+        level: 'warn',
+        message: 'momentum: protective stop not armed',
+      }),
+    ]);
+  });
+
+  it('refuses a position that clears the minimum at the trigger but not at the live limit leg', () => {
+    // The only place the level builder's `limit` is proven to reach the arm's minimum check on the real config shape: 0.112 coins are worth 10.08 at the 90 trigger and 9.88 at the 88.20 limit leg the order would actually rest at, so Binance would answer the placement with a non-retryable NOTIONAL rejection and leave the position unguarded.
+    const out = momentum.tick(
+      armInput({
+        config: cfg({
+          trailingStopPct: '0.1',
+          protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+        }),
+        state: longState({ heldQuantity: '0.112' }),
+        balances: {
+          BTC: { asset: 'BTC', free: new Decimal('0.112'), locked: new Decimal('0') },
+        },
+      }),
+    );
+
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      // `required` is the floor at 88.20, not the 0.112 the 90 trigger would have quoted; `checkedAt` carries that price and `checkedAtLeg` says which of the two legs it is, which is the only thing that stops the operator gloss reading a trigger as a sell price.
+      detail: {
+        held: '0.112',
+        required: '0.114',
+        stop: '90',
+        checkedAt: '88.2',
+        checkedAtLeg: 'limit',
+        skip: 'min-notional',
+      },
+    });
+  });
 });
 
 describe('computeEntryQuantity / computeExitQuantity', () => {
   it('rejects malformed filters as invalid-filters', () => {
-    expect(computeEntryQuantity('100', '10', { ...FILTERS, stepSize: 'abc' })).toEqual({
+    expect(computeEntryQuantity('100', '10', { ...FILTERS, stepSize: 'abc' }, null)).toEqual({
       skip: 'invalid-filters',
     });
     expect(computeExitQuantity('1', '10', { ...FILTERS, stepSize: 'abc' })).toEqual({
@@ -1303,24 +1691,176 @@ describe('computeEntryQuantity / computeExitQuantity', () => {
   });
 
   it('rejects a non-positive step as invalid-filters', () => {
-    expect(computeEntryQuantity('100', '10', { ...FILTERS, stepSize: '0' })).toEqual({
+    expect(computeEntryQuantity('100', '10', { ...FILTERS, stepSize: '0' }, null)).toEqual({
       skip: 'invalid-filters',
     });
   });
 
   it('rejects malformed price/amount as invalid-filters', () => {
-    expect(computeEntryQuantity('abc', '10', FILTERS)).toEqual({ skip: 'invalid-filters' });
+    expect(computeEntryQuantity('abc', '10', FILTERS, null)).toEqual({ skip: 'invalid-filters' });
     expect(computeExitQuantity('abc', '10', FILTERS)).toEqual({ skip: 'invalid-filters' });
   });
 
   it('rejects a non-positive price as invalid-filters', () => {
-    expect(computeEntryQuantity('100', '0', FILTERS)).toEqual({ skip: 'invalid-filters' });
+    expect(computeEntryQuantity('100', '0', FILTERS, null)).toEqual({ skip: 'invalid-filters' });
     expect(computeExitQuantity('1', '0', FILTERS)).toEqual({ skip: 'invalid-filters' });
   });
 
   it('rounds and accepts a valid entry/exit', () => {
-    expect(computeEntryQuantity('140', '14', FILTERS)).toEqual({ quantity: '10.000' });
+    expect(computeEntryQuantity('140', '14', FILTERS, null)).toEqual({ quantity: '10.000' });
     expect(computeExitQuantity('1', '14', FILTERS)).toEqual({ quantity: '1.000' });
+  });
+});
+
+describe('entryStopFloor', () => {
+  const candles = mkCandles(['10', '10', '10', '10']);
+  const price = '10';
+  const floor = (config: MomentumConfig) => entryStopFloor(config, candles, price);
+  const rawProtectiveConfig = (limitOffsetPercentage: string): MomentumConfig =>
+    ({
+      ...defaultMomentumConfig(),
+      protectiveStop: { enabled: true, limitOffsetPercentage },
+    }) as unknown as MomentumConfig;
+
+  it('uses a neutral limit offset when the protective stop is disabled', () => {
+    expect(floor(cfg({ protectiveStop: { enabled: false } }))?.limitOffset.toString()).toBe('1');
+  });
+
+  it('uses a valid protective-stop limit offset', () => {
+    expect(
+      floor(
+        cfg({ protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' } }),
+      )?.limitOffset.toString(),
+    ).toBe('0.98');
+  });
+
+  it('uses a neutral limit offset for a native trail, which rests no limit leg', () => {
+    // A native trail is a STOP_LOSS carrying a quantity and a trailing delta: it
+    // sells at market, so there is no limit price for the exchange minimum to be
+    // measured at and the trigger is the only price this floor can judge.
+    expect(
+      floor(
+        cfg({
+          protectiveStop: { enabled: true, mode: 'native-trail', limitOffsetPercentage: '0.98' },
+        }),
+      )?.limitOffset.toString(),
+    ).toBe('1');
+    // The same offset on an explicitly priced stop still binds, so the neutral
+    // answer above is the mode's doing and not the offset being ignored.
+    expect(
+      floor(
+        cfg({ protectiveStop: { enabled: true, mode: 'priced', limitOffsetPercentage: '0.98' } }),
+      )?.limitOffset.toString(),
+    ).toBe('0.98');
+    // An absent `mode` reads as `priced`, exactly as the arm reads it, so a
+    // stored config saved before the leaf existed keeps the offset it had.
+    expect(floor(rawProtectiveConfig('0.98'))?.limitOffset.toString()).toBe('0.98');
+  });
+
+  it('uses a neutral limit offset for an unparseable protective-stop offset', () => {
+    expect(floor(rawProtectiveConfig('abc'))?.limitOffset.toString()).toBe('1');
+  });
+
+  it('uses a neutral limit offset for a zero protective-stop offset', () => {
+    expect(floor(rawProtectiveConfig('0'))?.limitOffset.toString()).toBe('1');
+  });
+
+  it('uses a neutral limit offset for a protective-stop offset above one', () => {
+    expect(floor(rawProtectiveConfig('1.5'))?.limitOffset.toString()).toBe('1');
+  });
+
+  it('uses a neutral limit offset for a protective-stop offset equal to one', () => {
+    expect(floor(rawProtectiveConfig('1'))?.limitOffset.toString()).toBe('1');
+  });
+
+  it('returns null when the initial stop distance cannot be resolved', () => {
+    const config = {
+      ...cfg(),
+      trailingStopPct: '0',
+      atrTrailingStop: { enabled: false },
+    } as unknown as MomentumConfig;
+    expect(floor(config)).toBeNull();
+  });
+
+  it('uses the fixed stop percentage when ATR has too few candles', () => {
+    const result = entryStopFloor(
+      cfg({ atrTrailingStop: { enabled: true, period: 14 }, trailingStopPct: '0.1' }),
+      mkCandles(['10', '10']),
+      price,
+    );
+    expect(result?.distanceFraction.toFixed()).toBe('0.1');
+  });
+
+  it('returns null when neither the short ATR window nor the fixed stop resolves', () => {
+    const config = {
+      ...cfg({ atrTrailingStop: { enabled: true, period: 14 } }),
+      trailingStopPct: '0',
+    } as unknown as MomentumConfig;
+    const result = entryStopFloor(config, mkCandles(['10', '10']), price);
+    expect(result).toBeNull();
+  });
+
+  it('applies the fixed stop floor when ATR has too few candles', () => {
+    const zecFilters = {
+      ...FILTERS,
+      minNotional: '0.0001',
+      stepSize: '0.001',
+      minQty: '0.001',
+      tickSize: '0.000001',
+    };
+    const out = momentum.tick(
+      mkInput({
+        symbol: 'ZECBTC',
+        filters: zecFilters,
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '0.0118',
+        state: flat(),
+        config: cfg({
+          entrySizing: { mode: 'fixed', amount: '0.00012' },
+          trailingStopPct: '0.1',
+          atrTrailingStop: { enabled: true, period: 14 },
+          riskSizing: { enabled: false },
+          protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+        }),
+      }),
+    );
+
+    expect(out.decisions.some((decision) => decision.type === 'place-order')).toBe(false);
+    expect(out.nextState.entryBlocker?.reason).toBe('entry-below-stop-notional');
+  });
+
+  it('admits under a native trail the entry the priced limit offset refuses', () => {
+    // The budget buys 0.108 at 100 against a 5% stop. Judged at the 0.98 limit
+    // price (93.1) the minimum notional needs 0.109 after the fee and the exit
+    // step, so the entry is one step short; judged at the trigger (95), where a
+    // native trail actually sells, it needs 0.107 and the same entry clears.
+    const entryTick = (protectiveStop: Record<string, unknown>) =>
+      momentum.tick(
+        mkInput({
+          closes: mkCandles(CROSS_UP),
+          currentPrice: '100',
+          state: flat(),
+          config: cfg({
+            entrySizing: { mode: 'fixed', amount: '10.8' },
+            trailingStopPct: '0.05',
+            protectiveStop,
+          }),
+        }),
+      );
+
+    const priced = entryTick({ enabled: true, limitOffsetPercentage: '0.98' });
+    expect(priced.decisions.some((decision) => decision.type === 'place-order')).toBe(false);
+    expect(priced.nextState.entryBlocker?.reason).toBe('entry-below-stop-notional');
+
+    const native = entryTick({
+      enabled: true,
+      mode: 'native-trail',
+      limitOffsetPercentage: '0.98',
+    });
+    const placed = native.decisions.filter((decision) => decision.type === 'place-order');
+    expect(placed).toHaveLength(1);
+    expect(placed[0]?.params).toEqual({ type: 'MARKET', quantity: '0.108' });
+    expect(native.nextState.entryBlocker).toBeNull();
   });
 });
 
@@ -1440,8 +1980,8 @@ describe('momentumPositionAdapter', () => {
   });
 
   it('covers every position-scoped field momentum declares', () => {
-    // Derived from the exported vocabulary, not hand-copied: the core list is a value so a plugin suite covers whatever is on it today. Momentum carries no `exitBlocker`, so the filter is the assertion that this suite still tracks the real set.
-    expect(SCOPED_FIELDS).toEqual(['protectiveStopBlocker']);
+    // Derived from the exported vocabulary, not hand-copied: the core list is a value so this assertion tracks every position-scoped field momentum actually declares.
+    expect(SCOPED_FIELDS).toEqual(['protectiveStopBlocker', 'exitBlocker']);
   });
 
   it.each(SCOPED_FIELDS)('clears %s on the fill that flattens the position', (field) => {
@@ -1604,6 +2144,7 @@ describe('schema', () => {
     // The block is optional at the top level, but once present its fields default.
     expect(cfg({ protectiveStop: {} }).protectiveStop).toEqual({
       enabled: false,
+      mode: 'priced',
       limitOffsetPercentage: '0.98',
       minRearmDriftPct: '0.001',
       // `notify` is the pre-existing behaviour, so an existing profile that never
@@ -1722,6 +2263,7 @@ describe('schema', () => {
       { protectiveStop: { limitOffsetPercentage: '0.97' } },
       { entryExtension: { maxPercent: '0.25' } },
       { atrTrailingStop: { enabled: true, multiple: '2.5' } },
+      { riskSizing: { enabled: true, riskPct: '0.005' } },
     ]) {
       expect(MomentumOverrideConfigSchema.safeParse(override).success).toBe(true);
     }
@@ -2408,7 +2950,8 @@ describe('protective stop — a foreign resting SELL holding the base', () => {
       HIGH,
     );
     expect(out.blocker).toBeNull();
-    expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
+    expect(out.decisions.map((d) => d.type)).toEqual(['replace-order']);
+    expect(out.decisions[0]).toMatchObject({ cancelOrderId: 555 });
   });
 
   it('the held-long tick records the blocker on state and emits no order', () => {
@@ -2498,7 +3041,7 @@ describe('protective stop — a foreign order locking PART of the base (#613)', 
       longState({ heldQuantity: '0.3526' }),
       HIGH,
     );
-    // 0.3441 floored to stepSize 0.001 = 0.344; notional 0.344 × 95 = 32.68 ≥ 10.
+    // 0.3441 floored to stepSize 0.001 = 0.344; notional at the 93.10 limit leg is 0.344 × 93.10 = 32.03 ≥ 10.
     expect(out.decisions).toHaveLength(1);
     expect(out.decisions[0]).toMatchObject({
       type: 'place-order',
@@ -2528,7 +3071,7 @@ describe('protective stop — a foreign order locking PART of the base (#613)', 
   // No foreign order to blame: the wallet simply holds less base than the tracked position (drift, a withdrawal, or coins locked by an order this profile cannot see). Silence here is the same defect as the foreign-lock silence, so it gets its own blocker — and the resting stop is LEFT alone: cancelling a live stop we merely cannot resize strips real protection from an open position.
   it('blocks (and keeps the resting stop) when the free base is below the exchange minimum', () => {
     // Our own stop rests on a dust 0.001 and the wallet holds nothing else, so the
-    // most we could re-commit is 0.001 — below minNotional at stop 95.
+    // most we could re-commit is 0.001 — below minNotional at the 93.10 limit leg.
     const out = armOut(
       armInput({
         openOrders: [psOrder({ origQty: '0.001' })],
@@ -2597,8 +3140,8 @@ describe('protective stop — quantity drift on the resting stop (#613)', () => 
       longState(),
       HIGH,
     );
-    expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
-    expect(out.decisions[1]).toMatchObject({
+    expect(out.decisions.map((d) => d.type)).toEqual(['replace-order']);
+    expect(out.decisions[0]).toMatchObject({
       params: { type: 'STOP_LOSS_LIMIT', quantity: '1.000', stopPrice: '95.00' },
     });
   });
@@ -2875,7 +3418,12 @@ describe('momentum.tick — profit trail', () => {
       );
       state = out.nextState;
       for (const d of out.decisions) {
-        if (d.type !== 'place-order' || d.params.type !== 'STOP_LOSS_LIMIT') continue;
+        if (
+          (d.type !== 'place-order' && d.type !== 'replace-order') ||
+          d.params.type !== 'STOP_LOSS_LIMIT'
+        ) {
+          continue;
+        }
         placements += 1;
         resting = psOrder({
           stopPrice: d.params.stopPrice,
@@ -3002,6 +3550,25 @@ describe('momentum.tick — protective stop outside the exchange price band', ()
     ).toThrow();
   });
 
+  it('accepts every entry-sizing skip as an entryBlocker reason', () => {
+    // The enum spreads `ENTRY_SIZING_SKIPS` rather than copying it, so this loop can no
+    // longer fail on drift — the two lists are one list. It is kept because the assertion
+    // below still can: nothing else here notices the enum being widened to `z.string()`, a
+    // plausible repair when a parse blows up somewhere else, and a widened enum would accept
+    // any string the worker handed it while every skip below still round-tripped.
+    for (const reason of ENTRY_SIZING_SKIPS) {
+      const parsed = MomentumStateSchema.parse({ ...heldPosition(), entryBlocker: { reason } });
+      expect(parsed.entryBlocker).toEqual({ reason });
+    }
+    // Without this the loop above survives the enum being widened to z.string().
+    expect(() =>
+      MomentumStateSchema.parse({
+        ...heldPosition(),
+        entryBlocker: { reason: 'not-a-real-reason' },
+      }),
+    ).toThrow();
+  });
+
   it('warns, rather than informs, when the deferral leaves nothing covering the position', () => {
     // Same refusal, no resting stop to fall back on. This is the branch the
     // quieter guarded case exists to stay out of the way of: nothing covers the
@@ -3043,9 +3610,9 @@ describe('momentum.tick — protective stop outside the exchange price band', ()
       }),
     );
     expect(out.nextState.protectiveStopBlocker).toBeNull();
-    expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
-    expect(out.decisions[1]).toMatchObject({
-      type: 'place-order',
+    expect(out.decisions.map((d) => d.type)).toEqual(['replace-order']);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'replace-order',
       params: { stopPrice: '7.462', price: '7.312', quantity: '3.13' },
     });
   });
@@ -3054,7 +3621,7 @@ describe('momentum.tick — protective stop outside the exchange price band', ()
     const { percentPriceBySide: _absent, ...noBand } = BAND_FILTERS;
     const out = momentum.tick(bandInput('8.8320', { filters: noBand }));
     expect(out.nextState.protectiveStopBlocker).toBeNull();
-    expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
+    expect(out.decisions.map((d) => d.type)).toEqual(['replace-order']);
   });
 
   it('onBandBlock notify is the default and leaves the refusal in place', () => {
@@ -3079,9 +3646,9 @@ describe('momentum.tick — protective stop outside the exchange price band', ()
       }),
     );
     expect(out.nextState.protectiveStopBlocker).toBeNull();
-    expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
-    const place = out.decisions[1];
-    if (place?.type !== 'place-order') throw new Error('expected a place-order');
+    expect(out.decisions.map((d) => d.type)).toEqual(['replace-order']);
+    const place = out.decisions[0];
+    if (place?.type !== 'replace-order') throw new Error('expected a replace-order');
     const params = place.params as { stopPrice: string; price: string };
     // The trigger moved off the operator's 7.462 to the exchange floor.
     expect(params.stopPrice).toBe('8.192');
@@ -3121,9 +3688,11 @@ describe('momentum.tick — protective stop outside the exchange price band', ()
     // operator never chose.
     for (const config of [CLAMP_CFG, BAND_CFG]) {
       const out = momentum.tick(bandInput('7.40', { config }));
+      // The exit fuses with the retraction of the resting stop, so the close rides the replacement's successor intent rather than a standalone placement.
       expect(out.decisions).toContainEqual(
         expect.objectContaining({
-          type: 'place-order',
+          type: 'replace-order',
+          cancelOrderId: 555,
           intent: expect.objectContaining({ side: 'SELL', reason: 'exit' }),
           params: expect.objectContaining({ type: 'MARKET', quantity: '3.13' }),
         }),
@@ -3171,9 +3740,9 @@ describe('momentum.tick — protective stop outside the exchange price band', ()
       }),
     );
     expect(out.nextState.protectiveStopBlocker).toBeNull();
-    expect(out.decisions.map((d) => d.type)).toEqual(['cancel-order', 'place-order']);
-    const place = out.decisions[1];
-    if (place?.type !== 'place-order') throw new Error('expected a place-order');
+    expect(out.decisions.map((d) => d.type)).toEqual(['replace-order']);
+    const place = out.decisions[0];
+    if (place?.type !== 'replace-order') throw new Error('expected a replace-order');
     // `trailingStopPct: 0.15` straight through as 1500 bips: the distance the
     // operator configured, where `clamp` would have moved the trigger to 8.192
     // and left barely 7% of room.
