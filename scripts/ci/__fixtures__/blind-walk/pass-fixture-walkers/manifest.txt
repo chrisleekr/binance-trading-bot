@@ -1,0 +1,5 @@
+no-locks.sh
+no-stale-screenshot.sh
+no-web-api-query-drift.ts
+fixture:no-mutated-applied-migration.selftest.sh
+fixture:walk-lib.selftest.sh

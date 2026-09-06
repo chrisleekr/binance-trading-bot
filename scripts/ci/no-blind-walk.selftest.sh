@@ -53,8 +53,32 @@ if [ "$pass_rc" -ne 0 ] || ! grep -qF '3 walk gates, all routed through the shar
   fails=1
 fi
 
+# The two reviewed self-tests walk only to build or exercise fixtures. They remain classified, but their exact registered role keeps them out of the production gate manifest.
+fixture_walkers_out="$(run_fixture pass-fixture-walkers)"
+fixture_walkers_rc=$?
+if [ "$fixture_walkers_rc" -ne 0 ] || ! grep -qF '2 registered fixture walker(s)' <<<"$fixture_walkers_out"; then
+  echo "FAIL: pass-fixture-walkers expected two explicitly registered fixture walkers (rc=$fixture_walkers_rc)"
+  echo "$fixture_walkers_out"
+  fails=1
+fi
+
 # The defect this gate exists for: a gate that reads the tree itself, so it carries whatever stops its author remembered rather than the two the helper enforces.
 expect_reject reject-blind-gate 'BLIND WALK' 'scripts/ci/no-stale-screenshot.sh'
+
+# A self-test suffix is not a role. An unregistered gate under that suffix must be audited like any other depth-one walker.
+expect_reject reject-selftest-walk 'BLIND WALK' 'scripts/ci/nightly-audit.selftest.sh'
+
+# Registration is keyed by the detected role, not by familiar gate names. A new arbitrary filename therefore cannot walk until it is classified.
+expect_reject reject-arbitrary-named-walk 'BLIND WALK' 'scripts/ci/daily-health.sh'
+
+# A data-looking suffix is not a role either. What this pins is that a `.txt` file now REACHES classification at all, where the old extension allow-list dropped it before any question was asked; it then stops on its untaught extension, which is decided before walk detection, so the walk written inside the fixture is not what the assertion turns on.
+expect_reject reject-data-extension-walk 'UNTAUGHT FILE CLASS' 'scripts/ci/nightly-audit.txt'
+
+# The seam recogniser must read executable lines only, as the routing one already did. A gate whose seam survives only inside a comment carries no seam a self-test can drive, and reading raw source classified that prose as the seam itself.
+expect_reject reject-commented-seam 'NO OVERRIDE SEAM' 'scripts/ci/no-locks.sh'
+
+# The fixture-walker floor, pinned in both directions like every other registry here. Without it a registered self-test could be deleted or stop walking and its exemption would outlive it, ready for the next file to take that exact name.
+expect_reject reject-fixture-walker-missing 'registered fixture-walker set drifted' 'only in the manifest: walk-lib.selftest.sh'
 
 # Manifest drift, both directions. One direction alone is the more dangerous half to leave out: without the "only in the tree" check a NEW walk gate joins unnoticed, and without "only in the manifest" a gate that stopped walking leaves the floor quietly overstated.
 expect_reject reject-manifest-extra 'only in the tree' 'no-locks.sh'
