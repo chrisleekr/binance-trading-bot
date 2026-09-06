@@ -101,6 +101,7 @@ const buildDeps = (): TickHandlerDeps => {
     orderFailedThrottle: { allow: async () => true } as never,
     orderRefusalLoopThrottle: { allow: async () => true } as never,
     protectiveStopBlockedThrottle: { allow: async () => true } as never,
+    protectiveStopUnplacedThrottle: { allow: async () => true } as never,
     auditShipper: anyProxy(),
   });
   const deps = captured.deps;

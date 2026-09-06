@@ -24,6 +24,8 @@ import {
   asProfileId,
   asUserId,
   ENTRY_HALT_REASONS,
+  PROTECTIVE_STOP_UNPLACED_CODE,
+  PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS,
   type ManualOverridePayload,
 } from '@app/contracts';
 import { entryHaltKeys } from '@app/db';
@@ -132,6 +134,24 @@ const readProtectiveStopBlocker = (state: unknown): ProtectiveStopBlockerView | 
     terminal: detail['terminal'] === true,
     guarded: detail['guarded'] === true,
   };
+};
+
+/**
+ * The exit blocker's live detail off the state this tick just committed, read for the same reason the protective-stop view above is: the stored condition row's `detail` froze when the span opened, so on the aged span this alert waits for it names a stop price the strategy has long since moved past.
+ *
+ * The reason is deliberately not returned. The condition row written from this same state carries it, and that row is what the alert gates on, so re-testing it here would be a second comparison the first one has already decided.
+ *
+ * Only the `detail` check decides anything at the call site: reaching it needs an `exit-blocked` row whose code is the unplaced one, and that code was read off THIS same object by the condition writer, which yields a code only when the state and its `exitBlocker` are both shaped objects. The two checks above it restate that proof rather than make it, and they stay because the helper is exercised on its own and because a strategy that publishes a blocker with no `detail` is a real shape this must answer `{}` for.
+ *
+ * @param state - The `nextState` this tick produced, untyped because the handler is strategy-agnostic and only this one field concerns it.
+ * @returns The blocker's detail record, empty when the strategy reported no exit blocker or no detail for it.
+ */
+const readExitBlockerDetail = (state: unknown): Readonly<Record<string, unknown>> => {
+  if (typeof state !== 'object' || state === null) return {};
+  const raw = (state as Record<string, unknown>)['exitBlocker'];
+  if (typeof raw !== 'object' || raw === null) return {};
+  const detail = (raw as Record<string, unknown>)['detail'];
+  return typeof detail === 'object' && detail !== null ? (detail as Record<string, unknown>) : {};
 };
 
 export const createTickHandler = (
@@ -498,10 +518,11 @@ export const createTickHandler = (
         // Past this line an order may be on the wire, so an abort can no longer
         // re-arm the override: the next tick would place a second one under a fresh
         // clientOrderId, which Binance's open-order dedup does not catch. Coarse on
-        // purpose (any place-order, not just the override's) — the same fail-safe the
-        // defer path applies, and for the same reason: no plugin is trusted to have
-        // stamped the override id on the order it emitted. `cancel-order` alone does
-        // not trip it, matching that same scoping: nothing can be left resting.
+        // purpose (any placement — a `place-order` or a `replace-order`, not just the
+        // override's) — the same fail-safe the defer path applies, and for the same
+        // reason: no plugin is trusted to have stamped the override id on the order it
+        // emitted. `cancel-order` alone does not trip it, matching that same scoping:
+        // nothing can be left resting.
         if (placementDecision !== undefined && !refusalGate.defer) {
           overrideTicket.markOrderAttempted();
         }
@@ -544,10 +565,12 @@ export const createTickHandler = (
         // Whether it is SAFE to commit turns on THE PLACEMENT, and on its `phase`
         // ALONE. Two separate traps here:
         //
-        //  - Not on the FIRST failed order. Momentum's exit emits [cancel(stop),
-        //    MARKET SELL] with a FLAT nextState. A cancel that dies on a transport
-        //    error returns `ambiguous`; the chain breaks and the SELL is stamped
-        //    SKIPPED — never transmitted. Reading the CANCEL's phase would say
+        //  - Not on the FIRST failed order. A batch shaped [cancel(stop), MARKET
+        //    SELL] with a FLAT nextState — a contract the executor must still handle,
+        //    though both strategies now fuse that pair into one `replace-order` — is
+        //    the case that bites. A cancel that dies on a transport error returns
+        //    `ambiguous`; the chain breaks and the SELL is stamped SKIPPED — never
+        //    transmitted. Reading the CANCEL's phase would say
         //    "accepted/ambiguous ⇒ commit", and the bot would record itself flat while
         //    the coin is still in the wallet and its stop may still be resting. The
         //    question `nextState` hangs on is whether the ORDER IT ASSUMED WAS PLACED
@@ -869,14 +892,9 @@ export const createTickHandler = (
         // problem and would train them to ignore the naked case. Fire-and-forget
         // for the same reasons as the order-failed alert above.
         //
-        // Scoped to the BAND refusal, and only that one. The message below tells
-        // the operator to widen the stop offset, which is the wrong instruction
-        // for a base-sizing refusal — and only the band classifier publishes
-        // `guarded` / `terminal` at all, so on the three sizing reasons both read
-        // false: an absent `guarded` would be taken as "nothing is protecting
-        // this", while the sizing branch explicitly leaves any resting stop in
-        // place. The CONDITION row stays generic for all four reasons; it is the
-        // notification, whose copy tells one story, that is narrowed here.
+        // Scoped to the BAND refusal, and only that one. The message below tells the operator to widen the stop offset, which is the wrong instruction for a base-sizing refusal. `terminal` is published by the band classifier alone, and `guarded` by the band classifier and the full-size refusal (which leaves any resting stop in place and reports whether it still covers the holding); the foreign-lock and partial-size refusals publish neither, so an absent `guarded` there would be taken as "nothing is protecting this". The CONDITION row stays generic for all four reasons; it is the notification, whose copy tells one story, that is narrowed here, and the sizing reasons still owe an alert of their own.
+        // Whether the band alert below passed its TICK-SIDE gate, which is not the same as a band blocker existing: most of them are guarded, sub-window, or a reason that alert does not cover. It is not proof of delivery either — the send is fire-and-forget and the notifier's own hourly window can still drop it — but that window is the same hour and keyed on the same coin as the unplaced one below, so a dropped band send means the operator has already been told about this coin inside the hour. Suppressing on the gate rather than on delivery is therefore what keeps the unplaced alert from being a second page about one position.
+        let bandAlertFired = false;
         const stopBlocker = readProtectiveStopBlocker(output.nextState);
         if (
           stopBlocker !== null &&
@@ -893,6 +911,7 @@ export const createTickHandler = (
           const heldLongEnough =
             sinceMs !== null && clock.nowMs() - sinceMs >= PROTECTIVE_STOP_BLOCKED_PERSISTENCE_MS;
           if (stopBlocker.terminal || heldLongEnough) {
+            bandAlertFired = true;
             const notify = deps.notifyProtectiveStopBlocked;
             void callAsync(() =>
               notify({
@@ -912,6 +931,40 @@ export const createTickHandler = (
               );
             });
           }
+        }
+
+        // The block above reports one named CAUSE — the exchange's price band refuses the stop. This one reports the OUTCOME: whatever the cause, the position is held and nothing is resting on the exchange that would sell it. That covers every refusal the band classifier never sees, and it is the state the strategy re-reports on every tick without anything ever escalating it.
+        //
+        // Only the duration separates it from an entry that opened a second ago, so the span is the whole signal — which makes picking the row that dates it the whole job. The CODE is the gate, not the condition: `AUDITED_BLOCKERS` writes exactly one `exit-blocked` row per symbol per tick whatever the reason is, so matching on the condition alone would hand this the span of a `priced-stop-resting` row and page the operator about a fully guarded position. Reading the code off the row rather than re-testing the live state keeps one comparison: the row that dates the span is the row that has to be about this state, and a second test against the state would be a guard the first one already decided.
+        const unplacedSinceMs = writtenConditions.find(
+          (w) => w.condition === 'exit-blocked' && w.code === PROTECTIVE_STOP_UNPLACED_CODE,
+        )?.sinceMs;
+        // Fails CLOSED on an undated span, unlike the band alert above. That one has `terminal`, an independent span-free signal that something is permanently wrong, so it can fire without an age. There is no such signal here: without the span this is indistinguishable from the tick right after an entry, and firing anyway would page on every new position each time `recordCondition` threw and `createBlockerAudit` swallowed it. The row is re-read next tick, so a lost write costs one tick of delay, not the alert.
+        //
+        // Suppressed when the band alert already went out this tick: both describe the same unguarded coin, and the band one carries the more specific instruction.
+        if (
+          unplacedSinceMs !== null &&
+          unplacedSinceMs !== undefined &&
+          !bandAlertFired &&
+          clock.nowMs() - unplacedSinceMs >= PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS &&
+          deps.notifyProtectiveStopUnplaced
+        ) {
+          const notify = deps.notifyProtectiveStopUnplaced;
+          void callAsync(() =>
+            notify({
+              operatorId,
+              accountId,
+              profileId,
+              symbol,
+              sinceMs: unplacedSinceMs,
+              detail: readExitBlockerDetail(output.nextState),
+            }),
+          ).catch((err: unknown) => {
+            deps.logger.warn(
+              { profileId, symbol, err: err },
+              'tick-handler: could not notify the operator that a position has no protective stop resting',
+            );
+          });
         }
 
         // Audit batch. The payload is what the raw tick trace serves verbatim,

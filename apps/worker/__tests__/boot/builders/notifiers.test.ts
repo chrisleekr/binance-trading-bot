@@ -25,6 +25,7 @@ describe('buildNotifiers', () => {
       'orderFailedThrottle',
       'orderRefusalLoopThrottle',
       'protectiveStopBlockedThrottle',
+      'protectiveStopUnplacedThrottle',
     ]);
     expect(typeof n.accountNotify).toBe('function');
     expect(typeof n.notifyEvent).toBe('function');

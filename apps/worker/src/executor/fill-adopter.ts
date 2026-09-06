@@ -69,6 +69,7 @@ import {
 } from '@app/db';
 import {
   asDecimalString,
+  isTerminalOrderStatus,
   unwrapId,
   type AccountId,
   type ProfileId,
@@ -198,10 +199,6 @@ export interface DetachedOrderEvent {
   readonly cumQuoteQty: string;
   readonly eventTimeMs: number;
 }
-
-// Binance states that mean the order has left the book for good. Only these close
-// the row: a PARTIALLY_FILLED / NEW report says the order is still live.
-const TERMINAL_STATUSES = new Set(['FILLED', 'CANCELED', 'EXPIRED', 'REJECTED']);
 
 export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
   const adopt = async (event: FillEvent): Promise<void> => {
@@ -500,7 +497,8 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
   };
 
   const reconcileDetachedFill = async (event: DetachedOrderEvent): Promise<void> => {
-    if (!TERMINAL_STATUSES.has(event.orderStatus)) return;
+    // The shared `@app/contracts` predicate, never a local copy: this row's `closed_at` stamp, the open-orders cache eviction and the boot reaper all answer "has the order left the book?" and must answer it the same way. A four-member local set omitted `EXPIRED_IN_MATCH` — the status Binance stamps when self-trade prevention kills an order, which on a shared account wallet is what a sibling profile's BUY crossing our resting SELL produces — so an STP-terminated detached row was never closed: it held its live intent slot and counted toward the account's open exposure forever. A still-resting report (NEW / PARTIALLY_FILLED) passes through untouched, and an unrecognised status fails closed the same way.
+    if (!isTerminalOrderStatus(event.orderStatus)) return;
     // Account scope, not profile scope: a detached row is reachable only by
     // account, and `scopeAccount` proves the operator owns it.
     const orders = accountRepoFromScope(

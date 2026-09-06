@@ -34,12 +34,14 @@ interface Built {
   readonly deps: TickHandlerDeps;
   readonly events: Record<string, unknown>[];
   readonly stopKeys: string[];
+  readonly unplacedKeys: string[];
   readonly refusalKeys: string[];
 }
 
 const build = (allowStop = true, allowRefusal = true): Built => {
   const events: Record<string, unknown>[] = [];
   const stopKeys: string[] = [];
+  const unplacedKeys: string[] = [];
   const refusalKeys: string[] = [];
   const slice = buildTickHandler({
     env: ENV,
@@ -70,11 +72,17 @@ const build = (allowStop = true, allowRefusal = true): Built => {
         return allowStop;
       },
     } as never,
+    protectiveStopUnplacedThrottle: {
+      allow: async (key: string) => {
+        unplacedKeys.push(key);
+        return allowStop;
+      },
+    } as never,
     auditShipper: anyProxy(),
   });
   const deps = captured.deps;
   if (!deps) throw new Error('buildTickHandler did not construct a tick handler');
-  return { slice, deps, events, stopKeys, refusalKeys };
+  return { slice, deps, events, stopKeys, unplacedKeys, refusalKeys };
 };
 
 const BAND = {
@@ -352,5 +360,146 @@ describe('notifyOrderFailed wording', () => {
 
     expect(event.body).toContain('could not cancel an order');
     expect(event.fields).toContainEqual({ label: 'Action', value: 'Cancel order' });
+  });
+});
+
+describe('buildTickHandler — the protective-stop-unplaced notifier', () => {
+  const unplaced = (over: Record<string, unknown> = {}) => ({
+    operatorId: OPERATOR,
+    accountId: ACCOUNT,
+    profileId: PROFILE,
+    symbol: SYMBOL,
+    sinceMs: Date.now() - 2 * 3_600_000,
+    detail: { stop: '11.5511' },
+    ...over,
+  });
+
+  it('keys the throttle on the coin alone, with no escalation level to split', async () => {
+    // Unlike the band refusal there is one thing to say here — nothing is guarding this position — so a second key segment would only split one message into two alerts an hour apart.
+    const { deps, unplacedKeys } = build();
+    const notify = deps.notifyProtectiveStopUnplaced;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopUnplaced');
+
+    await notify(unplaced());
+
+    expect(unplacedKeys).toEqual([`${PROFILE}:${SYMBOL}`]);
+  });
+
+  it('sends nothing when the throttle window is already open', async () => {
+    const { deps, events } = build(false);
+    const notify = deps.notifyProtectiveStopUnplaced;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopUnplaced');
+
+    await notify(unplaced());
+
+    expect(events).toEqual([]);
+  });
+
+  it('files under order-failed, which already covers a stop that never reached the exchange', async () => {
+    // That category is severity error and defaults ON, so the alert about an unguarded position is not behind a switch the operator has to find first.
+    const { deps, events } = build();
+    const notify = deps.notifyProtectiveStopUnplaced;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopUnplaced');
+
+    await notify(unplaced());
+
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ category: 'order-failed', symbol: SYMBOL });
+  });
+
+  it('leads with the exposure and how long it has run, then what to check', async () => {
+    const { deps, events } = build();
+    const notify = deps.notifyProtectiveStopUnplaced;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopUnplaced');
+
+    await notify(unplaced());
+
+    const event = events[0] as { body: string; fields: { label: string; value: string }[] };
+    expect(event.body).toContain('no protective stop on Binance for 2 hours');
+    expect(event.body).toContain('Nothing on the exchange will sell it if the price falls');
+    expect(event.body).toContain('another order is holding the coins');
+    expect(event.fields).toContainEqual({ label: 'Unprotected for', value: '2 hours' });
+    expect(event.fields).toContainEqual({ label: 'Wanted stop', value: '11.5511' });
+  });
+
+  it('omits the wanted stop when the strategy could not price one', async () => {
+    // The strategy publishes `stop: null` when it could not derive a level at all, and a field reading "null" tells the operator nothing while implying a number exists.
+    const { deps, events } = build();
+    const notify = deps.notifyProtectiveStopUnplaced;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopUnplaced');
+
+    await notify(unplaced({ detail: { stop: null } }));
+
+    const event = events[0] as { fields: { label: string }[] };
+    expect(event.fields.map((f) => f.label)).not.toContain('Wanted stop');
+  });
+
+  it('names the trailing-stop refusal and the distance Binance would not take', async () => {
+    // The cause this alert exists for: a native-trail profile on a symbol whose trailingDelta filter has no step for the wanted distance never places anything, and no price move clears that. The distance is quoted in the percent the settings screen shows, not the fraction the strategy records.
+    const { deps, events } = build();
+    const notify = deps.notifyProtectiveStopUnplaced;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopUnplaced');
+
+    await notify(
+      unplaced({ detail: { stop: '11.5511', nativeUnavailable: true, distancePct: '0.037' } }),
+    );
+
+    const event = events[0] as { fields: { label: string; value: string }[] };
+    const why = event.fields.find((f) => f.label === 'Why');
+    expect(why?.value).toContain('3.7% below the high');
+    expect(why?.value).toContain('follows the price up');
+    expect(why?.value).toContain("Switch this profile's protective stop mode to priced");
+  });
+
+  it('drops the distance from the refusal rather than quote one it cannot read', async () => {
+    // `distancePct` is null whenever the strategy could not derive the distance at all, and the bag has crossed a JSON round-trip besides. The lever still has to be named, so the clause loses the number and keeps the advice.
+    const { deps, events } = build();
+    const notify = deps.notifyProtectiveStopUnplaced;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopUnplaced');
+
+    await notify(unplaced({ detail: { stop: '11.5511', nativeUnavailable: true } }));
+    await notify(
+      unplaced({ detail: { stop: '11.5511', nativeUnavailable: true, distancePct: 0.037 } }),
+    );
+    await notify(
+      unplaced({ detail: { stop: '11.5511', nativeUnavailable: true, distancePct: 'soon' } }),
+    );
+
+    for (const raw of events) {
+      const event = raw as { fields: { label: string; value: string }[] };
+      const why = event.fields.find((f) => f.label === 'Why');
+      expect(why?.value).toContain('at the distance your settings ask for');
+      expect(JSON.stringify(event)).not.toContain('undefined');
+      expect(JSON.stringify(event)).not.toContain('%');
+    }
+  });
+
+  it('still reports the exposure when the detail bag did not survive the round-trip', async () => {
+    // The duration is the whole signal and it comes off the input, not the bag, so a bag that arrived as null must cost the operator its optional fields and nothing else.
+    const { deps, events } = build();
+    const notify = deps.notifyProtectiveStopUnplaced;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopUnplaced');
+
+    await notify(unplaced({ detail: null }) as never);
+
+    const event = events[0] as { body: string; fields: { label: string }[] };
+    expect(event.body).toContain('no protective stop on Binance for 2 hours');
+    expect(event.fields).toEqual([{ label: 'Unprotected for', value: '2 hours' }]);
+  });
+
+  it('says nothing about trailing stops when that is not what blocked this one', async () => {
+    // The ordinary unplaced case has no named cause, and inventing one would send an operator to a setting that is not theirs: a priced-mode profile has no trail distance to change.
+    const { deps, events } = build();
+    const notify = deps.notifyProtectiveStopUnplaced;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopUnplaced');
+
+    await notify(unplaced());
+
+    const event = events[0] as { fields: { label: string; value: string }[] };
+    expect(event.fields.map((f) => f.label)).not.toContain('Why');
+    expect(event.fields).toEqual([
+      { label: 'Unprotected for', value: '2 hours' },
+      { label: 'Wanted stop', value: '11.5511' },
+    ]);
   });
 });

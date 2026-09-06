@@ -223,6 +223,21 @@ export interface TickHandlerDeps {
     readonly sinceMs: number | null;
   }) => Promise<void>;
   /**
+   * Tells the operator a held position has NO protective stop resting on the exchange, whatever the cause. The outcome to {@link notifyProtectiveStopBlocked}'s one named cause: that one fires when the exchange's price band refuses the stop, this one covers every other way a stop fails to reach Binance, including the ones no classifier sees.
+   *
+   * Only the duration separates this state from an entry that opened a second ago, so `sinceMs` is the whole signal and the tick declines to fire without it. Owns its own repeat suppression on a key separate from the band alert's, so the two cannot mute each other on exactly the coin where both matter; the tick fires it and does not wait.
+   */
+  readonly notifyProtectiveStopUnplaced?: (input: {
+    readonly operatorId: UserId;
+    readonly accountId: AccountId;
+    readonly profileId: ProfileId;
+    readonly symbol: string;
+    /** When the position was first seen unguarded, off the dated condition row. Never null: the tick withholds the alert rather than page without an age. */
+    readonly sinceMs: number;
+    /** The strategy's own `exitBlocker.detail`, or `{}` when the bag did not survive the round-trip. Every field it may carry is optional to the copy. */
+    readonly detail: Readonly<Record<string, unknown>>;
+  }) => Promise<void>;
+  /**
    * Reap a (profile, symbol) binding that can never trade again — Binance no
    * longer lists the symbol, or the account holds no permission for it — but
    * ONLY when it is safe to abandon: UNPINNED and flat.
