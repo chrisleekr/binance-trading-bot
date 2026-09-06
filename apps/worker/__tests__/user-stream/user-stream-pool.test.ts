@@ -18,6 +18,7 @@ const stubRest = (overrides: Partial<BinanceRestClient> = {}): BinanceRestClient
     getOpenOrders: vi.fn(async () => []),
     getAccount: vi.fn(async () => ({}) as never),
     placeOrder: vi.fn(async () => ({}) as never),
+    cancelReplaceOrder: vi.fn(async () => ({}) as never),
     cancelOrder: vi.fn(async () => ({}) as never),
     getOrder: vi.fn(async () => ({}) as never),
     getKlines: vi.fn(async () => []),

@@ -242,6 +242,16 @@ export class BacktestExecutor implements Executor {
         this.restingOrders = this.restingOrders.filter((o) => o.orderId !== decision.orderId);
         return { ok: true };
       }
+      case 'replace-order': {
+        const cancelled = this.restingOrders.find((o) => o.orderId === decision.cancelOrderId);
+        if (cancelled) this.unlock(cancelled.reservedAsset, cancelled.reservedAmount);
+        this.restingOrders = this.restingOrders.filter((o) => o.orderId !== decision.cancelOrderId);
+        return this.placeOrder(ctx, {
+          type: 'place-order',
+          intent: decision.intent,
+          params: decision.params,
+        });
+      }
       case 'emit-event':
         if (this.events.length >= EVENT_RING_CAP) this.events.shift();
         this.events.push({ eventType: decision.eventType, payload: decision.payload });

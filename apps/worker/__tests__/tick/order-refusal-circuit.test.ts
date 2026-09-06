@@ -74,6 +74,7 @@ describe('order-refusal request identity', () => {
       quantity: '0.010',
       price: '50000',
       stopPrice: '50100',
+      trailingDelta: null,
       timeInForce: 'GTC',
     });
   });
@@ -112,6 +113,36 @@ describe('order-refusal request identity', () => {
 
     expect(buildOrderRequestIdentity(changed)).toEqual(buildOrderRequestIdentity(PLACE));
     expect(orderRefusalGate(countThree(), changed, NOW)).toEqual({ defer: true, probe: false });
+  });
+
+  it('treats native trailing replacements with different deltas as different requests', () => {
+    const decision: Extract<Decision, { type: 'replace-order' }> = {
+      type: 'replace-order',
+      cancelOrderId: 42,
+      reason: 're-arm',
+      intent: {
+        symbol: 'BTCUSDT',
+        side: 'SELL',
+        reason: 'protective-stop',
+        clientOrderId: 'client-2',
+      },
+      params: { type: 'STOP_LOSS', quantity: '0.010', trailingDelta: 300 },
+    };
+    const state: OrderRefusalState = {
+      v: 1,
+      request: buildOrderRequestIdentity(decision),
+      rejection: { code: -1013, msg: 'Filter failure: TRAILING_DELTA' },
+      count: 3,
+      nextProbeAtMs: NOW + ORDER_REFUSAL_PROBE_MS,
+    };
+    const changed = {
+      ...decision,
+      params: { ...decision.params, trailingDelta: 350 },
+    } satisfies Extract<Decision, { type: 'replace-order' }>;
+
+    expect(state.request.trailingDelta).toBe(300);
+    expect(parseOrderRefusalState(JSON.stringify(state))).toEqual(state);
+    expect(orderRefusalGate(state, changed, NOW)).toEqual({ defer: false, probe: false });
   });
 });
 

@@ -3,6 +3,7 @@ import { Decimal } from '@app/money';
 import type { Clock, Decision, ExecutorContext } from '@app/strategy-core';
 import { BacktestExecutor } from '../src/executor.js';
 import { IdealFillModel } from '../src/ideal-fill.js';
+import { OhlcvFillModel } from '../src/ohlcv-fill.js';
 import { singleCandle, SYMBOL, SYMBOL_INFO } from './_fixtures.js';
 
 const clock: Clock = { nowMs: () => 1_000 };
@@ -24,6 +25,17 @@ const sell = (qty: string): Decision => ({
   type: 'place-order',
   intent: { symbol: SYMBOL, side: 'SELL', reason: 'manual', clientOrderId: 'c2' },
   params: { type: 'MARKET', quantity: qty },
+});
+
+const bar = (ts: number, low: string, high: string, open = low, close = high) => ({
+  openTimeMs: ts,
+  closeTimeMs: ts + 59_999,
+  open,
+  high,
+  low,
+  close,
+  volume: '1',
+  isClosed: true,
 });
 
 describe('BacktestExecutor', () => {
@@ -110,5 +122,59 @@ describe('BacktestExecutor', () => {
       params: { type: 'MARKET', quantity: '1' },
     });
     expect(res.ok).toBe(false);
+  });
+
+  it('releases a matching resting reservation before placing the successor', async () => {
+    const ex = new BacktestExecutor(
+      new OhlcvFillModel({ makerBps: 0, takerBps: 0, slippageBps: 0 }),
+      { USDT: '1000' },
+      [SYMBOL_INFO],
+    );
+    ex.setMarketContext(SYMBOL, new Decimal('100'), bar(0, '99', '101'));
+    await ex.apply(ctx, {
+      type: 'place-order',
+      intent: { symbol: SYMBOL, side: 'BUY', reason: 'old', clientOrderId: 'old' },
+      params: { type: 'LIMIT', price: '95', quantity: '1' },
+    });
+    expect(ex.snapshotAccount().balances['USDT']?.locked.toString()).toBe('95');
+
+    const replacement = await ex.apply(ctx, {
+      type: 'replace-order',
+      cancelOrderId: 1,
+      reason: 'reprice',
+      intent: { symbol: SYMBOL, side: 'BUY', reason: 'new', clientOrderId: 'new' },
+      params: { type: 'LIMIT', price: '90', quantity: '1' },
+    });
+
+    expect(replacement).toEqual({ ok: true });
+    expect(ex.openOrders()).toHaveLength(1);
+    expect(ex.openOrders()[0]).toMatchObject({ price: '90', clientOrderId: 'new' });
+    expect(ex.snapshotAccount().balances['USDT']?.free.toString()).toBe('910');
+    expect(ex.snapshotAccount().balances['USDT']?.locked.toString()).toBe('90');
+
+    ex.setMarketContext(SYMBOL, new Decimal('89'), bar(60_000, '89', '95'));
+    expect(ex.getTrades()).toHaveLength(1);
+    expect(ex.openOrders()).toEqual([]);
+  });
+
+  it('places the successor when the replacement cancel id is unknown', async () => {
+    const ex = new BacktestExecutor(
+      new OhlcvFillModel({ makerBps: 0, takerBps: 0, slippageBps: 0 }),
+      { USDT: '1000' },
+      [SYMBOL_INFO],
+    );
+    ex.setMarketContext(SYMBOL, new Decimal('100'), bar(0, '99', '101'));
+
+    const replacement = await ex.apply(ctx, {
+      type: 'replace-order',
+      cancelOrderId: 999,
+      reason: 'reprice',
+      intent: { symbol: SYMBOL, side: 'BUY', reason: 'new', clientOrderId: 'new' },
+      params: { type: 'LIMIT', price: '95', quantity: '1' },
+    });
+
+    expect(replacement).toEqual({ ok: true });
+    expect(ex.openOrders()).toHaveLength(1);
+    expect(ex.openOrders()[0]).toMatchObject({ price: '95', clientOrderId: 'new' });
   });
 });

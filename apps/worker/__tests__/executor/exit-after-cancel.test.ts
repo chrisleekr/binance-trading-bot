@@ -1,16 +1,25 @@
 // THE regression test for the funding pre-flight.
 //
-// A momentum exit is ONE batch of two decisions: [cancel our resting protective
-// stop, place the MARKET SELL that flattens the position]. Our own resting
-// STOP_LOSS_LIMIT LOCKS the base on Binance, so the cached wallet snapshot — which
-// is only refreshed asynchronously off the user stream — reports free = 0 for the
-// entire position while that stop rests. A funding pre-flight that judged the SELL
-// against that snapshot would call the EXIT unfundable and never send it: the
-// position would ride out the drop unsold, and the operator's force-sell override
-// would be settled as `rejected` rather than re-armed.
+// A batch that cancels one of our own resting orders and then places another
+// against the freed asset is a shape the executor must fund correctly, whichever
+// strategy emits it. A resting order LOCKS its asset on Binance, so the cached
+// wallet snapshot — only refreshed asynchronously off the user stream — reports
+// free = 0 for the locked amount for as long as that order rests. A funding
+// pre-flight that judged the second decision against that snapshot alone would
+// call it unfundable and never send it: an exit would ride out the drop unsold,
+// and the operator's force-sell override would be settled as `rejected` rather
+// than re-armed.
 //
 // The cancel that runs microseconds earlier in the same batch is what makes the
-// base free. The ledger carries that fact to the place.
+// asset free. The ledger carries that fact to the place.
+//
+// Both asset directions are covered because they credit different ledger fields:
+// a cancelled BUY frees quote, a cancelled SELL frees base. Trailing-trade and
+// momentum now retire their own protective stop inside the exit's single
+// `cancelReplace` rather than emitting the SELL pair separately, and the replace
+// path has no funding pre-flight at all — so the SELL case here pins the
+// executor's contract for any batch that does arrive in that shape, not a batch
+// those two strategies emit today.
 
 import { describe, expect, it, vi } from 'vitest';
 import { pino } from 'pino';

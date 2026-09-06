@@ -21,18 +21,24 @@ import type { NotifyProviderRegistry } from '@app/notify';
 import type { StrategyRegistry } from '@app/strategy-registry';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 
-const { placeOrderSpy, cancelOrderSpy, setKvSpy, emitEventSpy } = vi.hoisted(() => ({
-  placeOrderSpy: vi.fn(),
-  cancelOrderSpy: vi.fn(),
-  setKvSpy: vi.fn(),
-  emitEventSpy: vi.fn(),
-}));
+const { placeOrderSpy, cancelOrderSpy, replaceOrderSpy, setKvSpy, emitEventSpy } = vi.hoisted(
+  () => ({
+    placeOrderSpy: vi.fn(),
+    cancelOrderSpy: vi.fn(),
+    replaceOrderSpy: vi.fn(),
+    setKvSpy: vi.fn(),
+    emitEventSpy: vi.fn(),
+  }),
+);
 
 vi.mock('../../src/executor/decisions/place-order.js', () => ({
   placeOrderHandler: placeOrderSpy,
 }));
 vi.mock('../../src/executor/decisions/cancel-order.js', () => ({
   cancelOrderHandler: cancelOrderSpy,
+}));
+vi.mock('../../src/executor/decisions/replace-order.js', () => ({
+  replaceOrderHandler: replaceOrderSpy,
 }));
 vi.mock('../../src/executor/decisions/set-kv.js', () => ({
   setKvHandler: setKvSpy,
@@ -71,6 +77,21 @@ const PLACE_2: Decision = {
   intent: { symbol: 'BTCUSDT', side: 'BUY', reason: 'grid-buy', clientOrderId: 'coid-2' },
   params: { type: 'LIMIT', price: '99', quantity: '1' },
 };
+const REPLACE: Decision = {
+  type: 'replace-order',
+  cancelOrderId: 42,
+  reason: 'replace-stop',
+  intent: { symbol: 'BTCUSDT', side: 'SELL', reason: 'stop-loss', clientOrderId: 'coid-3' },
+  params: { type: 'STOP_LOSS_LIMIT', stopPrice: '101', price: '100', quantity: '1' },
+} as unknown as Decision;
+// The fused position-closing SELL: a replacement whose successor is a terminal MARKET, not another resting stop. Distinct from REPLACE above, which is a protective-stop re-price.
+const FUSED_CLOSE: Decision = {
+  type: 'replace-order',
+  cancelOrderId: 42,
+  reason: 'tt-protective-stop-superseded',
+  intent: { symbol: 'BTCUSDT', side: 'SELL', reason: 'grid-stop-loss', clientOrderId: 'coid-4' },
+  params: { type: 'MARKET', quantity: '1' },
+} as unknown as Decision;
 const SET_KV: Decision = { type: 'set-kv', key: 'tt:regime', value: 1 };
 
 const buildExecutor = () =>
@@ -89,6 +110,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   placeOrderSpy.mockResolvedValue(OK);
   cancelOrderSpy.mockResolvedValue(OK);
+  replaceOrderSpy.mockResolvedValue(OK);
   setKvSpy.mockResolvedValue(OK);
   emitEventSpy.mockResolvedValue(OK);
 });
@@ -154,6 +176,30 @@ describe('LiveExecutor.applyAll — chain short-circuit', () => {
     expect(cancelOrderSpy).not.toHaveBeenCalled();
     expect(setKvSpy).not.toHaveBeenCalled();
   });
+
+  it('a failed replace-order short-circuits the chain', async () => {
+    replaceOrderSpy.mockResolvedValue({
+      ok: false,
+      retryable: false,
+      phase: 'rejected',
+      reason: 'some-reason',
+    } satisfies DecisionResult);
+
+    const applied = await buildExecutor().applyAll(CTX, ACCOUNT, [REPLACE, CANCEL, SET_KV]);
+
+    expect(applied).toHaveLength(3);
+    expect(applied[1]?.decision).toEqual(CANCEL);
+    expect(applied[2]?.decision).toEqual(SET_KV);
+
+    for (const idx of [1, 2]) {
+      const result = applied[idx]?.result;
+      expect(result).toMatchObject({ ok: false, retryable: true, phase: 'pre-call' });
+      expect(result?.ok === false && result.reason).toMatch(/skipped/i);
+    }
+
+    expect(cancelOrderSpy).not.toHaveBeenCalled();
+    expect(setKvSpy).not.toHaveBeenCalled();
+  });
 });
 
 describe('LiveExecutor.applyAll — repeated-refusal circuit', () => {
@@ -192,6 +238,24 @@ describe('LiveExecutor.applyAll — repeated-refusal circuit', () => {
 
     expect(placeOrderSpy).not.toHaveBeenCalled();
   });
+
+  // Guard: replace-order must be part of the deferred order suffix with its paired order action.
+  it('defers a replace-order as part of the order suffix', async () => {
+    const applied = await buildExecutor().applyAll(
+      CTX,
+      ACCOUNT,
+      [EMIT, REPLACE],
+      undefined,
+      undefined,
+      { deferRepeatedRefusal: true },
+    );
+
+    expect(emitEventSpy).toHaveBeenCalledOnce();
+    expect(replaceOrderSpy).not.toHaveBeenCalled();
+    expect(applied).toHaveLength(2);
+    expect(applied[1]?.decision).toEqual(REPLACE);
+    expect(applied[1]?.result).toMatchObject({ ok: false, retryable: true, deferred: true });
+  });
 });
 
 describe('LiveExecutor.applyAll — multi-placement fail-closed', () => {
@@ -210,6 +274,27 @@ describe('LiveExecutor.applyAll — multi-placement fail-closed', () => {
     // The money assertion: nothing must reach the exchange when the contract is
     // violated. Falling through would place at least the first order.
     expect(placeOrderSpy).not.toHaveBeenCalled();
+  });
+
+  // Guard: the one-placement cap must count replace-order as an order-bearing placement.
+  it('rejects a place-order plus replace-order tick before transmitting either order', async () => {
+    await expect(buildExecutor().applyAll(CTX, ACCOUNT, [PLACE, REPLACE])).rejects.toThrow(
+      /more than one|multi.?placement|place-order/i,
+    );
+
+    expect(placeOrderSpy).not.toHaveBeenCalled();
+    expect(replaceOrderSpy).not.toHaveBeenCalled();
+  });
+
+  // The whole order output of a closing tick, end to end: one `replace-order` and a non-order decision run, the replace handler is called once with that decision, and both are reported. `applyAll` reads only a decision's `type`, `intent.deferrable` and `intent.symbol`, so this cannot distinguish a close from a re-price — it is a positive-path pin on the legal single-placement shape, not a guard on the close specifically.
+  it('applies a lone replacement plus a non-order decision, reporting both', async () => {
+    const applied = await buildExecutor().applyAll(CTX, ACCOUNT, [FUSED_CLOSE, SET_KV]);
+
+    expect(applied).toHaveLength(2);
+    expect(replaceOrderSpy).toHaveBeenCalledTimes(1);
+    expect(replaceOrderSpy).toHaveBeenCalledWith(expect.anything(), CTX, FUSED_CLOSE);
+    expect(placeOrderSpy).not.toHaveBeenCalled();
+    expect(applied.every((a) => a.result.ok === true)).toBe(true);
   });
 
   it('applies a single place-order interleaved with a cancel and set-kv', async () => {

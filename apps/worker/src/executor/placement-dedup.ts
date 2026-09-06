@@ -28,7 +28,7 @@
 // process an old clientOrderId can read as "seen" past its own 60s window when other
 // levels keep re-stamping the key. That is the SAFE direction (over-suppress = no
 // double-fill, never an extra one), and `forgetSymbol` DELs the key on every bot
-// SELL, so a legitimate re-entry is not held back by it.
+// SELL that closes or defends, so a legitimate re-entry is not held back by it.
 //
 // Every Redis touch is deadline-bounded and FAIL-OPEN on the read (`seenRecently`
 // returns false when SISMEMBER stalls or rejects, so a Redis fault can never halt
@@ -42,16 +42,28 @@
 // after a close reuses the exact same id. A profitable exit carries no re-entry
 // cooldown, so that re-entry can land inside the window. Time alone therefore
 // cannot tell a duplicate re-emit from a genuine re-entry. The discriminator is
-// the exit: the executor calls `forgetSymbol` on EVERY bot SELL it places — a
-// full exit, a partial grid/rebalance sell, OR a protective-stop arm — dropping
-// that symbol's entry records (Map group + Redis SET), so a re-entry after any of
-// those is never suppressed. Clearing on a stop-arm or partial (not only a full
-// close) disarms the backstop earlier, but that is safe: the degraded-commit tick
+// the exit: `forgetSymbol` is called on EVERY bot SELL that closes or defends the
+// position — from `place-order` on a full exit, a partial grid/rebalance sell, or a
+// protective-stop arm, and from `replace-order` on any SELL successor that is not
+// itself a re-armed stop (`STOP_LOSS_LIMIT` or `STOP_LOSS`), which is a close fused
+// with the retraction of its own stop. That successor is a MARKET for a strategy exit
+// and a LIMIT for an operator's manual close that named a price, so the rule keys on
+// what a RE-PRICE is rather than on MARKET. Each drops that symbol's entry records
+// (Map group + Redis SET), so a re-entry after any of them is never suppressed. The first arm of a protective stop being a bare
+// `place-order` is NOT enough on its own: a grid promotion or a bull-pyramid add is a
+// MARKET BUY with a stable per-level clientOrderId, recorded AFTER that arm while the
+// stop rests, so a close that cleared nothing would suppress a re-entry at that same
+// level for the rest of the window. A re-price is deliberately excluded — it closes
+// nothing, and clearing on one would drop exactly the add-on BUY records this guard
+// exists to hold. Clearing on a stop-arm or partial (not only a full close) disarms
+// the backstop earlier, but that is safe:
+// the degraded-commit tick
 // that would re-emit an entry believes it holds NO position, so it emits no SELL
 // that same tick — forget and entry-re-emit are effectively mutually exclusive for
-// one position. (Residual tail: a re-entry within the window after an OUT-OF-BAND
-// close — operator manually selling on Binance, no bot SELL — is not cleared; the
-// window bounds it, and the state-layer fix is the primary guard.)
+// one position. (Residual tail: a re-entry within the window after a close no bot
+// SELL made — the operator selling by hand on Binance, or the exchange-side stop
+// triggering on its own — is not cleared; the window bounds it, and the state-layer
+// fix is the primary guard.)
 //
 // SELL SIDE is intentionally NOT deduped here: a SELL always forgets and places,
 // its own re-emit is never `seenRecently`-checked. The state-layer read-your-
@@ -107,8 +119,9 @@ export interface PlacementDedup {
    */
   readonly record: (clientOrderId: string, symbolKey: string, nowMs: number) => Promise<void>;
   /**
-   * Drop every record for a symbol group — called when a SELL (an exit) is placed
-   * for that symbol, so a legitimate re-entry after the close is not suppressed.
+   * Drop every record for a symbol group — called when a bot SELL that closes or
+   * defends the position goes out for that symbol, so a legitimate re-entry after it
+   * is not suppressed.
    * Clears both the Map group and the durable Redis SET. Never throws.
    */
   readonly forgetSymbol: (symbolKey: string, nowMs: number) => Promise<void>;

@@ -653,6 +653,33 @@ describe('placeOrderHandler', () => {
     expect(delKeys.some((k) => /open-orders/.test(k))).toBe(false);
   });
 
+  // ONE terminal vocabulary across every writer of the open-orders cache. `EXPIRED_IN_MATCH` is what Binance stamps when self-trade prevention kills an order, which on a shared account wallet is what a sibling profile's order crossing this one produces. The placement never rested, so caching it hands the next tick a phantom resting order that no execution report will ever arrive to evict — and the strategy reads exactly this list to find the protective stop it fuses its exit against.
+  it('REMOVEs a placement answered EXPIRED_IN_MATCH from the open-orders cache instead of caching it as resting', async () => {
+    const binance = fakeBinance({
+      placeOrder: vi.fn(async () => ({
+        orderId: 99,
+        clientOrderId: 'client-1',
+        status: 'EXPIRED_IN_MATCH',
+      })),
+    } as unknown as Partial<BinanceRestClient>);
+    const bindings = buildBindings({ binance });
+    const redis = fakeRedis();
+    const deps = { ...buildDeps(bindings, redis), accountId: ACCOUNT };
+
+    expect(await placeOrderHandler(deps, CTX, PLACE)).toEqual({ ok: true });
+
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      expect.stringMatching(/open-orders:BTCUSDT$/),
+      'remove',
+      '99',
+      expect.anything(),
+    );
+    const ops = (redis.eval as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[3]));
+    expect(ops).not.toContain('upsert');
+  });
+
   it('sends a native trailing stop as a STOP_LOSS with a delta and no prices, and caches it that way', async () => {
     const binance = fakeBinance({
       placeOrder: vi.fn(async () => ({ orderId: 77, clientOrderId: 'client-1', status: 'NEW' })),

@@ -306,6 +306,30 @@ describe('cancelOrderHandler', () => {
     });
   });
 
+  // ONE terminal vocabulary across every reader of this code. `EXPIRED_IN_MATCH` is what self-trade prevention returns when a sibling profile's order on the shared account wallet crosses this one; the order is off the book, so its row must close on the probed status rather than be stamped with the CANCELED fallback.
+  it('-2011 probe: an EXPIRED_IN_MATCH order closes on the probed status', async () => {
+    const closeOrder = vi.fn(async () => undefined);
+    const dto = orderDto({
+      status: 'EXPIRED_IN_MATCH',
+      executedQty: '0',
+      updateTime: 1_700_000_000_777,
+    });
+    const bindings = buildBindings({
+      binance: fakeBinance(
+        reject2011(),
+        vi.fn(async () => dto),
+      ),
+      persistence: { closeOrder },
+    });
+    const { redis, published } = recordingRedis();
+
+    const result = await cancelOrderHandler(buildDeps(bindings, redis), CTX, CANCEL);
+
+    expect(result).toEqual({ ok: true });
+    expect(closeOrder).toHaveBeenCalledWith(42, 'EXPIRED_IN_MATCH', 1_700_000_000_777, dto);
+    expect(published.some((b) => b.includes('"status":"EXPIRED_IN_MATCH"'))).toBe(true);
+  });
+
   it('-2011 probe: a FILLED order that executed NOTHING adopts nothing', async () => {
     // A zero executedQty moved no base quantity, so there is no fill to adopt and
     // no position to repair. Enqueueing anyway would burn a Binance round-trip per

@@ -161,6 +161,7 @@ describe('buildTickHandler — the order-refusal-loop notifier', () => {
       quantity: '2.5',
       price: '10',
       stopPrice: null,
+      trailingDelta: null,
       timeInForce: 'GTC' as const,
     },
     rejection: { code: -2010, msg: 'Account has insufficient balance.' },

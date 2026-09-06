@@ -4,6 +4,7 @@
 //   - GET  /api/v3/openOrders          (resync open orders)
 //   - GET  /api/v3/account             (account-snapshot-safety cron)
 //   - POST /api/v3/order               (place order)
+//   - POST /api/v3/order/cancelReplace (atomic cancel and successor order)
 //   - DELETE /api/v3/order             (cancel order)
 //   - GET  /api/v3/klines              (cold-start indicator candles)
 //   - POST /sapi/v1/asset/dust-btc     (list dust-convertible balances)
@@ -109,6 +110,8 @@ export interface BinanceRestClient {
   getAccount(): Promise<AccountDto>;
   /** Submits a new order. The `clientOrderId` discipline lives at the call site so the executor can guarantee idempotency across retries. */
   placeOrder(params: PlaceOrderParams): Promise<PlaceOrderDto>;
+  /** Atomically cancels a resting order and submits its successor with `STOP_ON_FAILURE`, avoiding a naked window between separate requests. */
+  cancelReplaceOrder(params: CancelReplaceParams): Promise<CancelReplaceDto>;
   /** Cancels by Binance's numeric `orderId`; the executor maps from `clientOrderId` before calling so cancel is unambiguous after a restart. */
   cancelOrder(params: { symbol: string; orderId: number }): Promise<CancelOrderDto>;
   /** Queries one order's authoritative terminal state by numeric `orderId`. Used when a cancel races a fill (`-2011`) so the local row records the true status (FILLED vs CANCELED) and executed quantity, not a guess. */
@@ -180,10 +183,9 @@ export interface BinanceRestClient {
    */
   getCommissionRates(symbol: string): Promise<CommissionRatesDto>;
   /**
-   * Fetches the current order-book depth for a symbol — the resting bid and
-   * ask levels. Unsigned public endpoint; the symbol-detail order-book panel
-   * renders it. `limit` caps the level count per side (Binance accepts the
-   * fixed set 5/10/20/50/100/500/1000/5000).
+   * Fetches the current order-book depth for a symbol, the resting bid and ask levels. Unsigned public endpoint; the symbol-detail order-book panel renders it.
+   *
+   * `limit` is the level count per side, and any integer is honoured rather than a fixed set of allowed values: Binance documents `Default: 100; Maximum: 5000` and clips a larger request to 5000 entries. It is also what prices the call, because the weight is banded by it, so asking for more levels is never free. See {@link depthWeight}.
    */
   getDepth(symbol: string, limit: number): Promise<OrderBookDto>;
   /**
@@ -299,6 +301,22 @@ export interface PlaceOrderDto {
   // but the type stays honest and callers must default it (see place-order.ts).
   readonly status?: string;
   readonly fills?: readonly { price: string; qty: string }[];
+}
+
+/** Inputs for replacing a resting order atomically, so the executor can avoid a naked interval between cancelling the old order and submitting its successor. */
+export interface CancelReplaceParams extends PlaceOrderParams {
+  readonly cancelOrderId: number;
+}
+
+/** Outcome reported for one leg of an atomic cancel-replace request, including a leg that Binance did not attempt after an earlier failure. */
+export type CancelReplaceLegResult = 'SUCCESS' | 'FAILURE' | 'NOT_ATTEMPTED';
+
+/** Combined cancel and successor-order response, preserving both leg outcomes so callers can reconcile a partial failure without guessing. */
+export interface CancelReplaceDto {
+  readonly cancelResult: CancelReplaceLegResult;
+  readonly newOrderResult: CancelReplaceLegResult;
+  readonly cancelResponse: CancelOrderDto | { readonly code: number; readonly msg: string } | null;
+  readonly newOrderResponse: PlaceOrderDto | { readonly code: number; readonly msg: string } | null;
 }
 
 /**
@@ -542,6 +560,27 @@ export interface DustConvertDto {
   readonly transferResult: readonly DustConvertResultDto[];
 }
 
+/** The nested slot the `cancelReplace` error path reads back out of Binance's composite failure body. Declared as its own shape rather than inlined so the optional walk is checked rather than cast at the read site. The leg is `unknown` beyond the two discriminating fields because the two codes put opposite things there: `-2022` puts an error shape, `-2021` puts the cancelled order itself. */
+interface CancelReplaceErrorBody {
+  readonly data?: {
+    readonly cancelResponse?: { readonly code?: unknown; readonly status?: unknown };
+  };
+}
+
+/**
+ * Binance's cancel-leg body from a failed `cancelReplace`, kept whole when it carries a string `status`.
+ *
+ * A `-2021` means the CANCEL SUCCEEDED and only the successor failed, so this body is the exchange's authoritative record of the order that was just retired: its terminal status, its exchange clock, and how much of it had executed. Discarding it forces the caller to stamp its local row from the worker clock as a plain `CANCELED`, which mis-records a stop that had partially filled — nothing repairs that later, because a partially-filled-then-cancelled order emits no `FILLED` execution report.
+ *
+ * Typed as the two fields the executor decides on plus the rest of the body verbatim, because the whole body is what gets stored as the local row's `raw`.
+ */
+export interface CancelReplaceCancelLeg {
+  readonly status: string;
+  /** Exchange clock for the retirement. Optional because it is Binance's field, not ours, and a body without it must still be usable. */
+  readonly transactTime?: number;
+  readonly [key: string]: unknown;
+}
+
 /**
  * Normalised error payload. We unify HTTP status and Binance error code into
  * one shape so the retry classifier can decide on either axis without the
@@ -551,6 +590,10 @@ export interface BinanceErrorPayload {
   readonly status: number;
   readonly code: number;
   readonly msg: string;
+  /** The cancel leg's own Binance code, present only for a failed `cancelReplace`. See {@link BinanceApiError.cancelLegCode}. */
+  readonly cancelLegCode?: number;
+  /** The cancel leg's own response body, present only for a failed `cancelReplace` whose leg carries a string `status`. See {@link BinanceApiError.cancelLeg}. */
+  readonly cancelLeg?: CancelReplaceCancelLeg;
 }
 
 /**
@@ -591,6 +634,23 @@ export class BinanceApiError extends Error {
    */
   readonly msg: string;
   /**
+   * The cancel leg's OWN Binance code, read out of a failed `cancelReplace`
+   * body's `data.cancelResponse.code` and `undefined` for every other call.
+   *
+   * The outer `-2022` says only "the cancel leg failed", which collapses two
+   * opposite states: the resting order is still on the book (a genuine refusal),
+   * or it was already gone (`-2011`) and there is nothing left to cancel. The
+   * caller's correct recovery differs completely between them, and nothing
+   * downstream can recover the distinction once the composite body is discarded.
+   */
+  readonly cancelLegCode: number | undefined;
+  /**
+   * The cancel leg's own response BODY, and `undefined` for every other call.
+   *
+   * Kept alongside {@link cancelLegCode} because the code alone answers only which state we are in, not what the exchange recorded. On a `-2021` the cancel succeeded, so this body is the retired order's authoritative status, clock and executed quantity — the caller closes its local row from it instead of stamping a worker-clocked `CANCELED` over a stop that had partially filled.
+   */
+  readonly cancelLeg: CancelReplaceCancelLeg | undefined;
+  /**
    * `payload` is reified so log redaction can treat the error as a plain
    * shape; `retryable` and `phase` are precomputed at throw-time so the catch
    * site does not depend on the classifiers being importable.
@@ -603,6 +663,8 @@ export class BinanceApiError extends Error {
     this.msg = payload.msg;
     this.retryable = retryable;
     this.phase = phase;
+    this.cancelLegCode = payload.cancelLegCode;
+    this.cancelLeg = payload.cancelLeg;
   }
 }
 
@@ -669,10 +731,7 @@ export interface CreateBinanceRestOptions {
 }
 
 /**
- * Per-endpoint weight costs sourced from Binance spot API docs. `klines` is a
- * flat weight 2 regardless of `limit` (the limit-tiered weighting in the docs
- * is for `GET /api/v3/depth`, not klines). `getRecentTrades` keeps
- * `limit <= 1000` for weight 25.
+ * Weight to reserve for each call SHAPE, sourced from Binance spot API docs except the two SAPI entries below. The shape rather than the endpoint is the unit because one endpoint can cost differently depending on what the request asks for, so each form gets its own named constant: `openOrders` vs `openOrdersAll` and `ticker24hr` vs `tickerAll`. Only `getOpenOrders` chooses between a pair at the call site; the two ticker forms are reached through separate methods that each hardcode one. `tickerPrice` is 4, the batch band, because `getPriceTickers` only ever sends the `symbols=[...]` form, which leaves the cheaper singular-`symbol` band unreachable from this client. A cost banded over a CONTINUOUS parameter cannot be a constant at all and gets a pricing function instead: `GET /api/v3/depth` is priced by {@link depthWeight}. `klines` and `recentTrades` take a `limit` and still sit here because Binance charges them flat, 2 and 25, at any limit. `dustBtc` and `dustConvert` are SAPI endpoints, rate-limited per UID rather than weighted at all, so their 1 is a placeholder that keeps the call admitted through the governor, not a documented cost.
  */
 const WEIGHT = {
   klines: 2,
@@ -687,7 +746,6 @@ const WEIGHT = {
   myTrades: 20,
   // `/api/v3/account/commission` (Query Commission Rates). Binance weights this at 20 — heavy for a read, and the fee path can reach it once per symbol on a reconcile pass.
   accountCommission: 20,
-  depth: 5,
   openOrders: 6,
   // `/api/v3/openOrders` with NO symbol returns every open order on the account
   // in one call; Binance weights that account-wide form at 80 (vs 6 for a single
@@ -695,6 +753,7 @@ const WEIGHT = {
   // would under-reserve the governor ~13x.
   openOrdersAll: 80,
   placeOrder: 1,
+  cancelReplace: 1,
   cancelOrder: 1,
   // GET /api/v3/order (query a single order). Binance weights this at 4.
   getOrder: 4,
@@ -704,6 +763,26 @@ const WEIGHT = {
   dustBtc: 1,
   dustConvert: 1,
 } as const;
+
+/** Heaviest band Binance charges for `GET /api/v3/depth`, and therefore the only reservation that can never under-charge. */
+const DEPTH_MAX_WEIGHT = 250;
+
+/** Binance's documented `GET /api/v3/depth` weight bands, keyed by the largest `limit` each one covers. Ordered ascending so the first match is the cheapest band that still holds the request. */
+const DEPTH_WEIGHT_TIERS = [
+  { maxLimit: 100, weight: 5 },
+  { maxLimit: 500, weight: 25 },
+  { maxLimit: 1_000, weight: 50 },
+  { maxLimit: 5_000, weight: DEPTH_MAX_WEIGHT },
+] as const;
+
+/**
+ * Prices one order-book read from the `limit` it will actually send. The weight governor is consume-and-decay with no release path, so an under-reservation overdraws the shared per-IP budget with nothing able to correct it — a `limit` of 1000 charged at the 1-100 band's 5 would overdraw it tenfold. Deriving the cost here rather than reading a constant means a future caller cannot re-arm that by simply passing a bigger `limit`.
+ *
+ * @param limit Order-book levels per side the caller is asking for. Binance documents 5000 as the maximum but still answers above it with the response clipped to 5000 levels, and a limit it cannot classify (a non-finite value) matches no band; both fall through to the heaviest band, because over-reserving only defers our own next call while under-reserving spends budget every other account on this IP is sharing.
+ * @returns The `REQUEST_WEIGHT` units to reserve before issuing the call.
+ */
+const depthWeight = (limit: number): number =>
+  DEPTH_WEIGHT_TIERS.find((tier) => limit <= tier.maxLimit)?.weight ?? DEPTH_MAX_WEIGHT;
 
 /**
  * Binance forwards a signed request to the matching engine for as long as
@@ -967,6 +1046,14 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
             codeRead = true;
           }
           if (typeof j.msg === 'string') payload = { ...payload, msg: j.msg };
+          // The one composite slot worth keeping. `cancelReplace` nests each leg's own outcome under `data`, and the cancel leg is the difference between a resting order that is still on the book and one that is not — states whose recoveries are opposite. Read only that slot, and only for the endpoint that produces it, so no other call site inherits a field it cannot interpret. Its two shapes are read separately because they mean opposite things: a numeric `code` is the leg's own REFUSAL, while a string `status` is the retired ORDER, which only a `-2021` (cancel succeeded, successor failed) can produce.
+          if (path === '/api/v3/order/cancelReplace') {
+            const leg = (j as CancelReplaceErrorBody).data?.cancelResponse;
+            if (typeof leg?.code === 'number') payload = { ...payload, cancelLegCode: leg.code };
+            if (typeof leg?.status === 'string') {
+              payload = { ...payload, cancelLeg: leg as unknown as CancelReplaceCancelLeg };
+            }
+          }
         } catch {
           // body wasn't JSON; ignore
         }
@@ -1101,6 +1188,35 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
         true, // charges ORDERS: a placement adds one to the unfilled order count
       );
     },
+    /** Atomically cancels the identified resting order and submits its successor with the request body's hard-coded `cancelReplaceMode: 'STOP_ON_FAILURE'`. Under that mode, a failed cancel means Binance never attempts the new-order leg, reports it as `NOT_ATTEMPTED`, and the non-success response rejects this call. The `CancelReplaceDto` is returned only for the HTTP 200 SUCCESS/SUCCESS body, where both legs succeeded. A failed cancel leaves the new order `NOT_ATTEMPTED` and returns HTTP 400 with Binance error code `-2022`; a successful cancel with a failed new order returns HTTP 409 with Binance error code `-2021`. Both failure cases surface as a thrown `BinanceApiError` carrying that code, because `call()` throws on every non-2xx response. From the composite body it keeps `code`, `msg`, and exactly one nested slot: the cancel leg, read two ways. Its own code is exposed as `BinanceApiError.cancelLegCode`, because an outer `-2022` alone cannot tell a genuine refusal from a `-2011` leg; and when that leg carries a string `status` it is the retired ORDER rather than an error, so the whole body is exposed as `BinanceApiError.cancelLeg` — under `-2021` the cancel succeeded, and that body is the only record of what the retired order's terminal status, exchange clock and executed quantity were. Everything else in the composite — `cancelResult`, `newOrderResult`, the new-order response body — is discarded; the `FAILURE` and `NOT_ATTEMPTED` members of `CancelReplaceLegResult` describe Binance's documented response-body shape, not a value this client ever resolves a caller with. The request reserves weight 1 and charges the account's ORDERS unfilled-order budget once per call, matching the placement path because the successor is one new order.
+     *
+     * @param params - The old order identifier and the successor order details to submit.
+     * @returns Binance's combined result for the cancel and successor-order legs.
+     */
+    async cancelReplaceOrder(params) {
+      return call<CancelReplaceDto>(
+        'POST',
+        '/api/v3/order/cancelReplace',
+        {
+          symbol: params.symbol,
+          side: params.side,
+          type: params.type,
+          price: params.price,
+          stopPrice: params.stopPrice,
+          trailingDelta: params.trailingDelta,
+          quantity: params.quantity,
+          timeInForce: params.timeInForce,
+          newClientOrderId: params.newClientOrderId,
+          cancelReplaceMode: 'STOP_ON_FAILURE',
+          cancelOrderId: params.cancelOrderId,
+          newOrderRespType: 'FULL',
+        },
+        true,
+        WEIGHT.cancelReplace,
+        true, // Same as placeOrder: an order must not stall behind a bulk read.
+        true, // Same as placeOrder: the new leg adds one to the unfilled order count.
+      );
+    },
     async cancelOrder(params) {
       return call<CancelOrderDto>(
         'DELETE',
@@ -1108,7 +1224,10 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
         { symbol: params.symbol, orderId: params.orderId },
         true,
         WEIGHT.cancelOrder,
-        true, // priority: cancel-before-sell is on the urgent protective path
+        // priority: a cancel frees an asset the order had locked and has no successor
+        // waiting on it, so queueing it behind placements delays every order that
+        // needed what it releases while buying nothing.
+        true,
         // No ORDERS charge: cancelling does not change the unfilled order count.
       );
     },
@@ -1190,7 +1309,13 @@ export const createBinanceRest = (opts: CreateBinanceRestOptions): BinanceRestCl
       );
     },
     async getDepth(symbol, limit) {
-      return call<OrderBookDto>('GET', '/api/v3/depth', { symbol, limit }, false, WEIGHT.depth);
+      return call<OrderBookDto>(
+        'GET',
+        '/api/v3/depth',
+        { symbol, limit },
+        false,
+        depthWeight(limit),
+      );
     },
     async getDustBtc() {
       return call<DustBtcDto>('POST', '/sapi/v1/asset/dust-btc', {}, true, WEIGHT.dustBtc);

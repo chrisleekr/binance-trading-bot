@@ -19,7 +19,7 @@
 import type { ActionLogInsert } from '@app/db';
 import type { AuditEntry } from './audit-shipper.js';
 
-const ORDER_ACTIONS = new Set(['place-order', 'cancel-order']);
+const ORDER_ACTIONS = new Set(['place-order', 'cancel-order', 'replace-order']);
 
 /** Whether the audit payload's technicals block recorded a force-sell (not just a buy-gate veto). */
 const hasForceSell = (e: AuditEntry): boolean => {
@@ -94,8 +94,11 @@ interface OrderTally {
 }
 
 const tallyOrders = (results: readonly OrderResult[]): OrderTally => ({
-  placed: results.filter((r) => r.type === 'place-order' && r.ok).length,
-  cancelled: results.filter((r) => r.type === 'cancel-order' && r.ok).length,
+  placed: results.filter((r) => (r.type === 'place-order' || r.type === 'replace-order') && r.ok)
+    .length,
+  cancelled: results.filter(
+    (r) => (r.type === 'cancel-order' || r.type === 'replace-order') && r.ok,
+  ).length,
   failed: results.filter((r) => ORDER_ACTIONS.has(r.type) && !r.ok).length,
 });
 

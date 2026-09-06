@@ -57,6 +57,30 @@ describe('createBinanceRest × WeightGovernor', () => {
     expect(spy.mock.calls[0]?.[0]).toBe(cost);
   });
 
+  // `/api/v3/depth` is the one weighted endpoint whose cost is a function of the request, so a single number cannot describe it. Both sides of every tier boundary are exercised because the whole risk is an off-by-one in the lookup: a `<` where a `<=` belongs still gets 100 and 1000 right and silently under-reserves at the edge. The governor is consume-and-decay with no release path, so an under-reservation overdraws the shared per-IP budget with nothing to correct it.
+  it.each([
+    [1, 5],
+    [100, 5],
+    [101, 25],
+    [500, 25],
+    [501, 50],
+    [1_000, 50],
+    [1_001, 250],
+    [5_000, 250],
+    // Above the documented ceiling Binance still answers, clipped to 5000 levels, so the reservation stays at the heaviest tier rather than falling through to a cheaper one.
+    [5_001, 250],
+    // A non-finite limit classifies into no band at all, because `NaN <= n` and `Infinity <= n` are false for every tier, so nothing but the lookup's fallback stands between an unclassifiable request and a cheap reservation. Over-reserving only defers our own next call; under-reserving overdraws a shared per-IP budget that this governor has no way to give back.
+    [Number.NaN, 250],
+    [Number.POSITIVE_INFINITY, 250],
+  ] as const)('getDepth(limit=%s) reserves weight %s', async (limit, cost) => {
+    const governor = createWeightGovernor({ budget: 100_000, targetUtilisation: 1 });
+    const spy = vi.spyOn(governor, 'reserve');
+    const client = buildClient(governor);
+    await client.getDepth('BTCUSDT', limit);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0]?.[0]).toBe(cost);
+  });
+
   it('placeOrder reserves weight 1', async () => {
     const governor = createWeightGovernor({ budget: 1200, targetUtilisation: 1 });
     const spy = vi.spyOn(governor, 'reserve');

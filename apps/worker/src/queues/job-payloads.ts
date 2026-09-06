@@ -24,7 +24,8 @@ export interface TickJobData {
  * pass whatever caused it — so an operator reading a reconcile in the logs can
  * tell "a cancel raced a fill" apart from "the stream went quiet".
  */
-export type SymbolReconcileCause = 'cancel-2011-fill' | 'place-2010-insufficient' | 'stream-silent';
+export type SymbolReconcileCause =
+  'cancel-2011-fill' | 'place-2010-insufficient' | 'stream-silent' | 'replace-order-failed';
 
 /**
  * One converge-to-exchange-truth pass for a single (profile, symbol).
@@ -45,6 +46,7 @@ const RECONCILE_CAUSES: ReadonlySet<string> = new Set<SymbolReconcileCause>([
   'cancel-2011-fill',
   'place-2010-insufficient',
   'stream-silent',
+  'replace-order-failed',
 ]);
 
 /** Structural guard for a `reconcile-symbol` payload; `null` on anything malformed. */

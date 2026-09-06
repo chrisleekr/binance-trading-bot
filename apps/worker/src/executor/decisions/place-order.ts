@@ -4,11 +4,14 @@ import type {
   DecisionResult,
   ExecutorContext,
   OpenOrder,
+  OrderIntent,
+  OrderParams,
 } from '@app/strategy-core';
 import {
   asProfileId,
   asUserId,
   isSymbolPermittedForAccount,
+  isTerminalOrderStatus,
   projectPermissionSets,
   type ProfileId,
 } from '@app/contracts';
@@ -20,10 +23,12 @@ import {
   readSignedCallTiming,
   type BinanceMode,
   type OpenOrderDto,
+  type PlaceOrderDto,
 } from '@app/binance';
 import {
   classifyBinanceError,
   isSymbolNotPermittedError,
+  type ClassifiedError,
 } from 'executor/binance-error-taxonomy.js';
 import { emitEvent } from 'executor/event-emitter.js';
 import { fundable } from 'executor/fundable.js';
@@ -47,11 +52,6 @@ const formatErrorChain = (err: unknown): string => {
   const msg = e?.message ?? String(err);
   return e?.cause == null ? msg : `${msg} | cause: ${String(e.cause)}`;
 };
-
-// Order states that mean the order has left the book for good: it is removed
-// from the cached open-orders list rather than upserted. A MARKET order that
-// fills on placement lands here, so it is never added to the resting-order list.
-const TERMINAL_ORDER_STATUSES = new Set(['FILLED', 'CANCELED', 'EXPIRED', 'REJECTED']);
 
 // Binance: "Order does not exist".
 const ORDER_NOT_EXIST = -2013;
@@ -203,8 +203,15 @@ type Probe =
  * `accepted` says "it is live, never re-issue" and silently drops a protective stop,
  * leaving the position unguarded; a false `rejected` duplicates a live order.
  * Ambiguous is therefore the only safe direction to err in.
+ * @param deps - Shared worker dependencies for timing, persistence, notification, and weight accounting.
+ * @param bindings - The resolved Binance client and profile persistence callbacks.
+ * @param ctx - The executor identity used to scope any recovered order.
+ * @param decision - The placement whose response was lost.
+ * @param calledAtMs - The local timestamp captured immediately before calling the Binance client.
+ * @param cause - The transport error that made the placement outcome ambiguous.
+ * @returns A placement result resolved from Binance's authoritative order lookup when possible.
  */
-const resolveAmbiguousPlacement = async (
+export const resolveAmbiguousPlacement = async (
   deps: DecisionDeps,
   bindings: Awaited<ReturnType<typeof resolveBindings>>,
   ctx: ExecutorContext,
@@ -359,6 +366,226 @@ const resolveAmbiguousPlacement = async (
   };
 };
 
+type PlacementDecision = Extract<Decision, { type: 'place-order' | 'replace-order' }>;
+type ResolvedBindings = Awaited<ReturnType<typeof resolveBindings>>;
+
+/** Return the pre-call refusal shared by order placement paths once the current request-weight bucket has reached the profile limit.
+ * @param deps - Shared worker dependencies for operator notification.
+ * @param bindings - The resolved profile bindings carrying the request-weight limit.
+ * @param profileId - The profile whose weight bucket and notification routing apply.
+ * @param decision - The placement used to describe the throttled action to the operator.
+ * @param weight - The already-read request weight for this account and profile.
+ * @returns The retryable pre-call refusal when throttled, otherwise `null` so the caller may transmit.
+ */
+export const refuseOnWeightThrottle = async (
+  deps: DecisionDeps,
+  bindings: ResolvedBindings,
+  profileId: ProfileId,
+  decision: PlacementDecision,
+  weight: number,
+): Promise<Extract<DecisionResult, { readonly ok: false }> | null> => {
+  if (weight < bindings.weightLimit1m) return null;
+  await emergencyNotify(deps, bindings, profileId, {
+    severity: 'warn',
+    topic: 'binance-weight-throttle',
+    title: 'Binance rate limit — throttling',
+    symbol: decision.intent.symbol,
+    body: "Nearing Binance's API rate limit; the bot is slowing new orders to avoid a ban. No action needed unless this persists.",
+    fields: [
+      {
+        label: 'Usage',
+        value: `${weight} of ${bindings.weightLimit1m} (${Math.round((weight / bindings.weightLimit1m) * 100)}%)`,
+      },
+    ],
+  });
+  return {
+    ok: false,
+    retryable: true,
+    phase: 'pre-call',
+    reason: `weight-limit-throttle weight=${weight} limit=${bindings.weightLimit1m}`,
+  };
+};
+
+/** Notify the operator only when the shared Binance classifier marks an order failure as an emergency.
+ * @param deps - Shared worker dependencies for notifier dispatch and gap recording.
+ * @param bindings - The resolved profile bindings used to load enabled notifiers.
+ * @param profileId - The profile whose notifiers receive the emergency.
+ * @param decision - The placement used to describe the failed action.
+ * @param err - The classified Binance API error reported to the operator.
+ * @param classified - The shared classifier output that decides whether notification is warranted.
+ * @returns A promise that settles after the best-effort notification path completes.
+ */
+export const notifyClassifiedEmergency = async (
+  deps: DecisionDeps,
+  bindings: ResolvedBindings,
+  profileId: ProfileId,
+  decision: PlacementDecision,
+  err: BinanceApiError,
+  classified: ClassifiedError,
+): Promise<void> => {
+  if (!classified.emergency) return;
+  await emergencyNotify(deps, bindings, profileId, {
+    severity: 'error',
+    topic: 'binance-emergency',
+    title: 'Binance order error',
+    symbol: decision.intent.symbol,
+    body: 'The bot hit a Binance error and backed off safely. The order was not placed.',
+    fields: [
+      { label: 'Action', value: `${decision.intent.side} (${decision.params.type})` },
+      { label: 'Error', value: `${err.code ?? 'n/a'} — ${err.message}` },
+    ],
+  });
+};
+
+/** Persist an order accepted by Binance and publish its local open-order state.
+ * @param deps - Shared worker dependencies for persistence, caching, logging, and notifications.
+ * @param ctx - The executor identity used to derive the scoped user and profile ids.
+ * @param bindings - The resolved profile clients and persistence callbacks.
+ * @param intent - The strategy intent that owns the accepted order.
+ * @param params - The exchange parameters used to create the accepted order.
+ * @param dto - Binance's accepted order response.
+ * @returns The bookkeeping result, with accepted orders never marked retryable after a local failure.
+ */
+export const recordPlacedOrder = async (
+  deps: DecisionDeps,
+  ctx: ExecutorContext,
+  bindings: Awaited<ReturnType<typeof resolveBindings>>,
+  intent: OrderIntent,
+  params: OrderParams,
+  dto: PlaceOrderDto,
+): Promise<DecisionResult> => {
+  const userId = asUserId(ctx.userId);
+  const profileId = asProfileId(ctx.profileId);
+  // An accepted order without a status is by definition resting/NEW. Default it
+  // rather than throw: the order is already live on Binance, this is the money path.
+  const status = dto.status ?? 'NEW';
+  const persisted = {
+    userId,
+    profileId,
+    symbol: intent.symbol,
+    side: intent.side,
+    intent: intent.reason,
+    binanceOrderId: BigInt(dto.orderId),
+    clientOrderId: dto.clientOrderId,
+    status,
+    raw: dto,
+    ...(intent.meta !== undefined ? { meta: intent.meta } : {}),
+  };
+  try {
+    await bindings.persistence.persistOrder(persisted, {
+      // The row currently holding this live slot may only be stamped CANCELED if
+      // no cancel we attempted this tick left it resting on the exchange.
+      closePrevious: !deps.cancelLedger.hasUnresolved(intent.symbol, intent.reason),
+    });
+    // Maintain the shared open-orders snapshot in place instead of DELeting it,
+    // so a sibling profile's next tick reads the new resting order without a REST
+    // cold-load. A terminal placement (a MARKET that filled) is removed, not
+    // added. Best-effort: a cache-write failure must NOT fail a placement already
+    // accepted by Binance and committed to Postgres — the TTL cold-load self-heals.
+    try {
+      const key = buildOpenOrdersKey(deps.accountId, intent.symbol);
+      // The shared `@app/contracts` predicate, never a local copy: this cache key has TWO writers and they must answer "has the order left the book?" the same way. The user-data stream's eviction already reads the shared vocabulary; this placement write-through read a four-member local set that omitted `EXPIRED_IN_MATCH`, the status Binance stamps when self-trade prevention kills an order — on a shared account wallet, exactly what a sibling profile's order crossing ours produces. Such a placement was ADDED to the cached list as resting while `persistOrder` had already stamped its row closed, so every reader of the cache saw a phantom order that no execution report will ever arrive to evict, until the TTL expires. A MARKET order that fills on placement takes this same branch, so it is never added to the resting-order list either.
+      if (isTerminalOrderStatus(status)) {
+        await removeOpenOrder(deps.redis, key, dto.orderId);
+      } else {
+        const cached: OpenOrder = {
+          orderId: dto.orderId,
+          clientOrderId: dto.clientOrderId,
+          symbol: intent.symbol,
+          side: intent.side,
+          type: params.type,
+          status: status as OpenOrder['status'],
+          // A STOP_LOSS has no limit leg at all, so there is no price to record.
+          // The empty string is the same "absent" sentinel the snapshot adapter
+          // already uses for a missing stopPrice: every reader parses it to
+          // "unknown" rather than to zero. Fabricating '0' is what puts a stop
+          // priced at nothing in front of the operator.
+          price: params.type === 'STOP_LOSS' ? '' : (params.price ?? '0'),
+          origQty: params.quantity,
+          executedQty: '0',
+          cummulativeQuoteQty: '0',
+          ...(params.stopPrice !== undefined ? { stopPrice: params.stopPrice } : {}),
+          ...(params.trailingDelta !== undefined ? { trailingDelta: params.trailingDelta } : {}),
+          ...(params.timeInForce !== undefined ? { timeInForce: params.timeInForce } : {}),
+          transactTimeMs: deps.clock.nowMs(),
+          updateTimeMs: deps.clock.nowMs(),
+        };
+        await upsertOpenOrder(deps.redis, key, cached);
+      }
+    } catch (cacheErr) {
+      deps.logger.warn(
+        { profileId, orderId: dto.orderId, err: cacheErr },
+        'place-order: open-orders cache upsert failed; next tick cold-loads',
+      );
+    }
+    await emitEvent(deps, deps.accountId, profileId, 'orders', {
+      orderId: dto.orderId,
+      clientOrderId: dto.clientOrderId,
+      status,
+    });
+    return { ok: true };
+  } catch (err) {
+    const errMsg = formatErrorChain(err);
+    deps.logger.error(
+      { profileId, orderId: dto.orderId, err },
+      'place-order: post-submit bookkeeping failed (order already accepted)',
+    );
+    // The order IS live on the exchange. Before anything else, get a durable row
+    // carrying its Binance orderId written: without one the user-data stream
+    // cannot reconcile the fill and the operator's only trace is an orphan alert.
+    // `insertTracking` writes under a reserved per-order intent, so it never
+    // contends for (or closes) the strategy's live slot — which is what makes it
+    // land even when the failure above WAS that slot refusing to be reused, the
+    // single most likely way to get here. Best-effort: it is a recovery path, and
+    // its own failure must not mask the original error or change the result below.
+    try {
+      await bindings.persistence.persistTrackingOrder(persisted);
+    } catch (trackErr) {
+      deps.logger.error(
+        { profileId, orderId: dto.orderId, err: trackErr },
+        'place-order: failed to record a tracking row for the live order',
+      );
+    }
+    // No silent failures: the order is live on the exchange but the bot
+    // failed to record it. Surface it both to the operator (notify) and
+    // to the durable action log so the orphan is recoverable. Both are
+    // best-effort — a notify or log failure must not mask the original
+    // bookkeeping error or change the non-retryable result below.
+    await emergencyNotify(deps, bindings, profileId, {
+      severity: 'error',
+      topic: 'order-bookkeeping-failed',
+      title: 'Order placed but not recorded',
+      symbol: intent.symbol,
+      body: 'An order is live on Binance but the bot failed to save it locally. Check and reconcile manually.',
+      fields: [
+        { label: 'Order ID', value: String(dto.orderId) },
+        { label: 'Error', value: errMsg },
+      ],
+    });
+    try {
+      await bindings.persistence.recordBookkeepingFailure({
+        symbol: intent.symbol,
+        orderId: dto.orderId,
+        err: errMsg,
+      });
+    } catch (logErr) {
+      deps.logger.error(
+        { profileId, orderId: dto.orderId, err: logErr },
+        'place-order: failed to write bookkeeping-failure action_log',
+      );
+    }
+    return {
+      ok: false,
+      retryable: false,
+      // Binance said yes; only the local write failed. The order is live, so no
+      // caller may re-issue it — that would double the position.
+      phase: 'accepted',
+      reason: `order accepted but bookkeeping failed: ${errMsg}`,
+      cause: err,
+    };
+  }
+};
+
 /**
  * Live order placement with three contract guarantees that the test
  * suite asserts byte-for-byte:
@@ -397,29 +624,8 @@ export const placeOrderHandler = async (
     readCurrentWeight(deps, deps.accountId, profileId),
     readAccountSnapshot(deps, profileId),
   ]);
-  if (weight >= bindings.weightLimit1m) {
-    await emergencyNotify(deps, bindings, profileId, {
-      severity: 'warn',
-      topic: 'binance-weight-throttle',
-      title: 'Binance rate limit — throttling',
-      symbol: decision.intent.symbol,
-      body: "Nearing Binance's API rate limit; the bot is slowing new orders to avoid a ban. No action needed unless this persists.",
-      fields: [
-        {
-          label: 'Usage',
-          value: `${weight} of ${bindings.weightLimit1m} (${Math.round((weight / bindings.weightLimit1m) * 100)}%)`,
-        },
-      ],
-    });
-    return {
-      ok: false,
-      retryable: true,
-      // Refused here, before any HTTP call: the order provably never reached
-      // Binance, so a caller may safely re-issue it once the bucket drains.
-      phase: 'pre-call',
-      reason: `weight-limit-throttle weight=${weight} limit=${bindings.weightLimit1m}`,
-    };
-  }
+  const weightRefusal = await refuseOnWeightThrottle(deps, bindings, profileId, decision, weight);
+  if (weightRefusal !== null) return weightRefusal;
 
   // Tradability pre-flight. Binance gates each symbol on permission tags: the
   // account must hold at least one tag from EVERY set the symbol publishes.
@@ -655,19 +861,7 @@ export const placeOrderHandler = async (
         clientOrderId: decision.intent.clientOrderId,
       });
     }
-    if (classified.emergency) {
-      await emergencyNotify(deps, bindings, profileId, {
-        severity: 'error',
-        topic: 'binance-emergency',
-        title: 'Binance order error',
-        symbol: decision.intent.symbol,
-        body: 'The bot hit a Binance error and backed off safely. The order was not placed.',
-        fields: [
-          { label: 'Action', value: `${decision.intent.side} (${decision.params.type})` },
-          { label: 'Error', value: `${err.code ?? 'n/a'} — ${err.message}` },
-        ],
-      });
-    }
+    await notifyClassifiedEmergency(deps, bindings, profileId, decision, err, classified);
     return classified.result.ok ? classified.result : { ...classified.result, cause: err };
   }
 
@@ -680,140 +874,5 @@ export const placeOrderHandler = async (
   if (decision.params.type === 'MARKET') {
     await deps.placementDedup?.record(decision.intent.clientOrderId, symbolKey, deps.clock.nowMs());
   }
-  // An accepted order without a status is by definition resting/NEW. Default it
-  // rather than throw: the order is already live on Binance, this is the money path.
-  const status = dto.status ?? 'NEW';
-  const persisted = {
-    userId,
-    profileId,
-    symbol: decision.intent.symbol,
-    side: decision.intent.side,
-    intent: decision.intent.reason,
-    binanceOrderId: BigInt(dto.orderId),
-    clientOrderId: dto.clientOrderId,
-    status,
-    raw: dto,
-    ...(decision.intent.meta !== undefined ? { meta: decision.intent.meta } : {}),
-  };
-  try {
-    await bindings.persistence.persistOrder(persisted, {
-      // The row currently holding this live slot may only be stamped CANCELED if
-      // no cancel we attempted this tick left it resting on the exchange.
-      closePrevious: !deps.cancelLedger.hasUnresolved(
-        decision.intent.symbol,
-        decision.intent.reason,
-      ),
-    });
-    // Maintain the shared open-orders snapshot in place instead of DELeting it,
-    // so a sibling profile's next tick reads the new resting order without a REST
-    // cold-load. A terminal placement (a MARKET that filled) is removed, not
-    // added. Best-effort: a cache-write failure must NOT fail a placement already
-    // accepted by Binance and committed to Postgres — the TTL cold-load self-heals.
-    try {
-      const key = buildOpenOrdersKey(deps.accountId, decision.intent.symbol);
-      if (TERMINAL_ORDER_STATUSES.has(status)) {
-        await removeOpenOrder(deps.redis, key, dto.orderId);
-      } else {
-        const cached: OpenOrder = {
-          orderId: dto.orderId,
-          clientOrderId: dto.clientOrderId,
-          symbol: decision.intent.symbol,
-          side: decision.intent.side,
-          type: decision.params.type,
-          status: status as OpenOrder['status'],
-          // A STOP_LOSS has no limit leg at all, so there is no price to record.
-          // The empty string is the same "absent" sentinel the snapshot adapter
-          // already uses for a missing stopPrice: every reader parses it to
-          // "unknown" rather than to zero. Fabricating '0' is what puts a stop
-          // priced at nothing in front of the operator.
-          price: decision.params.type === 'STOP_LOSS' ? '' : (decision.params.price ?? '0'),
-          origQty: decision.params.quantity,
-          executedQty: '0',
-          cummulativeQuoteQty: '0',
-          ...(decision.params.stopPrice !== undefined
-            ? { stopPrice: decision.params.stopPrice }
-            : {}),
-          ...(decision.params.trailingDelta !== undefined
-            ? { trailingDelta: decision.params.trailingDelta }
-            : {}),
-          ...(decision.params.timeInForce !== undefined
-            ? { timeInForce: decision.params.timeInForce }
-            : {}),
-          transactTimeMs: deps.clock.nowMs(),
-          updateTimeMs: deps.clock.nowMs(),
-        };
-        await upsertOpenOrder(deps.redis, key, cached);
-      }
-    } catch (cacheErr) {
-      deps.logger.warn(
-        { profileId, orderId: dto.orderId, err: cacheErr },
-        'place-order: open-orders cache upsert failed; next tick cold-loads',
-      );
-    }
-    await emitEvent(deps, deps.accountId, profileId, 'orders', {
-      orderId: dto.orderId,
-      clientOrderId: dto.clientOrderId,
-      status,
-    });
-    return { ok: true };
-  } catch (err) {
-    const errMsg = formatErrorChain(err);
-    deps.logger.error(
-      { profileId, orderId: dto.orderId, err },
-      'place-order: post-submit bookkeeping failed (order already accepted)',
-    );
-    // The order IS live on the exchange. Before anything else, get a durable row
-    // carrying its Binance orderId written: without one the user-data stream
-    // cannot reconcile the fill and the operator's only trace is an orphan alert.
-    // `insertTracking` writes under a reserved per-order intent, so it never
-    // contends for (or closes) the strategy's live slot — which is what makes it
-    // land even when the failure above WAS that slot refusing to be reused, the
-    // single most likely way to get here. Best-effort: it is a recovery path, and
-    // its own failure must not mask the original error or change the result below.
-    try {
-      await bindings.persistence.persistTrackingOrder(persisted);
-    } catch (trackErr) {
-      deps.logger.error(
-        { profileId, orderId: dto.orderId, err: trackErr },
-        'place-order: failed to record a tracking row for the live order',
-      );
-    }
-    // No silent failures: the order is live on the exchange but the bot
-    // failed to record it. Surface it both to the operator (notify) and
-    // to the durable action log so the orphan is recoverable. Both are
-    // best-effort — a notify or log failure must not mask the original
-    // bookkeeping error or change the non-retryable result below.
-    await emergencyNotify(deps, bindings, profileId, {
-      severity: 'error',
-      topic: 'order-bookkeeping-failed',
-      title: 'Order placed but not recorded',
-      symbol: decision.intent.symbol,
-      body: 'An order is live on Binance but the bot failed to save it locally. Check and reconcile manually.',
-      fields: [
-        { label: 'Order ID', value: String(dto.orderId) },
-        { label: 'Error', value: errMsg },
-      ],
-    });
-    try {
-      await bindings.persistence.recordBookkeepingFailure({
-        symbol: decision.intent.symbol,
-        orderId: dto.orderId,
-        err: errMsg,
-      });
-    } catch (logErr) {
-      deps.logger.error(
-        { profileId, orderId: dto.orderId, err: logErr },
-        'place-order: failed to write bookkeeping-failure action_log',
-      );
-    }
-    return {
-      ok: false,
-      retryable: false,
-      // Binance said yes; only the local write failed. The order is live, so no
-      // caller may re-issue it — that would double the position.
-      phase: 'accepted',
-      reason: `order accepted but bookkeeping failed: ${errMsg}`,
-      cause: err,
-    };
-  }
+  return recordPlacedOrder(deps, ctx, bindings, decision.intent, decision.params, dto);
 };

@@ -172,7 +172,7 @@ export interface TickHandlerDeps {
     readonly accountId: AccountId;
     readonly profileId: ProfileId;
     readonly symbol: string;
-    readonly decisionType: 'place-order' | 'cancel-order';
+    readonly decisionType: 'place-order' | 'cancel-order' | 'replace-order';
     readonly result: DecisionFailure;
     readonly willRetry: boolean;
   }) => Promise<void>;
@@ -221,6 +221,21 @@ export interface TickHandlerDeps {
     readonly terminal: boolean;
     /** When the block opened, or null when no condition row could date it. */
     readonly sinceMs: number | null;
+  }) => Promise<void>;
+  /**
+   * Tells the operator a held position has had nothing resting on the exchange to sell it for long enough that the state can no longer be the ordinary wait after a fresh entry. Distinct from {@link notifyProtectiveStopBlocked}: that one reports a stop the exchange's price band refuses, which is one named cause; this one reports the OUTCOME — whatever the cause, no stop is there — and so covers the refusals that classifier never sees. The tick fires it and does not wait; repeat suppression belongs to the implementation.
+   *
+   * `sinceMs` is required, not nullable, and that is the contract talking: the duration is the entire signal here, so there is no version of this alert that fires without one. A tick that cannot date the span does not call this at all.
+   */
+  readonly notifyProtectiveStopUnplaced?: (input: {
+    readonly operatorId: UserId;
+    readonly accountId: AccountId;
+    readonly profileId: ProfileId;
+    readonly symbol: string;
+    /** When the span of no resting stop opened, from the condition row that dates it. */
+    readonly sinceMs: number;
+    /** The strategy's own live record for this tick, including the stop price it wanted. */
+    readonly detail: Readonly<Record<string, unknown>>;
   }) => Promise<void>;
   /**
    * Reap a (profile, symbol) binding that can never trade again — Binance no

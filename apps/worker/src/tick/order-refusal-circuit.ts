@@ -6,7 +6,7 @@ export const ORDER_REFUSAL_THRESHOLD = 3;
 export const ORDER_REFUSAL_PROBE_MS = 60_000;
 export const ORDER_REFUSAL_TTL_MS = 900_000;
 
-export type PlacementDecision = Extract<Decision, { type: 'place-order' }>;
+export type PlacementDecision = Extract<Decision, { type: 'place-order' | 'replace-order' }>;
 
 export interface OrderRequestIdentity {
   readonly clientOrderId: string;
@@ -16,6 +16,7 @@ export interface OrderRequestIdentity {
   readonly quantity: string;
   readonly price: string | null;
   readonly stopPrice: string | null;
+  readonly trailingDelta: number | null;
   readonly timeInForce: NonNullable<PlacementDecision['params']['timeInForce']> | null;
 }
 
@@ -56,6 +57,7 @@ export const buildOrderRequestIdentity = (decision: PlacementDecision): OrderReq
   quantity: decision.params.quantity,
   price: decision.params.price ?? null,
   stopPrice: decision.params.stopPrice ?? null,
+  trailingDelta: decision.params.trailingDelta ?? null,
   timeInForce: decision.params.timeInForce ?? null,
 });
 
@@ -67,6 +69,7 @@ const sameRequest = (a: OrderRequestIdentity, b: OrderRequestIdentity): boolean 
   a.quantity === b.quantity &&
   a.price === b.price &&
   a.stopPrice === b.stopPrice &&
+  a.trailingDelta === b.trailingDelta &&
   a.timeInForce === b.timeInForce;
 
 const sameRejection = (a: OrderRejectionIdentity, b: OrderRejectionIdentity): boolean =>
@@ -187,7 +190,18 @@ const isTimeInForce = (v: unknown): v is NonNullable<OrderRequestIdentity['timeI
 const parseRequest = (value: unknown): OrderRequestIdentity | null => {
   const r = recordOf(value);
   if (!r) return null;
-  const { clientOrderId, symbol, side, type, quantity, price, stopPrice, timeInForce } = r;
+  const {
+    clientOrderId,
+    symbol,
+    side,
+    type,
+    quantity,
+    price,
+    stopPrice,
+    trailingDelta,
+    timeInForce,
+  } = r;
+  const rawTrailingDelta = trailingDelta ?? null;
   if (
     typeof clientOrderId !== 'string' ||
     typeof symbol !== 'string' ||
@@ -196,11 +210,23 @@ const parseRequest = (value: unknown): OrderRequestIdentity | null => {
     typeof quantity !== 'string' ||
     (price !== null && typeof price !== 'string') ||
     (stopPrice !== null && typeof stopPrice !== 'string') ||
+    (rawTrailingDelta !== null &&
+      (typeof rawTrailingDelta !== 'number' || !Number.isInteger(rawTrailingDelta))) ||
     (timeInForce !== null && !isTimeInForce(timeInForce))
   ) {
     return null;
   }
-  return { clientOrderId, symbol, side, type, quantity, price, stopPrice, timeInForce };
+  return {
+    clientOrderId,
+    symbol,
+    side,
+    type,
+    quantity,
+    price,
+    stopPrice,
+    trailingDelta: rawTrailingDelta,
+    timeInForce,
+  };
 };
 
 export const parseOrderRefusalState = (
