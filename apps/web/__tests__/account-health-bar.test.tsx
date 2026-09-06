@@ -76,6 +76,40 @@ describe('<AccountHealthBar>', () => {
     expect(await screen.findByTestId('account-health-halts')).toHaveTextContent(/2 paused/i);
   });
 
+  it('counts paused profiles, not halt rows, when one profile trips two breakers', async () => {
+    // The server emits one row per (profile, breaker), so a profile held by both the daily limit and the drawdown guard arrives as two rows. The chip answers "how many profiles are paused", so it must fold them; the tooltip is the surface that keeps one line per breaker.
+    renderBar({
+      ...base,
+      halts: [
+        { profileId: PA, name: 'Real', kind: 'daily-loss' },
+        { profileId: PA, name: 'Real', kind: 'drawdown' },
+      ],
+    });
+    expect(await screen.findByTestId('account-health-halts')).toHaveTextContent(/^1 paused$/i);
+  });
+
+  it('names every breaker in the halt tooltip, one line per profile and breaker', async () => {
+    // HALT_LABEL is the only place the wire `kind` becomes operator English, and it is painted exclusively inside TooltipContent. Without opening the trigger a new breaker could ship rendering `undefined` beside the profile name and the suite would stay green.
+    renderBar(
+      {
+        ...base,
+        halts: [
+          { profileId: PA, name: 'Real', kind: 'daily-loss' },
+          { profileId: PA, name: 'Real', kind: 'loss-streak' },
+          { profileId: PB, name: 'Momentum', kind: 'drawdown' },
+        ],
+      },
+      0,
+    );
+    const user = userEvent.setup();
+    await user.hover(await screen.findByTestId('account-health-halts'));
+
+    // Radix mirrors the content into a visually-hidden copy for screen readers, so each line matches twice over the same painted text.
+    expect(await screen.findAllByText('Real — daily loss limit')).not.toHaveLength(0);
+    expect(await screen.findAllByText('Real — loss-streak guard')).not.toHaveLength(0);
+    expect(await screen.findAllByText('Momentum — drawdown guard')).not.toHaveLength(0);
+  });
+
   it('warns when a profile is approaching its daily-loss limit', async () => {
     renderBar({
       ...base,

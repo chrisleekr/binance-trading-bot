@@ -60,6 +60,7 @@ const AUDIT_BATCH_BUCKETS = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 500
  * from "a lint gate might notice" to "it does not compile".
  */
 export type MetricName =
+  | 'portfolio_risk_halt_total'
   | 'tick_latency_ms'
   | 'tick_total'
   | 'tick_failures_total'
@@ -429,6 +430,12 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     kind: 'counter',
     help: 'Profiles the archive-recovery sweep accounted for in a run, by outcome. `swept`: the profile was walked, whether or not it had anything to repair. `failed`: the profile query OR one of its backfill enqueues threw. `timeout`: the database cancelled a statement for that profile, which the budget is the expected cause of. `checkout`: the pool refused a connection before the transaction for that profile opened, which is account-wide backpressure rather than anything about the profile itself. `unswept`: the pass ran out of its wall-clock budget before reaching the profile, so the next run resumes there. A sustained non-zero `unswept` rate means the active-profile count has outgrown one pass.',
     labelNames: ['outcome'],
+  },
+  // Every one of the three `kind` values is emitted by the cron, including `daily-loss`: a label whose third value structurally cannot appear reads as "that breaker never fires" on a dashboard, which is indistinguishable from it being broken.
+  portfolio_risk_halt_total: {
+    kind: 'counter',
+    help: 'Entry breakers that newly paused buying on a profile, by breaker kind. Counts trips, not cycles-while-tripped: the daily breaker only records on the edge into a halt and the guards are SET NX, so each increments once per pause rather than once per 30 s cron cycle.',
+    labelNames: ['kind'],
   },
 };
 

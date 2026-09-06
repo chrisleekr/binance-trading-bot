@@ -1,7 +1,7 @@
 import {
   AccountInfoSnapshot,
-  DAILY_ENTRY_HALT_REASON,
   decimalAdd,
+  ENTRY_HALT_REASONS,
   MANUAL_OVERRIDE_TTL_SECONDS,
   type ManualOverridePayload,
   type OperatorAction,
@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { Decimal } from '@app/money';
 import { GLOBAL_KEYS, profileKey, type ProfileRepo } from '@app/db';
 import type { DI } from 'di.js';
-import { isEntryHaltedFailOpen } from 'lib/entry-halt.js';
+import { firstEntryHaltFailOpen } from 'lib/entry-halt.js';
 import { HttpError } from 'middleware/error.js';
 import { errorMessage } from '@app/core/error';
 
@@ -46,7 +46,7 @@ export const assertActionSupported = async (
 };
 
 /**
- * Refuse a BUY-side operator action while the daily-loss breaker is armed.
+ * Refuse a BUY-side operator action while any entry breaker is armed, in that breaker's own words.
  *
  * A fast-fail UX shortcut, NOT the enforcement point. The WORKER is authoritative:
  * it re-checks the breaker on the tick and drops the emitted BUY, which is the
@@ -58,13 +58,16 @@ export const assertActionSupported = async (
  * answer they can act on. It fails open for the same reason: the worker still
  * enforces the halt, so a flag-read blip must not be what stops the operator.
  *
- * Exits are never gated: the breaker pauses new risk, it never traps the operator
+ * Exits are never gated: a breaker pauses new risk, it never traps the operator
  * in a position.
+ *
+ * @param di - Request DI, for the Redis handle the flags live on.
+ * @param p - The already-resolved profile repo, for its ownership-proven scope.
+ * @returns Nothing on success. Throws `409 CONFLICT` carrying the sentence of the first armed breaker in `EntryHaltKind` order.
  */
 export const assertEntryNotHalted = async (di: DI, p: ProfileRepo): Promise<void> => {
-  if (await isEntryHaltedFailOpen(di, p.scope)) {
-    throw new HttpError('CONFLICT', DAILY_ENTRY_HALT_REASON);
-  }
+  const kind = await firstEntryHaltFailOpen(di, p.scope);
+  if (kind !== null) throw new HttpError('CONFLICT', ENTRY_HALT_REASONS[kind]);
 };
 
 /**

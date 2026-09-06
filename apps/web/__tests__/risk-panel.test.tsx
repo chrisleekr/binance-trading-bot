@@ -3,6 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { EntryHaltKind } from '@app/contracts';
+
 import { createQueryClient } from '@/shared/lib/query-client';
 import { profileDashboardQueryKey } from '@/features/profile/api/profile-dashboard';
 import { RiskPanel } from '@/features/profile/components/risk-panel';
@@ -15,12 +17,32 @@ interface Status {
   todayRealizedPnl: string;
   limitQuote: string | null;
   resetsAtMs: number | null;
+  /** Which breakers are pausing buys. Omitted by the daily-limit cases, which predate the guards; a halted profile with no kinds named is not a state the api can produce. */
+  haltKinds?: EntryHaltKind[];
 }
-const dashboard = (status: Status, configInvalid = false, quoteAsset = 'USDT') => ({
-  config: { dailyLossLimitQuote: status.limitQuote ?? '0' },
+/** Guard settings a case wants armed. Both default OFF, which is the every-breaker-off fixture the badge's Off state depends on. */
+interface Guards {
+  maxLosingExits?: number;
+  maxDrawdownQuote?: string;
+}
+const dashboard = (
+  status: Status,
+  configInvalid = false,
+  quoteAsset = 'USDT',
+  guards: Guards = {},
+) => ({
+  config: {
+    dailyLossLimitQuote: status.limitQuote ?? '0',
+    lossStreak: { maxLosingExits: guards.maxLosingExits ?? 0, lookbackHours: 24, pauseHours: 24 },
+    drawdown: {
+      maxDrawdownQuote: guards.maxDrawdownQuote ?? '0',
+      lookbackHours: 72,
+      pauseHours: 24,
+    },
+  },
   configInvalid,
   quoteAsset,
-  status,
+  status: { ...status, haltKinds: status.haltKinds ?? (status.halted ? ['daily-loss'] : []) },
 });
 
 /**
@@ -101,6 +123,38 @@ describe('RiskPanel', () => {
     expect(screen.getByTestId('risk-paused-detail')).toHaveTextContent(/new buys are paused/i);
   });
 
+  it('names the drawdown guard, not the daily limit, when that is what paused buying', async () => {
+    setUp(
+      dashboard({
+        halted: true,
+        todayRealizedPnl: '-2',
+        limitQuote: null,
+        resetsAtMs: Date.UTC(2026, 5, 19),
+        haltKinds: ['drawdown'],
+      }),
+    );
+    expect(await screen.findByTestId('risk-paused-badge')).toBeInTheDocument();
+    const detail = screen.getByTestId('risk-paused-detail');
+    expect(detail).toHaveTextContent(/realised drawdown reached your limit/i);
+    // The daily sentence would be an outright lie here: the daily limit is off, and it is the reading that sends the operator to the wrong setting.
+    expect(detail).not.toHaveTextContent(/daily loss limit hit/i);
+  });
+
+  it('names every breaker holding buying, not just the first', async () => {
+    setUp(
+      dashboard({
+        halted: true,
+        todayRealizedPnl: '-21',
+        limitQuote: '20',
+        resetsAtMs: Date.UTC(2026, 5, 19),
+        haltKinds: ['daily-loss', 'loss-streak'],
+      }),
+    );
+    const detail = await screen.findByTestId('risk-paused-detail');
+    expect(detail).toHaveTextContent(/daily loss limit hit/i);
+    expect(detail).toHaveTextContent(/too many losing exits/i);
+  });
+
   it('warns when the stored config is invalid', async () => {
     setUp(
       dashboard({ halted: false, todayRealizedPnl: '0', limitQuote: null, resetsAtMs: null }, true),
@@ -162,6 +216,21 @@ describe('RiskPanel daily-loss limit control', () => {
     expect(control).not.toBeNull();
     // A bare number field cannot say what unit it is in; the operator types "0.01" and has no way to know whether that is BTC or dollars.
     expect(control).toHaveTextContent('BTC');
+  });
+
+  it('writes the quote asset into the NESTED guard’s helper text too, not only the top-level limit', async () => {
+    setUp(
+      dashboard(
+        { halted: false, todayRealizedPnl: '0', limitQuote: '0.01', resetsAtMs: null },
+        false,
+        'BTC',
+      ),
+      profileDashboard('BTC', '1', '0'),
+    );
+    // The drawdown limit lives one level down under `drawdown`, which the single-field rewrite this replaced could never reach.
+    const help = await screen.findByText(/Deepest realised drawdown/);
+    expect(help).toHaveTextContent('BTC');
+    expect(help).not.toHaveTextContent('USDT');
   });
 
   it('writes the profile’s own quote asset into the helper text, not a hard-coded USDT', async () => {
@@ -307,11 +376,72 @@ describe('RiskPanel breaker state badge', () => {
   });
 
   it('reports Off with no limit, whatever the equity', async () => {
+    // Off means EVERY breaker is off, so the fixture leaves both guards at their zero defaults; arming either one here would make the assertion a lie about the section this badge heads.
     setUp(
       dashboard({ halted: false, todayRealizedPnl: '0', limitQuote: null, resetsAtMs: null }),
       profileDashboard('USDT', '60', '40'),
     );
     expect(await screen.findByTestId('risk-off-badge')).toBeInTheDocument();
     expect(screen.queryByTestId('risk-unreachable-badge')).toBeNull();
+  });
+
+  it('reports Armed when only the drawdown guard is set and the daily limit is off', async () => {
+    // The badge heads all three breakers, so reading the daily limit alone prints "Off" over a live guard. The docs recommend exactly this shape — drawdown armed, no daily limit — so it is the state an operator actually lands on, and a grey "Off" there is a false all-clear on a safety control.
+    setUp(
+      dashboard(
+        { halted: false, todayRealizedPnl: '0', limitQuote: null, resetsAtMs: null },
+        false,
+        'USDT',
+        { maxDrawdownQuote: '15' },
+      ),
+      profileDashboard('USDT', '60', '40'),
+    );
+    expect(await screen.findByTestId('risk-armed-badge')).toBeInTheDocument();
+    expect(screen.queryByTestId('risk-off-badge')).toBeNull();
+  });
+
+  it('reports Armed when only the loss-streak guard is set and the daily limit is off', async () => {
+    setUp(
+      dashboard(
+        { halted: false, todayRealizedPnl: '0', limitQuote: null, resetsAtMs: null },
+        false,
+        'USDT',
+        { maxLosingExits: 3 },
+      ),
+      profileDashboard('USDT', '60', '40'),
+    );
+    expect(await screen.findByTestId('risk-armed-badge')).toBeInTheDocument();
+    expect(screen.queryByTestId('risk-off-badge')).toBeNull();
+  });
+
+  it('reports Armed rather than unreachable when the daily limit is out of reach but a guard is armed', async () => {
+    // Equity is 100 and the daily limit needs 500 more of loss, so that breaker alone is decorative. The drawdown guard is not: it can still pause new buys. "Limit above equity" leads to copy telling the operator nothing is blocked, which is a false all-clear on a control that is live, so an armed guard outranks an unreachable daily limit.
+    setUp(
+      dashboard(
+        { halted: false, todayRealizedPnl: '0', limitQuote: '500', resetsAtMs: null },
+        false,
+        'USDT',
+        { maxDrawdownQuote: '15' },
+      ),
+      profileDashboard('USDT', '60', '40'),
+    );
+    expect(await screen.findByTestId('risk-armed-badge')).toBeInTheDocument();
+    expect(screen.queryByTestId('risk-unreachable-badge')).toBeNull();
+    expect(screen.queryByTestId('risk-limit-warning')).toBeNull();
+  });
+
+  it('reports Armed on a sub-unit drawdown limit that a whole-unit reader would round to nothing', async () => {
+    // A BTC-quoted profile arms the guard at 0.0004 BTC. Any check that folds the limit to whole units before asking "is it positive" reads that as zero and puts "Off" over a live guard.
+    setUp(
+      dashboard(
+        { halted: false, todayRealizedPnl: '0', limitQuote: null, resetsAtMs: null },
+        false,
+        'BTC',
+        { maxDrawdownQuote: '0.0004' },
+      ),
+      profileDashboard('BTC', '1', '0'),
+    );
+    expect(await screen.findByTestId('risk-armed-badge')).toBeInTheDocument();
+    expect(screen.queryByTestId('risk-off-badge')).toBeNull();
   });
 });

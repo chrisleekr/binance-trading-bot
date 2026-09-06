@@ -1,9 +1,11 @@
-// Risk controls panel: the daily-loss circuit breaker. Shows the live breaker
-// status (today's realised P/L vs the limit, and a clear "entries paused" badge
-// when tripped) and lets the operator set the daily loss limit. Mobile-first.
+// Risk controls panel: the three entry circuit breakers. Shows the live breaker
+// status (today's realised P/L vs the daily limit, and a clear "entries paused"
+// badge naming which breaker tripped) and lets the operator set all three.
+// Mobile-first.
 //
-// The breaker only pauses NEW buys; open positions and their protective stops
-// keep running. It self-clears at the next UTC midnight.
+// Every breaker only pauses NEW buys; open positions and their protective stops
+// keep running. Each self-clears on its own timer — the daily limit at the next
+// UTC midnight, the two guards after their configured pause.
 
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   RiskConfigSchema,
   toConfigJsonSchema,
+  type EntryHaltKind,
   type ProfileDashboardResponse,
   type StoredRiskConfig,
 } from '@app/contracts';
@@ -33,14 +36,21 @@ import {
   profileDashboardQueryKey,
 } from '@/features/profile/api/profile-dashboard';
 import { useTimezone } from '@/shared/context/timezone-context';
-import { formatMoneyAmount, formatSignedAmount } from '@/shared/lib/format';
+import { formatMoneyAmount, formatSignedAmount, signOf } from '@/shared/lib/format';
 import { formatClock } from '@/shared/lib/format-time';
 
 // Shared by the pending placeholder and the loaded panel so the chrome the
 // operator sees mid-load is the chrome they keep.
-const RISK_PANEL_TITLE = 'Daily-loss circuit breaker';
+const RISK_PANEL_TITLE = 'Entry circuit breakers';
 const RISK_PANEL_DESCRIPTION =
-  "Pauses new buys once today's realised loss reaches your limit. Open positions and their stops keep running, and it clears at the next UTC day.";
+  "Pause new buys when today's loss, a run of losing exits, or a realised drawdown reaches the limit you set. Open positions and their stops always keep running, and each pause clears on its own timer.";
+
+// What to lead the paused line with, per breaker. Keyed by the closed union so a new breaker cannot ship with the panel saying nothing about why buying stopped.
+const HALT_DETAIL: Record<EntryHaltKind, string> = {
+  'daily-loss': 'Daily loss limit hit',
+  'loss-streak': 'Too many losing exits in the lookback window',
+  drawdown: 'Realised drawdown reached your limit',
+};
 
 // The shared money formatters, not a local 2-dp round: a BTC-quoted profile can lose 0.0031 BTC in a day, and "-0.00 BTC" reads as "nothing happened". They still hold whole-unit values at 2 dp, so a USDT readout is unchanged.
 const fmtMoney = (s: string, quote: string): string => `${formatMoneyAmount(s)} ${quote}`;
@@ -50,34 +60,34 @@ const fmtSigned = (s: string, quote: string): string => `${formatSignedAmount(s)
 const QUOTE_CURRENCY_PHRASE = 'your quote currency (e.g. USDT)';
 
 /**
- * The risk config's JSON Schema with the daily-loss field's description naming `quoteAsset` instead of the generic "your quote currency (e.g. USDT)".
+ * The risk config's JSON Schema with EVERY money field's description naming `quoteAsset` instead of the generic "your quote currency (e.g. USDT)".
  *
- * A worked example in another asset is worse than none: an operator running a BTC-quoted profile reads "e.g. USDT" and sizes the limit as if it were dollars.
+ * A worked example in another asset is worse than none: an operator running a BTC-quoted profile reads "e.g. USDT" and sizes the limit as if it were dollars. Applied to every matching description at any depth rather than to one named field, because the guards nest their money fields one level down and a per-field list would silently stop covering the next one added.
  *
- * @param schema - The JSON Schema produced from `RiskConfigSchema`.
- * @param quoteAsset - The profile's quote asset to substitute into the description.
- * @returns A shallow copy with the one description rewritten, or the input unchanged when the phrase is absent (the drift case the risk-panel suite alarms on).
+ * @param schema - A JSON Schema node produced from `RiskConfigSchema`, or one of its nested object schemas.
+ * @param quoteAsset - The profile's quote asset to substitute into the descriptions.
+ * @returns A copy with every quote-currency phrase rewritten, at every nesting level. A node carrying no such phrase comes back unchanged, which is the drift case the risk-panel suite alarms on.
  */
 const withQuoteAsset = (
   schema: Record<string, unknown>,
   quoteAsset: string,
 ): Record<string, unknown> => {
   const properties = schema['properties'] as Record<string, Record<string, unknown>> | undefined;
-  const field = properties?.['dailyLossLimitQuote'];
-  const description = field?.['description'];
-  if (typeof description !== 'string' || !description.includes(QUOTE_CURRENCY_PHRASE))
-    return schema;
-  return {
-    ...schema,
-    properties: {
-      ...properties,
-      dailyLossLimitQuote: {
-        ...field,
-        // Replacer function, not a bare string: `QuoteAsset` is only length-bounded and uppercased, so a ticker containing `$'` or `` $` `` would otherwise be read as a substitution pattern and splice the surrounding sentence into the unit.
-        description: description.replace(QUOTE_CURRENCY_PHRASE, () => quoteAsset),
-      },
-    },
-  };
+  if (!properties) return schema;
+  const rewritten: Record<string, Record<string, unknown>> = {};
+  for (const [name, field] of Object.entries(properties)) {
+    const description = field['description'];
+    const named =
+      typeof description === 'string' && description.includes(QUOTE_CURRENCY_PHRASE)
+        ? {
+            ...field,
+            // Replacer function, not a bare string: `QuoteAsset` is only length-bounded and uppercased, so a ticker containing `$'` or `` $` `` would otherwise be read as a substitution pattern and splice the surrounding sentence into the unit.
+            description: description.replace(QUOTE_CURRENCY_PHRASE, () => quoteAsset),
+          }
+        : field;
+    rewritten[name] = withQuoteAsset(named, quoteAsset);
+  }
+  return { ...schema, properties: rewritten };
 };
 
 /**
@@ -152,9 +162,11 @@ export function RiskPanel({ profileId }: { readonly profileId: string }): React.
 
   const { config, configInvalid, quoteAsset, status: live } = query.data;
 
-  // The breaker clears at the next UTC day; the operator reads it in their zone.
+  // `resetsAtMs` is when the LAST active breaker lifts, which is when buying actually resumes; the operator reads it in their zone.
   const resumeNote =
-    live.resetsAtMs !== null ? `, resuming ${formatClock(live.resetsAtMs, timeZone)}` : '';
+    live.resetsAtMs !== null ? `, buying resumes ${formatClock(live.resetsAtMs, timeZone)}` : '';
+  // Never empty where it is rendered: the api derives `halted` and `haltKinds` from the same array, so `halted` implies at least one kind, and both fields are required by the contract.
+  const haltDetail = live.haltKinds.map((kind) => HALT_DETAIL[kind]).join(' · ');
 
   // A breaker that can never trip is decorative, and "Armed" over it is a false assurance. What has to clear the bar is the loss STILL needed to trip, not the whole limit: the worker compares the day's cumulative realised P/L against the limit, and equity already reflects today's result. Comparing the raw limit against current equity double-counts that result, and gets it wrong precisely on the days the badge is actually read.
   // Unknown equity is NOT the unreachable case: the worker halts at this threshold whatever the browser knows, so a lapsed balance snapshot keeps saying Armed rather than casting doubt on a live safety control. Strict `>` because a limit exactly equal to equity is reachable.
@@ -162,18 +174,29 @@ export function RiskPanel({ profileId }: { readonly profileId: string }): React.
   // Loss still needed to trip, per the worker's `pnl <= -limit`: solving for the extra loss L gives `L >= limit + pnl`, with pnl SIGNED. A profitable day raises the bar, and equity on the other side of the comparison already includes that gain — clamping it away would understate the headroom and hide a limit that genuinely cannot be reached. A limit already breached yields `<= 0`, which never exceeds equity, so the badge correctly stays off the unreachable branch.
   const remainingToTrip =
     live.limitQuote === null ? null : Number(live.limitQuote) + Number(live.todayRealizedPnl);
+  // Reachability is deliberately asked about the DAILY limit only. A guard limit larger than the account can lose is arguably unreachable too, but the two guards trip on a rolling realised window rather than on one day's total, so what "out of reach" means for them is a question about the guards' own semantics, not something this display can settle.
   const limitExceedsEquity =
     equity !== null && remainingToTrip !== null && remainingToTrip > equity;
+
+  // Both guard blocks are always present because `RiskConfigSchema` defaults them, so no optional access is needed. `signOf` rather than a bare `Number()` comparison: it is the shared decimal-string reader this display boundary already uses, and apps/web is barred from decimal.js.
+  const guardsArmed =
+    config.lossStreak.maxLosingExits > 0 || signOf(config.drawdown.maxDrawdownQuote) === 'pos';
+
+  // The badge heads a section covering all THREE breakers, so it has to answer "is any of them armed". `live.limitQuote` is the daily limit alone, and reading it as the whole answer prints a grey "Off" over a profile whose drawdown or loss-streak guard is live — a false all-clear on a safety control, which is the same hazard as a false "Armed".
+  const anyBreakerArmed = live.limitQuote !== null || guardsArmed;
+
+  // An armed guard outranks an out-of-reach daily limit: the unreachable badge and its paragraph tell the operator nothing is blocked, and on a profile whose drawdown or loss-streak guard is live that is the same false all-clear, just reached one branch earlier.
+  const dailyLimitUnreachable = limitExceedsEquity && !guardsArmed;
 
   const statusBadge = live.halted ? (
     <Badge variant="danger" data-testid="risk-paused-badge">
       Entries paused
     </Badge>
-  ) : limitExceedsEquity ? (
+  ) : dailyLimitUnreachable ? (
     <Badge variant="warning" data-testid="risk-unreachable-badge">
       Limit above equity
     </Badge>
-  ) : live.limitQuote !== null ? (
+  ) : anyBreakerArmed ? (
     <Badge data-testid="risk-armed-badge">Armed</Badge>
   ) : (
     <Badge variant="secondary" data-testid="risk-off-badge">
@@ -218,17 +241,18 @@ export function RiskPanel({ profileId }: { readonly profileId: string }): React.
           </dl>
           {live.halted ? (
             <p className="text-xs text-down" data-testid="risk-paused-detail">
-              Daily loss limit hit — new buys are paused
+              {`${haltDetail} — new buys are paused`}
               {resumeNote}. Open positions and their stops keep running.
             </p>
           ) : null}
 
-          {limitExceedsEquity ? (
+          {dailyLimitUnreachable ? (
             <p className="text-xs text-warning" data-testid="risk-limit-warning">
               Another {fmtMoney(String(remainingToTrip), quoteAsset)} of loss would have to land
               today to reach this limit, which is more than the{' '}
-              {fmtMoney(String(equity), quoteAsset)} this account holds — so the breaker would never
-              trip. Nothing is blocked; lower the limit if you want it to actually stop trading.
+              {fmtMoney(String(equity), quoteAsset)} this account holds — so the daily loss limit
+              would never trip. It is not blocking anything; lower it if you want it to actually
+              stop trading.
             </p>
           ) : null}
 

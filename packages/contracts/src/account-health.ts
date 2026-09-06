@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DecimalString } from './decimal.js';
+import { EntryHaltKind } from './risk.js';
 
 /**
  * The worker's liveness, derived from its Redis heartbeat. The worker rewrites
@@ -19,8 +20,8 @@ export type AccountHealthWorker = z.infer<typeof AccountHealthWorker>;
 export const AccountHealthHalt = z.object({
   profileId: z.uuid(),
   name: z.string(),
-  /** `daily-loss` = the daily-loss breaker (the only breaker that pauses buys). */
-  kind: z.enum(['daily-loss']),
+  /** Which entry breaker paused new buys on this profile. One profile can carry more than one active halt, so the bar gets one entry per kind rather than a single winner. */
+  kind: EntryHaltKind,
 });
 export type AccountHealthHalt = z.infer<typeof AccountHealthHalt>;
 

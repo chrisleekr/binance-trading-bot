@@ -324,7 +324,7 @@ describe('profile surfaces', () => {
     const c = renderStalled(<RiskPanel profileId={PROFILE_ID} />);
     // Today the whole panel is replaced by one line of text; the title has to
     // survive the pending render or the section disappears mid-load.
-    expect(within(c).getByText('Daily-loss circuit breaker')).toBeInTheDocument();
+    expect(within(c).getByText('Entry circuit breakers')).toBeInTheDocument();
     expectPendingHasHeight(c);
   });
 

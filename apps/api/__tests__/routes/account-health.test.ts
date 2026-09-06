@@ -1,6 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { profileKey, profileRepo } from '@app/db';
-import { asProfileId, type AccountHealthResponse } from '@app/contracts';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { accountRepo, entryHaltKeys, profileKey, profileRepo } from '@app/db';
+import {
+  asAccountId,
+  asProfileId,
+  type AccountHealthResponse,
+  type StoredRiskConfig,
+} from '@app/contracts';
 import { HAS_INFRA, setupApp, TRAILING_TRADE_VERSION, type ApiFixture } from '../_helpers.js';
 import { recordPoolCheckouts } from '../_pool-checkouts.js';
 
@@ -16,6 +21,15 @@ describeIfInfra('account-health router', () => {
   });
   afterAll(async () => {
     await fx.cleanup();
+  });
+
+  const haltKeys = () =>
+    entryHaltKeys({ accountId: fx.alice.accountId, profileId: fx.alice.profileId });
+
+  // Every halt key, after every test. A halt flag left behind is invisible to the test that leaks it and decides the verdict of the next one, so a suite that passes in file order would go red under --shuffle for reasons nothing states.
+  afterEach(async () => {
+    const k = haltKeys();
+    await fx.di.redis.raw().del(k['daily-loss'], k['loss-streak'], k.drawdown);
   });
 
   const get = async (): Promise<AccountHealthResponse> => {
@@ -94,6 +108,111 @@ describeIfInfra('account-health router', () => {
       .map((h) => h.kind)
       .sort();
     expect(kinds).toEqual(['daily-loss']);
+  });
+
+  it('reports one entry per active breaker, not a single winner', async () => {
+    // A profile can be held by two breakers at once. Collapsing them would tell the operator to go and look at only one of the limits pausing their buys.
+    const raw = fx.di.redis.raw();
+    const keys = haltKeys();
+    // All three seeded here, including the daily one: asserting a kind this test did not arm would only be passing on a key some earlier test left behind.
+    await raw.set(keys['daily-loss'], '{}', 'EX', 3600);
+    await raw.set(keys['loss-streak'], '{}', 'EX', 3600);
+    await raw.set(keys.drawdown, '{}', 'EX', 3600);
+
+    const body = await get();
+    const kinds = body.halts.filter((h) => h.profileId === fx.alice.profileId).map((h) => h.kind);
+    expect(kinds).toEqual(['daily-loss', 'loss-streak', 'drawdown']);
+  });
+
+  // Its own ACCOUNT, live-mode, holding one profile with one losing cycle. Not a second profile on Alice's account: `todayRealized` is summed per account, so an extra archive row there would move a figure another test asserts on, and that test would then pass or fail on file order. This describe reads its own account and touches nothing the rest of the file can see.
+  describe('the daily warn band is gated on the DAILY breaker alone', () => {
+    const WARN_ACCOUNT = '00000000-0000-4000-8000-0000000009a1';
+    let warnProfileId: string;
+
+    const getWarn = async (): Promise<AccountHealthResponse> => {
+      const res = await fx.app.request(`/api/accounts/${WARN_ACCOUNT}/account/health`, {
+        headers: headers(fx.alice.userId),
+      });
+      expect(res.status).toBe(200);
+      return (await res.json()) as AccountHealthResponse;
+    };
+
+    beforeAll(async () => {
+      await fx.di.pool.query(
+        `insert into accounts (id, owner_id, name, binance_mode) values ($1, $2, 'Warn', 'live')`,
+        [WARN_ACCOUNT, fx.alice.userId],
+      );
+      const account = await accountRepo(fx.di.db, fx.alice.userId, asAccountId(WARN_ACCOUNT));
+      const row = await account.profiles.insert({
+        name: 'warn-band',
+        strategyName: 'trailing-trade',
+        strategyVersion: TRAILING_TRADE_VERSION,
+        config: {},
+        state: {},
+      });
+      warnProfileId = row.id;
+      const warnRepo = await profileRepo(
+        fx.di.db,
+        fx.alice.userId,
+        asAccountId(WARN_ACCOUNT),
+        asProfileId(row.id),
+      );
+      // -8 realised today against a limit of 10 puts the profile exactly ON the 80% band, which is also the boundary the comparison has to include.
+      await warnRepo.tradeArchive.insert({
+        symbol: 'ETHUSDT',
+        baseAsset: 'ETH',
+        quoteAsset: 'USDT',
+        totalBuyQuote: '100',
+        totalSellQuote: '92',
+        breakdown: {},
+        profit: '-8',
+        source: 'manual',
+        orders: [{ side: 'SELL' }],
+        archivedAt: new Date(),
+      });
+      await warnRepo.profile.setRiskConfig({ dailyLossLimitQuote: '10' } as StoredRiskConfig);
+    });
+
+    const warnKeys = () =>
+      entryHaltKeys({
+        accountId: asAccountId(WARN_ACCOUNT),
+        profileId: asProfileId(warnProfileId),
+      });
+
+    afterEach(async () => {
+      const k = warnKeys();
+      await fx.di.redis.raw().del(k['daily-loss'], k['loss-streak'], k.drawdown);
+    });
+
+    it('is armed at all only because the loss has reached the band', async () => {
+      // Non-vacuity for the two cases below: with no halt of any kind the profile MUST appear, or they would both be asserting about an empty list.
+      const body = await getWarn();
+      expect(body.approachingLimit.some((w) => w.profileId === warnProfileId)).toBe(true);
+    });
+
+    it('stays armed when only a GUARD is pausing buys', async () => {
+      // The band answers one question — how close is today's loss to today's limit — and a guard pause says nothing about that. Retiring it for any halt would blank the operator's last warning before the daily breaker trips, at the exact moment a guard has told them the day is going badly.
+      await fx.di.redis.raw().set(warnKeys().drawdown, '{}', 'EX', 3600);
+
+      const body = await getWarn();
+      // The guard IS reported as a halt...
+      expect(body.halts.filter((h) => h.profileId === warnProfileId).map((h) => h.kind)).toEqual([
+        'drawdown',
+      ]);
+      // ...and the daily warn band is still armed, because no DAILY halt exists.
+      const warn = body.approachingLimit.find((w) => w.profileId === warnProfileId);
+      expect(warn).toBeDefined();
+      expect(Number(warn?.lossQuote)).toBe(-8);
+      expect(Number(warn?.limitQuote)).toBe(10);
+    });
+
+    it('retires once the DAILY breaker has actually tripped', async () => {
+      // The other half of the same predicate, so a gate that always passes fails here even though the guard-only case above would not notice it.
+      await fx.di.redis.raw().set(warnKeys()['daily-loss'], '{}', 'EX', 3600);
+
+      const body = await getWarn();
+      expect(body.approachingLimit.some((w) => w.profileId === warnProfileId)).toBe(false);
+    });
   });
 
   it('serves the bar on one pooled connection however many profiles the account has', async () => {

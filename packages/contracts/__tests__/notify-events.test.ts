@@ -16,6 +16,7 @@ describe('ProfileNotifyEvents', () => {
   it('defaults every category to on, except the chatty order-filled category', () => {
     expect(ProfileNotifyEvents.parse({})).toEqual({
       'daily-loss-halt': true,
+      'loss-guard-halt': true,
       'edge-decay-warning': true,
       discovery: true,
       'discovery-health': true,

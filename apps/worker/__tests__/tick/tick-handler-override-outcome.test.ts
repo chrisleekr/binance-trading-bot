@@ -6,7 +6,7 @@
 // half the story. A strategy can emit a perfectly good override-driven order
 // and still have it (a) refused before it ever left the process, (b) fail so
 // ambiguously that nobody knows whether Binance filled it, (c) be rejected
-// outright by Binance, or (d) be dropped by the daily-loss breaker. In every
+// outright by Binance, or (d) be dropped by an entry breaker. In every
 // one of those cases the operator's action did NOT happen, yet the row is
 // marked done and the operator is told it succeeded.
 //
@@ -30,10 +30,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Job } from 'bullmq';
 import type { MarketDataPort } from '@app/binance';
-import { profileKey } from '@app/db';
+import { entryHaltKeys, profileKey } from '@app/db';
 import { createRegistry, type Strategy, type SymbolInfo } from '@app/strategy-core';
 import { z } from 'zod';
-import { asAccountId, asProfileId, asUserId, DAILY_ENTRY_HALT_REASON } from '@app/contracts';
+import {
+  asAccountId,
+  asProfileId,
+  asUserId,
+  ENTRY_HALT_REASONS,
+  type EntryHaltKind,
+} from '@app/contracts';
 
 import { createChainByKey } from '../../src/lib/chain-by-key.js';
 import { createTickHandler, type TickHandlerDeps } from '../../src/tick/tick-handler.js';
@@ -48,7 +54,7 @@ const OVERRIDE_ACTION_ID = '01234567-89ab-4cde-89ab-cdef01234567';
 const OVERRIDE = { kind: 'trigger-sell' as const, overrideActionId: OVERRIDE_ACTION_ID };
 
 const OVERRIDE_KEY = profileKey({ accountId: ACCOUNT, profileId: PROFILE }, 'override', SYMBOL);
-const HALT_KEY = profileKey({ accountId: ACCOUNT, profileId: PROFILE }, 'entryHaltDaily');
+const HALT_KEYS = entryHaltKeys({ accountId: ACCOUNT, profileId: PROFILE });
 
 const TTL_MS = 120_000;
 
@@ -79,15 +85,16 @@ type OrderResult = { readonly ok: true } | OrderFailure;
 
 /**
  * ioredis stub covering the tick path: the snapshot pipeline (all slots empty →
- * cold-load), `exists` for the halt flag, and `set` for tick-meta / the re-arm.
- * `halted` arms the daily-loss breaker on its real key so the halt filter runs
- * exactly as it does in production.
+ * cold-load), `exists` for the halt flags, and `set` for tick-meta / the re-arm.
+ * `haltKinds` arms those breakers on their real keys so the halt filter runs
+ * exactly as it does in production, including its multi-key probe.
  */
 const buildFakeRedis = (
   setCalls: unknown[][],
-  halted: boolean,
+  haltKinds: readonly EntryHaltKind[],
   hangRearm = false,
 ): import('ioredis').Redis => {
+  const armed = new Set(haltKinds.map((kind) => HALT_KEYS[kind]));
   const makeChain = (count: { n: number }) => {
     const chain = {
       get() {
@@ -100,7 +107,8 @@ const buildFakeRedis = (
   };
   return {
     pipeline: () => makeChain({ n: 0 }),
-    exists: async (key: string) => (halted && key === HALT_KEY ? 1 : 0),
+    // Variadic: the filter probes all three keys in one call before naming any.
+    exists: async (...ks: string[]) => ks.filter((k) => armed.has(k)).length,
     // The tick reads the order re-arm flag (audit attribution) and clears it once
     // every order lands. No flag by default.
     get: async () => null,
@@ -175,7 +183,8 @@ interface RunOpts {
    * point of the partial-fan-out case.
    */
   readonly orderResult: OrderResult | ((clientOrderId: string) => OrderResult);
-  readonly halted?: boolean;
+  /** Breakers to arm on their real Redis keys; omitted means nothing is paused. */
+  readonly haltKinds?: readonly EntryHaltKind[];
   /** Make the re-arm `SET` hang forever, as a stalled ioredis command does. */
   readonly hangRearm?: boolean;
   /** Make the row writer throw before it returns a promise, not reject one. */
@@ -190,7 +199,7 @@ interface RunResult {
 
 const run = async (opts: RunOpts): Promise<RunResult> => {
   const setCalls: unknown[][] = [];
-  const redis = buildFakeRedis(setCalls, opts.halted === true, opts.hangRearm === true);
+  const redis = buildFakeRedis(setCalls, opts.haltKinds ?? [], opts.hangRearm === true);
   const resultOf = (clientOrderId: string): OrderResult =>
     typeof opts.orderResult === 'function' ? opts.orderResult(clientOrderId) : opts.orderResult;
   const settleOverrideAction = vi.fn(() => {
@@ -391,16 +400,32 @@ describe('tick handler — override settles on the order outcome', () => {
     const { rearms, settleOverrideAction } = await run({
       orders: [overrideBuy],
       orderResult: { ok: true },
-      halted: true,
+      haltKinds: ['daily-loss'],
     });
 
     expect(rearms).toHaveLength(0);
     expect(settleOverrideAction).toHaveBeenCalledTimes(1);
     const outcome = settledOutcome(settleOverrideAction);
     expect(outcome.status).toBe('rejected');
-    // The breaker's own words, from the one constant the api's 409 also uses, so
-    // the operator cannot be told two different things about one breaker.
-    expect(outcome.reason).toBe(DAILY_ENTRY_HALT_REASON);
+    // The breaker's own words, from the one map the api's 409 also reads, so the
+    // operator cannot be told two different things about one breaker.
+    expect(outcome.reason).toBe(ENTRY_HALT_REASONS['daily-loss']);
+  });
+
+  it('names the breaker that actually dropped the order, not the daily one', async () => {
+    // The daily flag is absent here. Recording the daily sentence would send the
+    // operator to a limit that is off, and tell them buying resumes at UTC
+    // midnight when the guard's pause has nothing to do with the day boundary.
+    const { settleOverrideAction } = await run({
+      orders: [overrideBuy],
+      orderResult: { ok: true },
+      haltKinds: ['loss-streak'],
+    });
+
+    const outcome = settledOutcome(settleOverrideAction);
+    expect(outcome.status).toBe('rejected');
+    expect(outcome.reason).toBe(ENTRY_HALT_REASONS['loss-streak']);
+    expect(outcome.reason).not.toBe(ENTRY_HALT_REASONS['daily-loss']);
   });
 
   it('never re-arms an `accepted` failure; settles it `applied` with the bookkeeping reason', async () => {
@@ -505,7 +530,7 @@ describe('tick handler — override settles on the order outcome', () => {
     const { rearms, settleOverrideAction } = await run({
       orders: [{ side: 'BUY', clientOrderId: 'stub-grid-buy' }, overrideSell],
       orderResult: { ok: true },
-      halted: true,
+      haltKinds: ['daily-loss'],
     });
 
     expect(rearms).toHaveLength(0);

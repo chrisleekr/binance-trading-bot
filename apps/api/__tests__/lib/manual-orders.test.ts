@@ -1,9 +1,17 @@
-import { asAccountId, asProfileId, asUserId, type ManualOverridePayload } from '@app/contracts';
-import { GLOBAL_KEYS, type ProfileRepo } from '@app/db';
+import {
+  asAccountId,
+  asProfileId,
+  asUserId,
+  ENTRY_HALT_REASONS,
+  type EntryHaltKind,
+  type ManualOverridePayload,
+} from '@app/contracts';
+import { entryHaltKeys, GLOBAL_KEYS, type ProfileRepo } from '@app/db';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { DI } from '../../src/di.js';
 import {
+  assertEntryNotHalted,
   balanceQuantityForSymbol,
   writeOverrideAndEnqueue,
   runOverrideOrRollbackDb,
@@ -243,5 +251,58 @@ describe('runOverrideOrRollbackDb', () => {
     ).rejects.toBeInstanceOf(OverrideRollbackError);
     expect(settleMock).not.toHaveBeenCalled();
     expect(loggerError).toHaveBeenCalledOnce();
+  });
+});
+
+describe('assertEntryNotHalted', () => {
+  const HALT_KEYS = entryHaltKeys({ accountId: A, profileId: P });
+
+  /** DI whose `pttl` answers -2 (absent) for every key but the armed ones. */
+  const diWithHalts = (armed: readonly EntryHaltKind[]): DI =>
+    ({
+      logger: { warn: vi.fn() },
+      redis: {
+        raw: () => ({
+          pttl: async (key: string) =>
+            armed.some((kind) => HALT_KEYS[kind] === key) ? 3_600_000 : -2,
+        }),
+      },
+    }) as unknown as DI;
+
+  it('allows the action when no breaker is armed', async () => {
+    await expect(assertEntryNotHalted(diWithHalts([]), fakeP)).resolves.toBeUndefined();
+  });
+
+  it('refuses with the armed breaker’s own sentence', async () => {
+    await expect(assertEntryNotHalted(diWithHalts(['drawdown']), fakeP)).rejects.toMatchObject({
+      message: ENTRY_HALT_REASONS.drawdown,
+    });
+    await expect(assertEntryNotHalted(diWithHalts(['loss-streak']), fakeP)).rejects.toMatchObject({
+      message: ENTRY_HALT_REASONS['loss-streak'],
+    });
+  });
+
+  it('names the first breaker in enum order when several are armed', async () => {
+    await expect(
+      assertEntryNotHalted(diWithHalts(['drawdown', 'daily-loss']), fakeP),
+    ).rejects.toMatchObject({ message: ENTRY_HALT_REASONS['daily-loss'] });
+  });
+
+  it('FAILS OPEN on a Redis fault — allows the action and logs it', async () => {
+    // Paired with the refusal cases above deliberately: a regression that simply returned "nothing armed" would pass this test alone, and only the refusal cases beside it can tell that apart from a working fail-open.
+    const logger = { warn: vi.fn() };
+    const di = {
+      logger,
+      redis: {
+        raw: () => ({
+          pttl: async () => {
+            throw new Error('redis down');
+          },
+        }),
+      },
+    } as unknown as DI;
+
+    await expect(assertEntryNotHalted(di, fakeP)).resolves.toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledTimes(1);
   });
 });

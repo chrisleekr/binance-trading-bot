@@ -10,11 +10,7 @@
 import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
 import type { Decision } from '@app/strategy-core';
-import {
-  DAILY_ENTRY_HALT_REASON,
-  type ManualOverridePayload,
-  type OverrideOutcomeInput,
-} from '@app/contracts';
+import type { ManualOverridePayload, OverrideOutcomeInput } from '@app/contracts';
 import { profileKey, type ProfileScope } from '@app/db';
 import { callAsync } from 'lib/call-async.js';
 import { raceDeadline } from 'lib/race-deadline.js';
@@ -168,18 +164,25 @@ const outcomeOfFailure = (result: DecisionFailure): OverrideOutcomeInput => {
  * retryable" verdict would re-arm it and the next tick would re-place an order
  * that may already have filled. No plugin is trusted not to do that, so the
  * settle direction is the safe one by construction, not by convention.
+ *
+ * @param overrideActionId - The operator action being settled; the sole attribution key against every order this tick emitted.
+ * @param applied - Every decision the executor actually ran, with its per-order result.
+ * @param suppressed - Decisions a breaker dropped before the executor saw them; checked first because they appear nowhere in `applied`.
+ * @param suppressedReason - The operator-facing sentence naming the breaker that dropped the order, passed in rather than fixed here because which of the three breakers was active is known only at the call site.
+ * @returns The fate to record for this override: suppressed by a breaker, none of this tick's orders were its, or the applied/failed verdict.
  */
 export const resolveOverrideOrderFate = (
   overrideActionId: string,
   applied: readonly AppliedDecision[],
   suppressed: readonly Decision[],
+  suppressedReason: string,
 ): OverrideOrderFate => {
   // Both placement shapes, because an override's order can arrive as either. A `replace-order` that fuses the retraction of a protective stop into the operator's exit carries the same `intent.overrideActionId` and puts the same order on the exchange; matching only `place-order` would leave it unattributed, and the `none` verdict settles the row `rejected` with "the strategy did not act on this override" while the exit it fused was live and possibly filled.
   const isOurs = (d: Decision): boolean =>
     (d.type === 'place-order' || d.type === 'replace-order') &&
     d.intent.overrideActionId === overrideActionId;
 
-  if (suppressed.some(isOurs)) return { kind: 'suppressed', reason: DAILY_ENTRY_HALT_REASON };
+  if (suppressed.some(isOurs)) return { kind: 'suppressed', reason: suppressedReason };
 
   const ours = applied.filter((a) => isOurs(a.decision));
   if (ours.length === 0) return { kind: 'none' };

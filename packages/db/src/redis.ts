@@ -1,4 +1,4 @@
-import type { AccountId, ProfileId } from '@app/contracts';
+import type { AccountId, EntryHaltKind, ProfileId } from '@app/contracts';
 import { Redis } from 'ioredis';
 
 // =============================================================================
@@ -150,12 +150,15 @@ export const PROFILE_KEYS = {
   // are pure and own that key exclusively.
   profileTickMeta: (): string => `profile-tick-meta`,
   killSwitch: (): string => `kill-switch`,
-  // Daily-loss circuit breaker flag. Set by the portfolio-risk cron with a TTL
-  // sized so it expires at roughly the next UTC midnight, when the profile's
-  // realised loss for the day breaches its configured limit; the tick handler
-  // drops new BUY orders while it is present. Self-clearing via the TTL, so a new
-  // UTC day always re-arms entries.
+  // Daily-loss circuit breaker flag, one of three entry-halt flags. Set by the
+  // portfolio-risk cron with a TTL sized so it expires at roughly the next UTC
+  // midnight, when the profile's realised loss for the day breaches its configured
+  // limit; the tick handler drops new BUY orders while it is present. Self-clearing
+  // via the TTL, so a new UTC day always re-arms entries.
   entryHaltDaily: (): string => `entry-halt:daily`,
+  // Loss-guard breaker flags. Set by the portfolio-risk cron with SET NX and a TTL of the guard's `pauseHours` when, respectively, the profile archived `maxLosingExits` losing cycles inside `lossStreak.lookbackHours`, or its realised peak-to-trough inside `drawdown.lookbackHours` reached `maxDrawdownQuote`. The tick handler drops new BUY orders while either is present, exactly as for `entryHaltDaily`. NX so the pause runs from the trip and is not extended every 30 s; when it expires the cron re-evaluates and may trip again.
+  entryHaltLossStreak: (): string => `entry-halt:loss-streak`,
+  entryHaltDrawdown: (): string => `entry-halt:drawdown`,
   // Edge-decay "already-alerted" latch. Set by the edge-decay-monitor cron when a
   // live profile's realized profit factor falls below its pinned backtest baseline,
   // solely to de-dupe the advisory Slack push to once per decay episode; the same
@@ -170,6 +173,18 @@ export const PROFILE_KEYS = {
 } as const satisfies Record<string, (...args: never[]) => string>;
 
 export type ProfileScopedKeyName = keyof typeof PROFILE_KEYS;
+
+/**
+ * The three entry-halt keys for one profile, keyed by breaker kind. Every reader of "is buying paused" goes through this, so a fourth breaker cannot be added to the cron and silently forgotten by a display surface: the return type is keyed by the closed `EntryHaltKind` union, which makes a missing kind a compile error here.
+ *
+ * @param scope - The account+profile the keys belong to; supplies the tenant prefix every key carries.
+ * @returns One fully-prefixed Redis key per breaker kind. Presence of a key IS the halt; nothing reads its value.
+ */
+export const entryHaltKeys = (scope: ProfileKeyParts): Readonly<Record<EntryHaltKind, string>> => ({
+  'daily-loss': profileKey(scope, 'entryHaltDaily'),
+  'loss-streak': profileKey(scope, 'entryHaltLossStreak'),
+  drawdown: profileKey(scope, 'entryHaltDrawdown'),
+});
 
 // =============================================================================
 // Global key catalogue (no profile, market data)

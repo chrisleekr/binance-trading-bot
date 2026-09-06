@@ -56,7 +56,7 @@ On the **Account** settings page, the account-wide kill switch stops **every pro
 
 The account-wide stop is a client-side fan-out that calls the per-profile disable-all for each profile, not a single atomic action, so a partial failure could leave some profiles trading.
 
-The automatic daily-loss circuit breaker, which halts new entries after the day's loss limit, is a separate mechanism from the kill switch.
+The automatic entry breakers — the daily loss limit, the loss-streak guard, and the drawdown guard — halt new entries on their own and are a separate mechanism from the kill switch.
 
 ## Where you will see it is active
 
