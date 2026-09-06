@@ -1,12 +1,22 @@
+import type { TestProjectInlineConfiguration } from 'vitest/config';
+
 import { defineProject } from '../config/vitest/index.js';
 
-// Serialisation exists for one reason: to hold the one-container-at-a-time invariant while the seven migration suites provision their own Postgres, because Vitest's default fan-out started all seven against one Docker daemon at once and orphaned the containers that eventually came up.
-//
-// So it is armed only when there are containers to hold it over. With TESTCONTAINERS unset there are none: those suites either skip outright (the Docker-free unit lane) or run against a DATABASE_TEST_URL the lane already supplied, each on its own scratch database. Serialising there buys nothing and costs the package roughly 3x wall clock, measured.
+// Serialisation remains scoped to local container runs. The global setup now provisions one endpoint for the whole project, while serial execution preserves the migration suites' established Docker and database concurrency behavior.
 const provisionsContainers = process.env['TESTCONTAINERS'] === '1';
 
-export default defineProject({
-  packageName: '@app/db',
-  // 180s, not the 120s a pure provisioning budget would need. `remove-paper-trading-migration` provisions, creates a scratch database, then runs the migration set in two staged passes, and `withPostgres` may legitimately spend its full 90s PROVISION_DEADLINE_MS before the first pass starts. That suite carried an explicit 180s of its own until the shared memo took provisioning over, and `infra-lifecycle-config` now forbids a per-hook override, so the budget has to be right here or the heaviest hook regresses into the bare "beforeAll timed out" this whole path replaces.
-  test: { hookTimeout: 180_000, fileParallelism: !provisionsContainers },
-});
+// Declared separately because Vitest types `teardownTimeout` as a root-only setting even though this package config is run as the root config. The value is still consumed when `vitest run` loads this file directly. `satisfies` widens exactly that one key: a bare variable would also stop TypeScript catching a typo in any of the others.
+const test = {
+  globalSetup: './__tests__/_global-setup.ts',
+  hookTimeout: 180_000,
+  teardownTimeout: 180_000,
+  fileParallelism: !provisionsContainers,
+  // Measured on the no-infra lane, same 238 passed / 472 skipped either way: 3.5s wall and 15s import shared, against 7.7s wall and 52s import isolated. The 79 files re-parse the same drizzle schema and migration helpers on every fresh registry, so the saving is import cost, not test cost.
+  //
+  // Safe because nothing here depends on a fresh registry per file. `_infra.ts` is a provided-context read with no module-level state to leak, teardown is owned by the project global setup rather than by whichever file imported first, and no suite calls `vi.resetModules()` on the shared graph.
+  isolate: false,
+} satisfies NonNullable<TestProjectInlineConfiguration['test']> & {
+  readonly teardownTimeout: number;
+};
+
+export default defineProject({ packageName: '@app/db', test });

@@ -40,8 +40,9 @@ describe('findRepoRoot', () => {
     expect(findRepoRoot(nested)).toBe(root);
   });
 
-  it('returns undefined when neither marker is present anywhere up the tree', () => {
-    const nested = join(root, 'a', 'b');
+  it('returns undefined when a repository marker is immediately beyond the 12-level search', () => {
+    mkdirSync(join(root, '.git'));
+    const nested = join(root, ...Array.from({ length: 12 }, (_, depth) => `level-${depth}`));
     mkdirSync(nested, { recursive: true });
 
     expect(findRepoRoot(nested)).toBeUndefined();
@@ -68,8 +69,9 @@ describe('findEnvFile', () => {
     expect(findEnvFile(inner)).toBe(innerEnv);
   });
 
-  it('returns undefined when no .env exists above startDir', () => {
-    const nested = join(root, 'a', 'b');
+  it('returns undefined when a .env is immediately beyond the 12-level search', () => {
+    writeFileSync(join(root, '.env'), 'OUTSIDE=1\n');
+    const nested = join(root, ...Array.from({ length: 12 }, (_, depth) => `level-${depth}`));
     mkdirSync(nested, { recursive: true });
 
     expect(findEnvFile(nested)).toBeUndefined();

@@ -1,13 +1,6 @@
-// Thin wrappers around `@testcontainers/postgresql` and
-// `@testcontainers/redis` that produce a fresh container per call.
+// Thin wrappers around `@testcontainers/postgresql` and `@testcontainers/redis` that produce a fresh container per call.
 //
-// The integration suites under apps/api, apps/worker, and packages/db all
-// need a hermetic Postgres + Redis. Sharing a single long-lived instance
-// across suites is fragile — one suite's leaked rows show up in the next
-// — so each suite calls `withPostgres` / `withRedis` and tears the
-// container down on cleanup. The factories live here rather than inline
-// in each suite so the image pins, env defaults, and start-up timing are
-// owned in one place.
+// API and worker integration fixtures call these factories directly and release their containers during fixture cleanup. The database package calls `withPostgres` once from project global setup, then gives migration suites separate scratch databases on that shared endpoint. The factories live here rather than inline so image pins, environment defaults, and startup timing remain owned in one place.
 
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { RedisContainer, type StartedRedisContainer } from '@testcontainers/redis';
@@ -129,14 +122,25 @@ export interface PostgresFixture {
 }
 
 /**
+ * Decides whether a caller-supplied endpoint may stand in for a provisioned container. `TESTCONTAINERS=1` wins when both are set, so an explicit request to provision is never satisfied by a service URL that happens to be exported.
+ *
+ * Extracted so the rule is one expression with one test rather than a branch repeated per fixture, and so it stays pinned in lanes that have no Docker socket to observe the provisioning half.
+ *
+ * @param reuseUrl - The endpoint named by this fixture's reuse variable, if any.
+ * @returns The endpoint to reuse, or undefined when this call must provision.
+ */
+export const reusableEndpoint = (reuseUrl: string | undefined): string | undefined =>
+  process.env['TESTCONTAINERS'] === '1' ? undefined : reuseUrl;
+
+/**
  * Returns a Postgres endpoint for an integration suite. `TESTCONTAINERS=1` boots the requested pinned image, while `DATABASE_TEST_URL` reuses the service container supplied by CI. `TESTCONTAINERS=1` wins when both are set so the wrapper's smoke test exercises real provisioning.
  *
  * @param options - Per-call overrides; `startTimeoutMs` tightens the provisioning deadline for a caller with a smaller hook budget.
  * @returns The connection string, optional provisioned container, and cleanup hook owned by the caller.
  */
 export const withPostgres = async (options: ProvisionOptions = {}): Promise<PostgresFixture> => {
-  const reuseUrl = process.env['DATABASE_TEST_URL'];
-  if (process.env['TESTCONTAINERS'] !== '1' && reuseUrl) {
+  const reuseUrl = reusableEndpoint(process.env['DATABASE_TEST_URL']);
+  if (reuseUrl) {
     return { databaseUrl: reuseUrl, stop: async () => undefined };
   }
   // Deadline OUTSIDE, retry INSIDE, so all three attempts spend one budget. Nested the other way each attempt would get its own, up to 3x the deadline, which outruns the hook timeouts the deadline was sized under (packages/db 180s, apps/worker 180s) and hands the operator back the bare "beforeAll timed out" this whole path exists to replace.
@@ -192,8 +196,8 @@ export interface RedisFixture {
  * @returns The connection URL, optional provisioned container, and cleanup hook owned by the caller.
  */
 export const withRedis = async (options: ProvisionOptions = {}): Promise<RedisFixture> => {
-  const reuseUrl = process.env['REDIS_TEST_URL'];
-  if (process.env['TESTCONTAINERS'] !== '1' && reuseUrl) {
+  const reuseUrl = reusableEndpoint(process.env['REDIS_TEST_URL']);
+  if (reuseUrl) {
     return { redisUrl: reuseUrl, stop: async () => undefined };
   }
   // Same nesting as `withPostgres`, for the same reason: one budget covers the retry loop, never one budget per attempt.
