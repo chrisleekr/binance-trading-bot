@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+archive=''
+if [ "${1:-}" = '-c' ]; then
+  read -r _ archive
+else
+  archive="${*: -1}"
+fi
+if grep -qF 'tampered archive' "$archive"; then
+  echo "${archive}: FAILED" >&2
+  exit 1
+fi
+if [ "${1:-}" = '-c' ]; then
+  echo "${archive}: OK"
+else
+  echo "09203151c132f36b004615de1a3dea22117ad17e6d7a59962e34f3abf328f312  ${archive}"
+fi

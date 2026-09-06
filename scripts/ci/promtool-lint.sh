@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # Lint the Prometheus alert rules with promtool. Cache the matching Prometheus
-# binary under node_modules so warm runs do not download it again.
+# archive and binary under node_modules so warm runs do not download them again.
 #
 # A missing rules set or unavailable validator fails the gate. A green result
 # must mean promtool inspected every discovered Prometheus rules file.
@@ -16,6 +16,7 @@ PROMTOOL_VERSION="${PROMTOOL_VERSION:-3.4.1}"
 # operator nukes node_modules.
 CACHE_DIR="node_modules/.cache/promtool-${PROMTOOL_VERSION}"
 PROMTOOL_BIN="${CACHE_DIR}/promtool"
+PROMTOOL_ARCHIVE="${CACHE_DIR}/prom.tgz"
 root="${GUARD_ROOT:-$PWD}"
 cd "$root"
 RULE_FILES=()
@@ -30,39 +31,68 @@ fi
 # 1) Use a system-installed promtool if present.
 if command -v promtool >/dev/null 2>&1; then
   PROMTOOL_BIN="$(command -v promtool)"
-elif [[ ! -x "$PROMTOOL_BIN" ]]; then
-  # 2) Otherwise fetch the matching release into the local cache.
-  os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-  arch="$(uname -m)"
-  case "$arch" in
+else
+  # 2) Otherwise verify the matching official archive and extract a fresh binary from it.
+  raw_os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+  raw_arch="$(uname -m)"
+  case "$raw_os" in
+    linux|darwin) os="$raw_os" ;;
+    *) echo "promtool-lint: unsupported platform ${raw_os}-${raw_arch}; cannot validate rules." >&2; exit 1 ;;
+  esac
+  case "$raw_arch" in
     x86_64|amd64) arch=amd64 ;;
     aarch64|arm64) arch=arm64 ;;
-    *) echo "promtool-lint: unsupported arch ${arch}; cannot validate rules." >&2; exit 1 ;;
+    *) echo "promtool-lint: unsupported platform ${os}-${raw_arch}; cannot validate rules." >&2; exit 1 ;;
   esac
   release="prometheus-${PROMTOOL_VERSION}.${os}-${arch}"
   url="https://github.com/prometheus/prometheus/releases/download/v${PROMTOOL_VERSION}/${release}.tar.gz"
-  mkdir -p "$CACHE_DIR"
-  # Two fetchers because the lanes disagree: the GitHub lane runs on ubuntu and
-  # has curl, the GitLab lane runs oven/bun:*-alpine, which ships BusyBox wget
-  # and no curl at all. Assuming curl made this gate fail closed on every GitLab
-  # run. Whichever exists is tried, and an available fetcher that fails falls
-  # through to the other before the gate gives up.
-  if command -v curl >/dev/null 2>&1 &&
-    curl -fsSL --connect-timeout 5 -o "${CACHE_DIR}/prom.tgz" "$url"; then
-    :
-  elif command -v wget >/dev/null 2>&1 &&
-    wget -q --timeout=20 -O "${CACHE_DIR}/prom.tgz" "$url"; then
-    :
-  else
-    echo "promtool-lint: cannot reach ${url}; install promtool locally to validate rules." >&2
+  digest_file="${script_dir}/prometheus-${PROMTOOL_VERSION}.sha256"
+  expected_digest="$(awk -v asset="${release}.tar.gz" '$2 == asset { print $1 }' "$digest_file" 2>/dev/null || true)"
+  if [[ ! "$expected_digest" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "promtool-lint: no pinned SHA-256 digest for ${release}.tar.gz." >&2
     exit 1
   fi
-  # Extract only promtool. The tarball also carries the ~150 MB prometheus
-  # server binary, which nothing here runs, and CACHE_DIR lives under
-  # node_modules — a path the GitLab `lint` job uploads into the shared bun
-  # cache that every other job then pulls.
-  tar -xzf "${CACHE_DIR}/prom.tgz" -C "$CACHE_DIR" --strip-components=1 "${release}/promtool"
-  rm -f "${CACHE_DIR}/prom.tgz"
+  mkdir -p "$CACHE_DIR"
+  archive_to_verify="$PROMTOOL_ARCHIVE"
+  downloaded=0
+  if [[ ! -f "$PROMTOOL_ARCHIVE" ]]; then
+    download="${PROMTOOL_ARCHIVE}.download"
+    rm -f "$download"
+    # Two fetchers because the lanes disagree: the GitHub lane runs on ubuntu and has curl, while the GitLab Alpine lane has BusyBox wget. An available fetcher that fails falls through to the other before the gate gives up.
+    if command -v curl >/dev/null 2>&1 &&
+      curl -fsSL --connect-timeout 5 -o "$download" "$url"; then
+      :
+    elif command -v wget >/dev/null 2>&1 &&
+      wget -q --timeout=20 -O "$download" "$url"; then
+      :
+    else
+      rm -f "$download"
+      echo "promtool-lint: cannot reach ${url}; install promtool locally to validate rules." >&2
+      exit 1
+    fi
+    archive_to_verify="$download"
+    downloaded=1
+  fi
+
+  actual_digest=''
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual_digest="$(sha256sum "$archive_to_verify" 2>/dev/null | awk '{ print $1 }')" || true
+  elif command -v shasum >/dev/null 2>&1; then
+    actual_digest="$(shasum -a 256 "$archive_to_verify" 2>/dev/null | awk '{ print $1 }')" || true
+  else
+    if [[ "$downloaded" -eq 1 ]]; then rm -f "$archive_to_verify"; fi
+    echo 'promtool-lint: neither sha256sum nor shasum is available to verify the Prometheus archive.' >&2
+    exit 1
+  fi
+  if [[ "$actual_digest" != "$expected_digest" ]]; then
+    if [[ "$downloaded" -eq 1 ]]; then rm -f "$archive_to_verify"; fi
+    echo "promtool-lint: checksum mismatch for ${url}." >&2
+    exit 1
+  fi
+  if [[ "$downloaded" -eq 1 ]]; then mv "$archive_to_verify" "$PROMTOOL_ARCHIVE"; fi
+
+  # Extract only promtool after every successful verification. This overwrites a modified cached executable without storing the much larger Prometheus server binary.
+  tar -xzf "$PROMTOOL_ARCHIVE" -C "$CACHE_DIR" --strip-components=1 "${release}/promtool"
 fi
 
 "$PROMTOOL_BIN" check rules "${RULE_FILES[@]}"

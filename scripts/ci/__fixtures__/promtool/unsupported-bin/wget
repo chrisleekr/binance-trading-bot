@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo 'NETWORK CALLED: wget' >&2
+exit 96

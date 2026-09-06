@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo 'TAMPERED EXECUTABLE RAN' >&2
+exit 86

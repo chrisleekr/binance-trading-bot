@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+output=''
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = '-O' ]; then
+    output="$2"
+    shift 2
+  else
+    shift
+  fi
+done
+cp "${PROMTOOL_DOWNLOAD_ARCHIVE:?}" "${output:?}"
