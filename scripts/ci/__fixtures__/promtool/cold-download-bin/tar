@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+destination=''
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = '-C' ]; then
+    destination="$2"
+    shift 2
+  else
+    shift
+  fi
+done
+printf 'tar\n' >>"${PROMTOOL_TAR_LOG:?}"
+cp "${PROMTOOL_GOOD_BIN:?}" "${destination:?}/promtool"
+chmod +x "${destination}/promtool"

@@ -1,0 +1,8 @@
+07b0442f50aed883afbcc5ca3136ce45bef99aa73b7aa2e8fa4247b26f2d523f  prometheus-3.4.1.darwin-amd64.tar.gz
+7a6372e2b6a1a498a6aa4e9936878ff8b42c9ed818305b915133600182e2051e  prometheus-3.4.1.darwin-arm64.tar.gz
+09203151c132f36b004615de1a3dea22117ad17e6d7a59962e34f3abf328f312  prometheus-3.4.1.linux-amd64.tar.gz
+2a85be1dff46238c0d799674e856c8629c8526168dd26c3de2cecfbfc6f9a0a2  prometheus-3.4.1.linux-arm64.tar.gz
+fcff7d070c6fb96b2b0744448c236babd5a89484060b0193966e61a7dc01c4ea  prometheus-3.4.1.darwin-amd64/promtool
+ecd398561f7ee26278f508f922d5d2c745b862e26e30873f052ecb516f623ccc  prometheus-3.4.1.darwin-arm64/promtool
+15e75af9417292b58d8b116640a27c60c2b71c70da386887ad3b356fe5df75cd  prometheus-3.4.1.linux-amd64/promtool
+ac164096721c34e18d1e187d26d0f39434b6ab0eba8c9a3838f3610b7c197717  prometheus-3.4.1.linux-arm64/promtool

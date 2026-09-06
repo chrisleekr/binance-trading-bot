@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+if [ "${1:-}" = '-m' ]; then
+  echo 'x86_64'
+else
+  echo 'Plan9'
+fi
