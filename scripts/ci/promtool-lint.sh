@@ -14,9 +14,11 @@ PROMTOOL_VERSION="${PROMTOOL_VERSION:-3.4.1}"
 # Cache under node_modules/.cache so we don't have to touch .gitignore;
 # node_modules is already ignored by default. Wiped only when the
 # operator nukes node_modules.
+#
+# Only the extracted binary is cached. node_modules is one shared CI cache slot, and
+# the release archive is ~117MB against a ~146MB binary we would keep anyway.
 CACHE_DIR="node_modules/.cache/promtool-${PROMTOOL_VERSION}"
 PROMTOOL_BIN="${CACHE_DIR}/promtool"
-PROMTOOL_ARCHIVE="${CACHE_DIR}/prom.tgz"
 root="${GUARD_ROOT:-$PWD}"
 cd "$root"
 RULE_FILES=()
@@ -47,16 +49,33 @@ else
   release="prometheus-${PROMTOOL_VERSION}.${os}-${arch}"
   url="https://github.com/prometheus/prometheus/releases/download/v${PROMTOOL_VERSION}/${release}.tar.gz"
   digest_file="${script_dir}/prometheus-${PROMTOOL_VERSION}.sha256"
-  expected_digest="$(awk -v asset="${release}.tar.gz" '$2 == asset { print $1 }' "$digest_file" 2>/dev/null || true)"
-  if [[ ! "$expected_digest" =~ ^[0-9a-f]{64}$ ]]; then
-    echo "promtool-lint: no pinned SHA-256 digest for ${release}.tar.gz." >&2
+  pinned_digest() { awk -v asset="$1" '$2 == asset { print $1 }' "$digest_file" 2>/dev/null || true; }
+  expected_archive_digest="$(pinned_digest "${release}.tar.gz")"
+  expected_binary_digest="$(pinned_digest "${release}/promtool")"
+  if [[ ! "$expected_archive_digest" =~ ^[0-9a-f]{64}$ || ! "$expected_binary_digest" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "promtool-lint: no pinned SHA-256 digest for ${release}." >&2
     exit 1
   fi
+
+  # Resolve the digest tool before the network is touched. A host that cannot verify must refuse rather than download an archive it would have to discard, and the refusal is the same on a warm run.
+  if command -v sha256sum >/dev/null 2>&1; then
+    digest_of() { sha256sum "$1" | awk '{ print $1 }'; }
+  elif command -v shasum >/dev/null 2>&1; then
+    digest_of() { shasum -a 256 "$1" | awk '{ print $1 }'; }
+  else
+    echo 'promtool-lint: neither sha256sum nor shasum is available to verify the Prometheus archive.' >&2
+    exit 1
+  fi
+
   mkdir -p "$CACHE_DIR"
-  archive_to_verify="$PROMTOOL_ARCHIVE"
-  downloaded=0
-  if [[ ! -f "$PROMTOOL_ARCHIVE" ]]; then
-    download="${PROMTOOL_ARCHIVE}.download"
+  # The cached executable is the whole cache, so pinning its digest is what makes a warm run provable: it verifies the exact bytes about to run without re-reading the archive. A cached binary that fails the pin is deleted and refetched, which is why a corrupt cache cannot wedge the gate the way a retained bad archive would.
+  cached_digest=''
+  if [[ -f "$PROMTOOL_BIN" ]]; then
+    cached_digest="$(digest_of "$PROMTOOL_BIN" 2>/dev/null || true)"
+  fi
+  if [[ "$cached_digest" != "$expected_binary_digest" ]]; then
+    rm -f "$PROMTOOL_BIN"
+    download="${CACHE_DIR}/prom.tgz.download"
     rm -f "$download"
     # Two fetchers because the lanes disagree: the GitHub lane runs on ubuntu and has curl, while the GitLab Alpine lane has BusyBox wget. An available fetcher that fails falls through to the other before the gate gives up.
     if command -v curl >/dev/null 2>&1 &&
@@ -70,29 +89,22 @@ else
       echo "promtool-lint: cannot reach ${url}; install promtool locally to validate rules." >&2
       exit 1
     fi
-    archive_to_verify="$download"
-    downloaded=1
+    actual_digest="$(digest_of "$download" 2>/dev/null || true)"
+    if [[ "$actual_digest" != "$expected_archive_digest" ]]; then
+      rm -f "$download"
+      echo "promtool-lint: checksum mismatch for ${url}." >&2
+      exit 1
+    fi
+    # Extract only promtool, then drop the archive. Keeping it would put the tarball into the shared node_modules cache slot for every later job to pull.
+    tar -xzf "$download" -C "$CACHE_DIR" --strip-components=1 "${release}/promtool"
+    rm -f "$download"
+    extracted_digest="$(digest_of "$PROMTOOL_BIN" 2>/dev/null || true)"
+    if [[ "$extracted_digest" != "$expected_binary_digest" ]]; then
+      rm -f "$PROMTOOL_BIN"
+      echo "promtool-lint: extracted binary checksum mismatch for ${release}/promtool." >&2
+      exit 1
+    fi
   fi
-
-  actual_digest=''
-  if command -v sha256sum >/dev/null 2>&1; then
-    actual_digest="$(sha256sum "$archive_to_verify" 2>/dev/null | awk '{ print $1 }')" || true
-  elif command -v shasum >/dev/null 2>&1; then
-    actual_digest="$(shasum -a 256 "$archive_to_verify" 2>/dev/null | awk '{ print $1 }')" || true
-  else
-    if [[ "$downloaded" -eq 1 ]]; then rm -f "$archive_to_verify"; fi
-    echo 'promtool-lint: neither sha256sum nor shasum is available to verify the Prometheus archive.' >&2
-    exit 1
-  fi
-  if [[ "$actual_digest" != "$expected_digest" ]]; then
-    if [[ "$downloaded" -eq 1 ]]; then rm -f "$archive_to_verify"; fi
-    echo "promtool-lint: checksum mismatch for ${url}." >&2
-    exit 1
-  fi
-  if [[ "$downloaded" -eq 1 ]]; then mv "$archive_to_verify" "$PROMTOOL_ARCHIVE"; fi
-
-  # Extract only promtool after every successful verification. This overwrites a modified cached executable without storing the much larger Prometheus server binary.
-  tar -xzf "$PROMTOOL_ARCHIVE" -C "$CACHE_DIR" --strip-components=1 "${release}/promtool"
 fi
 
 "$PROMTOOL_BIN" check rules "${RULE_FILES[@]}"

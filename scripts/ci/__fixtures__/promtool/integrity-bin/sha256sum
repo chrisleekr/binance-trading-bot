@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
-archive=''
-if [ "${1:-}" = '-c' ]; then
-  read -r _ archive
-else
-  archive="${*: -1}"
+# Impersonates the pinned linux-amd64 digests so fixture-sized stand-ins verify.
+# Anything whose contents are marked tampered reports a digest matching no pin.
+target="${*: -1}"
+if grep -qiF 'tampered' "$target" 2>/dev/null; then
+  echo "0000000000000000000000000000000000000000000000000000000000000000  ${target}"
+  exit 0
 fi
-if grep -qF 'tampered archive' "$archive"; then
-  echo "${archive}: FAILED" >&2
-  exit 1
-fi
-if [ "${1:-}" = '-c' ]; then
-  echo "${archive}: OK"
-else
-  echo "09203151c132f36b004615de1a3dea22117ad17e6d7a59962e34f3abf328f312  ${archive}"
-fi
+case "$target" in
+  */promtool) echo "15e75af9417292b58d8b116640a27c60c2b71c70da386887ad3b356fe5df75cd  ${target}" ;;
+  *) echo "09203151c132f36b004615de1a3dea22117ad17e6d7a59962e34f3abf328f312  ${target}" ;;
+esac

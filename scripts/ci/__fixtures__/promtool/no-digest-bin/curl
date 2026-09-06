@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo 'NETWORK CALLED: curl' >&2
+exit 96
