@@ -88,10 +88,13 @@ const manifestOverride = process.env.WALK_GATE_MANIFEST;
 const overrideLines = manifestOverride
   ? fs.readFileSync(manifestOverride, "utf8").split("\n").map((l) => l.trim()).filter(Boolean)
   : null;
-const expected = overrideLines ? overrideLines.filter((l) => !l.startsWith("lib:")) : MANIFEST;
+const expected = overrideLines ? overrideLines.filter((l) => !l.startsWith("lib:") && !l.startsWith("fixture:")) : MANIFEST;
 const expectedLibraries = overrideLines
   ? overrideLines.filter((l) => l.startsWith("lib:")).map((l) => l.slice(4))
   : LIBRARY_WALKERS;
+const expectedFixtureWalkers = overrideLines
+  ? overrideLines.filter((l) => l.startsWith("fixture:")).map((l) => l.slice(8))
+  : FIXTURE_WALKERS;
 
 // Assembled from fragments so this file does not contain the literals it searches for; that is what lets the scan below read every gate including the ones that quote the API in prose.
 const PRIMITIVE = new RegExp(["readdir", "opendir", "glob"].map((n) => n + "S" + "ync").join("|"));
@@ -101,8 +104,8 @@ const HELPER = HELPER_BY_EXT[".sh"];
 // A file class is taught only when BOTH recognisers know it. Half a table is worse than none: routing would be judged by the right spelling and the seam by nothing.
 const TAUGHT_EXTS = Object.keys(HELPER_BY_EXT).filter((e) => SEAM_BY_EXT[e] !== undefined);
 
-// These exact depth-one files are data rather than executable candidates. A suffix is not an exemption: every other filename reaches classification, including an extensionless or data-looking walker.
-const NON_GATE_FILES = ["prometheus-3.4.1.sha256", "tofixed-inventory.json"];
+// These exact depth-one files are data rather than executable candidates. A suffix is not an exemption: every other filename reaches classification, including an extensionless or data-looking walker. A name is added here only once the file it names exists and has been reviewed, never ahead of one.
+const NON_GATE_FILES = ["tofixed-inventory.json"];
 
 const gates = collectOrExit({
   root,
@@ -124,6 +127,8 @@ const gates = collectOrExit({
 });
 
 const read = new Map(gates.map((p) => [path.basename(p), fs.readFileSync(p, "utf8")]));
+// Whole-line prose is not executable evidence, and that holds for every recogniser here, not just the walk ones. A gate whose seam survives only inside a `#` comment carries no seam a self-test can drive, so reading the raw source would classify commented-out prose as the thing it merely describes.
+const executable = (src) => src.replace(/^\s*(?:#|\/\/).*$/gm, "");
 
 // The scan-exclusion for this gate is not an exemption. Its own walk above must go through the helper, so that is asserted directly, in the same run, over the file actually on disk.
 const selfSrc = read.get(SELF);
@@ -165,7 +170,7 @@ if (lintSrc !== undefined) {
     process.exit(1);
   }
   if (sweptAt === -1 || sweptAt > firstGate) {
-    const carriers = [...read].filter(([n, src]) => (SEAM_BY_EXT[path.extname(n)] ?? []).some((needle) => src.includes(needle))).length;
+    const carriers = [...read].filter(([n, src]) => (SEAM_BY_EXT[path.extname(n)] ?? []).some((needle) => executable(src).includes(needle))).length;
     console.error("UNSWEPT SEAM — scripts/ci/lint.sh does not clear GUARD_ROOT before running the gates.");
     console.error("");
     console.error(carriers + " gates resolve GUARD_ROOT from the environment so their self-tests can drive them. Left set, it redirects all of them at another tree, and a tree carrying the declared anchors passes both stops silently.");
@@ -229,12 +234,11 @@ for (const [name, src] of [...read].sort(compareEntryNames)) {
     untaught.push(name);
     continue;
   }
-  // Whole-line prose is not executable evidence. Self-tests discuss the primitive they fault-inject, so scanning comments would classify the discussion itself as a walk.
-  const code = src.replace(/^\s*(?:#|\/\/).*$/gm, "");
+  const code = executable(src);
   const usesHelper = code.includes(HELPER_BY_EXT[ext]);
   const usesPrimitive = PRIMITIVE.test(code);
   if (!usesHelper && !usesPrimitive) continue;
-  if (FIXTURE_WALKERS.includes(name)) {
+  if (expectedFixtureWalkers.includes(name)) {
     fixtureWalkers.push(name);
     continue;
   }
@@ -245,7 +249,7 @@ for (const [name, src] of [...read].sort(compareEntryNames)) {
   walkers.push(name);
   if (usesPrimitive) rawWalkers.push(name);
   if (!usesHelper) blind.push(name);
-  if (!SEAM_BY_EXT[ext].some((needle) => src.includes(needle))) seamless.push(name);
+  if (!SEAM_BY_EXT[ext].some((needle) => code.includes(needle))) seamless.push(name);
 }
 
 let failed = false;
@@ -272,6 +276,13 @@ diff(
   rawWalkers,
   RAW_WALK_REGISTERED,
   "A gate may read a directory directly only where the listing is not a verdict, and only with the reason written at the call site and the name registered here. Register it deliberately or route it through the helper.",
+);
+
+diff(
+  "The registered fixture-walker set drifted.",
+  fixtureWalkers,
+  expectedFixtureWalkers,
+  "A self-test registered here walks only to build or exercise fixtures. One that stopped walking, or was deleted, must leave this list with it: left behind, the exemption outlives the file and the next file to take that exact name inherits it unreviewed.",
 );
 
 diff(
