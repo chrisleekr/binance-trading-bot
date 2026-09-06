@@ -80,7 +80,8 @@ export const parseUserStreamFrame = (raw: unknown): UserStreamEvent | null => {
       kind: 'execution-report',
       symbol: String(inner['s'] ?? ''),
       orderId: Number(inner['i'] ?? 0),
-      clientOrderId: String(inner['c'] ?? ''),
+      // Read as a string or not at all, because `c` is the only field here that becomes a KEY: it names the cross-profile placement marker the event router's ownership gate reads back. (Other fields are decoded rather than blindly stringified too — `S` is compared, `i`/`t`/`E` go through `Number()` — but a coercion in any of them yields at most a value that matches nothing.) `String()` would turn a non-string JSON scalar into a legal-looking id (`0`, `false`), collapsing distinct orders onto one shared marker key and attributing them all to whichever profile last placed with that shape. Every other field is read as data, so a coercion there is at worst a value that matches nothing. Empty is already the gate's "no marker", which falls back to the orders-row verdict.
+      clientOrderId: typeof inner['c'] === 'string' ? inner['c'] : '',
       orderStatus: String(inner['X'] ?? ''),
       side: inner['S'] === 'BUY' ? 'BUY' : 'SELL',
       executionType: String(inner['x'] ?? ''),

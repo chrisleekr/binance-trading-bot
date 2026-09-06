@@ -96,8 +96,10 @@ export interface EventRouterDeps {
    *
    * Resolves who, if anyone, owns `binanceOrderId`:
    *
-   *   - `own`      — this profile's order (or nobody's YET: its own just-placed
-   *                  order whose row has not committed). Adopt it.
+   *   - `own`      — this profile's order, by its `orders` row, by the placement
+   *                  marker `clientOrderId` carries while that row is still
+   *                  uncommitted, or (marker lost) by nobody positively owning
+   *                  it. Adopt it.
    *   - `sibling`  — positively owned by a DIFFERENT profile on this account.
    *                  Drop: that profile gets the same report on its own stream.
    *   - `detached` — the row exists but its profile was deleted (`profile_id`
@@ -114,6 +116,7 @@ export interface EventRouterDeps {
     accountId: AccountId,
     profileId: ProfileId,
     binanceOrderId: number,
+    clientOrderId: string,
   ) => Promise<OrderOwnership>;
   readonly logger: Logger;
   readonly clock?: { nowMs(): number };
@@ -264,21 +267,13 @@ export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
           commission: event.commission,
           commissionAsset: event.commissionAsset,
         });
-        // Cross-profile isolation gate. With one account shared by N profiles,
-        // Binance issues a single user-data stream per account, so this report
-        // may be for an order a SIBLING profile placed (its symbol may not even
-        // be in this profile's set). Adopting it would write a position this
-        // profile does not own and tick a foreign symbol; drop it. The profile
-        // that placed the order receives the same report on its own stream and
-        // processes it there. The gate drops ONLY a positively foreign order, so
-        // this profile's own just-placed order — whose row may not have committed
-        // yet — is still processed, keeping fill adoption independent of the
-        // orders-row write racing the WS frame.
+        // Cross-profile isolation gate. With one account shared by N profiles, Binance issues a single user-data stream per account, so this report may be for an order a SIBLING profile placed (its symbol may not even be in this profile's set). Adopting it would write a position this profile does not own and tick a foreign symbol; drop it. The profile that placed the order receives the same report on its own stream and processes it there. The `orders` row is written only after the REST placement returns, so while it is uncommitted the gate identifies an own just-placed order by the placement marker keyed on `clientOrderId` — which is why the id is passed. Without it the gate had no positive owner in that window and told EVERY profile the order was its own, which is how a sibling acquired state for symbols it never traded.
         const ownership = await deps.classifyOrder(
           operatorId,
           accountId,
           event.profileId,
           event.orderId,
+          event.clientOrderId,
         );
         if (ownership === 'sibling') return;
         if (ownership === 'detached') {

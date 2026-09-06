@@ -335,11 +335,15 @@ describe('EventRouter', () => {
       tradeId: 1,
       eventTimeMs: 0,
     });
+    // The clientOrderId is the 5th argument because it is the gate's only handle on the placing
+    // profile while the `orders` row is still uncommitted; a router that stops forwarding it
+    // silently disarms the marker consult.
     expect(classifyOrder).toHaveBeenCalledWith(
       asUserId('u1'),
       asAccountId('a1'),
       asProfileId('p2'),
       99,
+      'tt-foreign',
     );
     // No adoption (would write a foreign position), no tick (would run the
     // strategy on a symbol this profile never subscribed), no cache write.
@@ -536,6 +540,7 @@ describe('EventRouter', () => {
       asAccountId('a1'),
       asProfileId('p1'),
       1,
+      'tt-own',
     );
     expect(adopt).toHaveBeenCalledTimes(1);
     expect(tickQueue.add).toHaveBeenCalledTimes(1);

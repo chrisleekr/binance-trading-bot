@@ -84,6 +84,21 @@ describe('parseUserStreamFrame', () => {
     expect(event).toMatchObject({ commission: '0', commissionAsset: '' });
   });
 
+  // `c` is the only field here that becomes a KEY downstream (the cross-profile placement-owner marker), so it is read as a string or not at all. A `String()` coercion would mint a legal-looking id from a non-string scalar, and every order carrying that shape would then share one marker key and be attributed to one profile.
+  // `[]` is deliberately absent: `String([])` is already `''`, so that case passes under either implementation and would pin nothing.
+  it.each([[0], [false], [true], [{}]])(
+    'reads a non-string clientOrderId (%j) as absent rather than coercing it into an id',
+    (c) => {
+      const event = parseUserStreamFrame({ event: { e: 'executionReport', i: 42, c } });
+      expect(event).toMatchObject({ orderId: 42, clientOrderId: '' });
+    },
+  );
+
+  it('passes a genuine string clientOrderId through unchanged', () => {
+    const event = parseUserStreamFrame({ event: { e: 'executionReport', c: 'tt-buy-1' } });
+    expect(event).toMatchObject({ clientOrderId: 'tt-buy-1' });
+  });
+
   it('decodes a balanceUpdate', () => {
     const event = parseUserStreamFrame({
       event: { e: 'balanceUpdate', a: 'USDT', d: '-12.5', E: 3 },

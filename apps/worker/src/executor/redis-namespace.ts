@@ -111,3 +111,7 @@ export const buildSymbolInfoKey = (symbol: string, mode: BinanceMode): string =>
 // it and the handler writes it.
 export const buildOrderRearmKey = (profileId: ProfileId, symbol: string): string =>
   `order-rearm:${profileId}:${symbol}`;
+
+// Which profile placed the order carrying this clientOrderId. Written by the placement path just before the order is transmitted, read by the event router's ownership gate while the `orders` row is still uncommitted. ACCOUNT-domain, with no profile segment: the reader is asking WHICH profile, so it cannot supply one. Self-expiring, so an abandoned marker cannot outlive its order. A bare literal like `order-rearm` rather than a tenant-prefixed catalogue entry — the key never crosses the worker→api boundary, and `accountId` is a UUID, so the prefix alone isolates it.
+export const buildPlacementOwnerKey = (accountId: AccountId, clientOrderId: string): string =>
+  `placement-owner:${accountId}:${clientOrderId}`;
