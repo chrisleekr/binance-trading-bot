@@ -65,6 +65,9 @@ const RAW_WALK_REGISTERED = ["no-stale-screenshot.sh"];
 // Modules that export a walk instead of deciding with one. They are held to a different bar because the two stops would be in the wrong place here: neither module prints a verdict, and each takes its root as a PARAMETER, which is a stricter seam than the environment override a gate needs — a caller cannot reach them without choosing a root. What makes their narrowing safe is that each refuses a short result itself before returning one, at `declared workspace has no package.json`, `missing complete-suite lcov for:` and `no lcov source records found`. Pinned in both directions like every other set here, so a third module cannot join by being a library, and one that stops walking cannot leave unnoticed.
 const LIBRARY_WALKERS = ["merge-coverage.ts", "workspaces.ts"];
 
+// These exact self-tests walk only to build or exercise fixtures. A suffix is not an exemption: every other detected walker, including another `*.selftest.sh`, remains subject to the production manifest and routing rules below.
+const FIXTURE_WALKERS = ["no-mutated-applied-migration.selftest.sh", "walk-lib.selftest.sh"];
+
 // The override seam a self-test needs to point the real gate at a deliberately broken fixture tree. The `${GUARD_ROOT:-` form is the whole assertion: a gate that writes GUARD_ROOT="$root" also mentions the variable but pins it to the repo root, so matching the name alone would pass on every gate and prove nothing. Without the seam a gate stop branch cannot be driven at all, and a stop nobody has ever watched fire is not evidence — which is why this belongs beside the routing check rather than in an audit nothing runs.
 // One per language, because the seam is a spelling, not a concept: a shell gate parameterises its root with the `:-` default, a TypeScript one reads the same variable through `process.env`. An unrecognised spelling lands the gate in the seamless list, so a new one fails LOUDLY here and is added deliberately rather than being waved through.
 const Q = String.fromCharCode(39);
@@ -98,16 +101,15 @@ const HELPER = HELPER_BY_EXT[".sh"];
 // A file class is taught only when BOTH recognisers know it. Half a table is worse than none: routing would be judged by the right spelling and the seam by nothing.
 const TAUGHT_EXTS = Object.keys(HELPER_BY_EXT).filter((e) => SEAM_BY_EXT[e] !== undefined);
 
-// Data that lives beside the gates and executes nothing. Registered by extension rather than filtered by an allow-list of gate extensions, so the unknown file is admitted and classified instead of dropped unseen.
-// The empty string covers a dot-leading name with no other dot: path.extname of a bare .gitignore is the empty string, so a dotfile would otherwise be admitted and read.
-const NON_GATE_EXTS = [".json", ".md", ".txt", ".yml", ".yaml", ""];
+// These exact depth-one files are data rather than executable candidates. A suffix is not an exemption: every other filename reaches classification, including an extensionless or data-looking walker.
+const NON_GATE_FILES = ["prometheus-3.4.1.sha256", "tofixed-inventory.json"];
 
 const gates = collectOrExit({
   root,
   label: "CI gate scripts",
   flat: true,
   // `flat` keeps this at depth 1, which is why lib/ and __fixtures__ are never read: the helper itself walks, and every fixture tree is deliberately broken, so both would be scanned as offenders. Depth is the exclusion, so neither needs a name here that a re-layout could leave behind.
-  test: (p) => !p.endsWith(".selftest.sh") && !NON_GATE_EXTS.includes(path.extname(p)),
+  test: (p) => !NON_GATE_FILES.includes(path.basename(p)),
   roots: [
     {
       name: path.join("scripts", "ci"),
@@ -215,6 +217,7 @@ if (unclassified.length > 0) {
 const walkers = [];
 const rawWalkers = [];
 const libraries = [];
+const fixtureWalkers = [];
 const blind = [];
 const seamless = [];
 const untaught = [];
@@ -226,9 +229,15 @@ for (const [name, src] of [...read].sort(compareEntryNames)) {
     untaught.push(name);
     continue;
   }
-  const usesHelper = src.includes(HELPER_BY_EXT[ext]);
-  const usesPrimitive = PRIMITIVE.test(src);
+  // Whole-line prose is not executable evidence. Self-tests discuss the primitive they fault-inject, so scanning comments would classify the discussion itself as a walk.
+  const code = src.replace(/^\s*(?:#|\/\/).*$/gm, "");
+  const usesHelper = code.includes(HELPER_BY_EXT[ext]);
+  const usesPrimitive = PRIMITIVE.test(code);
   if (!usesHelper && !usesPrimitive) continue;
+  if (FIXTURE_WALKERS.includes(name)) {
+    fixtureWalkers.push(name);
+    continue;
+  }
   if (expectedLibraries.includes(name)) {
     libraries.push(name);
     continue;
@@ -286,7 +295,7 @@ if (untaught.length > 0) {
   for (const name of untaught) console.error("    scripts/ci/" + name);
   console.error("");
   console.error("Routing and the override seam are spellings, not concepts: a shell gate reaches the helper through an exported path variable and parameterises its root with the `:-` default, a TypeScript one imports the module and reads process.env. A language whose walk verbs and helper spelling are both unknown here cannot be judged at all — asked the question it answers \"does not walk\", and the printed total then reads as a fully routed tree over a walk nobody has seen.");
-  console.error("Fix: add the extension to BOTH recogniser tables with the spelling that language uses, or register it in NON_GATE_EXTS if it executes nothing.");
+  console.error("Fix: add the extension for an executable language to BOTH recogniser tables with its routing and seam spellings. Reviewed data must be exact-named in NON_GATE_FILES.");
   failed = true;
 }
 
@@ -304,6 +313,7 @@ if (failed) process.exit(1);
 console.log(
   "no-blind-walk gate: OK (" + walkers.length + " walk gates, all routed through the shared helper; " +
     rawWalkers.length + " registered raw listing(s), all fault-injectable; " +
+    fixtureWalkers.length + " registered fixture walker(s); " +
     libraries.length + " root-parameterised walk librar(ies))",
 );
 '
