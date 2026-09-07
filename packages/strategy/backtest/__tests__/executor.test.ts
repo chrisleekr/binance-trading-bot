@@ -157,6 +157,37 @@ describe('BacktestExecutor', () => {
     expect(ex.openOrders()).toEqual([]);
   });
 
+  // Binance cancels by (symbol, orderId), so live answers a cross-symbol pair with a -2011 cancel leg and STOP_ON_FAILURE withholds the successor. Matching on the id alone would unlock a reservation this decision never named, so the assertion is on the WALLET as much as the verdict: the other symbol's lock has to survive intact, or the simulated balance drifts from what live would hold and every later sizing decision is computed against money the account does not have free.
+  it('refuses a replacement whose cancel id rests on another symbol, leaving that order locked', async () => {
+    const other = { ...SYMBOL_INFO, symbol: 'ETHUSDT' };
+    const ex = new BacktestExecutor(
+      new OhlcvFillModel({ makerBps: 0, takerBps: 0, slippageBps: 0 }),
+      { USDT: '1000' },
+      [SYMBOL_INFO, other],
+    );
+    ex.setMarketContext(SYMBOL, new Decimal('100'), bar(0, '99', '101'));
+    ex.setMarketContext('ETHUSDT', new Decimal('100'), bar(0, '99', '101'));
+    await ex.apply(ctx, {
+      type: 'place-order',
+      intent: { symbol: 'ETHUSDT', side: 'BUY', reason: 'entry', clientOrderId: 'eth' },
+      params: { type: 'LIMIT', price: '95', quantity: '1' },
+    });
+    expect(ex.snapshotAccount().balances['USDT']?.locked.toString()).toBe('95');
+
+    const replacement = await ex.apply(ctx, {
+      type: 'replace-order',
+      cancelOrderId: 1,
+      reason: 'reprice',
+      intent: { symbol: SYMBOL, side: 'BUY', reason: 'new', clientOrderId: 'new' },
+      params: { type: 'LIMIT', price: '90', quantity: '1' },
+    });
+
+    expect(replacement).toMatchObject({ ok: false, retryable: false });
+    expect(ex.openOrders()).toHaveLength(1);
+    expect(ex.openOrders()[0]).toMatchObject({ symbol: 'ETHUSDT', clientOrderId: 'eth' });
+    expect(ex.snapshotAccount().balances['USDT']?.locked.toString()).toBe('95');
+  });
+
   it('places the successor when the replacement cancel id is unknown', async () => {
     const ex = new BacktestExecutor(
       new OhlcvFillModel({ makerBps: 0, takerBps: 0, slippageBps: 0 }),

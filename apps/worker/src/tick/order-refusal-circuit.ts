@@ -10,6 +10,12 @@ export type PlacementDecision = Extract<Decision, { type: 'place-order' | 'repla
 
 export interface OrderRequestIdentity {
   readonly clientOrderId: string;
+  /**
+   * The resting order a `replace-order` cancels, `null` for a bare `place-order`.
+   *
+   * Carries two distinctions the rest of the identity cannot. The obvious one is WHICH order is being replaced. The load-bearing one is WHICH DECISION VARIANT this is: a `replace-order` frees the reservation its own cancel leg holds, so it can succeed exactly where the same successor placed bare was refused for insufficient balance. Without this field a `place-order` refused three times on `-2010` trips the circuit against an identity a `replace-order` with the same successor also matches, and the request that would have cleared the condition is deferred instead.
+   */
+  readonly cancelOrderId: number | null;
   readonly symbol: string;
   readonly side: PlacementDecision['intent']['side'];
   readonly type: PlacementDecision['params']['type'];
@@ -51,6 +57,7 @@ export interface OrderRefusalTransition {
 
 export const buildOrderRequestIdentity = (decision: PlacementDecision): OrderRequestIdentity => ({
   clientOrderId: decision.intent.clientOrderId,
+  cancelOrderId: decision.type === 'replace-order' ? decision.cancelOrderId : null,
   symbol: decision.intent.symbol,
   side: decision.intent.side,
   type: decision.params.type,
@@ -63,6 +70,7 @@ export const buildOrderRequestIdentity = (decision: PlacementDecision): OrderReq
 
 const sameRequest = (a: OrderRequestIdentity, b: OrderRequestIdentity): boolean =>
   a.clientOrderId === b.clientOrderId &&
+  a.cancelOrderId === b.cancelOrderId &&
   a.symbol === b.symbol &&
   a.side === b.side &&
   a.type === b.type &&
@@ -192,6 +200,7 @@ const parseRequest = (value: unknown): OrderRequestIdentity | null => {
   if (!r) return null;
   const {
     clientOrderId,
+    cancelOrderId,
     symbol,
     side,
     type,
@@ -202,8 +211,12 @@ const parseRequest = (value: unknown): OrderRequestIdentity | null => {
     timeInForce,
   } = r;
   const rawTrailingDelta = trailingDelta ?? null;
+  // Absent reads as `null`, the value a `place-order` writes, so state persisted before the field existed still parses as the same identity rather than reading as absent and restarting the count on every tick.
+  const rawCancelOrderId = cancelOrderId ?? null;
   if (
     typeof clientOrderId !== 'string' ||
+    (rawCancelOrderId !== null &&
+      (typeof rawCancelOrderId !== 'number' || !Number.isInteger(rawCancelOrderId))) ||
     typeof symbol !== 'string' ||
     (side !== 'BUY' && side !== 'SELL') ||
     !isRequestType(type) ||
@@ -218,6 +231,7 @@ const parseRequest = (value: unknown): OrderRequestIdentity | null => {
   }
   return {
     clientOrderId,
+    cancelOrderId: rawCancelOrderId,
     symbol,
     side,
     type,

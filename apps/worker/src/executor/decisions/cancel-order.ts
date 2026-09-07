@@ -207,7 +207,8 @@ export const cancelOrderHandler = async (
           status = order.status;
           closedAtMs = order.updateTime;
           raw = order;
-          if (order.status === 'FILLED' && executedSomething(order.executedQty)) {
+          // Any terminal status that moved base owes a reconcile, not `FILLED` alone. A partially filled order that is then cancelled, or retired by self-trade prevention as `EXPIRED_IN_MATCH`, moved exactly as much base as a fill of that size did, and the stream cannot repair it: `fill-adopter` ignores every execution report whose status is not FILLED, so the PARTIALLY_FILLED reports are dropped and the trailing terminal one carries no adoption. Narrowing to FILLED here while the status gate above accepts the whole terminal vocabulary would leave `heldQuantity` and the avg-entry ledger overstated for precisely the statuses that gate was widened to admit.
+          if (executedSomething(order.executedQty)) {
             await enqueueReconcile(deps, profileId, symbol, 'cancel-2011-fill', {
               orderId: decision.orderId,
             });

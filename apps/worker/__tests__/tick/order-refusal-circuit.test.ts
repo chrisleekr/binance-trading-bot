@@ -10,6 +10,7 @@ import {
   parseOrderRefusalState,
   transitionOrderRefusal,
   type OrderRefusalState,
+  type PlacementDecision,
 } from '../../src/tick/order-refusal-circuit.js';
 
 type Placement = Extract<Decision, { type: 'place-order' }>;
@@ -68,6 +69,7 @@ describe('order-refusal request identity', () => {
   it('uses exactly the fields transmitted to Binance', () => {
     expect(buildOrderRequestIdentity(PLACE)).toEqual({
       clientOrderId: 'client-1',
+      cancelOrderId: null,
       symbol: 'BTCUSDT',
       side: 'BUY',
       type: 'STOP_LOSS_LIMIT',
@@ -143,6 +145,43 @@ describe('order-refusal request identity', () => {
     expect(state.request.trailingDelta).toBe(300);
     expect(parseOrderRefusalState(JSON.stringify(state))).toEqual(state);
     expect(orderRefusalGate(state, changed, NOW)).toEqual({ defer: false, probe: false });
+  });
+
+  // The two variants are not interchangeable requests even when every transmitted successor field agrees: a `replace-order` frees the reservation its own cancel leg holds, so it can succeed exactly where the same successor placed BARE was refused for insufficient balance. Sharing an identity would let three `-2010` refusals of the place trip the circuit against the replace that would have cleared the condition. The second case is the same field doing its literal job, telling two resting orders apart.
+  it.each([
+    [
+      'a bare place-order from a replace of the same successor',
+      { type: 'place-order' as const },
+      { type: 'replace-order' as const, cancelOrderId: 42, reason: 're-arm' },
+    ],
+    [
+      'two replacements of different resting orders',
+      { type: 'replace-order' as const, cancelOrderId: 42, reason: 're-arm' },
+      { type: 'replace-order' as const, cancelOrderId: 43, reason: 're-arm' },
+    ],
+  ])('distinguishes %s', (_label, a, b) => {
+    const left = { ...PLACE, ...a } as PlacementDecision;
+    const right = { ...PLACE, ...b } as PlacementDecision;
+
+    expect(buildOrderRequestIdentity(left)).not.toEqual(buildOrderRequestIdentity(right));
+    expect(
+      orderRefusalGate({ ...countThree(), request: buildOrderRequestIdentity(left) }, right, NOW),
+    ).toEqual({ defer: false, probe: false });
+  });
+
+  // The field is absent from every state persisted before it existed. Read as anything but `null` and each of those states stops matching the place-order it was recorded for, so the count restarts at one on every tick and the circuit never trips again.
+  it('reads a persisted state written without a cancelOrderId as a place-order identity', () => {
+    const state = countThree();
+    const legacy = JSON.parse(JSON.stringify(state)) as {
+      request: Record<string, unknown>;
+    };
+    delete legacy.request['cancelOrderId'];
+
+    expect(parseOrderRefusalState(JSON.stringify(legacy))).toEqual(state);
+    expect(orderRefusalGate(parseOrderRefusalState(JSON.stringify(legacy)), PLACE, NOW)).toEqual({
+      defer: true,
+      probe: false,
+    });
   });
 });
 

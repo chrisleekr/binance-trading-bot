@@ -155,6 +155,7 @@ describe('buildTickHandler — the order-refusal-loop notifier', () => {
     identityKey: 'request-and-rejection-digest',
     request: {
       clientOrderId: 'client-1',
+      cancelOrderId: null,
       symbol: SYMBOL,
       side: 'BUY' as const,
       type: 'LIMIT' as const,

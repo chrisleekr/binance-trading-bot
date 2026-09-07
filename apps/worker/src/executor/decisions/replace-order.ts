@@ -151,6 +151,15 @@ export const replaceOrderHandler = async (
         orderId: decision.cancelOrderId,
       });
     } catch (probeErr) {
+      // Binance charges the weight of a refused call and reports the new total in the response header, which the REST client folds into `ctx` BEFORE it throws. Recording only on the success path would leave that spend invisible to the per-account governor, which reads the minute bucket to decide whether the NEXT call may go out, and the failure path below returns without another Binance call to overwrite it.
+      try {
+        await recordWeight(deps, deps.accountId, profileId, bindings.binance.ctx().weightUsed1m);
+      } catch (weightErr) {
+        deps.logger.warn(
+          { profileId, err: weightErr },
+          'replace-order: could not record request weight after the -2011 probe failed',
+        );
+      }
       deps.logger.warn(
         {
           profileId,

@@ -574,6 +574,41 @@ describe('replaceOrderHandler', () => {
     }
   });
 
+  // Binance charges a refused call and reports the running total in its response header, which the REST client folds into `ctx` before it throws, so a probe that fails has still SPENT weight. The failure path returns without another Binance call, so nothing later overwrites the bucket the account governor reads to decide whether the next call may go out. Asserted on the VALUE rather than a call count: the cancelReplace failure above already records 50, so only a recording taken after the probe can carry 137.
+  it('records the request weight the -2011 probe spent even when the probe fails', async () => {
+    const cancelReplaceOrder = cancelReplaceOrderMock(async () => {
+      throw new BinanceApiError(
+        { status: 400, code: -2022, msg: 'Order cancel-replace failed.', cancelLegCode: -2011 },
+        false,
+        'rejected',
+      );
+    });
+    const getOrder = vi.fn(async () => {
+      throw new Error('binance unreachable');
+    }) as unknown as BinanceRestClient['getOrder'];
+    const weights = [50, 137];
+    const binance = fakeBinance({
+      cancelReplaceOrder,
+      getOrder,
+      ctx: () => ({ weightUsed1m: weights.shift() ?? 137, mode: 'live' as const }),
+    } as unknown as Partial<BinanceRestClient>);
+    const redis = fakeRedis();
+
+    const out = await replaceOrderHandler(
+      buildDeps(buildBindings({ binance }), redis),
+      CTX,
+      FUSED_CLOSE,
+    );
+
+    expect(redis.set).toHaveBeenCalledWith(
+      expect.stringContaining('binance:weight:'),
+      '137',
+      'EX',
+      120,
+    );
+    expect(out).toMatchObject({ ok: false, retryable: true });
+  });
+
   // ONE terminal vocabulary, or the flow answers "is this order gone?" two ways eight lines apart. `EXPIRED_IN_MATCH` is what self-trade prevention returns when a sibling profile's BUY crosses our resting protective SELL on the shared account wallet — the order is provably off the book, and a narrower local set would refuse the repair, withhold the exit, and spend a fresh probe on it every tick.
   it('takes the retirement repair when the -2011 probe answers EXPIRED_IN_MATCH', async () => {
     const cancelReplaceOrder = cancelReplaceOrderMock(async () => {

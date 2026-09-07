@@ -306,6 +306,32 @@ describe('cancelOrderHandler', () => {
     });
   });
 
+  // A partial that was then retired moved base exactly as a fill of that size did, and the stream cannot repair it: `fill-adopter` ignores every report whose status is not FILLED, so the PARTIALLY_FILLED ones are dropped and the terminal one carries no adoption. Both statuses asserted because they fail differently: `CANCELED` is the ordinary partial-then-cancelled order and was missed even before the terminal gate widened, while `EXPIRED_IN_MATCH` only became reachable when it did, so a gate narrowed back to `FILLED` would silently overstate `heldQuantity` for exactly the statuses that widening admitted.
+  it.each([['CANCELED'], ['EXPIRED_IN_MATCH']])(
+    '-2011 probe: a %s order that moved base still enqueues the reconcile',
+    async (status) => {
+      const dto = orderDto({ status, executedQty: '4.5', updateTime: 1_700_000_000_000 });
+      const bindings = buildBindings({
+        binance: fakeBinance(
+          reject2011(),
+          vi.fn(async () => dto),
+        ),
+        persistence: { closeOrder: vi.fn(async () => undefined) },
+      });
+      const enqueueSymbolReconcile = vi.fn();
+      const deps = { ...buildDeps(bindings), enqueueSymbolReconcile } as DecisionDeps;
+
+      const result = await cancelOrderHandler(deps, CTX, CANCEL);
+
+      expect(result).toEqual({ ok: true });
+      expect(enqueueSymbolReconcile).toHaveBeenCalledWith({
+        profileId: PROFILE,
+        symbol: 'BTCUSDT',
+        cause: 'cancel-2011-fill',
+      });
+    },
+  );
+
   // ONE terminal vocabulary across every reader of this code. `EXPIRED_IN_MATCH` is what self-trade prevention returns when a sibling profile's order on the shared account wallet crosses this one; the order is off the book, so its row must close on the probed status rather than be stamped with the CANCELED fallback.
   it('-2011 probe: an EXPIRED_IN_MATCH order closes on the probed status', async () => {
     const closeOrder = vi.fn(async () => undefined);
