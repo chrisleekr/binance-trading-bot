@@ -7,12 +7,13 @@
 // multi-trade order. The event router is the only component that observes every
 // partial, so the running sum lives beside it.
 //
-// Entries are ACCOUNT-scoped and the terminal read is NON-destructive. One
-// Binance account has one user-data stream but N profiles, and every active
-// profile is routed the same executionReport; until an `orders` row commits,
-// the ownership gate answers `own` for all of them. A destructive read would
-// hand the whole fee to whichever profile was routed first and leave the
-// profile that actually owns the position folding a gross quantity.
+// Entries are ACCOUNT-scoped because the stream is: one Binance account has one
+// user-data stream, every active profile on it is routed the same
+// executionReport, and the router folds each partial once for the account
+// rather than once per profile. The terminal read is NON-destructive so a
+// terminal report the router sees twice still nets the fee. Binance can
+// redeliver one, and a destructive read would leave the second pass folding a
+// gross quantity with no fee attached.
 //
 // Bounded by an expiry on every entry, swept on each call: a terminal entry
 // lives just long enough for that fan-out, and an entry whose terminal report

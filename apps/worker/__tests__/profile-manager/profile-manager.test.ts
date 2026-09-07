@@ -322,6 +322,47 @@ describe('ProfileManager', () => {
     expect(pm.listActive().map((a) => a.profileId)).toEqual(['p2']);
   });
 
+  // The ownership gate asks this per execution report that names no owner, to decide whether a sibling exists to leak the fill into. Three profiles over two accounts so a helper that ignores the argument and returns the whole fleet fails; the disable proves it tracks the same membership `listActive` does rather than a stale copy.
+  it('profileIdsForAccount returns only the account it is asked about, and drops a disabled profile', async () => {
+    const pm = makePm({
+      loadEnabledProfiles: async () => [
+        {
+          userId: u('u1'),
+          operatorId: u('o1'),
+          accountId: a('a1'),
+          profileId: p('p1'),
+          symbols: ['BTCUSDT'],
+          candleInterval: '1h',
+          technicalsIntervals: [],
+        },
+        {
+          userId: u('u1'),
+          operatorId: u('o1'),
+          accountId: a('a1'),
+          profileId: p('p2'),
+          symbols: ['ETHUSDT'],
+          candleInterval: '1h',
+          technicalsIntervals: [],
+        },
+        {
+          userId: u('u1'),
+          operatorId: u('o1'),
+          accountId: a('a2'),
+          profileId: p('p3'),
+          symbols: ['SOLUSDT'],
+          candleInterval: '1h',
+          technicalsIntervals: [],
+        },
+      ],
+    });
+    await pm.start();
+    expect([...pm.profileIdsForAccount(a('a1'))].sort()).toEqual(['p1', 'p2']);
+    expect(pm.profileIdsForAccount(a('a2'))).toEqual(['p3']);
+
+    await pm.disable(p('p1'));
+    expect(pm.profileIdsForAccount(a('a1'))).toEqual(['p2']);
+  });
+
   it('setTechnicalsIntervals updates the cached intervals for an active profile', async () => {
     const pm = makePm({
       loadEnabledProfiles: async () => [

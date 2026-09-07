@@ -341,7 +341,7 @@ export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
           }
           return;
         }
-        // The read is non-destructive because every profile on this account is routed this same report: each of them must be able to hand the whole fee to the adopter. A single-trade order is covered too, its only TRADE report being the terminal one that was recorded above.
+        // The read is non-destructive so that a terminal report seen twice still nets the fee. Binance can redeliver one, and the entry is account-scoped rather than per-profile because this router is the only component that observes every partial. Taking it destructively would leave the second read folding a gross quantity with no fee attached. Nothing needs it to survive longer than that: every entry carries an expiry, swept on each call. A single-trade order is covered too, its only TRADE report being the terminal one that was recorded above.
         const orderCommission = isTerminalOrderStatus(event.orderStatus)
           ? commissions.take(feeKey)
           : null;

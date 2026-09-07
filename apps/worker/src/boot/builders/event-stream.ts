@@ -80,11 +80,9 @@ export const buildEventStream = ({
       redis,
       logger,
       // The manager's active set, not `profiles.enabled`: it is what the user-data stream is actually routed to, and `reconcile` moves it to the column on an interval rather than with it.
-      activeProfileIds: (accountId) =>
-        profileManager
-          .listActive()
-          .filter((p) => p.accountId === accountId)
-          .map((p) => p.profileId),
+      activeProfileIds: (accountId) => profileManager.profileIdsForAccount(accountId),
+      // Same source, for the same reason: the manager's live symbol set is what the routing was built from, so a symbol it does not list is one no tick for this profile can legitimately be enqueued on.
+      isSymbolBound: (profileId, symbol) => profileManager.symbolsFor(profileId).includes(symbol),
     }),
     logger,
   });

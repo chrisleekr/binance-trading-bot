@@ -17,6 +17,8 @@ const state = {
   profileIds: ['p1', 'p2'],
   // The subset the account's user-data stream is actually routed to. Separate from `profileIds` on purpose: only these can receive a report, so only these can adopt a fill.
   activeProfileIds: ['p1', 'p2'],
+  // The symbols the asking profile is subscribed to. Only the no-evidence fallthrough reads this, and only to decide whether adopting would tick a coin the profile does not trade.
+  boundSymbols: ['BTCUSDT'],
   // The profile owning a matching `manual_orders` row, or null when no profile does.
   manualOwner: null as string | null,
   // Makes the ownership resolve fail, so the fail-safe branch is reachable. An Error value is thrown as-is, which is how the quiet-suppression arm is reached with the real error classes.
@@ -72,6 +74,8 @@ const makeRedis = (entries: Record<string, string> = {}): Redis => {
 };
 
 const activeProfileIds = (): readonly ProfileId[] => state.activeProfileIds.map(asProfileId);
+const isSymbolBound = (_profileId: ProfileId, symbol: string): boolean =>
+  state.boundSymbols.includes(symbol);
 
 const gate = (redis: Redis = makeRedis()) =>
   createClassifyOrder({
@@ -79,12 +83,14 @@ const gate = (redis: Redis = makeRedis()) =>
     redis,
     logger: silentLogger(),
     activeProfileIds,
+    isSymbolBound,
   });
 
 beforeEach(() => {
   state.orderRow = null;
   state.profileIds = ['p1', 'p2'];
   state.activeProfileIds = ['p1', 'p2'];
+  state.boundSymbols = ['BTCUSDT'];
   state.manualOwner = null;
   state.lookupThrows = false;
 });
@@ -145,6 +151,23 @@ describe('createClassifyOrder', () => {
     },
   );
 
+  // The sole-profile carve-out adopts, which enqueues a tick, and `enqueue` has no binding check of its own. On a symbol the profile does not trade that writes a `symbol_states` row and an operator-visible `condition_states` blocker for a coin it will never tick again, which is the exact shape migration 0094 purges. Without the binding test the purge does not survive the operator's next hand-placed order. Both directions asserted over one arrangement: the bound symbol still adopts, so this pins the carve-out rather than disabling it.
+  it.each([
+    ['adopts', 'BTCUSDT', 'own'],
+    ['drops', 'DOGEUSDT', 'sibling'],
+    // A symbol the profile does trade is unaffected.
+  ])(
+    '%s an unowned report by whether the profile is bound to the symbol',
+    async (_label, symbol, verdict) => {
+      state.profileIds = ['p2'];
+      state.activeProfileIds = ['p2'];
+      state.boundSymbols = ['BTCUSDT'];
+      await expect(
+        gate()(OPERATOR, ACCOUNT, P2, symbol, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+      ).resolves.toBe(verdict);
+    },
+  );
+
   // `disable` deletes from the active set synchronously, while the callbacks the same report fanned out to are still suspended on the lookups above, so the removed profile and the survivor both read the same post-removal set. A size-only check answers "sole profile on the account" to BOTH and the one hand-placed fill is adopted twice, which is the corruption this gate exists to prevent. Asserted as a pair over one arrangement: either verdict on its own is satisfied by a gate that always answers the same way.
   it('lets only the profile still being routed adopt when a sibling leaves mid-report', async () => {
     state.profileIds = ['p1', 'p2'];
@@ -166,6 +189,7 @@ describe('createClassifyOrder', () => {
       redis: makeRedis(),
       logger,
       activeProfileIds,
+      isSymbolBound,
     });
 
     await expect(
@@ -193,7 +217,13 @@ describe('createClassifyOrder', () => {
     const warn = vi.fn();
     const logger = { ...silentLogger(), warn } as unknown as Logger;
     const redis = makeRedis();
-    const classify = createClassifyOrder({ db: fakeDb(), redis, logger, activeProfileIds });
+    const classify = createClassifyOrder({
+      db: fakeDb(),
+      redis,
+      logger,
+      activeProfileIds,
+      isSymbolBound,
+    });
 
     await classify(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
     await classify(OPERATOR, ACCOUNT, P1, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
@@ -213,6 +243,7 @@ describe('createClassifyOrder', () => {
       redis: makeRedis(),
       logger,
       activeProfileIds,
+      isSymbolBound,
     });
 
     await classify(OPERATOR, ACCOUNT, P2, 'BTCUSDT', BINANCE_ORDER_ID, CLIENT_ORDER_ID);
@@ -235,7 +266,7 @@ describe('createClassifyOrder', () => {
     const logger = { ...silentLogger(), warn } as unknown as Logger;
 
     await expect(
-      createClassifyOrder({ db: fakeDb(), redis, logger, activeProfileIds })(
+      createClassifyOrder({ db: fakeDb(), redis, logger, activeProfileIds, isSymbolBound })(
         OPERATOR,
         ACCOUNT,
         P2,
@@ -304,6 +335,7 @@ describe('createClassifyOrder', () => {
       redis: makeRedis(),
       logger,
       activeProfileIds,
+      isSymbolBound,
     })(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
 
     expect(verdict).toBe('sibling');
@@ -337,14 +369,13 @@ describe('placement marker, written by the executor and read by the gate', () =>
     const logger = silentLogger();
     await createPlacementOwner({ redis, logger }).register(ACCOUNT, P1, CLIENT_ORDER_ID);
 
-    const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger, activeProfileIds })(
-      OPERATOR,
-      ACCOUNT,
-      P2,
-      SYMBOL,
-      BINANCE_ORDER_ID,
-      CLIENT_ORDER_ID,
-    );
+    const verdict = await createClassifyOrder({
+      db: fakeDb(),
+      redis,
+      logger,
+      activeProfileIds,
+      isSymbolBound,
+    })(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
 
     expect(verdict).toBe('sibling');
   });
@@ -356,14 +387,13 @@ describe('placement marker, written by the executor and read by the gate', () =>
     // Without the marker this arrangement resolves to `sibling`, because P2 holds the matching manual order, so `own` can only come from the marker.
     state.manualOwner = 'p2';
 
-    const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger, activeProfileIds })(
-      OPERATOR,
-      ACCOUNT,
-      P1,
-      SYMBOL,
-      BINANCE_ORDER_ID,
-      CLIENT_ORDER_ID,
-    );
+    const verdict = await createClassifyOrder({
+      db: fakeDb(),
+      redis,
+      logger,
+      activeProfileIds,
+      isSymbolBound,
+    })(OPERATOR, ACCOUNT, P1, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
 
     expect(verdict).toBe('own');
   });

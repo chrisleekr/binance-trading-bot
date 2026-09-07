@@ -32,6 +32,12 @@ export interface ClassifyOrderDeps {
    * The membership, not just the size, because the fallthrough below needs both.
    */
   readonly activeProfileIds: (accountId: AccountId) => readonly ProfileId[];
+  /**
+   * Whether `symbol` is one of the profile's currently subscribed markets.
+   *
+   * Read from the profile manager's live symbol set for the same reason the profile count is: it is what the routing was built from. Only the no-evidence fallthrough consults it, and only to decide whether adopting is safe. The positive-owner arms never do: an order a profile provably placed is its own whether or not the operator has since unbound the symbol, and refusing to close it would strand the position.
+   */
+  readonly isSymbolBound: (profileId: ProfileId, symbol: string) => boolean;
 }
 
 /**
@@ -45,6 +51,7 @@ export const createClassifyOrder = ({
   redis,
   logger,
   activeProfileIds,
+  isSymbolBound,
 }: ClassifyOrderDeps): EventRouterDeps['classifyOrder'] => {
   const placementOwner = createPlacementOwner({ redis, logger });
   const unownedReportThrottle = createUnownedReportThrottle({ redis, logger });
@@ -63,7 +70,7 @@ export const createClassifyOrder = ({
    * @param operatorId - Owner of the account, proving the ownership chain on every scoped lookup.
    * @param accountId - Account whose shared user-data stream carried this report.
    * @param profileId - Profile that received the report and is asking whether it may adopt the fill.
-   * @param symbol - Market the report is for. Not part of any ownership lookup, which are all keyed on the order id alone; it completes the order's identity for the warning throttle, because a Binance order id is unique per symbol rather than per account.
+   * @param symbol - Market the report is for. Not part of any ownership lookup, which are all keyed on the order id alone; it completes the order's identity for the warning throttle, because a Binance order id is unique per symbol rather than per account, and it is what the no-evidence fallthrough tests the profile's binding against.
    * @param binanceOrderId - Exchange order id the report refers to, the key for the `orders` and `manual_orders` lookups.
    * @param clientOrderId - The order's client id, the only handle that exists before the `orders` row commits, and the placement marker's key.
    * @returns `own` to adopt the fill, `sibling` to drop it because another profile owns it or because nothing proves this one does, or `detached` to close the ledger row without adopting.
@@ -104,7 +111,22 @@ export const createClassifyOrder = ({
       // Throttled per (account, symbol, order) rather than logged per report, because one hand-placed order emits a NEW, its TRADE partials and a terminal report to every profile at once. An operator who learns the message cries wolf will ignore the one occurrence that says the isolation control is disarmed. The symbol belongs in that identity for the same reason `orderCommissionKey` carries it: a Binance order id is unique per symbol, not per account, so two unowned orders on different symbols can share one numeric id inside the window and the second would log nothing.
       const active = activeProfileIds(accountId);
       const soleProfile = active.length <= 1 && active.includes(profileId);
+      // Adoption needs the symbol to be one this profile actually trades, on top of there being no sibling. Adopting writes position state and enqueues a tick, and `enqueue` has no binding check of its own, so a hand-placed order on a coin the profile is not bound to leaves a `symbol_states` row and an operator-visible `condition_states` blocker for a coin it will never tick again. That is the exact shape migration 0094 purges, so without this the purge would not survive the operator's next hand-placed order on a single-profile deployment.
+      const boundSymbol = isSymbolBound(profileId, symbol);
+      const adopt = soleProfile && boundSymbol;
       if (await unownedReportThrottle.allow(`${unwrapId(accountId)}:${symbol}:${binanceOrderId}`)) {
+        const prefix =
+          'event-router: no orders row, placement marker or manual order names an owner for this execution report; usually an order placed by hand on this account, but also what a lost marker looks like. ';
+        let outcome: string;
+        if (adopt)
+          outcome =
+            'Adopting it: this account has no other profile to leak into, and the symbol is one this profile trades';
+        else if (!soleProfile)
+          outcome =
+            'Dropping it: adopting is only safe for the sole profile the account stream is routed to, and this profile is not it';
+        else
+          outcome =
+            'Dropping it: this profile is not bound to the symbol, so adopting would write position state and tick a coin it does not trade';
         logger.warn(
           {
             operatorId,
@@ -114,15 +136,14 @@ export const createClassifyOrder = ({
             binanceOrderId,
             clientOrderId,
             soleProfile,
+            boundSymbol,
             // Separates the two ways `soleProfile` goes false: a sibling is genuinely routed, or this profile has itself left the routed set mid-report.
             activeProfiles: active.length,
           },
-          soleProfile
-            ? 'event-router: no orders row, placement marker or manual order names an owner for this execution report; usually an order placed by hand on this account, but also what a lost marker looks like. Adopting it because this account has no other profile to leak into'
-            : 'event-router: no orders row, placement marker or manual order names an owner for this execution report; usually an order placed by hand on this account, but also what a lost marker looks like. Dropping it because adopting is only safe for the sole profile the account stream is routed to, and this profile is not it',
+          `${prefix}${outcome}`,
         );
       }
-      return soleProfile ? 'own' : 'sibling';
+      return adopt ? 'own' : 'sibling';
     } catch (err) {
       if (!(err instanceof ProfileNotOwnedError) && !(err instanceof AccountNotOwnedError)) {
         logger.warn(

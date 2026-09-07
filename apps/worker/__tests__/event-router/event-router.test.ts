@@ -24,6 +24,7 @@ const makeProfileManager = (overrides?: Partial<ProfileManager>): ProfileManager
   operatorOf: () => undefined,
   accountOf: () => undefined,
   listActive: () => [],
+  profileIdsForAccount: () => [],
   shutdown: vi.fn(),
   ...overrides,
 });
