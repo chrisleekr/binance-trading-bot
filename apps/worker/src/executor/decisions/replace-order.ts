@@ -12,6 +12,7 @@ import {
 import type { Decision, DecisionResult, ExecutorContext } from '@app/strategy-core';
 import { classifyBinanceError } from 'executor/binance-error-taxonomy.js';
 import { emitEvent } from 'executor/event-emitter.js';
+import { emergencyNotify } from './emergency-notify.js';
 import { readCurrentWeight, recordWeight } from 'executor/weight-limiter.js';
 import { enqueueReconcile, resolveBindings, type DecisionDeps } from './_types.js';
 import { evictCachedOpenOrder, executedSomething } from './cancel-order.js';
@@ -93,10 +94,42 @@ export const replaceOrderHandler = async (
         leg?.raw,
       );
     } catch (err) {
-      deps.logger.warn(
+      // Same class as a placement whose row never persisted: the exchange acted and the local write did not, so it gets the same escalation rather than a log line. Nothing else repairs it in-process. The `symbol-reconcile` queue converges the POSITION, not order rows, so the retired order keeps reading as resting to `resolveOrderSlot`, the symbol page and `countAccountOpenExposure` until `reapStaleOrders` runs at the next boot. Best-effort in both steps: this routine's callers have already retired the order at Binance, and failing them here would have the tick re-issue a replacement for an order that is gone.
+      const errMsg = err instanceof Error ? err.message : String(err);
+      deps.logger.error(
         { profileId, orderId: decision.cancelOrderId, err },
-        'replace-order: could not close the cancelled leg locally',
+        'replace-order: could not close the cancelled leg locally; the row stays open until boot reap',
       );
+      try {
+        await emergencyNotify(deps, bindings, profileId, {
+          severity: 'error',
+          topic: 'order-bookkeeping-failed',
+          title: 'Order retired but not recorded',
+          symbol: decision.intent.symbol,
+          body: 'An order was cancelled at Binance but the bot failed to close it locally. It will keep showing as resting until the next restart. Check and reconcile manually.',
+          fields: [
+            { label: 'Order ID', value: String(decision.cancelOrderId) },
+            { label: 'Error', value: errMsg },
+          ],
+        });
+      } catch (notifyErr) {
+        deps.logger.error(
+          { profileId, orderId: decision.cancelOrderId, err: notifyErr },
+          'replace-order: could not notify the unrecorded retirement',
+        );
+      }
+      try {
+        await bindings.persistence.recordBookkeepingFailure({
+          symbol: decision.intent.symbol,
+          orderId: decision.cancelOrderId,
+          err: errMsg,
+        });
+      } catch (recordErr) {
+        deps.logger.error(
+          { profileId, orderId: decision.cancelOrderId, err: recordErr },
+          'replace-order: could not record the unrecorded retirement',
+        );
+      }
     }
     try {
       await emitEvent(deps, deps.accountId, profileId, 'orders', {
@@ -279,11 +312,7 @@ export const replaceOrderHandler = async (
     decision,
     await readCurrentWeight(deps, deps.accountId, profileId),
   );
-  if (weightRefusal !== null) {
-    return decision.intent.deferrable === true
-      ? { ...weightRefusal, deferred: true }
-      : weightRefusal;
-  }
+  if (weightRefusal !== null) return weightRefusal;
 
   // A SELL successor that is not itself a stop is a CLOSE, and the duplicate-MARKET guard (executor/placement-dedup) keys re-entry suppression on the exit having been seen. Entry clientOrderIds are stable per (profile, symbol, level), so a grid promotion or pyramid add recorded WHILE the stop rested would suppress a legitimate re-entry at that level for the rest of the window unless the close clears the symbol. The exclusion is the two stop shapes a strategy RE-ARMS — a re-price closes nothing, and clearing on one would drop exactly the records the guard exists to hold. Everything else is a close and clears, which is what `place-order` does for any SELL: an operator's manual close is a LIMIT whenever they asked for a price, and narrowing this to MARKET would silently stop clearing for it.
   if (decision.intent.side === 'SELL' && !REARMED_STOP_TYPES.has(decision.params.type)) {
@@ -418,6 +447,30 @@ export const replaceOrderHandler = async (
     );
   }
   // Binance's own record of the retired order. The union also admits an error shape and `null`; only the cancel DTO carries a string `status`, so a STRING there is what distinguishes them — the same narrowing the transport applies when it decides whether an error body's cancel leg is an order or a refusal. A key test would not be enough: `dto` is a CAST of the parsed body rather than a validated value, so a non-string `status` would reach `isTerminalOrderStatus`, whose `toUpperCase` throws — outside every `try` on this path, after Binance has already cancelled the stop and placed its successor, and before the successor's row is written. The optional chain covers the same read for a body with no `cancelResponse` at all, which reads as `undefined`. The successor check below is symmetric for the same reason.
+  // Believe Binance when it says the cancel leg did not run. Under `STOP_ON_FAILURE` a refused cancel is documented to answer 400/-2022 and never 200, so this is the shape no documented response produces — but `dto` is a cast of the parsed body, exactly the reasoning the two type-tests below rest on, and this is the field that decides whether a row may be stamped closed. Getting it wrong retires the local record of an order STILL RESTING on the exchange: the reconcile the successor check enqueues converges the POSITION and never re-opens an order row, so the strategy sees no protective stop, re-arms, and two stops sit live against the same base. Tested for an explicit non-SUCCESS rather than required to equal SUCCESS, because an absent field is not evidence the cancel failed, and refusing on it would wedge every replacement if Binance ever stopped sending it.
+  if (typeof dto.cancelResult === 'string' && dto.cancelResult !== 'SUCCESS') {
+    await markUnresolved();
+    await enqueueReconcile(deps, profileId, decision.intent.symbol, 'replace-order-failed', {
+      reason: 'cancel-leg-not-successful',
+      cancelResult: dto.cancelResult,
+    });
+    deps.logger.warn(
+      {
+        profileId,
+        symbol: decision.intent.symbol,
+        orderId: decision.cancelOrderId,
+        cancelResult: dto.cancelResult,
+        newOrderResult: dto.newOrderResult,
+      },
+      'replace-order: 200 whose cancel leg did not succeed; leaving the resting order open locally',
+    );
+    return {
+      ok: false,
+      retryable: true,
+      phase: 'ambiguous',
+      reason: `cancelReplace: 200 with cancelResult=${dto.cancelResult}`,
+    };
+  }
   const cancelLeg = dto.cancelResponse as { readonly status?: unknown } | null | undefined;
   await reportCancelledLeg(
     typeof cancelLeg?.status === 'string'

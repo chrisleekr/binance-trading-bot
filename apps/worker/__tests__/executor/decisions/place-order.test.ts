@@ -141,6 +141,22 @@ describe('placeOrderHandler', () => {
     expect(binance.placeOrder).not.toHaveBeenCalled();
   });
 
+  // `deferred` is what makes the tick skip `notifyOrderFailed`, and the throttle helper has already sent its own `binance-weight-throttle` emergency, so the second alert would say the same thing about an order the strategy itself marked as able to wait. Decided inside the shared helper rather than by each caller, or the same condition on the same decision reaches the operator differently depending on whether a place or a replacement ran; asserted from BOTH handlers for that reason, this one and the replacement's own weight test.
+  it('weight-throttle defers a deferrable placement rather than reporting it as a failure', async () => {
+    const binance = fakeBinance();
+    const bindings = buildBindings({ binance, weightLimit1m: 100 });
+    const redis = fakeRedis();
+    (redis.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce('150');
+
+    const out = await placeOrderHandler(buildDeps(bindings, redis), CTX, {
+      ...PLACE,
+      intent: { ...PLACE.intent, deferrable: true },
+    });
+
+    expect(out).toMatchObject({ ok: false, retryable: true, deferred: true });
+    expect(binance.placeOrder).not.toHaveBeenCalled();
+  });
+
   it('suppresses a duplicate MARKET placement (same clientOrderId within the window) and does not call Binance', async () => {
     const binance = fakeBinance();
     const bindings = buildBindings({ binance });

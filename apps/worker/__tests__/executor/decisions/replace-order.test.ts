@@ -1081,24 +1081,60 @@ describe('replaceOrderHandler', () => {
     expect(out).toEqual({ ok: true });
   });
 
-  // The exchange has already retired the stop and filled the exit. A local bookkeeping failure is a warn, never a reason to report the money path as failed and have it re-run.
-  it('still succeeds when closing the cancelled leg locally fails on the happy path', async () => {
+  // The exchange has already retired the stop and filled the exit, so a local bookkeeping failure is never a reason to report the money path as failed and have the tick re-run it. It is not a log line either: nothing repairs the orphan in-process, since `symbol-reconcile` converges position and not order rows, so the row keeps reading as resting to `resolveOrderSlot`, the symbol page and the exposure count until `reapStaleOrders` runs at the next boot. Same class as a placement whose row never persisted, so the same escalation, asserted on the durable half as well as the alert.
+  it('escalates and still succeeds when closing the cancelled leg locally fails', async () => {
     const cancelReplaceOrder = cancelReplaceOrderMock(async () => filledSuccessor());
     const closeOrder = vi.fn(async () => {
       throw new Error('postgres unavailable');
     });
+    const recordBookkeepingFailure = vi.fn(async () => undefined);
     const binance = fakeBinance({ cancelReplaceOrder });
-    const bindings = buildBindings({ binance, persistence: { closeOrder } });
-    const warn = vi.fn();
+    const bindings = buildBindings({
+      binance,
+      persistence: { closeOrder, recordBookkeepingFailure },
+    });
+    const error = vi.fn();
     const deps = buildDeps(bindings, fakeRedis(), {
-      logger: { warn } as unknown as DecisionDeps['logger'],
+      logger: { warn: vi.fn(), error } as unknown as DecisionDeps['logger'],
     });
 
     const out = await replaceOrderHandler(deps, CTX, FUSED_CLOSE);
 
     expect(closeOrder).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalled();
+    expect(error).toHaveBeenCalled();
+    expect(recordBookkeepingFailure).toHaveBeenCalledWith({
+      symbol: 'BTCUSDT',
+      orderId: 42,
+      err: 'postgres unavailable',
+    });
     expect(out).toEqual({ ok: true });
+  });
+
+  // Under STOP_ON_FAILURE a refused cancel is documented to answer 400/-2022, so this is a shape no documented response produces. It is checked because `dto` is a cast of the parsed body, exactly the reasoning the two type-tests beside it rest on, and this is the field that decides whether a row may be stamped closed: retire the local record of an order still resting and the strategy sees no protective stop, re-arms, and two stops sit live against the same base. The reconcile the successor path enqueues cannot undo it, because it converges position and never re-opens an order row.
+  it('refuses a 200 whose cancel leg did not succeed, leaving the row open', async () => {
+    const cancelReplaceOrder = cancelReplaceOrderMock(async () => ({
+      ...filledSuccessor(),
+      cancelResult: 'FAILURE',
+      newOrderResult: 'NOT_ATTEMPTED',
+    }));
+    const closeOrder = vi.fn(async () => undefined);
+    const binance = fakeBinance({ cancelReplaceOrder });
+    const bindings = buildBindings({ binance, persistence: { closeOrder } });
+    const enqueueSymbolReconcile = vi.fn();
+
+    const out = await replaceOrderHandler(
+      buildDeps(bindings, fakeRedis(), { enqueueSymbolReconcile }),
+      CTX,
+      FUSED_CLOSE,
+    );
+
+    expect(closeOrder).not.toHaveBeenCalled();
+    expect(enqueueSymbolReconcile).toHaveBeenCalledWith({
+      profileId: PROFILE,
+      symbol: 'BTCUSDT',
+      cause: 'replace-order-failed',
+    });
+    expect(out).toMatchObject({ ok: false, retryable: true, phase: 'ambiguous' });
   });
 
   // When the -2021 successor retry also fails, the position is left naked. That must surface as a distinctly-worded, non-silent failure with a reconcile enqueued and a warn log, not a generic classified error.

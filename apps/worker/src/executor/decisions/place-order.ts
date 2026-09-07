@@ -402,6 +402,8 @@ export const refuseOnWeightThrottle = async (
     ok: false,
     retryable: true,
     phase: 'pre-call',
+    // Decided here rather than by each caller, which is the point of sharing the helper: the same weight condition on the same decision must reach the operator the same way whichever handler ran. `deferred` is what makes the tick skip `notifyOrderFailed`, and a throttle is exactly the wait a deferrable intent consents to. The operator is told regardless, by the `binance-weight-throttle` emergency above; the second alert would say the same thing about an order the strategy already agreed could wait.
+    ...(decision.intent.deferrable === true ? { deferred: true as const } : {}),
     reason: `weight-limit-throttle weight=${weight} limit=${bindings.weightLimit1m}`,
   };
 };
