@@ -143,16 +143,17 @@ describe('BacktestExecutor', () => {
       cancelOrderId: 1,
       reason: 'reprice',
       intent: { symbol: SYMBOL, side: 'BUY', reason: 'new', clientOrderId: 'new' },
-      params: { type: 'LIMIT', price: '90', quantity: '1' },
+      // Priced ABOVE the 905 left free by the first order's 95 reservation, so the successor is fundable ONLY out of the amount the cancelled leg released. A cheaper successor passes whether or not the unlock happened first, which makes release-before-place the one thing such a fixture cannot prove, and ordering is the whole of what this case is for.
+      params: { type: 'LIMIT', price: '950', quantity: '1' },
     });
 
     expect(replacement).toEqual({ ok: true });
     expect(ex.openOrders()).toHaveLength(1);
-    expect(ex.openOrders()[0]).toMatchObject({ price: '90', clientOrderId: 'new' });
-    expect(ex.snapshotAccount().balances['USDT']?.free.toString()).toBe('910');
-    expect(ex.snapshotAccount().balances['USDT']?.locked.toString()).toBe('90');
+    expect(ex.openOrders()[0]).toMatchObject({ price: '950', clientOrderId: 'new' });
+    expect(ex.snapshotAccount().balances['USDT']?.free.toString()).toBe('50');
+    expect(ex.snapshotAccount().balances['USDT']?.locked.toString()).toBe('950');
 
-    ex.setMarketContext(SYMBOL, new Decimal('89'), bar(60_000, '89', '95'));
+    ex.setMarketContext(SYMBOL, new Decimal('950'), bar(60_000, '949', '951'));
     expect(ex.getTrades()).toHaveLength(1);
     expect(ex.openOrders()).toEqual([]);
   });
