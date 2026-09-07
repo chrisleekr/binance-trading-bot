@@ -191,8 +191,9 @@ export interface LiveExecutor {
  * predicate reads, so a skipped decision keeps both the strategy's own retry (the
  * tick leaves its state un-advanced) and an operator override alive. Stamping it
  * non-retryable instead would silently EAT an override: a batch shaped
- * [cancel(stop), SELL] — a contract the executor must still handle, though neither
- * strategy fuses its exit that way any more — would let a transiently-failed cancel
+ * [cancel(stop), SELL] — the shape both strategies emit for an exit today, and one
+ * the executor must keep handling even once a strategy fuses that exit into a
+ * single `replace-order` — would let a transiently-failed cancel
  * consume the override on a SELL that was never even attempted.
  */
 const SKIPPED: DecisionResult = {

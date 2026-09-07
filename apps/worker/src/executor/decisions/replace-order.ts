@@ -325,6 +325,8 @@ export const replaceOrderHandler = async (
   let dto: CancelReplaceDto;
   // Stamp this profile before cancelReplace transmits the successor, because Binance can publish its execution report before the successor row exists and the marker is the only ownership evidence in that gap.
   await deps.placementOwner?.register(deps.accountId, profileId, decision.intent.clientOrderId);
+  // Dates the attempt for the lost-response path below. `resolveAmbiguousPlacement` prefers the instant the request was SIGNED, read off the error, and falls back to this only when the throw beat the signature.
+  const calledAtMs = deps.clock.nowMs();
   try {
     dto = await bindings.binance.cancelReplaceOrder(orderParams);
   } catch (err) {
@@ -350,20 +352,40 @@ export const replaceOrderHandler = async (
       await enqueueReconcile(deps, profileId, decision.intent.symbol, 'replace-order-failed', {
         reason: 'transport-failure',
       });
-      return {
-        ok: false,
-        retryable: true,
-        phase: 'ambiguous',
-        reason: `cancelReplace: transport failure: ${err instanceof Error ? err.message : String(err)}`,
-      };
+      // A lost response is the one failure that can retire the order at Binance and leave the local view of it open, which is exactly what `reportCancelledLeg` exists to prevent, so it is RESOLVED here rather than recorded. Both legs may have run while the socket died: the successor is then live with no `orders` row, the retired order still reads as resting to `resolveOrderSlot`, the symbol page and `countAccountOpenExposure` until the next boot reap, and neither is repaired by the reconcile above, which converges the POSITION and never order rows. `markUnresolved` does not cover it either: it is in-memory and per-`applyAll`, and the one-placement rule means nothing later in the batch reads it.
+      //
+      // The successor goes first because `resolveAmbiguousPlacement` owns the recv-window wait. Binance may still be about to accept a request signed before the socket dropped, so a cancel-leg probe issued now could read a NEW that is cancelled a moment later, and believing it would leave the row open for exactly the case this path is for. By the time the successor is settled, the window has been waited out and the leg probe is answering about a finished request.
+      //
+      // Each half is independent. The leg is closed on its own terminal evidence whether or not the successor landed, because under STOP_ON_FAILURE a live successor proves the cancel succeeded but an absent one proves nothing about it. `probeRetiredLeg` returning `null` is the fail-closed reading and leaves the row open for the boot reap, which is the same trade the `-2011` path already makes.
+      const successor = await resolveAmbiguousPlacement(
+        deps,
+        bindings,
+        ctx,
+        { type: 'place-order', intent: decision.intent, params: decision.params },
+        calledAtMs,
+        err as Error,
+      );
+      const probed = await probeRetiredLeg();
+      if (
+        probed !== null &&
+        typeof probed.status === 'string' &&
+        isTerminalOrderStatus(probed.status)
+      ) {
+        await reportCancelledLeg(asRetiredLeg(probed));
+      }
+      return successor;
     }
 
     if (err.code === -2022) {
       // `-2011` is CANCEL_REJECTED, not absence (`-2013` is absence), so a cancel leg carrying it collapses two OPPOSITE states: a concurrent cancel already took the order off the book, or the order FILLED — the likelier one here, because the same gap-down that triggers a fused close is what trips the stop. The leg carries no status, and guessing costs money in both directions: stamping a filled stop CANCELED hides a real trade from realised P/L forever (the archive selects `status = 'FILLED'`), and re-placing a MARKET exit behind a stop that already sold is a SECOND sale, fundable from a sibling profile's base on the shared account wallet. So ask the exchange, exactly as the standalone cancel path does for the same code.
       if (err.cancelLegCode === -2011) {
         const probed = await probeRetiredLeg();
-        // `isTerminalOrderStatus`, not a local set: the same predicate `reportCancelledLeg` uses eight lines above to decide whether the row may be stamped closed. Two vocabularies here answered one question two ways — the shared contract counts `EXPIRED_IN_MATCH` (self-trade prevention, which is exactly what a sibling profile's BUY crossing our resting SELL on the shared account wallet produces) as gone, a four-member local set called it still resting, and the exit was withheld every tick for an order that provably was not there.
-        if (probed !== null && isTerminalOrderStatus(probed.status)) {
+        // `isTerminalOrderStatus`, not a local set: the same predicate `reportCancelledLeg` uses eight lines above to decide whether the row may be stamped closed. Two vocabularies here answered one question two ways — the shared contract counts `EXPIRED_IN_MATCH` (self-trade prevention, which is exactly what a sibling profile's BUY crossing our resting SELL on the shared account wallet produces) as gone, a four-member local set called it still resting, and the exit was withheld every tick for an order that provably was not there. The `typeof` test alongside it is the one both success-path reads apply for the same reason: `OpenOrderDto` is a CAST of the parsed body, so a non-string `status` would reach `toUpperCase` and throw.
+        if (
+          probed !== null &&
+          typeof probed.status === 'string' &&
+          isTerminalOrderStatus(probed.status)
+        ) {
           const leg = asRetiredLeg(probed);
           if (probed.status === 'FILLED' && executedSomething(probed.executedQty)) {
             // The stop sold the whole position. Record what actually happened — `reportCancelledLeg` hands the position to the reconciler on the way, because adopting inline would self-await this symbol's chain lock, which the fill-adopter also takes — and WITHHOLD the successor: there is nothing left to sell. A leg that moved base under any OTHER terminal status is a PARTIAL that was then retired, so it still leaves base to sell and falls through to the re-place below with its reconcile already scheduled.
@@ -378,7 +400,7 @@ export const replaceOrderHandler = async (
           }
           return retireAndRePlaceSuccessor('-2022/-2011', leg);
         }
-        // The probe failed, or answered with a status that is still on the book. Fall through to the ordinary refusal — nothing is retired locally, and nothing new goes on the book.
+        // The probe failed, or answered with no terminal status: still on the book, or not a string at all. Fall through to the ordinary refusal — nothing is retired locally, and nothing new goes on the book.
         deps.logger.warn(
           {
             profileId,

@@ -539,6 +539,8 @@ describe('replaceOrderHandler', () => {
         updateTime: CANCEL_LEG_MS,
         executedQty: '0',
       })),
+      // `OpenOrderDto` is a CAST of the parsed body, so a non-string status is reachable and `isTerminalOrderStatus` would call `toUpperCase` on it. Unguarded, this throws out of the handler after Binance has refused the cancel, turning a refusal the tick can act on into a failed tick.
+      vi.fn(async () => ({ orderId: 42, status: 7, updateTime: CANCEL_LEG_MS, executedQty: '0' })),
     ] as unknown as BinanceRestClient['getOrder'][]) {
       const cancelReplaceOrder = cancelReplaceOrderMock(async () => {
         throw new BinanceApiError(
@@ -1210,36 +1212,136 @@ describe('replaceOrderHandler', () => {
     expect(markUnresolved).toHaveBeenCalledWith('BTCUSDT', undefined);
   });
 
-  it('plain transport failure marks the slot unresolved and enqueues a reconcile', async () => {
-    const cancelReplaceOrder = cancelReplaceOrderMock(async () => {
-      throw new Error('socket hang up');
-    });
-    const binance = fakeBinance({ cancelReplaceOrder });
-    const resolveOrderSlot = vi.fn(async () => null);
-    const bindings = buildBindings({
-      binance,
-      persistence: { resolveOrderSlot },
-    });
-    const cancelLedger = createCancelLedger();
-    const markUnresolved = vi.spyOn(cancelLedger, 'markUnresolved');
-    const enqueueSymbolReconcile = vi.fn();
-    const deps = buildDeps(bindings, fakeRedis(), {
-      cancelLedger,
-      enqueueSymbolReconcile,
+  // A lost response is the only failure that can retire the order at Binance while the local view stays open, so the three cases below pin what the handler must learn from the exchange rather than record as unknown. They discriminate the two probes by their key: the successor is asked for by `origClientOrderId`, the retired leg by `orderId`.
+  describe('a lost cancelReplace response', () => {
+    const mkClock = (start: number) => {
+      let now = start;
+      return { nowMs: () => now, advance: (ms: number) => (now += ms) };
+    };
+    const SENT_AT = 1_700_000_000_000;
+
+    const timedDeps = (
+      bindings: ProfileExecutorBindings,
+      clock: ReturnType<typeof mkClock>,
+      overrides: Partial<DecisionDeps> = {},
+    ): DecisionDeps => ({
+      ...buildDeps(bindings, fakeRedis(), overrides),
+      clock,
+      sleep: async (ms: number) => {
+        clock.advance(ms);
+      },
     });
 
-    const out = await replaceOrderHandler(deps, CTX, REPLACE);
+    const droppedSocket = (clock: ReturnType<typeof mkClock>) =>
+      cancelReplaceOrderMock(async () => {
+        clock.advance(300);
+        throw new Error('socket hang up');
+      });
 
-    expect(out).toMatchObject({ ok: false, retryable: true, phase: 'ambiguous' });
-    if (out.ok === false) {
-      expect(out.reason.startsWith('cancelReplace: transport failure: socket hang up')).toBe(true);
-    }
-    expect(resolveOrderSlot).toHaveBeenCalledWith(42);
-    expect(markUnresolved).toHaveBeenCalledWith('BTCUSDT', undefined);
-    expect(enqueueSymbolReconcile).toHaveBeenCalledWith(
-      expect.objectContaining({ cause: 'replace-order-failed' }),
-    );
-    expect(binance.placeOrder).not.toHaveBeenCalled();
+    it('records the successor Binance kept and closes the leg it retired', async () => {
+      const clock = mkClock(SENT_AT);
+      const persistTrackingOrder = vi.fn(async () => undefined);
+      const closeOrder = vi.fn(async () => undefined);
+      const getOrder = vi.fn(async (params: { origClientOrderId?: string; orderId?: number }) =>
+        params.origClientOrderId !== undefined
+          ? {
+              symbol: 'BTCUSDT',
+              orderId: 43,
+              clientOrderId: 'client-2',
+              side: 'SELL',
+              type: 'STOP_LOSS_LIMIT',
+              price: '94.5',
+              origQty: '0.001',
+              executedQty: '0',
+              status: 'NEW',
+              stopPrice: '95',
+              // Created after the request was signed, which is what proves it is THIS attempt's order rather than a namesake from an earlier re-arm.
+              time: SENT_AT + 600,
+              updateTime: SENT_AT + 600,
+            }
+          : { ...CANCEL_LEG, updateTime: CANCEL_LEG_MS },
+      ) as unknown as BinanceRestClient['getOrder'];
+      const binance = fakeBinance({ cancelReplaceOrder: droppedSocket(clock), getOrder });
+      const bindings = buildBindings({
+        binance,
+        persistence: {
+          persistTrackingOrder:
+            persistTrackingOrder as unknown as ProfilePersistence['persistTrackingOrder'],
+          closeOrder,
+        },
+      });
+
+      const out = await replaceOrderHandler(timedDeps(bindings, clock), CTX, REPLACE);
+
+      // `accepted` is what forbids re-issuing a replacement whose successor is already live.
+      expect(out).toMatchObject({ ok: false, retryable: false, phase: 'accepted' });
+      expect(persistTrackingOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ binanceOrderId: 43n, status: 'NEW' }),
+      );
+      // The retired row is closed from the exchange's own record, carrying the partial it had executed, or `resolveOrderSlot` and open exposure keep counting an order that is gone.
+      expect(closeOrder).toHaveBeenCalledWith(
+        42,
+        'CANCELED',
+        CANCEL_LEG_MS,
+        expect.objectContaining({ executedQty: '0.0004' }),
+      );
+    });
+
+    it('leaves the retired row open when the request provably never landed', async () => {
+      const clock = mkClock(SENT_AT);
+      const closeOrder = vi.fn(async () => undefined);
+      const getOrder = vi.fn(async (params: { origClientOrderId?: string; orderId?: number }) => {
+        if (params.origClientOrderId !== undefined) {
+          throw new BinanceApiError(
+            { status: 400, code: -2013, msg: 'Order does not exist.' },
+            false,
+            'rejected',
+          );
+        }
+        return { ...CANCEL_LEG, status: 'NEW', executedQty: '0' };
+      }) as unknown as BinanceRestClient['getOrder'];
+      const binance = fakeBinance({ cancelReplaceOrder: droppedSocket(clock), getOrder });
+      const bindings = buildBindings({ binance, persistence: { closeOrder } });
+
+      const out = await replaceOrderHandler(timedDeps(bindings, clock), CTX, REPLACE);
+
+      // Nothing reached the matching engine, so the state must stay un-advanced and the next tick re-derive.
+      expect(out).toMatchObject({ ok: false, retryable: true, phase: 'rejected' });
+      expect(closeOrder).not.toHaveBeenCalled();
+    });
+
+    it('marks the slot unresolved and leaves the row open when neither probe can answer', async () => {
+      const clock = mkClock(SENT_AT);
+      const closeOrder = vi.fn(async () => undefined);
+      const getOrder = vi.fn(async () => {
+        throw new Error('binance unreachable');
+      }) as unknown as BinanceRestClient['getOrder'];
+      const binance = fakeBinance({ cancelReplaceOrder: droppedSocket(clock), getOrder });
+      const resolveOrderSlot = vi.fn(async () => null);
+      const bindings = buildBindings({
+        binance,
+        persistence: { resolveOrderSlot, closeOrder },
+      });
+      const cancelLedger = createCancelLedger();
+      const markUnresolved = vi.spyOn(cancelLedger, 'markUnresolved');
+      const enqueueSymbolReconcile = vi.fn();
+
+      const out = await replaceOrderHandler(
+        timedDeps(bindings, clock, { cancelLedger, enqueueSymbolReconcile }),
+        CTX,
+        REPLACE,
+      );
+
+      expect(out).toMatchObject({ ok: false, retryable: true, phase: 'ambiguous' });
+      expect(resolveOrderSlot).toHaveBeenCalledWith(42);
+      expect(markUnresolved).toHaveBeenCalledWith('BTCUSDT', undefined);
+      expect(enqueueSymbolReconcile).toHaveBeenCalledWith(
+        expect.objectContaining({ cause: 'replace-order-failed' }),
+      );
+      // Fail closed in both halves: no successor row invented, and no row closed for an order the probe could not prove gone.
+      expect(closeOrder).not.toHaveBeenCalled();
+      expect(binance.placeOrder).not.toHaveBeenCalled();
+    });
   });
 
   it('returns the Binance cause needed to count a structural replacement refusal', async () => {
