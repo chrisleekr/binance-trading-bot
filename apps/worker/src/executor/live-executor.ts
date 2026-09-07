@@ -34,6 +34,7 @@ import { cancelOrderHandler } from 'executor/decisions/cancel-order.js';
 import { deleteKvHandler } from 'executor/decisions/delete-kv.js';
 import { emitEventHandler } from 'executor/decisions/emit-event.js';
 import { placeOrderHandler } from 'executor/decisions/place-order.js';
+import { replaceOrderHandler } from 'executor/decisions/replace-order.js';
 import { setKvHandler } from 'executor/decisions/set-kv.js';
 import type { DecisionDeps } from 'executor/decisions/_types.js';
 import type { MetricsSink } from 'metrics/catalog.js';
@@ -189,9 +190,11 @@ export interface LiveExecutor {
  * that failed) is exactly the kind that clears. That pair is what the retry
  * predicate reads, so a skipped decision keeps both the strategy's own retry (the
  * tick leaves its state un-advanced) and an operator override alive. Stamping it
- * non-retryable instead would silently EAT an override: momentum's force-sell
- * emits [cancel(stop), SELL], and a transiently-failed cancel would consume the
- * override on a SELL that was never even attempted.
+ * non-retryable instead would silently EAT an override: a batch shaped
+ * [cancel(stop), SELL] — the shape both strategies emit for an exit today, and one
+ * the executor must keep handling even once a strategy fuses that exit into a
+ * single `replace-order` — would let a transiently-failed cancel
+ * consume the override on a SELL that was never even attempted.
  */
 const SKIPPED: DecisionResult = {
   ok: false,
@@ -230,7 +233,8 @@ const REPEATED_REFUSAL_DEFERRED: DecisionResult = {
 };
 
 /** The decisions that reach the exchange as orders. */
-const isOrder = (d: Decision): boolean => d.type === 'place-order' || d.type === 'cancel-order';
+const isOrder = (d: Decision): boolean =>
+  d.type === 'place-order' || d.type === 'cancel-order' || d.type === 'replace-order';
 
 export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
   const baseDeps = {
@@ -283,6 +287,8 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
         return placeOrderHandler(deps, ctx, decision);
       case 'cancel-order':
         return cancelOrderHandler(deps, ctx, decision);
+      case 'replace-order':
+        return replaceOrderHandler(deps, ctx, decision);
       case 'set-kv':
         return setKvHandler(deps, ctx, decision);
       case 'delete-kv':
@@ -381,7 +387,9 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
       // nothing reaches the exchange. The throw is deterministic (the array
       // recomputes every tick), so the queue dead-letters it for a human instead of
       // retrying into a double placement.
-      const placements = decisions.filter((d) => d.type === 'place-order').length;
+      const placements = decisions.filter(
+        (d) => d.type === 'place-order' || d.type === 'replace-order',
+      ).length;
       if (placements > 1) {
         // Log with profile attribution before the throw: the DLQ triage line reads
         // this, and pino's default `err` serializer would not surface the error's
@@ -407,14 +415,12 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
       // above is what makes shedding the WHOLE batch safe: a batch can never mix
       // a deferrable reprice with an exit.
       //
-      // The shed takes the batch's CANCELS with it (see `isOrder`) even though a
-      // cancel spends no budget. A reprice is the pair [cancel the resting stop,
-      // place the new one]; letting the cancel through while dropping the
-      // placement would retire a live protective order and leave the position
-      // naked. Shedding both keeps the pair atomic.
+      // A re-price is one `replace-order`, so shedding the order suffix leaves the resting stop in place; `cancel-order` is shed alongside because a strategy that still emits a standalone cancel ahead of a placement would otherwise retire protection with nothing behind it.
       // A PEEK, never a reservation: the charge happens once, inside the REST
       // client, when an order actually goes out.
-      const placement = decisions.find((d) => d.type === 'place-order');
+      const placement = decisions.find(
+        (d) => d.type === 'place-order' || d.type === 'replace-order',
+      );
       let deferred = false;
       if (refusalDeferredFrom < 0 && placement?.intent.deferrable === true) {
         // Memoised, so the handlers below reuse this resolve rather than paying
@@ -446,10 +452,7 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
         }
         // Only the ORDER decisions are budget-bound; a KV write or event in the
         // same batch is unaffected and still runs.
-        // Cancels are shed with the placement even though they cost no ORDERS
-        // budget: the only deferrable placement is a stop reprice, and its
-        // paired cancel would otherwise retire the resting stop and leave the
-        // position naked. That pairing is what makes shedding the pair atomic.
+        // A re-price is one `replace-order`, so shedding the order suffix leaves the resting stop in place; `cancel-order` is shed alongside because a strategy that still emits a standalone cancel ahead of a placement would otherwise retire protection with nothing behind it.
         if (deferred && isOrder(d)) {
           out.push({ decision: d, result: DEFERRED });
           continue;
@@ -470,7 +473,10 @@ export const createLiveExecutor = (deps: LiveExecutorDeps): LiveExecutor => {
         // REPLACE the order we just failed to cancel: the old order is still
         // resting on Binance, so placing the new one leaves two live orders while
         // the local slot records only one.
-        if (result.ok === false && (d.type === 'place-order' || d.type === 'cancel-order')) {
+        if (
+          result.ok === false &&
+          (d.type === 'place-order' || d.type === 'cancel-order' || d.type === 'replace-order')
+        ) {
           broken = true;
         }
       }

@@ -1,5 +1,7 @@
-// Shared clientOrderId length guard. Binance's clientOrderId regex is
-// `^[A-Za-z0-9._:/-]{1,36}$`; an over-length id dead-ends the order at the
+// Shared clientOrderId length guard. The only clientOrderId regex Binance publishes is in its FIX
+// API spec (`^[a-zA-Z0-9-_]{1,36}$`, https://github.com/binance/binance-spot-api-docs/blob/master/fix-api.md);
+// the REST docs give the 36-char rule without a character class. This module enforces the LENGTH
+// half only, which is the half that is documented everywhere; an over-length id dead-ends the order at the
 // exchange, a silent rejection, the no-silent-failure invariant. Every
 // strategy's id builders run `assertClientOrderId` so a too-long id surfaces
 // as a loud throw, never a silent exchange-side reject or a hash silently

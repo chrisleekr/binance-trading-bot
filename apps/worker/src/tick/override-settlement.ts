@@ -174,8 +174,10 @@ export const resolveOverrideOrderFate = (
   applied: readonly AppliedDecision[],
   suppressed: readonly Decision[],
 ): OverrideOrderFate => {
+  // Both placement shapes, because an override's order can arrive as either. A `replace-order` that fuses the retraction of a protective stop into the operator's exit carries the same `intent.overrideActionId` and puts the same order on the exchange; matching only `place-order` would leave it unattributed, and the `none` verdict settles the row `rejected` with "the strategy did not act on this override" while the exit it fused was live and possibly filled.
   const isOurs = (d: Decision): boolean =>
-    d.type === 'place-order' && d.intent.overrideActionId === overrideActionId;
+    (d.type === 'place-order' || d.type === 'replace-order') &&
+    d.intent.overrideActionId === overrideActionId;
 
   if (suppressed.some(isOurs)) return { kind: 'suppressed', reason: DAILY_ENTRY_HALT_REASON };
 

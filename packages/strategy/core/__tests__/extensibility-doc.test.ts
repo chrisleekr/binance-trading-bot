@@ -37,7 +37,15 @@ const actualMembers = [
 describe('extensibility.md stays in sync with the strategy-core contract', () => {
   it('scrapes the real Decision variants (guards the scraper itself)', () => {
     expect(new Set(actualVariants)).toEqual(
-      new Set(['noop', 'place-order', 'cancel-order', 'emit-event', 'set-kv', 'delete-kv']),
+      new Set([
+        'noop',
+        'place-order',
+        'cancel-order',
+        'replace-order',
+        'emit-event',
+        'set-kv',
+        'delete-kv',
+      ]),
     );
     expect(here).toContain('strategy');
   });

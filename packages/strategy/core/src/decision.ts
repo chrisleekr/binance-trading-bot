@@ -101,6 +101,15 @@ export type Decision<E extends StrategyEventMap = StrategyEventMap> =
       readonly symbol?: string;
     }
   | {
+      readonly type: 'replace-order';
+      /** One `POST /api/v3/order/cancelReplace` request cancels the resting order and places its successor with `STOP_ON_FAILURE`, so there is never a window between separate cancel and place requests in which neither or both are live. The successor's intent is unconstrained: re-arming a protective stop at a new level and retiring one in favour of a position-closing exit SELL are both this shape. */
+      readonly cancelOrderId: number;
+      /** Why the strategy requested this replacement, retained for audit and operator-facing diagnostics. */
+      readonly reason: string;
+      readonly intent: OrderIntent;
+      readonly params: OrderParams;
+    }
+  | {
       [K in keyof E & string]: {
         readonly type: 'emit-event';
         readonly eventType: K;

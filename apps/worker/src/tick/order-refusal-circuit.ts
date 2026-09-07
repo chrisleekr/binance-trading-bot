@@ -6,16 +6,23 @@ export const ORDER_REFUSAL_THRESHOLD = 3;
 export const ORDER_REFUSAL_PROBE_MS = 60_000;
 export const ORDER_REFUSAL_TTL_MS = 900_000;
 
-export type PlacementDecision = Extract<Decision, { type: 'place-order' }>;
+export type PlacementDecision = Extract<Decision, { type: 'place-order' | 'replace-order' }>;
 
 export interface OrderRequestIdentity {
   readonly clientOrderId: string;
+  /**
+   * The resting order a `replace-order` cancels, `null` for a bare `place-order`.
+   *
+   * Carries two distinctions the rest of the identity cannot. The obvious one is WHICH order is being replaced. The load-bearing one is WHICH DECISION VARIANT this is: a `replace-order` frees the reservation its own cancel leg holds, so it can succeed exactly where the same successor placed bare was refused for insufficient balance. Without this field a `place-order` refused three times on `-2010` trips the circuit against an identity a `replace-order` with the same successor also matches, and the request that would have cleared the condition is deferred instead.
+   */
+  readonly cancelOrderId: number | null;
   readonly symbol: string;
   readonly side: PlacementDecision['intent']['side'];
   readonly type: PlacementDecision['params']['type'];
   readonly quantity: string;
   readonly price: string | null;
   readonly stopPrice: string | null;
+  readonly trailingDelta: number | null;
   readonly timeInForce: NonNullable<PlacementDecision['params']['timeInForce']> | null;
 }
 
@@ -50,23 +57,27 @@ export interface OrderRefusalTransition {
 
 export const buildOrderRequestIdentity = (decision: PlacementDecision): OrderRequestIdentity => ({
   clientOrderId: decision.intent.clientOrderId,
+  cancelOrderId: decision.type === 'replace-order' ? decision.cancelOrderId : null,
   symbol: decision.intent.symbol,
   side: decision.intent.side,
   type: decision.params.type,
   quantity: decision.params.quantity,
   price: decision.params.price ?? null,
   stopPrice: decision.params.stopPrice ?? null,
+  trailingDelta: decision.params.trailingDelta ?? null,
   timeInForce: decision.params.timeInForce ?? null,
 });
 
 const sameRequest = (a: OrderRequestIdentity, b: OrderRequestIdentity): boolean =>
   a.clientOrderId === b.clientOrderId &&
+  a.cancelOrderId === b.cancelOrderId &&
   a.symbol === b.symbol &&
   a.side === b.side &&
   a.type === b.type &&
   a.quantity === b.quantity &&
   a.price === b.price &&
   a.stopPrice === b.stopPrice &&
+  a.trailingDelta === b.trailingDelta &&
   a.timeInForce === b.timeInForce;
 
 const sameRejection = (a: OrderRejectionIdentity, b: OrderRejectionIdentity): boolean =>
@@ -187,20 +198,49 @@ const isTimeInForce = (v: unknown): v is NonNullable<OrderRequestIdentity['timeI
 const parseRequest = (value: unknown): OrderRequestIdentity | null => {
   const r = recordOf(value);
   if (!r) return null;
-  const { clientOrderId, symbol, side, type, quantity, price, stopPrice, timeInForce } = r;
+  const {
+    clientOrderId,
+    cancelOrderId,
+    symbol,
+    side,
+    type,
+    quantity,
+    price,
+    stopPrice,
+    trailingDelta,
+    timeInForce,
+  } = r;
+  const rawTrailingDelta = trailingDelta ?? null;
+  // Absent reads as `null`, the value a `place-order` writes, so state persisted before the field existed still parses as the same identity rather than reading as absent and restarting the count on every tick.
+  const rawCancelOrderId = cancelOrderId ?? null;
   if (
     typeof clientOrderId !== 'string' ||
+    (rawCancelOrderId !== null &&
+      (typeof rawCancelOrderId !== 'number' || !Number.isInteger(rawCancelOrderId))) ||
     typeof symbol !== 'string' ||
     (side !== 'BUY' && side !== 'SELL') ||
     !isRequestType(type) ||
     typeof quantity !== 'string' ||
     (price !== null && typeof price !== 'string') ||
     (stopPrice !== null && typeof stopPrice !== 'string') ||
+    (rawTrailingDelta !== null &&
+      (typeof rawTrailingDelta !== 'number' || !Number.isInteger(rawTrailingDelta))) ||
     (timeInForce !== null && !isTimeInForce(timeInForce))
   ) {
     return null;
   }
-  return { clientOrderId, symbol, side, type, quantity, price, stopPrice, timeInForce };
+  return {
+    clientOrderId,
+    cancelOrderId: rawCancelOrderId,
+    symbol,
+    side,
+    type,
+    quantity,
+    price,
+    stopPrice,
+    trailingDelta: rawTrailingDelta,
+    timeInForce,
+  };
 };
 
 export const parseOrderRefusalState = (

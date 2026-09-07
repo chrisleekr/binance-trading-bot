@@ -242,6 +242,25 @@ export class BacktestExecutor implements Executor {
         this.restingOrders = this.restingOrders.filter((o) => o.orderId !== decision.orderId);
         return { ok: true };
       }
+      case 'replace-order': {
+        const cancelled = this.restingOrders.find((o) => o.orderId === decision.cancelOrderId);
+        // Binance cancels by (symbol, orderId), so live refuses a pair whose order rests on a different symbol: the cancel leg answers -2011 and STOP_ON_FAILURE withholds the successor. Matching on the id alone would unlock a reservation this decision never named and retire another symbol's order, so the simulated wallet drifts from what live would hold and the backtest passes a strategy the exchange rejects. An id that matches nothing keeps its existing meaning, an order already gone.
+        if (cancelled && cancelled.symbol !== decision.intent.symbol) {
+          return {
+            ok: false,
+            retryable: false,
+            phase: 'pre-call',
+            reason: `replace-order: order ${decision.cancelOrderId} rests on ${cancelled.symbol}, not ${decision.intent.symbol}`,
+          };
+        }
+        if (cancelled) this.unlock(cancelled.reservedAsset, cancelled.reservedAmount);
+        this.restingOrders = this.restingOrders.filter((o) => o.orderId !== decision.cancelOrderId);
+        return this.placeOrder(ctx, {
+          type: 'place-order',
+          intent: decision.intent,
+          params: decision.params,
+        });
+      }
       case 'emit-event':
         if (this.events.length >= EVENT_RING_CAP) this.events.shift();
         this.events.push({ eventType: decision.eventType, payload: decision.payload });

@@ -8,6 +8,13 @@
 //
 // The split is driven by `intent.deferrable`, a generic capability flag, never by
 // the strategy's `reason` vocabulary — the executor must stay strategy-agnostic.
+//
+// Both shapes are covered because both must be. A `replace-order` carrying
+// `deferrable` is what both trailing-trade and momentum actually emit for a re-arm
+// now that the retraction is fused into the placement; the `place-order` pair is the
+// contract the executor must still handle for any strategy emitting the unfused
+// shape. What is pinned across both is that the executor reads the flag rather than
+// the reason, over the whole order suffix of a batch.
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Logger } from 'pino';
@@ -18,9 +25,10 @@ import type { StrategyRegistry } from '@app/strategy-registry';
 import type { OrderRateGovernor } from '@app/binance';
 import { asAccountId } from '@app/contracts';
 
-const { placeOrderSpy, cancelOrderSpy } = vi.hoisted(() => ({
+const { placeOrderSpy, cancelOrderSpy, replaceOrderSpy } = vi.hoisted(() => ({
   placeOrderSpy: vi.fn(),
   cancelOrderSpy: vi.fn(),
+  replaceOrderSpy: vi.fn(),
 }));
 
 vi.mock('../../src/executor/decisions/place-order.js', () => ({
@@ -28,6 +36,9 @@ vi.mock('../../src/executor/decisions/place-order.js', () => ({
 }));
 vi.mock('../../src/executor/decisions/cancel-order.js', () => ({
   cancelOrderHandler: cancelOrderSpy,
+}));
+vi.mock('../../src/executor/decisions/replace-order.js', () => ({
+  replaceOrderHandler: replaceOrderSpy,
 }));
 
 import { createLiveExecutor } from '../../src/executor/live-executor.js';
@@ -54,6 +65,23 @@ const rearmPlace: Decision = {
   params: { type: 'STOP_LOSS_LIMIT', stopPrice: '0.2', price: '0.19', quantity: '10' },
 };
 
+// The shape both strategies emit for a protective-stop RE-PRICE: one `replace-order`
+// carrying `deferrable`, retiring the resting stop and placing its successor in the
+// same request. Shedding it is safe precisely because that resting stop stays put.
+const rearmReplace: Decision = {
+  type: 'replace-order',
+  cancelOrderId: 77,
+  reason: 'momentum-protective-stop-rearm',
+  intent: {
+    symbol: 'MMTUSDT',
+    side: 'SELL',
+    reason: 'protective-stop',
+    clientOrderId: 'coid-ps',
+    deferrable: true,
+  },
+  params: { type: 'STOP_LOSS_LIMIT', stopPrice: '0.2', price: '0.19', quantity: '10' },
+} as unknown as Decision;
+
 const supersedeCancel: Decision = {
   type: 'cancel-order',
   orderId: 77,
@@ -66,6 +94,15 @@ const exitPlace: Decision = {
   intent: { symbol: 'MMTUSDT', side: 'SELL', reason: 'exit', clientOrderId: 'coid-exit' },
   params: { type: 'MARKET', quantity: '10' },
 };
+
+// A position-closing SELL fused with the retraction of its own protective stop: one replacement, no `deferrable`, terminal successor. Shedding it would hold the position through the drop while the stop it was going to retire is still resting.
+const fusedClose: Decision = {
+  type: 'replace-order',
+  cancelOrderId: 77,
+  reason: 'momentum-protective-stop-superseded',
+  intent: { symbol: 'MMTUSDT', side: 'SELL', reason: 'exit', clientOrderId: 'coid-exit' },
+  params: { type: 'MARKET', quantity: '10' },
+} as unknown as Decision;
 
 const setKv: Decision = { type: 'set-kv', key: 'momentum:x', value: 1 };
 
@@ -95,6 +132,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   placeOrderSpy.mockResolvedValue({ ok: true } satisfies DecisionResult);
   cancelOrderSpy.mockResolvedValue({ ok: true } satisfies DecisionResult);
+  replaceOrderSpy.mockResolvedValue({ ok: true } satisfies DecisionResult);
 });
 
 describe('LiveExecutor.applyAll — ORDERS budget deferral', () => {
@@ -134,6 +172,40 @@ describe('LiveExecutor.applyAll — ORDERS budget deferral', () => {
     expect(logger.warn).toHaveBeenCalled();
   });
 
+  // The disjunct that finds the placement must read `replace-order` too, or every
+  // real re-arm becomes un-sheddable: the executor would block inside the REST
+  // client holding this (profile, symbol)'s chain lock — delaying the next tick's
+  // exit check — instead of skipping a reprice whose stop is still resting.
+  it('sheds a deferrable replace-order re-arm, the shape both strategies emit', async () => {
+    const orderGovernor = governor(false);
+    const { executor, metrics } = buildExecutor({ orderGovernor });
+
+    const applied = await executor.applyAll(CTX, ACCOUNT, [rearmReplace]);
+
+    expect(replaceOrderSpy).not.toHaveBeenCalled();
+    // One, not two: the cancel leg of a cancelReplace spends no ORDERS budget.
+    expect(orderGovernor.hasHeadroom).toHaveBeenCalledWith(1);
+    expect(applied).toHaveLength(1);
+    expect(applied[0]?.result).toMatchObject({
+      ok: false,
+      retryable: true,
+      phase: 'pre-call',
+      deferred: true,
+    });
+    expect(metrics.record).toHaveBeenCalledWith('order_budget_deferred', 1, {
+      profileId: CTX.profileId,
+      symbol: 'MMTUSDT',
+    });
+  });
+
+  it('applies a deferrable replace-order re-arm when headroom exists', async () => {
+    const { executor } = buildExecutor({ orderGovernor: governor(true) });
+
+    await executor.applyAll(CTX, ACCOUNT, [rearmReplace]);
+
+    expect(replaceOrderSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('applies the re-arm pair when headroom exists', async () => {
     const { executor, metrics } = buildExecutor({ orderGovernor: governor(true) });
 
@@ -158,6 +230,23 @@ describe('LiveExecutor.applyAll — ORDERS budget deferral', () => {
     expect(orderGovernor.hasHeadroom).not.toHaveBeenCalled();
     expect(placeOrderSpy).toHaveBeenCalledTimes(1);
     expect(applied.every((a) => a.result.ok)).toBe(true);
+  });
+
+  it('never peeks for a fused close, so an exhausted budget blocks in the REST client instead', async () => {
+    // The shed is keyed on `intent.deferrable`, which a close never carries. Keying it on the decision TYPE instead would shed the exit itself, leaving the position held through the drop with its stop still resting.
+    const orderGovernor = governor(false);
+    const { executor, metrics } = buildExecutor({ orderGovernor });
+
+    const applied = await executor.applyAll(CTX, ACCOUNT, [fusedClose]);
+
+    expect(orderGovernor.hasHeadroom).not.toHaveBeenCalled();
+    expect(replaceOrderSpy).toHaveBeenCalledTimes(1);
+    expect(applied[0]?.result).toEqual({ ok: true });
+    expect(metrics.record).not.toHaveBeenCalledWith(
+      'order_budget_deferred',
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it('runs the non-order decisions of a deferred batch — only orders are budget-bound', async () => {

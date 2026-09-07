@@ -219,4 +219,23 @@ describe('assertPreviewTickAgreement — emitted ⟹ consistent preview row', ()
       assertPreviewTickAgreement(mkStrategy([stopRow]), mkInput('95'), mkOutput([cancel])),
     ).toThrow(/stop-loss/i);
   });
+
+  it('keys a replace-order decision on its successor intent reason', () => {
+    // Guard: a replace carries a cancellation reason too, but preview parity belongs to the successor placement.
+    const replace = {
+      type: 'replace-order',
+      cancelOrderId: 1,
+      reason: 'superseded',
+      intent: ENTRY_DECISION.intent,
+      params: ENTRY_DECISION.params,
+    };
+
+    expect(() =>
+      assertPreviewTickAgreement(
+        mkStrategy([entryRow({ price: '110' })]),
+        mkInput('105'),
+        mkOutput([replace]),
+      ),
+    ).toThrow(/entry/i);
+  });
 });

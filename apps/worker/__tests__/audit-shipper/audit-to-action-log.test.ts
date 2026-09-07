@@ -30,6 +30,23 @@ describe('isActionableAudit', () => {
     expect(isActionableAudit(entry({ decisionTypes: ['cancel-order'] }))).toBe(true);
   });
 
+  // Guard: a successful replace-order must be actionable and count as both legs of the exchange operation.
+  it('treats a successful replace-order as placed and cancelled', () => {
+    const [row] = auditEntriesToActionLogs([
+      entry({
+        decisionTypes: ['replace-order'] as unknown as AuditEntry['decisionTypes'],
+        payload: results({ type: 'replace-order', ok: true }),
+      }),
+    ]);
+
+    expect(
+      isActionableAudit(
+        entry({ decisionTypes: ['replace-order'] as unknown as AuditEntry['decisionTypes'] }),
+      ),
+    ).toBe(true);
+    expect(row?.msg).toBe('BTCUSDT: placed 1 and cancelled 1 order(s)');
+  });
+
   it('is true when the technicals block recorded a force-sell', () => {
     expect(
       isActionableAudit(

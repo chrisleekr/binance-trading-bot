@@ -29,14 +29,17 @@ const toWireAccount = (account: AccountSnapshot): AccountSnapshotWire => ({
 });
 
 /**
- * The decision reason the gate keys on: a place-order's `intent.reason` or a
- * cancel-order's `reason`. `null` for a decision the gate does not check (noop,
- * emit-event, set-kv).
+ * The decision reason the gate keys on: a place-order or replace-order successor's `intent.reason`, or a cancel-order's `reason`. `null` for a decision the gate does not check (noop, emit-event, set-kv).
  */
 const reasonOf = (d: unknown): string | null => {
   if (typeof d !== 'object' || d === null) return null;
   const dd = d as { type?: unknown; intent?: { reason?: unknown }; reason?: unknown };
-  if (dd.type === 'place-order' && typeof dd.intent?.reason === 'string') return dd.intent.reason;
+  if (
+    (dd.type === 'place-order' || dd.type === 'replace-order') &&
+    typeof dd.intent?.reason === 'string'
+  ) {
+    return dd.intent.reason;
+  }
   if (dd.type === 'cancel-order' && typeof dd.reason === 'string') return dd.reason;
   return null;
 };

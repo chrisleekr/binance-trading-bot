@@ -181,6 +181,248 @@ describe('createBinanceRest — request shape', () => {
     expect(params.get('signature')).not.toBeNull();
   });
 
+  it('cancel-replaces as one signed POST with STOP_ON_FAILURE and the full successor response', async () => {
+    const spy = makeFetchSpy(
+      jsonResponse({
+        cancelResult: 'SUCCESS',
+        newOrderResult: 'SUCCESS',
+        cancelResponse: { orderId: 1, status: 'CANCELED', transactTime: 1_700_000_000_000 },
+        newOrderResponse: { orderId: 2, clientOrderId: 'c-2', status: 'NEW' },
+      }),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    const dto = await client.cancelReplaceOrder({
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      type: 'STOP_LOSS_LIMIT',
+      price: '29000',
+      stopPrice: '29500',
+      quantity: '0.001',
+      timeInForce: 'GTC',
+      newClientOrderId: 'c-2',
+      cancelOrderId: 1,
+    });
+
+    const call = spy.nth(0);
+    expect(call.method).toBe('POST');
+    expect(call.url).toBe(`${BINANCE_HOSTS.test}/api/v3/order/cancelReplace`);
+    const params = new URLSearchParams(call.body ?? '');
+    expect(params.get('cancelReplaceMode')).toBe('STOP_ON_FAILURE');
+    expect(params.get('cancelOrderId')).toBe('1');
+    expect(params.get('newClientOrderId')).toBe('c-2');
+    expect(params.get('newOrderRespType')).toBe('FULL');
+    expect(params.get('signature')).not.toBeNull();
+    expect(dto).toMatchObject({ cancelResult: 'SUCCESS', newOrderResult: 'SUCCESS' });
+  });
+
+  // The outer -2022 collapses two opposite states: the resting order is still on the book, or it was already gone. Only the cancel leg's own code separates them, and nothing downstream can recover it once the composite body is discarded.
+  it('surfaces the cancel leg’s own code from a failed cancelReplace', async () => {
+    const spy = makeFetchSpy(
+      jsonResponse(
+        {
+          code: -2022,
+          msg: 'Order cancel-replace failed.',
+          data: {
+            cancelResult: 'FAILURE',
+            newOrderResult: 'NOT_ATTEMPTED',
+            cancelResponse: { code: -2011, msg: 'Unknown order sent.' },
+            newOrderResponse: null,
+          },
+        },
+        { status: 400 },
+      ),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    const err = await client
+      .cancelReplaceOrder({
+        symbol: 'BTCUSDT',
+        side: 'SELL',
+        type: 'MARKET',
+        quantity: '0.001',
+        newClientOrderId: 'c-5',
+        cancelOrderId: 1,
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+
+    expect(err).toBeInstanceOf(BinanceApiError);
+    expect(err).toMatchObject({ status: 400, code: -2022, cancelLegCode: -2011 });
+  });
+
+  // Under STOP_ON_FAILURE a -2021 means the CANCEL SUCCEEDED, so the leg body is not an error shape at all: it is Binance's record of the order it just retired. Keeping only the code throws away the one status, exchange clock and executedQty that exist for that order — nothing later can recover them, because a partially-filled-then-cancelled order emits no FILLED execution report.
+  it('preserves the whole cancel leg of a -2021 so the retired order can be recorded truthfully', async () => {
+    const spy = makeFetchSpy(
+      jsonResponse(
+        {
+          code: -2021,
+          msg: 'Order cancel-replace partially failed.',
+          data: {
+            cancelResult: 'SUCCESS',
+            newOrderResult: 'FAILURE',
+            cancelResponse: {
+              orderId: 42,
+              status: 'CANCELED',
+              transactTime: 1_699_999_987_000,
+              executedQty: '0.0004',
+            },
+            newOrderResponse: { code: -2010, msg: 'Account has insufficient balance.' },
+          },
+        },
+        { status: 409 },
+      ),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    const err = await client
+      .cancelReplaceOrder({
+        symbol: 'BTCUSDT',
+        side: 'SELL',
+        type: 'MARKET',
+        quantity: '0.001',
+        newClientOrderId: 'c-7',
+        cancelOrderId: 42,
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+
+    expect(err).toBeInstanceOf(BinanceApiError);
+    expect((err as BinanceApiError).cancelLeg).toEqual({
+      orderId: 42,
+      status: 'CANCELED',
+      transactTime: 1_699_999_987_000,
+      executedQty: '0.0004',
+    });
+    // The leg carries no numeric `code`, so the code field stays absent rather than being fabricated from the outer one.
+    expect((err as BinanceApiError).cancelLegCode).toBeUndefined();
+  });
+
+  // A -2022 leg is an ERROR shape, not an order. Storing it as the retired order's record would overwrite a real `raw` with a body that describes no order at all.
+  it('leaves the cancel leg body undefined when the leg carries only an error code', async () => {
+    const spy = makeFetchSpy(
+      jsonResponse(
+        {
+          code: -2022,
+          msg: 'Order cancel-replace failed.',
+          data: {
+            cancelResult: 'FAILURE',
+            newOrderResult: 'NOT_ATTEMPTED',
+            cancelResponse: { code: -2011, msg: 'Unknown order sent.' },
+            newOrderResponse: null,
+          },
+        },
+        { status: 400 },
+      ),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    const err = await client
+      .cancelReplaceOrder({
+        symbol: 'BTCUSDT',
+        side: 'SELL',
+        type: 'MARKET',
+        quantity: '0.001',
+        newClientOrderId: 'c-8',
+        cancelOrderId: 1,
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+
+    expect((err as BinanceApiError).cancelLegCode).toBe(-2011);
+    expect((err as BinanceApiError).cancelLeg).toBeUndefined();
+  });
+
+  it('leaves the cancel leg code undefined when the failure body carries no leg detail', async () => {
+    // Two shapes Binance can answer with: no `data` envelope at all, and a `data` envelope whose cancel leg is absent. Neither may be read as a leg code, or a bare -2022 would be mistaken for a completed retraction.
+    for (const body of [
+      { code: -2022, msg: 'Order cancel-replace failed.' },
+      { code: -2022, msg: 'Order cancel-replace failed.', data: { cancelResult: 'FAILURE' } },
+    ]) {
+      const spy = makeFetchSpy(jsonResponse(body, { status: 400 }));
+      const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+      const err = await client
+        .cancelReplaceOrder({
+          symbol: 'BTCUSDT',
+          side: 'SELL',
+          type: 'MARKET',
+          quantity: '0.001',
+          newClientOrderId: 'c-6',
+          cancelOrderId: 1,
+        })
+        .then(
+          () => undefined,
+          (e: unknown) => e,
+        );
+
+      expect(err).toBeInstanceOf(BinanceApiError);
+      expect((err as BinanceApiError).code).toBe(-2022);
+      expect((err as BinanceApiError).cancelLegCode).toBeUndefined();
+    }
+  });
+
+  it('never reads a cancel leg code off a non-cancelReplace failure', async () => {
+    // A plain placeOrder rejection can carry a `data` envelope of its own shape; only the one endpoint that documents this composite may be mined for it.
+    const spy = makeFetchSpy(
+      jsonResponse(
+        {
+          code: -2010,
+          msg: 'Account has insufficient balance for requested action.',
+          data: { cancelResponse: { code: -2011 } },
+        },
+        { status: 400 },
+      ),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    const err = await client
+      .placeOrder({
+        symbol: 'BTCUSDT',
+        side: 'BUY',
+        type: 'MARKET',
+        quantity: '0.001',
+        newClientOrderId: 'c-7',
+      })
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+
+    expect(err).toBeInstanceOf(BinanceApiError);
+    expect((err as BinanceApiError).cancelLegCode).toBeUndefined();
+  });
+
+  it('sends a trailing STOP_LOSS cancel-replace with a delta and no price legs at all', async () => {
+    const spy = makeFetchSpy(
+      jsonResponse({
+        cancelResult: 'SUCCESS',
+        newOrderResult: 'SUCCESS',
+        cancelResponse: { orderId: 1, status: 'CANCELED', transactTime: 1_700_000_000_000 },
+        newOrderResponse: { orderId: 4, clientOrderId: 'c-4', status: 'NEW' },
+      }),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch }));
+    await client.cancelReplaceOrder({
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      type: 'STOP_LOSS',
+      quantity: '0.001',
+      trailingDelta: 300,
+      newClientOrderId: 'c-4',
+      cancelOrderId: 1,
+    });
+
+    const params = new URLSearchParams(spy.nth(0).body ?? '');
+    expect(params.get('trailingDelta')).toBe('300');
+    expect(params.get('cancelReplaceMode')).toBe('STOP_ON_FAILURE');
+    expect(params.get('newOrderRespType')).toBe('FULL');
+    expect(params.get('cancelOrderId')).toBe('1');
+    expect(params.has('price')).toBe(false);
+    expect(params.has('stopPrice')).toBe(false);
+    expect(params.has('timeInForce')).toBe(false);
+  });
+
   it('sends a trailing STOP_LOSS with a delta and no price legs at all', async () => {
     // Binance's mandatory params for STOP_LOSS are quantity plus `stopPrice` OR
     // `trailingDelta`. The delta form is the one that escapes
@@ -394,7 +636,7 @@ describe('createBinanceRest — request shape', () => {
     expect(reserved).toEqual([80, 6]);
   });
 
-  it('reserves placeOrder and cancelOrder with order priority; bulk reads without', async () => {
+  it('reserves placeOrder, cancelReplaceOrder, and cancelOrder with order priority; bulk reads without', async () => {
     const calls: { weight: number; priority: boolean }[] = [];
     const governor = {
       reserve: async (weight: number, opts?: { priority?: boolean }): Promise<void> => {
@@ -405,6 +647,12 @@ describe('createBinanceRest — request shape', () => {
     };
     const spy = makeFetchSpy(
       jsonResponse({ orderId: 1, clientOrderId: 'c-1', status: 'NEW' }),
+      jsonResponse({
+        cancelResult: 'SUCCESS',
+        newOrderResult: 'SUCCESS',
+        cancelResponse: { orderId: 1, status: 'CANCELED', transactTime: 1 },
+        newOrderResponse: { orderId: 2, clientOrderId: 'c-2', status: 'NEW' },
+      }),
       jsonResponse({ orderId: 1, status: 'CANCELED' }),
       jsonResponse([]),
     );
@@ -416,10 +664,19 @@ describe('createBinanceRest — request shape', () => {
       quantity: '0.001',
       newClientOrderId: 'c-1',
     });
+    await client.cancelReplaceOrder({
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      type: 'MARKET',
+      quantity: '0.001',
+      newClientOrderId: 'c-2',
+      cancelOrderId: 1,
+    });
     await client.cancelOrder({ symbol: 'BTCUSDT', orderId: 1 });
     await client.getKlines({ symbol: 'BTCUSDT', interval: '1m', limit: 1 });
     // Order placement + cancel jump the reserved band; the bulk read does not.
     expect(calls).toEqual([
+      { weight: 1, priority: true },
       { weight: 1, priority: true },
       { weight: 1, priority: true },
       { weight: 2, priority: false },
@@ -936,6 +1193,31 @@ describe('createBinanceRest — ORDERS governor', () => {
     // REQUEST_WEIGHT, not ORDERS.
     await client.cancelOrder({ symbol: 'BTCUSDT', orderId: 1 });
     await client.getKlines({ symbol: 'BTCUSDT', interval: '1m', limit: 1 });
+
+    expect(orderGovernor.used(TEN_S)).toBe(1);
+    expect(orderGovernor.used(ONE_D)).toBe(1);
+  });
+
+  it('charges one order for the successor leg of cancelReplace', async () => {
+    const orderGovernor = createOrderRateGovernor(orderLimits);
+    const spy = makeFetchSpy(
+      orderResponse({
+        cancelResult: 'SUCCESS',
+        newOrderResult: 'SUCCESS',
+        cancelResponse: { orderId: 1, status: 'CANCELED', transactTime: 1 },
+        newOrderResponse: { orderId: 2, clientOrderId: 'c-2', status: 'NEW' },
+      }),
+    );
+    const client = createBinanceRest(options({ fetchImpl: spy.fetch, orderGovernor }));
+
+    await client.cancelReplaceOrder({
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      type: 'MARKET',
+      quantity: '0.001',
+      newClientOrderId: 'c-2',
+      cancelOrderId: 1,
+    });
 
     expect(orderGovernor.used(TEN_S)).toBe(1);
     expect(orderGovernor.used(ONE_D)).toBe(1);

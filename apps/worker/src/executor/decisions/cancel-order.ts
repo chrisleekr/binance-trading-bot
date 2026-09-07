@@ -1,5 +1,5 @@
 import type { Decision, DecisionResult, ExecutorContext } from '@app/strategy-core';
-import { asProfileId, asUserId } from '@app/contracts';
+import { asProfileId, asUserId, isTerminalOrderStatus } from '@app/contracts';
 import { BinanceApiError } from '@app/binance';
 import { classifyBinanceError } from 'executor/binance-error-taxonomy.js';
 import { emitEvent } from 'executor/event-emitter.js';
@@ -18,19 +18,16 @@ const quoteReleased = (remainingQty: string | null, price: string | null): strin
   return new Decimal(remainingQty).times(new Decimal(price)).toString();
 };
 
-// Binance order states that mean the order has left the book for good. The
-// -2011 cancel-vs-fill reconciliation closes the local row only on one of
-// these; anything else (NEW / PARTIALLY_FILLED / PENDING_CANCEL) is still live
-// and must not be stamped closed.
-const TERMINAL_STATUSES = new Set(['FILLED', 'CANCELED', 'EXPIRED', 'REJECTED']);
-
 /**
  * Did this order actually move base quantity? A FILLED status with a zero (or
  * unparseable) executedQty moved nothing, so there is no fill to adopt and no
  * position to repair. `Decimal`, not `Number`: executedQty is money-domain and
- * the comparison must not go through IEEE-754.
+ * the comparison must not go through IEEE-754. Exported because `replace-order`
+ * faces the same -2011 ambiguity on its cancel leg and must decide it
+ * identically — two readers of one code, sharing one predicate so neither can
+ * drift.
  */
-const executedSomething = (executedQty: string | undefined): boolean => {
+export const executedSomething = (executedQty: string | undefined): boolean => {
   if (executedQty === undefined) return false;
   try {
     return new Decimal(executedQty).gt(0);
@@ -40,13 +37,13 @@ const executedSomething = (executedQty: string | undefined): boolean => {
 };
 
 /**
- * Drop the just-cancelled order from the shared open-orders snapshot in place
- * (instead of DELeting the whole key), so a sibling profile's next tick reads the
- * updated list without a REST cold-load. Best-effort: a cache-write failure must
- * not fail a cancel that already cleared the exchange — the TTL cold-load
- * self-heals. Both the clean-cancel and the -2011 reconcile path call this.
+ * The cache is shared by profiles, so remove only the cancelled order and let the TTL cold-load recover a failed cache write without masking a successful exchange cancel.
+ * @param deps - Runtime dependencies for the shared cache and warning logger.
+ * @param symbol - Trading pair whose cached open-order list contains the cancelled order.
+ * @param orderId - Exchange order id to remove from that list.
+ * @returns A promise that settles after the best-effort cache eviction.
  */
-const evictCachedOpenOrder = async (
+export const evictCachedOpenOrder = async (
   deps: DecisionDeps,
   symbol: string,
   orderId: number,
@@ -206,11 +203,12 @@ export const cancelOrderHandler = async (
         // carry it. A non-terminal (NEW / PARTIALLY_FILLED) or malformed
         // (undefined) status keeps the CANCELED fallback rather than closing a
         // still-resting order mid-flight.
-        if (TERMINAL_STATUSES.has(order.status)) {
+        if (isTerminalOrderStatus(order.status)) {
           status = order.status;
           closedAtMs = order.updateTime;
           raw = order;
-          if (order.status === 'FILLED' && executedSomething(order.executedQty)) {
+          // Any terminal status that moved base owes a reconcile, not `FILLED` alone. A partially filled order that is then cancelled, or retired by self-trade prevention as `EXPIRED_IN_MATCH`, moved exactly as much base as a fill of that size did, and the stream cannot repair it: `fill-adopter` ignores every execution report whose status is not FILLED, so the PARTIALLY_FILLED reports are dropped and the trailing terminal one carries no adoption. Narrowing to FILLED here while the status gate above accepts the whole terminal vocabulary would leave `heldQuantity` and the avg-entry ledger overstated for precisely the statuses that gate was widened to admit.
+          if (executedSomething(order.executedQty)) {
             await enqueueReconcile(deps, profileId, symbol, 'cancel-2011-fill', {
               orderId: decision.orderId,
             });

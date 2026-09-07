@@ -381,9 +381,12 @@ describe('tick handler — a failed order is re-issued by NOT advancing the stat
     // -2010 insufficient balance never clears on its own, so nothing useful will
     // come of re-issuing. That does NOT make it safe to commit: `nextState` was
     // computed on the assumption the order landed, and a rejected order provably
-    // did not. Momentum's exit is the case that bites — it emits [cancel(stop),
-    // MARKET SELL] and a FLAT nextState — so committing here would leave the bot
-    // believing it holds nothing while it holds the coin AND its stop is cancelled.
+    // did not. A batch shaped [cancel(stop), MARKET SELL] with a FLAT nextState is
+    // the case that bites — the shape both strategies emit for an exit today, and
+    // one the executor must keep handling even once a strategy fuses that pair into
+    // a single `replace-order` — so committing here
+    // would leave the bot believing it holds nothing while it holds the coin AND its
+    // stop is cancelled.
     // Safety turns on `phase` alone; `retryable` only shapes the alert wording.
     const { commit, rearms, notifyOrderFailed } = await run({
       orderResult: {
@@ -400,8 +403,10 @@ describe('tick handler — a failed order is re-issued by NOT advancing the stat
   });
 
   it('withholds the commit when a broken CANCEL skipped the placement — the gate reads the PLACEMENT, not the first failure', async () => {
-    // REGRESSION. Momentum's exit emits [cancel(protective stop), MARKET SELL] with a
-    // FLAT nextState. The cancel dies on a transport error (`ambiguous` — it may or
+    // REGRESSION. A batch shaped [cancel(protective stop), MARKET SELL] with a FLAT
+    // nextState — which the executor must still handle for any strategy that emits it,
+    // though both of ours now fuse that pair into one `replace-order`.
+    // The cancel dies on a transport error (`ambiguous` — it may or
     // may not have cleared), the chain breaks, and the SELL is stamped SKIPPED: never
     // transmitted. Reading the FIRST failed order (the cancel) would see `ambiguous`
     // ⇒ "may be live" ⇒ COMMIT — and the bot would record itself flat while the coin

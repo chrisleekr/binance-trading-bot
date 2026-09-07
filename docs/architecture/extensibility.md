@@ -110,11 +110,12 @@ If a re-armed override's window lapses while the strategy is still unable to act
 | `noop` | (no payload) | Do nothing this tick. |
 | `place-order` | `{ intent: OrderIntent, params: OrderParams }` | Place an order. `intent.reason` and `intent.meta` are strategy-owned; the core schema names no strategy concept. |
 | `cancel-order` | `{ orderId: number, reason: string, symbol?: string }` | Cancel a live order by its Binance numeric id. The optional `symbol` lets the executor cancel on the exchange when no local orders row exists yet; omit it and the executor falls back to resolving the symbol from the local row. |
+| `replace-order` | `{ cancelOrderId: number, reason: string, intent: OrderIntent, params: OrderParams }` | Cancel one resting order and place its successor in one exchange request (`cancelReplace`, `STOP_ON_FAILURE`). The successor's intent is unconstrained: re-arming a protective stop at a new level (no naked window, a gap with no protection resting on the exchange) and retiring one in favour of a position-closing exit SELL (no window in which the stop and the exit are both live against the same base) are both this shape. |
 | `emit-event` | `{ eventType, payload }` | Publish a typed domain event. Generic over the strategy's `events` map, so a mistyped `eventType` or `payload` is a compile error at the call site. |
 | `set-kv` | `{ key: string, value: unknown }` | Write a cross-symbol fact into the per-profile KV store under a strategy-owned namespaced key. The value is JSON-opaque to the executor. |
 | `delete-kv` | `{ key: string }` | Remove a KV entry (idempotent). |
 
-`set-kv` / `delete-kv` are the cross-symbol seam: a strategy trading several symbols on one profile gets one `tick()` slice per symbol, so it cannot read a sibling's state directly. It publishes facts via these decisions and reads the merged store back on later ticks through `TickInput.profileKv` — present only when the strategy opts in via `capabilities.needsProfileKv`. Writes are last-writer-wins per key across concurrent sibling ticks (eventual, like the rest of the contract); a strategy republishes its slice each tick. The store is per-PROFILE, not per-symbol. The union still stays generic: strategy-specific side effects ride on the variants above with namespaced strings, never a new union variant (the CLAUDE.md anti-pattern).
+`set-kv` / `delete-kv` are the cross-symbol seam: a strategy trading several symbols on one profile gets one `tick()` slice per symbol, so it cannot read a sibling's state directly. It publishes facts via these decisions and reads the merged store back on later ticks through `TickInput.profileKv` — present only when the strategy opts in via `capabilities.needsProfileKv`. Writes are last-writer-wins per key across concurrent sibling ticks (eventual, like the rest of the contract); a strategy republishes its slice each tick. The store is per-PROFILE, not per-symbol. The union stays generic: generic exchange-request shapes, such as `replace-order`, belong in the union; strategy-specific side effects ride `emit-event` with namespaced strings, never a new strategy-specific variant.
 
 ## State scope
 
@@ -155,7 +156,7 @@ Ticks for different symbols of the same profile may run in parallel. The executo
 ### Anti-patterns
 
 - Reading `state.avgEntryPrice` for symbol X from inside the tick of symbol Y. There is no shared state object; the tick of Y sees Y's slice only.
-- Adding a new `Decision` variant for "strategy-specific KV". Cross-symbol KV rides on `set-kv` / `delete-kv` under namespaced keys; never add a per-strategy union variant. The union stays generic per the CLAUDE.md note.
+- Adding a new `Decision` variant for a strategy-specific side effect. Cross-symbol KV rides on `set-kv` / `delete-kv` under namespaced keys, and strategy-specific effects ride `emit-event`; generic exchange requests such as `replace-order` remain valid union variants.
 
 ## State-adapter seams
 

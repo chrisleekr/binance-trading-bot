@@ -141,6 +141,22 @@ describe('placeOrderHandler', () => {
     expect(binance.placeOrder).not.toHaveBeenCalled();
   });
 
+  // `deferred` is what makes the tick skip `notifyOrderFailed`, and the throttle helper has already sent its own `binance-weight-throttle` emergency, so the second alert would say the same thing about an order the strategy itself marked as able to wait. Decided inside the shared helper rather than by each caller, or the same condition on the same decision reaches the operator differently depending on whether a place or a replacement ran; asserted from BOTH handlers for that reason, this one and the replacement's own weight test.
+  it('weight-throttle defers a deferrable placement rather than reporting it as a failure', async () => {
+    const binance = fakeBinance();
+    const bindings = buildBindings({ binance, weightLimit1m: 100 });
+    const redis = fakeRedis();
+    (redis.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce('150');
+
+    const out = await placeOrderHandler(buildDeps(bindings, redis), CTX, {
+      ...PLACE,
+      intent: { ...PLACE.intent, deferrable: true },
+    });
+
+    expect(out).toMatchObject({ ok: false, retryable: true, deferred: true });
+    expect(binance.placeOrder).not.toHaveBeenCalled();
+  });
+
   it('suppresses a duplicate MARKET placement (same clientOrderId within the window) and does not call Binance', async () => {
     const binance = fakeBinance();
     const bindings = buildBindings({ binance });
@@ -651,6 +667,33 @@ describe('placeOrderHandler', () => {
     // No whole-key DEL of the open-orders snapshot.
     const delKeys = (redis.del as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
     expect(delKeys.some((k) => /open-orders/.test(k))).toBe(false);
+  });
+
+  // ONE terminal vocabulary across every writer of the open-orders cache. `EXPIRED_IN_MATCH` is what Binance stamps when self-trade prevention kills an order, which on a shared account wallet is what a sibling profile's order crossing this one produces. The placement never rested, so caching it hands the next tick a phantom resting order that no execution report will ever arrive to evict — and the strategy reads exactly this list to find the protective stop it fuses its exit against.
+  it('REMOVEs a placement answered EXPIRED_IN_MATCH from the open-orders cache instead of caching it as resting', async () => {
+    const binance = fakeBinance({
+      placeOrder: vi.fn(async () => ({
+        orderId: 99,
+        clientOrderId: 'client-1',
+        status: 'EXPIRED_IN_MATCH',
+      })),
+    } as unknown as Partial<BinanceRestClient>);
+    const bindings = buildBindings({ binance });
+    const redis = fakeRedis();
+    const deps = { ...buildDeps(bindings, redis), accountId: ACCOUNT };
+
+    expect(await placeOrderHandler(deps, CTX, PLACE)).toEqual({ ok: true });
+
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      expect.stringMatching(/open-orders:BTCUSDT$/),
+      'remove',
+      '99',
+      expect.anything(),
+    );
+    const ops = (redis.eval as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[3]));
+    expect(ops).not.toContain('upsert');
   });
 
   it('sends a native trailing stop as a STOP_LOSS with a delta and no prices, and caches it that way', async () => {

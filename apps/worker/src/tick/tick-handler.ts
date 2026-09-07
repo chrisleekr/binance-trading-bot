@@ -450,7 +450,8 @@ export const createTickHandler = (
         );
         const refusalState = parseOrderRefusalState(raw.orderRefusal);
         const placementDecision = halt.kept.find(
-          (decision): decision is PlacementDecision => decision.type === 'place-order',
+          (decision): decision is PlacementDecision =>
+            decision.type === 'place-order' || decision.type === 'replace-order',
         );
         const refusalGate =
           refusalState !== undefined && placementDecision !== undefined
@@ -529,7 +530,9 @@ export const createTickHandler = (
         // first failure here is the real one and the rest are its bystanders.
         const orderFailure = applied.find(
           (a) =>
-            (a.decision.type === 'place-order' || a.decision.type === 'cancel-order') &&
+            (a.decision.type === 'place-order' ||
+              a.decision.type === 'cancel-order' ||
+              a.decision.type === 'replace-order') &&
             a.result.ok === false,
         );
         const failure: DecisionFailure | undefined =
@@ -553,7 +556,9 @@ export const createTickHandler = (
         //    succeed — and the two are orthogonal. A SELL refused -1013 / -2010 (both
         //    non-retryable) never executed, so the flat state is a LIE either way.
         const placement = applied.find(
-          (a) => a.decision.type === 'place-order' && a.result.ok === false,
+          (a) =>
+            (a.decision.type === 'place-order' || a.decision.type === 'replace-order') &&
+            a.result.ok === false,
         );
         const placementResult: DecisionFailure | undefined =
           placement && placement.result.ok === false ? placement.result : undefined;
@@ -563,7 +568,10 @@ export const createTickHandler = (
         let refusalTransition: OrderRefusalTransition | undefined;
         let persistedRefusalEvent: OrderRefusalTransition['event'] = null;
         if (refusalState !== undefined) {
-          const placementIndex = applied.findIndex((item) => item.decision.type === 'place-order');
+          const placementIndex = applied.findIndex(
+            (item) =>
+              item.decision.type === 'place-order' || item.decision.type === 'replace-order',
+          );
           const appliedPlacement = placementIndex < 0 ? undefined : applied[placementIndex];
           const blockedByEarlierOrder =
             placementIndex > 0 &&
@@ -571,7 +579,9 @@ export const createTickHandler = (
               .slice(0, placementIndex)
               .some(
                 (item) =>
-                  (item.decision.type === 'place-order' || item.decision.type === 'cancel-order') &&
+                  (item.decision.type === 'place-order' ||
+                    item.decision.type === 'cancel-order' ||
+                    item.decision.type === 'replace-order') &&
                   !item.result.ok,
               );
           let outcome: OrderPlacementOutcome | null = null;
@@ -824,7 +834,11 @@ export const createTickHandler = (
         ) {
           const notify = deps.notifyOrderFailed;
           const decisionType = orderFailure.decision.type;
-          if (decisionType === 'place-order' || decisionType === 'cancel-order') {
+          if (
+            decisionType === 'place-order' ||
+            decisionType === 'cancel-order' ||
+            decisionType === 'replace-order'
+          ) {
             void callAsync(() =>
               notify({
                 operatorId,
@@ -971,7 +985,9 @@ export const createTickHandler = (
           decisionTypes: applied.map((a) => a.decision.type),
           clientOrderIds: applied
             .map((a) =>
-              a.decision.type === 'place-order' ? a.decision.intent.clientOrderId : null,
+              a.decision.type === 'place-order' || a.decision.type === 'replace-order'
+                ? a.decision.intent.clientOrderId
+                : null,
             )
             .filter((c): c is string => c !== null),
           payload: auditPayload,
@@ -1024,7 +1040,9 @@ export const createTickHandler = (
           // market SELL is not a bug worth trusting every present and future plugin
           // to avoid, so the worker refuses to re-arm any tick that placed anything.
           const placedAnOrder = applied.some(
-            (a) => a.decision.type === 'place-order' && (a.result.ok || a.result.deferred !== true),
+            (a) =>
+              (a.decision.type === 'place-order' || a.decision.type === 'replace-order') &&
+              (a.result.ok || a.result.deferred !== true),
           );
           if (output.overrideDeferred === true && placedAnOrder) {
             deps.logger.error(

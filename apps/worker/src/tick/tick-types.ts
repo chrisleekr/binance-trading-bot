@@ -172,7 +172,7 @@ export interface TickHandlerDeps {
     readonly accountId: AccountId;
     readonly profileId: ProfileId;
     readonly symbol: string;
-    readonly decisionType: 'place-order' | 'cancel-order';
+    readonly decisionType: 'place-order' | 'cancel-order' | 'replace-order';
     readonly result: DecisionFailure;
     readonly willRetry: boolean;
   }) => Promise<void>;

@@ -181,7 +181,8 @@ export const buildTickHandler = ({
       if (input.willRetry) {
         body =
           'The bot could not get an order onto Binance. It will try again on the next cycle; if this keeps repeating, check the symbol and your balance.';
-      } else if (input.decisionType === 'place-order') {
+        // A replacement is a placement first: its successor is what did not reach the exchange, and on a non-retryable failure the stop it retired is already gone, so the unguarded-position warning is more warranted here than for a bare placement, not less.
+      } else if (input.decisionType === 'place-order' || input.decisionType === 'replace-order') {
         body =
           'The bot could not get an order onto Binance, and the reason will NOT clear on its own. After three identical refusals, it slows that exact request to one probe per minute until you act. If this was a protective stop, the position is currently unguarded. Check it on Binance.';
       }
@@ -197,7 +198,12 @@ export const buildTickHandler = ({
         fields: [
           {
             label: 'Action',
-            value: input.decisionType === 'place-order' ? 'Place order' : 'Cancel order',
+            value:
+              input.decisionType === 'place-order'
+                ? 'Place order'
+                : input.decisionType === 'replace-order'
+                  ? 'Replace order'
+                  : 'Cancel order',
           },
           { label: 'Reason', value: input.result.reason },
         ],

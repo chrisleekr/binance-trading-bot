@@ -155,12 +155,14 @@ describe('buildTickHandler — the order-refusal-loop notifier', () => {
     identityKey: 'request-and-rejection-digest',
     request: {
       clientOrderId: 'client-1',
+      cancelOrderId: null,
       symbol: SYMBOL,
       side: 'BUY' as const,
       type: 'LIMIT' as const,
       quantity: '2.5',
       price: '10',
       stopPrice: null,
+      trailingDelta: null,
       timeInForce: 'GTC' as const,
     },
     rejection: { code: -2010, msg: 'Account has insufficient balance.' },
@@ -310,5 +312,45 @@ describe('buildTickHandler — the protective-stop-blocked notifier', () => {
 
     const event = events[0] as { fields: { label: string }[] };
     expect(event.fields.map((f) => f.label)).not.toContain('Blocked for');
+  });
+});
+
+describe('notifyOrderFailed wording', () => {
+  const failed = (decisionType: 'place-order' | 'cancel-order' | 'replace-order') => ({
+    operatorId: OPERATOR,
+    accountId: ACCOUNT,
+    profileId: PROFILE,
+    symbol: SYMBOL,
+    decisionType,
+    result: {
+      ok: false as const,
+      retryable: false as const,
+      phase: 'rejected' as const,
+      reason: 'binance said no',
+    },
+    willRetry: false,
+  });
+
+  const fire = async (decisionType: 'place-order' | 'cancel-order' | 'replace-order') => {
+    const { deps, events } = build();
+    const notify = deps.notifyOrderFailed;
+    if (!notify) throw new Error('the builder did not wire notifyOrderFailed');
+    await notify(failed(decisionType));
+    return events[0] as { body: string; fields: { label: string; value: string }[] };
+  };
+
+  // A replacement is a placement first, and a non-retryable one is the case where the stop it retired is already gone. Routing it to the cancel wording tells the operator the opposite of what happened and drops the only warning that the position is uncovered.
+  it('gives a failed replacement the unguarded-position warning and its own action label', async () => {
+    const event = await fire('replace-order');
+
+    expect(event.body).toContain('the position is currently unguarded');
+    expect(event.fields).toContainEqual({ label: 'Action', value: 'Replace order' });
+  });
+
+  it('still names a cancel a cancel', async () => {
+    const event = await fire('cancel-order');
+
+    expect(event.body).toContain('could not cancel an order');
+    expect(event.fields).toContainEqual({ label: 'Action', value: 'Cancel order' });
   });
 });
