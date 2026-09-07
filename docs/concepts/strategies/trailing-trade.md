@@ -63,7 +63,11 @@ flowchart TD
 
 The exit checks always run before the entry checks, so a held position is protected first. Even when no exit fires, the strategy keeps a resting stop-loss order parked on Binance as a backstop if `sell.protectiveStop` is on.
 
-When an exit does fire while that backstop is resting, the retraction and the exit go to Binance as **one** request, not two. Neither can happen without the other: there is no moment where the stop is gone but the sale has not landed, and none where both are live against the same coins. If Binance refuses the retraction, the exit is not sent either — the position waits a tick with its stop still protecting it, and the next tick tries again. The one refusal that does not mean that is the stop having already left the book: the bot recognises it and sends the sale straight away rather than waiting on an order that no longer exists.
+When an exit does fire while that backstop is resting, the retraction and the exit go to Binance as **one** request, not two. That removes the window where both are live against the same coins: Binance sends the sale only after the retraction has succeeded, so it can never double-sell the position. If Binance refuses the retraction, the sale is not sent either — the position waits a tick with its stop still protecting it, and the next tick tries again. The one refusal that does not mean that is the stop having already left the book: the bot recognises it and sends the sale straight away rather than waiting on an order that no longer exists.
+
+The one request is **not** a transaction, and Binance does not promise it is. The retraction can succeed while the sale is refused, which leaves the position held with no stop on the book. The bot detects that case and sends the sale once more on its own; if that also fails it alerts you and schedules a repair pass, so the position is not left silently unguarded. It also declines to re-send when the retired stop had already sold part of the position, because the sale it was about to place was sized for the whole of it — the repair pass corrects the size and the next tick sells the remainder.
+
+A **partial** manual sell is deliberately not fused. One request carries one replacement order, so retiring the stop for a sale that leaves coins behind would leave the remainder with nothing protecting it. The stop stays resting and the next tick resizes it.
 
 ### When Binance will not accept the protective stop
 

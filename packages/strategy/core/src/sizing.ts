@@ -116,8 +116,8 @@ export const minSellableHeldQuantity = (
   return Decimal.max(filters.minQty, ceilToStep(filters.minNotional.div(stopPrice), filters.step));
 };
 
-/** Check whether a bought quantity remains sellable after the assumed base-asset fee and exchange step round-down at the stop.
- * @param quantity - The bought base quantity before fees.
+/** Check whether an already-held quantity is still sellable at the stop after the exchange step round-down. No fee margin is applied here, unlike {@link minSellableQuantityAtStop}, which sizes a pre-fee entry: the caller passes what the position actually holds, which is already net of the fill fee, so applying the margin again would understate it twice.
+ * @param quantity - The held base quantity, already net of any fill fee.
  * @param stopPrice - The protective-stop limit price used for the sell.
  * @param filters - The validated symbol quantity and notional filters.
  * @returns True when the step-rounded remaining quantity passes the exchange minimums.

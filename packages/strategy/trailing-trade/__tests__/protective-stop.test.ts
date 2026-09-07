@@ -1133,6 +1133,44 @@ describe('closing-sell fusion — one replace-order retires the stop and closes 
     expect(fused.intent.overrideActionId).toBe('01234567-89ab-4cde-89ab-cdef01234568');
   });
 
+  // The fusion places the operator's sell AS the successor, and a `replace-order` carries exactly one. A partial sell that retired the stop would leave the remainder with no protective order at all until a later tick armed one, and this branch returns before `evaluateProtectiveStop`, so on an hourly or daily profile that is an hour or a day rather than a moment.
+  it('manual-order SELL smaller than the position leaves the stop resting', () => {
+    const out = trailingTrade.tick(
+      buildInput({
+        avgEntryPrice: '100',
+        currentPrice: '105.00',
+        heldQuantity: '2',
+        override: {
+          kind: 'manual-order',
+          overrideActionId: '01234567-89ab-4cde-89ab-cdef0123456a',
+          payload: { side: 'SELL', type: 'MARKET', quantity: '1' },
+        },
+        openOrders: [restingProtectiveStop()],
+      }),
+    );
+    expect(out.decisions.some(isReplace)).toBe(false);
+    expect(out.decisions.some(isCancel)).toBe(false);
+    expect(out.decisions.some((d) => isPlace(d) && d.intent.side === 'SELL')).toBe(true);
+  });
+
+  // Fails closed: an unknown position size is not evidence of a full close, and retiring the stop off a number the strategy does not have trades the protection for nothing.
+  it('manual-order SELL with no tracked position leaves the stop resting', () => {
+    const out = trailingTrade.tick(
+      buildInput({
+        avgEntryPrice: '100',
+        currentPrice: '105.00',
+        heldQuantity: null,
+        override: {
+          kind: 'manual-order',
+          overrideActionId: '01234567-89ab-4cde-89ab-cdef0123456b',
+          payload: { side: 'SELL', type: 'MARKET', quantity: '2' },
+        },
+        openOrders: [restingProtectiveStop()],
+      }),
+    );
+    expect(out.decisions.some(isReplace)).toBe(false);
+  });
+
   it('manual-order BUY override does NOT retire the resting protective stop', () => {
     const out = trailingTrade.tick(
       buildInput({

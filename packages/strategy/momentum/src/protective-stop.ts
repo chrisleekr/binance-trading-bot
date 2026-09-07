@@ -308,9 +308,12 @@ export const nativeTrailHigh = (
   const mark = new Decimal(input.market.currentPrice);
   return Decimal.max(
     mark,
-    ...(state.nativeTrail?.orderId === resting.orderId
-      ? [new Decimal(state.nativeTrail.high)]
-      : []),
+    // `decOrNull`, not a bare `Decimal`: the state schema types `high` as a plain string, so any row that ever carried a malformed one would throw here, inside `computeTick`, and abort every tick for that symbol until an operator edited the row. Dropping the reading instead costs only the persisted high, and the mark and candle highs below still bound the reconstruction from beneath.
+    ...(() => {
+      if (state.nativeTrail?.orderId !== resting.orderId) return [];
+      const persisted = decOrNull(state.nativeTrail.high);
+      return persisted === null ? [] : [persisted];
+    })(),
     ...(input.market.candlesByInterval['1m'] ?? [])
       // The placement instant can fall inside an earlier-opening candle; + ONE_MINUTE_MS > includes its post-placement high, while >= would understate Binance's high, and overstatement is safe for a protective stop.
       .filter((candle) => candle.openTimeMs + ONE_MINUTE_MS > resting.transactTimeMs)

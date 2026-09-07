@@ -382,9 +382,9 @@ describe('tick handler — a failed order is re-issued by NOT advancing the stat
     // come of re-issuing. That does NOT make it safe to commit: `nextState` was
     // computed on the assumption the order landed, and a rejected order provably
     // did not. A batch shaped [cancel(stop), MARKET SELL] with a FLAT nextState is
-    // the case that bites — the shape both strategies emit for an exit today, and
-    // one the executor must keep handling even once a strategy fuses that pair into
-    // a single `replace-order` — so committing here
+    // the case that bites — a shape the executor must still handle, though both
+    // strategies now fuse that pair into one `replace-order` for a full exit — so
+    // committing here
     // would leave the bot believing it holds nothing while it holds the coin AND its
     // stop is cancelled.
     // Safety turns on `phase` alone; `retryable` only shapes the alert wording.

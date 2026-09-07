@@ -498,6 +498,20 @@ describe('momentum native-trail exitBlocker and high-water state', () => {
     expect(cleared.nextState.nativeTrail).toBeNull();
   });
 
+  // `MomentumStateSchema` types `nativeTrail.high` as a plain string, so a row carrying a value `Decimal` cannot parse is schema-valid. Constructing it bare would throw inside `computeTick` and abort every tick for this symbol until an operator edited the row, while dropping the reading costs only the persisted high: the mark and the candle highs still bound the reconstruction from beneath.
+  it('survives a persisted high that is not a number', () => {
+    const out = momentum.tick(
+      input({
+        currentPrice: '110',
+        state: held({ nativeTrail: { orderId: 7005, high: 'not-a-number' } }),
+        openOrders: [nativeOrder({ orderId: 7005, transactTimeMs: 60_000 })],
+        oneMinute: [candle({ openTimeMs: 60_000, high: '105' })],
+      }),
+    );
+
+    expect(out.nextState.nativeTrail).toEqual({ orderId: 7005, high: '110' });
+  });
+
   it('includes the candle containing native order placement in its high-water mark', () => {
     const out = momentum.tick(
       input({

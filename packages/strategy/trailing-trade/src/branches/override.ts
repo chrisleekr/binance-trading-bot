@@ -10,6 +10,7 @@ import type { TTBundle, TTConfig, TTState } from '../schema.js';
 import { clearedSellPosition } from '../position-lifecycle.js';
 import { armAutoTriggerBuy, emitForcedFirstEntry } from './first-entry.js';
 import { closingSellDecisions } from './protective-stop.js';
+import { safeDecimal } from './safe-decimal.js';
 import { reclaimableOwnSellBase, resolveHeldForSell, sellSkipLogLevel } from './sell-gate.js';
 import { forceSellCooldownActive, forceSellCooldownBlock } from '../force-sell-cooldown.js';
 
@@ -58,6 +59,22 @@ export const handleOverride = (
   return { ...out, decisions: attributeToOverride(out.decisions, override.overrideActionId) };
 };
 
+/**
+ * Whether a manual SELL of `quantity` leaves nothing of the tracked position behind.
+ *
+ * Fails CLOSED on anything it cannot prove: an unset or unparseable `heldQuantity` is not evidence of a full close, and treating it as one would retire the protective stop off a number the strategy does not have. Keeping the stop costs an over-sized resting order for one tick, which the next tick re-sizes; retiring it wrongly costs the protection itself.
+ *
+ * @param quantity - The step-rounded manual SELL quantity the operator's order will carry.
+ * @param state - The tick's next state, whose `heldQuantity` is the strategy's tracked position size.
+ * @returns True only when the sell provably covers the whole tracked position.
+ */
+const emptiesPosition = (quantity: string, state: TTState): boolean => {
+  if (state.heldQuantity === null) return false;
+  const held = safeDecimal(state.heldQuantity);
+  const selling = safeDecimal(quantity);
+  return held !== null && selling !== null && held.gt(0) && selling.gte(held);
+};
+
 const overrideOutput = (
   input: TickInput<TTConfig, TTState, TTBundle>,
   nextState: TTState,
@@ -87,9 +104,9 @@ const overrideOutput = (
           // A manual order is not a buy-gate evaluation; clear any stale blocker
           // so the worker's prev/next diff and the symbol page do not show one.
           nextState: { ...nextState, entryBlocker: null },
-          // A manual SELL may close the whole position, so it retires any resting protective stop in the same atomic request rather than leaving an orphan that double-sells on a later gap-down. A partial close re-arms next tick. A manual BUY adds exposure and leaves the stop correctly in place, so only the SELL fuses.
+          // Only a SELL that empties the position retires the resting protective stop with it: fusing is what stops an orphaned stop double-selling on a later gap-down, and there is no orphan while the position it was sized for is still there. A PARTIAL manual sell must keep the stop, because the fusion places the operator's sell as the successor and a `replace-order` carries exactly one, so the remainder would be left with no protective order until a later tick armed one. This branch returns before `evaluateProtectiveStop`, and the tick runs on `candleInterval`, so on a `1h` or `1d` profile that gap is an hour or a day, not a moment. A BUY adds exposure and leaves the stop correctly in place, so it never fuses either.
           decisions:
-            override.payload.side === 'SELL'
+            override.payload.side === 'SELL' && emptiesPosition(result.quantity, nextState)
               ? closingSellDecisions(input, manualDecision)
               : [manualDecision],
           logs: [

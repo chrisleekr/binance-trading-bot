@@ -792,6 +792,28 @@ describe('momentumPreviewLevels — protectiveStop.mode: native-trail', () => {
     expect(ps?.note).toContain('5%');
   });
 
+  // `desiredTrailDistance` prefers an armed profit leg, then the ATR mode, and only then `trailingStopPct`. The preview is handed no resolved level and may describe a config with no position, so it can quote the configured fraction and nothing else. Saying so is the difference between a distance the operator can check and a number the resting order may never have carried.
+  it('says the quoted distance is the configured one when a profit leg or ATR trail can beat it', () => {
+    const ps = row(
+      model({ enabled: true, mode: 'native-trail', limitOffsetPercentage: '0.98' }),
+      'protective-stop',
+    );
+    expect(ps?.note).toContain('5%');
+    expect(ps?.note).not.toContain('configured retrace');
+
+    const withProfitLeg = momentumPreviewLevels({
+      ...previewInput(
+        cfg({
+          profitTrail: { enabled: true, activationPct: '0.05', trailPct: '0.03' },
+          protectiveStop: { enabled: true, mode: 'native-trail', limitOffsetPercentage: '0.98' },
+        }),
+        RICH_ACCOUNT_WIRE,
+      ),
+      filters: TRAIL_FILTERS,
+    });
+    expect(row(withProfitLeg, 'protective-stop')?.note).toContain('configured retrace');
+  });
+
   it('keeps the priced row when the profile asks for a trail with no distance to trail by', () => {
     // Selecting the mode is not enough on its own. An unparseable `trailingStopPct` leaves nothing to size a delta from, so the arm rests the priced stop instead, and the row has to follow the order rather than the setting. Naming a trail here would describe an order that never goes out.
     const model = momentumPreviewLevels({

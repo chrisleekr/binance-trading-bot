@@ -72,6 +72,7 @@ const BULL = ['100', '100', '100', '115', '120'];
 const NEUTRAL = ['100', '100', '100', '115', '105'];
 
 interface CfgOpts {
+  readonly symbol?: string;
   readonly enabled?: boolean;
   readonly step?: string;
   readonly maxAdds?: number;

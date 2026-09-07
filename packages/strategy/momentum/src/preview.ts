@@ -200,7 +200,7 @@ interface RawProtectiveStop {
  *
  * The shared band-escape note cannot answer this case: it reports on a trail SUBSTITUTED for a band-refused priced stop, so it returns null whenever the band would have accepted that stop — the ordinary case for an order that was never priced to begin with. Only the reachability test differs, so this reimplements that and defers to the shared sentence for the wording, which is what keeps the two preview surfaces describing one resting order the same way.
  *
- * The distance quoted is the CONFIGURED retrace read back OUT of the basis-point delta, so the row cannot claim a distance the exchange was never given. Reading it out of the delta is also why the null answer is the right fallback: a symbol publishing no usable `TRAILING_DELTA` bounds is exactly the case where the arm abandons the trail and prices the stop instead.
+ * The distance quoted is the CONFIGURED retrace read back OUT of the basis-point delta, which is the FALLBACK arm of `desiredTrailDistance` rather than always the distance the resting order carries: an armed profit leg takes priority over it and the ATR mode replaces it. Neither is reconstructable here, because the preview is handed no resolved stop level and may describe a config with no position at all, so the sentence says which distance it is naming instead of quoting a number the exchange may never have been given. Reading it out of the delta is also why the null answer is the right fallback: a symbol publishing no usable `TRAILING_DELTA` bounds is exactly the case where the arm abandons the trail and prices the stop instead.
  *
  * @param config - The possibly unparsed momentum config supplying the configured retrace fraction.
  * @param trailing - The symbol's published trailing-delta bounds, or undefined when the preview carries no filters.
@@ -210,12 +210,16 @@ const primaryNativeTrailNote = (
   config: MomentumConfig,
   trailing: TrailingDeltaFilter | undefined,
 ): string | null => {
-  // The configured fraction, not the live ATR or profit leg, for the same reason the shared band settings quote it: the delta is sized from this fraction alone, and one re-derived per tick would cancel and re-place the order on every ATR reading, restarting the exchange high-water mark the trail exists to track.
   const stopDistancePct = decOrNull(config.trailingStopPct);
   if (stopDistancePct === null) return null;
   const delta = nativeTrailingDelta({ stopDistancePct, filter: trailing });
   if (delta === null) return null;
-  return nativeTrailDistanceSentence(delta);
+  // Only when one of the two can actually win. With both off the configured retrace IS what the arm sends, and a caveat there would be noise on the ordinary config.
+  const overridable =
+    config.profitTrail?.enabled === true || config.atrTrailingStop?.enabled === true;
+  return overridable
+    ? `${nativeTrailDistanceSentence(delta)} That is the configured retrace: an armed profit leg or the ATR trail can resolve a tighter distance, and the resting order then carries that one instead.`
+    : nativeTrailDistanceSentence(delta);
 };
 
 const buildProtectiveStopRow = (
