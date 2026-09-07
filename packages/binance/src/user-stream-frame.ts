@@ -58,16 +58,12 @@ export type UserStreamEvent =
     };
 
 /**
- * Decode one parsed user-data frame into a typed event, or `null` for any
- * frame that is not a recognised account event (request acks, heartbeats,
- * unknown event types). Input is the JSON-parsed frame object; callers own
- * `JSON.parse` and request/heartbeat routing.
+ * Decode one parsed user-data frame into a typed event, or `null` for any frame that is not a recognised account event (request acks, heartbeats, unknown event types). Callers own `JSON.parse` and request/heartbeat routing.
  *
- * Event-push frames live under an `event` wrapper per the ws-api spec
- * (`{ event: { e: "executionReport", ... } }`); the older raw-stream shape
- * placed the event at the top level (`{ e: ..., ... }`). Both are accepted
- * because Binance has historically left top-level pushes intact for legacy
- * clients during migration windows.
+ * Event-push frames live under an `event` wrapper (`{ event: { e: "executionReport", ... } }`); the older raw-stream shape placed the event at the top level (`{ e: ..., ... }`). Both are accepted because Binance has historically left top-level pushes intact for legacy clients during migration windows.
+ *
+ * @param raw - The JSON-parsed frame object, in either shape. Anything that is not a non-null object is refused rather than coerced.
+ * @returns The typed event, or `null` when the frame is not a recognised account event. On an execution report `clientOrderId` is `''` whenever `c` is absent or is not a string, so a non-string JSON scalar can never become a marker key.
  */
 export const parseUserStreamFrame = (raw: unknown): UserStreamEvent | null => {
   if (typeof raw !== 'object' || raw === null) return null;
@@ -80,7 +76,8 @@ export const parseUserStreamFrame = (raw: unknown): UserStreamEvent | null => {
       kind: 'execution-report',
       symbol: String(inner['s'] ?? ''),
       orderId: Number(inner['i'] ?? 0),
-      clientOrderId: String(inner['c'] ?? ''),
+      // Read as a string or not at all, because `c` is the only field here that becomes a KEY: it names the cross-profile placement marker the event router's ownership gate reads back. (Other fields are decoded rather than blindly stringified too — `S` is compared, `i`/`t`/`E` go through `Number()` — but a coercion in any of them yields at most a value that matches nothing.) `String()` would turn a non-string JSON scalar into a legal-looking id (`0`, `false`), collapsing distinct orders onto one shared marker key and attributing them all to whichever profile last placed with that shape. Every other field is read as data, so a coercion there is at worst a value that matches nothing. Empty is already the gate's "no marker", which falls back to the orders-row verdict.
+      clientOrderId: typeof inner['c'] === 'string' ? inner['c'] : '',
       orderStatus: String(inner['X'] ?? ''),
       side: inner['S'] === 'BUY' ? 'BUY' : 'SELL',
       executionType: String(inner['x'] ?? ''),

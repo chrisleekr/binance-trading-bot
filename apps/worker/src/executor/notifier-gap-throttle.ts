@@ -254,3 +254,25 @@ export const createProtectiveStopBlockedThrottle = (
  */
 export const SYMBOL_DELISTED_KEY_PREFIX = 'symbol-delisted-throttle:';
 export const SYMBOL_NOT_PERMITTED_RETIRE_KEY_PREFIX = 'symbol-not-permitted-retire-throttle:';
+
+/**
+ * Window for the "nothing names an owner" execution-report warning. One hand-placed order on a shared account emits a NEW, one or more TRADE partials and a terminal report, and every profile bound to the account receives all of them, so an unthrottled line is roughly 3-4 per profile per order. The caller keys the window per (account, symbol, binanceOrderId) so one order logs once across that whole fan-out; the symbol is part of that identity because a Binance order id is unique per symbol rather than per account, so a two-part key would let one symbol's order silently suppress another's. Short, because the point is collapsing one order's reports rather than suppressing the next order: a second unowned order minutes later is new information.
+ */
+export const DEFAULT_UNOWNED_REPORT_WINDOW_MS = 300_000;
+
+export const UNOWNED_REPORT_KEY_PREFIX = 'unowned-report-throttle:';
+
+/**
+ * Rate-limits the ownership gate's no-positive-owner warning.
+ *
+ * @param deps - Redis connection, logger, and optional window / deadline overrides.
+ * @returns A throttle whose `allow` opens one window per caller-supplied key.
+ */
+export const createUnownedReportThrottle = (deps: NotifierGapThrottleDeps): NotifierGapThrottle =>
+  createRedisWindowThrottle({
+    redis: deps.redis,
+    logger: deps.logger,
+    prefix: UNOWNED_REPORT_KEY_PREFIX,
+    windowMs: deps.windowMs ?? DEFAULT_UNOWNED_REPORT_WINDOW_MS,
+    ...(deps.setTimeoutMs === undefined ? {} : { setTimeoutMs: deps.setTimeoutMs }),
+  });

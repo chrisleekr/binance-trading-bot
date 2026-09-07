@@ -7,6 +7,7 @@ import {
   buildKillSwitchKey,
   buildOpenOrdersKey,
   buildOrderRefusalKey,
+  buildPlacementOwnerKey,
   buildProfileTickMetaKey,
   buildSymbolInfoKey,
   buildSymbolStateKey,
@@ -84,5 +85,18 @@ describe('buildSymbolInfoKey (mode-namespaced)', () => {
     // lacks — so it is not matched (and not wiped) by the live refresh.
     const liveGlobPrefix = buildSymbolInfoKey('', 'live'); // 'binance:symbol-info:'
     expect(buildSymbolInfoKey('BTCUSDT', 'test').startsWith(liveGlobPrefix)).toBe(false);
+  });
+});
+
+describe('buildPlacementOwnerKey (account-domain, no profile segment)', () => {
+  // The reader is asking WHICH profile placed the order, so it cannot supply one — the key is
+  // keyed by account and clientOrderId only. Pinned here because the writer (the placement path)
+  // and the reader (the event router's ownership gate) live in different subsystems: a suffix
+  // change that only one of them follows disarms the gate silently, with every stubbed test on
+  // both sides still green.
+  it('produces placement-owner:<account>:<clientOrderId>', () => {
+    expect(buildPlacementOwnerKey(asAccountId('acct-1'), 'tt-buy-1')).toBe(
+      'placement-owner:acct-1:tt-buy-1',
+    );
   });
 });

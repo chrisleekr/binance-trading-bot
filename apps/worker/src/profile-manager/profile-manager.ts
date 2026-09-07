@@ -132,6 +132,15 @@ export interface ProfileManager {
    * is the source of truth without a DB round-trip.
    */
   listActive(): readonly ActiveProfile[];
+  /**
+   * The ids of the active profiles running under one Binance account, meaning exactly the set that account's single user-data stream is routed to.
+   *
+   * Narrower than filtering {@link listActive}, which materialises an object per profile in the whole fleet and copies each one's symbol set before the filter discards them. The ownership gate asks this per execution report that names no owner, which is the branch a Redis outage drives every placed order into, so the snapshot's cost lands exactly when the worker is already degraded.
+   *
+   * @param accountId - Account to enumerate.
+   * @returns The active profile ids on that account, empty when none is running.
+   */
+  profileIdsForAccount(accountId: AccountId): readonly ProfileId[];
   shutdown(): Promise<void>;
 }
 
@@ -313,6 +322,11 @@ export const createProfileManager = (deps: ProfileManagerDeps): ProfileManager =
         symbols: Array.from(s.symbols),
         technicalsIntervals: s.technicalsIntervals,
       }));
+    },
+    profileIdsForAccount(accountId) {
+      const ids: ProfileId[] = [];
+      for (const [profileId, s] of profiles) if (s.accountId === accountId) ids.push(profileId);
+      return ids;
     },
     async shutdown() {
       const ids = Array.from(profiles.keys());
