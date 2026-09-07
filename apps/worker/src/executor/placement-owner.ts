@@ -22,7 +22,9 @@ import { buildPlacementOwnerKey } from './redis-namespace.js';
  */
 export const DEFAULT_PLACEMENT_OWNER_TTL_MS = 300_000;
 
-// The executor's ioredis runs with `maxRetriesPerRequest: null` and no command timeout, so a reachable-but-stalled Redis would hang both calls. The write sits on the placement path and the read sits on the execution-report path; neither may stretch on a stalled server. Mirrors the placement-dedup mirror's deadline.
+// The executor's ioredis is constructed with no options, so it carries no command timeout, and `maxRetriesPerRequest` governs only commands pending across a RECONNECT. Neither bounds a reachable-but-stalled server (an RDB fork pause, a slow command from another client), which hangs both calls for as long as it lasts. The write sits on the placement path and the read sits on the execution-report path; neither may stretch there. Mirrors the placement-dedup mirror's deadline.
+//
+// The deadline ABANDONS the command, it does not cancel it: ioredis exposes no cancellation, so a stalled `set` may still land later. Harmless here, and deliberately so. Every clientOrderId folds its `profileId` into the hash, so the key determines the value: a late write can only restate the attribution a timely one would have made. Losing the marker is the failure that matters, and it is the one the gate already handles by falling back.
 const PLACEMENT_OWNER_REDIS_TIMEOUT_MS = 500;
 
 // A SUPERSET of the only clientOrderId character class Binance publishes anywhere, `^[a-zA-Z0-9-_]{1,36}$`. The REST and WebSocket surfaces state the 36-char uniqueness rule for `newClientOrderId` but publish no character class at all, and Binance's own generated ids and its connector libraries use `.`, `:` and `/`, so this admits those too.
