@@ -25,11 +25,13 @@ export interface ClassifyOrderDeps {
   /** Sink for the fail-safe warning raised when the ownership lookup fails, and for the one raised when no evidence names an owner at all. */
   readonly logger: Logger;
   /**
-   * How many profiles the account's user-data stream is currently routed to, the asking one included.
+   * The profiles the account's user-data stream is currently routed to, the asking one included while it is still active.
    *
    * Must NOT be answered from `profiles.enabled`. That column is the target the profile manager converges its active set to on an interval, so it moves first and the routing follows: a profile disabled in the database is still receiving reports until the next reconcile, and counting off the column would report "no sibling" for exactly the window where one is still live. It also defaults to false, so a profile created and never started would count as a sibling that cannot receive anything.
+   *
+   * The membership, not just the size, because the fallthrough below needs both.
    */
-  readonly countActiveProfiles: (accountId: AccountId) => number;
+  readonly activeProfileIds: (accountId: AccountId) => readonly ProfileId[];
 }
 
 /**
@@ -42,7 +44,7 @@ export const createClassifyOrder = ({
   db,
   redis,
   logger,
-  countActiveProfiles,
+  activeProfileIds,
 }: ClassifyOrderDeps): EventRouterDeps['classifyOrder'] => {
   const placementOwner = createPlacementOwner({ redis, logger });
   const unownedReportThrottle = createUnownedReportThrottle({ redis, logger });
@@ -61,11 +63,12 @@ export const createClassifyOrder = ({
    * @param operatorId - Owner of the account, proving the ownership chain on every scoped lookup.
    * @param accountId - Account whose shared user-data stream carried this report.
    * @param profileId - Profile that received the report and is asking whether it may adopt the fill.
+   * @param symbol - Market the report is for. Not part of any ownership lookup, which are all keyed on the order id alone; it completes the order's identity for the warning throttle, because a Binance order id is unique per symbol rather than per account.
    * @param binanceOrderId - Exchange order id the report refers to, the key for the `orders` and `manual_orders` lookups.
    * @param clientOrderId - The order's client id, the only handle that exists before the `orders` row commits, and the placement marker's key.
    * @returns `own` to adopt the fill, `sibling` to drop it because another profile owns it or because nothing proves this one does, or `detached` to close the ledger row without adopting.
    */
-  return async (operatorId, accountId, profileId, binanceOrderId, clientOrderId) => {
+  return async (operatorId, accountId, profileId, symbol, binanceOrderId, clientOrderId) => {
     const orderId = BigInt(binanceOrderId);
     try {
       const account = await accountRepo(db, operatorId, accountId);
@@ -94,16 +97,29 @@ export const createClassifyOrder = ({
       //
       // The verdict turns on whether a sibling exists to corrupt, because this branch answers identically for EVERY profile on the account. With more than one, `own` tells all of them to adopt the same fill, which is the cross-profile corruption this gate exists to prevent, so the honest reading of "unknown" is drop. With exactly one profile there is nobody to leak into: adopting keeps the operator's hand-placed fill in the position state that mirrors their wallet, and dropping it would silently drift that state for no safety gain.
       //
-      // Counted over the ACTIVE profiles, not the rows just read for the manual-order scan. A profile that is not being routed cannot answer this branch and cannot adopt anything, so counting it would drop the fill of the only profile that trades. The scan above still needs every row: a manual order rests on the exchange whether or not its profile is currently running.
+      // Read off the ACTIVE profiles, not the rows just read for the manual-order scan. A profile that is not being routed cannot answer this branch and cannot adopt anything, so counting it would drop the fill of the only profile that trades. The scan above still needs every row: a manual order rests on the exchange whether or not its profile is currently running.
       //
-      // Throttled per (account, order) rather than logged per report, because one hand-placed order emits a NEW, its TRADE partials and a terminal report to every profile at once. An operator who learns the message cries wolf will ignore the one occurrence that says the isolation control is disarmed.
-      const soleProfile = countActiveProfiles(accountId) <= 1;
-      if (await unownedReportThrottle.allow(`${unwrapId(accountId)}:${binanceOrderId}`)) {
+      // Membership as well as size, because the active set can shrink under this call. `disable` deletes from it synchronously while the callbacks it fans out to are still suspended on the lookups above, and every one of them then reads the same post-removal set. Size alone would tell the profile that was just removed and the one that survived that each is the only profile on the account, and both would adopt. Requiring the asker to still be in the set leaves at most one caller that can answer yes. The removed profile drops the report, which is the right answer for a profile that is going away: it is unwinding, and the fill is recovered by boot reconcile.
+      //
+      // Throttled per (account, symbol, order) rather than logged per report, because one hand-placed order emits a NEW, its TRADE partials and a terminal report to every profile at once. An operator who learns the message cries wolf will ignore the one occurrence that says the isolation control is disarmed. The symbol belongs in that identity for the same reason `orderCommissionKey` carries it: a Binance order id is unique per symbol, not per account, so two unowned orders on different symbols can share one numeric id inside the window and the second would log nothing.
+      const active = activeProfileIds(accountId);
+      const soleProfile = active.length <= 1 && active.includes(profileId);
+      if (await unownedReportThrottle.allow(`${unwrapId(accountId)}:${symbol}:${binanceOrderId}`)) {
         logger.warn(
-          { operatorId, accountId, profileId, binanceOrderId, clientOrderId, soleProfile },
+          {
+            operatorId,
+            accountId,
+            profileId,
+            symbol,
+            binanceOrderId,
+            clientOrderId,
+            soleProfile,
+            // Separates the two ways `soleProfile` goes false: a sibling is genuinely routed, or this profile has itself left the routed set mid-report.
+            activeProfiles: active.length,
+          },
           soleProfile
             ? 'event-router: no orders row, placement marker or manual order names an owner for this execution report; usually an order placed by hand on this account, but also what a lost marker looks like. Adopting it because this account has no other profile to leak into'
-            : 'event-router: no orders row, placement marker or manual order names an owner for this execution report; usually an order placed by hand on this account, but also what a lost marker looks like. Dropping it because this account has sibling profiles that would each adopt the same fill',
+            : 'event-router: no orders row, placement marker or manual order names an owner for this execution report; usually an order placed by hand on this account, but also what a lost marker looks like. Dropping it because adopting is only safe for the sole profile the account stream is routed to, and this profile is not it',
         );
       }
       return soleProfile ? 'own' : 'sibling';

@@ -114,6 +114,7 @@ export interface EventRouterDeps {
     operatorId: UserId,
     accountId: AccountId,
     profileId: ProfileId,
+    symbol: string,
     binanceOrderId: number,
     clientOrderId: string,
   ) => Promise<OrderOwnership>;
@@ -298,6 +299,7 @@ export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
           operatorId,
           accountId,
           event.profileId,
+          event.symbol,
           event.orderId,
           event.clientOrderId,
         );

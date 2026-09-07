@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
-import { asAccountId, asProfileId, asUserId } from '@app/contracts';
+import { asAccountId, asProfileId, asUserId, type ProfileId } from '@app/contracts';
 import { AccountNotOwnedError, ProfileNotOwnedError } from '@app/db';
 
 import { createClassifyOrder } from '../../src/event-router/classify-order.js';
@@ -50,6 +50,7 @@ const OPERATOR = asUserId('u1');
 const ACCOUNT = asAccountId('a1');
 const P1 = asProfileId('p1');
 const P2 = asProfileId('p2');
+const SYMBOL = 'BTCUSDT';
 const BINANCE_ORDER_ID = 4242;
 const CLIENT_ORDER_ID = 'co-4242';
 // Minted through the same builder the placement path writes with, never a literal: two independently-hardcoded keys that happen to agree would still let writer and reader drift.
@@ -70,14 +71,14 @@ const makeRedis = (entries: Record<string, string> = {}): Redis => {
   } as unknown as Redis;
 };
 
-const countActiveProfiles = (): number => state.activeProfileIds.length;
+const activeProfileIds = (): readonly ProfileId[] => state.activeProfileIds.map(asProfileId);
 
 const gate = (redis: Redis = makeRedis()) =>
   createClassifyOrder({
     db: fakeDb(),
     redis,
     logger: silentLogger(),
-    countActiveProfiles,
+    activeProfileIds,
   });
 
 beforeEach(() => {
@@ -91,23 +92,23 @@ beforeEach(() => {
 describe('createClassifyOrder', () => {
   it('returns own when the orders row names the asking profile', async () => {
     state.orderRow = { profileId: 'p2' };
-    await expect(gate()(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
-      'own',
-    );
+    await expect(
+      gate()(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+    ).resolves.toBe('own');
   });
 
   it('returns sibling when the orders row names a different profile', async () => {
     state.orderRow = { profileId: 'p1' };
-    await expect(gate()(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
-      'sibling',
-    );
+    await expect(
+      gate()(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+    ).resolves.toBe('sibling');
   });
 
   it('returns detached when the orders row has no profile', async () => {
     state.orderRow = { profileId: null };
-    await expect(gate()(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
-      'detached',
-    );
+    await expect(
+      gate()(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+    ).resolves.toBe('detached');
   });
 
   // A committed row is the authoritative answer and the marker is only evidence about the window before it exists, so the row has to win even when a marker contradicts it. Arranged as a contradiction because agreement proves nothing: without it, hoisting the marker consult above the row lookup would leave every other case in this file green while a stale marker started overriding a committed row, including reporting a DETACHED order as adoptable.
@@ -121,7 +122,7 @@ describe('createClassifyOrder', () => {
       state.orderRow = { profileId: rowOwner };
       const redis = makeRedis({ [MARKER_KEY]: markerOwner });
       await expect(
-        gate(redis)(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+        gate(redis)(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
       ).resolves.toBe(verdict);
     },
   );
@@ -135,14 +136,26 @@ describe('createClassifyOrder', () => {
     ['adopts', ['p1', 'p2'], ['p2'], 'own'],
   ])(
     '%s a report nothing names an owner for, by whether a sibling is actually being routed',
-    async (_label, profileIds, activeProfileIds, verdict) => {
+    async (_label, profileIds, active, verdict) => {
       state.profileIds = profileIds;
-      state.activeProfileIds = activeProfileIds;
-      await expect(gate()(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
-        verdict,
-      );
+      state.activeProfileIds = active;
+      await expect(
+        gate()(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+      ).resolves.toBe(verdict);
     },
   );
+
+  // `disable` deletes from the active set synchronously, while the callbacks the same report fanned out to are still suspended on the lookups above, so the removed profile and the survivor both read the same post-removal set. A size-only check answers "sole profile on the account" to BOTH and the one hand-placed fill is adopted twice, which is the corruption this gate exists to prevent. Asserted as a pair over one arrangement: either verdict on its own is satisfied by a gate that always answers the same way.
+  it('lets only the profile still being routed adopt when a sibling leaves mid-report', async () => {
+    state.profileIds = ['p1', 'p2'];
+    state.activeProfileIds = ['p2'];
+    await expect(
+      gate()(OPERATOR, ACCOUNT, P1, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+    ).resolves.toBe('sibling');
+    await expect(
+      gate()(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+    ).resolves.toBe('own');
+  });
 
   // This branch decides on the ABSENCE of evidence, and it is the branch the incident came out of. It is also the only signal that the marker path has stopped working, meaning Redis down, a lapsed TTL, or an id the keyspace cannot use, so it must never be silent (CLAUDE.md: no silent failures). Pinned to the fallthrough alone: the arms that resolve a positive owner stay quiet.
   it('warns when nothing names an owner', async () => {
@@ -152,12 +165,12 @@ describe('createClassifyOrder', () => {
       db: fakeDb(),
       redis: makeRedis(),
       logger,
-      countActiveProfiles,
+      activeProfileIds,
     });
 
-    await expect(classify(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
-      'sibling',
-    );
+    await expect(
+      classify(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+    ).resolves.toBe('sibling');
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -180,14 +193,30 @@ describe('createClassifyOrder', () => {
     const warn = vi.fn();
     const logger = { ...silentLogger(), warn } as unknown as Logger;
     const redis = makeRedis();
-    const classify = createClassifyOrder({ db: fakeDb(), redis, logger, countActiveProfiles });
+    const classify = createClassifyOrder({ db: fakeDb(), redis, logger, activeProfileIds });
 
-    await classify(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
-    await classify(OPERATOR, ACCOUNT, P1, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
+    await classify(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
+    await classify(OPERATOR, ACCOUNT, P1, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
     expect(warn).toHaveBeenCalledTimes(1);
 
     // A different order is new information, not a repeat of the suppressed one.
-    await classify(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID + 1, CLIENT_ORDER_ID);
+    await classify(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID + 1, CLIENT_ORDER_ID);
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  // Binance order ids are unique per SYMBOL, not per account, which is the fact `orderCommissionKey` is already shaped around. Keyed on (account, order) alone, the second symbol's order collapses onto the first one's window and logs nothing, and this line is the only signal that the marker path has stopped working. Same numeric id on purpose: any key that carries the symbol passes, any key that does not fails.
+  it('logs an unowned order on a second symbol that reuses the numeric order id', async () => {
+    const warn = vi.fn();
+    const logger = { ...silentLogger(), warn } as unknown as Logger;
+    const classify = createClassifyOrder({
+      db: fakeDb(),
+      redis: makeRedis(),
+      logger,
+      activeProfileIds,
+    });
+
+    await classify(OPERATOR, ACCOUNT, P2, 'BTCUSDT', BINANCE_ORDER_ID, CLIENT_ORDER_ID);
+    await classify(OPERATOR, ACCOUNT, P2, 'ETHUSDT', BINANCE_ORDER_ID, CLIENT_ORDER_ID);
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
@@ -206,10 +235,11 @@ describe('createClassifyOrder', () => {
     const logger = { ...silentLogger(), warn } as unknown as Logger;
 
     await expect(
-      createClassifyOrder({ db: fakeDb(), redis, logger, countActiveProfiles })(
+      createClassifyOrder({ db: fakeDb(), redis, logger, activeProfileIds })(
         OPERATOR,
         ACCOUNT,
         P2,
+        SYMBOL,
         BINANCE_ORDER_ID,
         CLIENT_ORDER_ID,
       ),
@@ -219,16 +249,16 @@ describe('createClassifyOrder', () => {
 
   it('returns own when the asking profile owns the matching manual order', async () => {
     state.manualOwner = 'p2';
-    await expect(gate()(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
-      'own',
-    );
+    await expect(
+      gate()(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+    ).resolves.toBe('own');
   });
 
   it('returns sibling when another profile owns the matching manual order', async () => {
     state.manualOwner = 'p1';
-    await expect(gate()(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
-      'sibling',
-    );
+    await expect(
+      gate()(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+    ).resolves.toBe('sibling');
   });
 
   // Fail-open, not fail-safe, for THIS read specifically: a marker the gate cannot reach leaves it on the verdict it gave before markers existed, rather than dropping every report on the account for as long as Redis is unwell. Arranged so a manual order names the asking profile, because that is a verdict only the arms AFTER the marker consult can produce: a marker fault that aborted the gate would answer `sibling` instead.
@@ -239,7 +269,7 @@ describe('createClassifyOrder', () => {
       set: () => Promise.resolve('OK'),
     } as unknown as Redis;
     await expect(
-      gate(redis)(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+      gate(redis)(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
     ).resolves.toBe('own');
   });
 
@@ -248,14 +278,16 @@ describe('createClassifyOrder', () => {
     state.profileIds = ['p2'];
     state.activeProfileIds = ['p2'];
     const redis = makeRedis({ [buildPlacementOwnerKey(ACCOUNT, '')]: 'p1' });
-    await expect(gate(redis)(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, '')).resolves.toBe('own');
+    await expect(gate(redis)(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, '')).resolves.toBe(
+      'own',
+    );
   });
 
   it('returns sibling when the ownership lookup fails, so a foreign fill is never adopted', async () => {
     state.lookupThrows = true;
-    await expect(gate()(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
-      'sibling',
-    );
+    await expect(
+      gate()(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+    ).resolves.toBe('sibling');
   });
 
   // An ownership error is not a fault, it is the answer: the profile was deleted or moved between the report and the lookup, and the stream fans one report out to every profile on the account, so warning would emit noise on every sibling for a routine race. The verdict still has to be the fail-safe one.
@@ -271,8 +303,8 @@ describe('createClassifyOrder', () => {
       db: fakeDb(),
       redis: makeRedis(),
       logger,
-      countActiveProfiles,
-    })(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
+      activeProfileIds,
+    })(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
 
     expect(verdict).toBe('sibling');
     expect(warn).not.toHaveBeenCalled();
@@ -282,7 +314,7 @@ describe('createClassifyOrder', () => {
   it('returns sibling when no orders row exists and marker-names-sibling', async () => {
     const redis = makeRedis({ [MARKER_KEY]: 'p1' });
     await expect(
-      gate(redis)(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
+      gate(redis)(OPERATOR, ACCOUNT, P2, SYMBOL, BINANCE_ORDER_ID, CLIENT_ORDER_ID),
     ).resolves.toBe('sibling');
   });
 });
@@ -305,10 +337,11 @@ describe('placement marker, written by the executor and read by the gate', () =>
     const logger = silentLogger();
     await createPlacementOwner({ redis, logger }).register(ACCOUNT, P1, CLIENT_ORDER_ID);
 
-    const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger, countActiveProfiles })(
+    const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger, activeProfileIds })(
       OPERATOR,
       ACCOUNT,
       P2,
+      SYMBOL,
       BINANCE_ORDER_ID,
       CLIENT_ORDER_ID,
     );
@@ -323,10 +356,11 @@ describe('placement marker, written by the executor and read by the gate', () =>
     // Without the marker this arrangement resolves to `sibling`, because P2 holds the matching manual order, so `own` can only come from the marker.
     state.manualOwner = 'p2';
 
-    const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger, countActiveProfiles })(
+    const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger, activeProfileIds })(
       OPERATOR,
       ACCOUNT,
       P1,
+      SYMBOL,
       BINANCE_ORDER_ID,
       CLIENT_ORDER_ID,
     );

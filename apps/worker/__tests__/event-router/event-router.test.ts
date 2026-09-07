@@ -335,11 +335,12 @@ describe('EventRouter', () => {
       tradeId: 1,
       eventTimeMs: 0,
     });
-    // The clientOrderId is the 5th argument because it is the gate's only handle on the placing profile while the `orders` row is still uncommitted; a router that stops forwarding it silently disarms the marker consult.
+    // The clientOrderId is the last argument because it is the gate's only handle on the placing profile while the `orders` row is still uncommitted; a router that stops forwarding it silently disarms the marker consult. The symbol rides along because a Binance order id is unique per symbol, so the gate cannot name the order without it.
     expect(classifyOrder).toHaveBeenCalledWith(
       asUserId('u1'),
       asAccountId('a1'),
       asProfileId('p2'),
+      'XPLUSDT',
       99,
       'tt-foreign',
     );
@@ -545,6 +546,7 @@ describe('EventRouter', () => {
       asUserId('u1'),
       asAccountId('a1'),
       asProfileId('p1'),
+      'BTCUSDT',
       1,
       'tt-own',
     );

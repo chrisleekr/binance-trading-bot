@@ -80,8 +80,11 @@ export const buildEventStream = ({
       redis,
       logger,
       // The manager's active set, not `profiles.enabled`: it is what the user-data stream is actually routed to, and `reconcile` moves it to the column on an interval rather than with it.
-      countActiveProfiles: (accountId) =>
-        profileManager.listActive().filter((p) => p.accountId === accountId).length,
+      activeProfileIds: (accountId) =>
+        profileManager
+          .listActive()
+          .filter((p) => p.accountId === accountId)
+          .map((p) => p.profileId),
     }),
     logger,
   });
