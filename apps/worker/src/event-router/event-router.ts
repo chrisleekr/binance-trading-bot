@@ -107,6 +107,8 @@ export interface EventRouterDeps {
    * absent gate would have to assume `own`, which adopts every sibling's fill
    * into this profile's position — the exact corruption the gate exists to
    * prevent, and invisible at runtime.
+   *
+   * The verdict governs the PROFILE-scoped effects only, meaning fill adoption and the tick enqueue. The account-domain ones, the commission fold and the open-orders snapshot patch, run before this call for every profile on the account, because they describe the exchange rather than any one profile's position.
    */
   readonly classifyOrder: (
     operatorId: UserId,
@@ -264,6 +266,33 @@ export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
           commission: event.commission,
           commissionAsset: event.commissionAsset,
         });
+        // Patch the shared open-orders snapshot BEFORE the ownership gate, for the same reason the commission fold above runs before it: the key is account-domain (`buildOpenOrdersKey` takes the accountId, not the profileId) and every profile on the account is routed this same report, so the snapshot has to track the exchange whoever ends up adopting the fill. Gating it on a profile-scoped verdict leaves an order nobody owns, a hand-placed one or one whose profile was deleted, resting in the snapshot until the TTL cold-load, and the strategy reads that list to find the protective stop it fuses its exit against.
+        //
+        // Still before adoption, which was the original ordering constraint: a tick that observes the post-adopt strategy state must also observe the fresh order list, or a concurrent tick on a sibling chain reads mutated state against stale orders. Both patches are idempotent by orderId and are no-ops on an absent key, so the fan-out across profiles settles once and a dropped WS signal self-heals via the key TTL rather than a fabricated entry.
+        try {
+          const key = buildOpenOrdersKey(accountId, event.symbol);
+          // `isTerminalOrderStatus` is the shared vocabulary from `@app/contracts`,
+          // not a local set: the cache eviction here, the boot reaper's close and
+          // the `orders` row's `closed_at` stamp must agree on which statuses are
+          // done, or a status terminal for one of them (`EXPIRED_IN_MATCH`, the
+          // self-trade-prevention terminator) leaves the ledger claiming the order
+          // still rests while the cache says it is gone.
+          if (isTerminalOrderStatus(event.orderStatus)) {
+            await removeOpenOrder(deps.redis, key, event.orderId);
+          } else if (event.orderStatus === 'PARTIALLY_FILLED') {
+            await patchOpenOrder(deps.redis, key, event.orderId, {
+              executedQty: event.cumQty,
+              cumQuote: event.cumQuoteQty,
+              status: event.orderStatus,
+            });
+          }
+        } catch (err) {
+          deps.logger.warn(
+            { profileId: event.profileId, symbol: event.symbol, err: err },
+            'event-router: failed to patch open-orders cache on execution-report; next tick reads stale snapshot',
+          );
+        }
+
         // Cross-profile isolation gate. With one account shared by N profiles, Binance issues a single user-data stream per account, so this report may be for an order a SIBLING profile placed (its symbol may not even be in this profile's set). Adopting it would write a position this profile does not own and tick a foreign symbol; drop it. The profile that placed the order receives the same report on its own stream and processes it there. The `orders` row is written only after the REST placement returns, so while it is uncommitted the gate identifies an own just-placed order by the placement marker keyed on `clientOrderId` — which is why the id is passed. Without it the gate had no positive owner in that window and told EVERY profile the order was its own, which is how a sibling acquired state for symbols it never traded.
         const ownership = await deps.classifyOrder(
           operatorId,
@@ -310,44 +339,10 @@ export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
           }
           return;
         }
-        // Mutate the shared open-orders snapshot in place FIRST so any tick that
-        // observes the post-adopt strategy state also observes the fresh order
-        // list. Reversing the order opens a window where a concurrent tick on a
-        // sibling chain (e.g. market-data kline-close) could read mutated state +
-        // stale orders. A terminal report removes the order, a partial fill
-        // patches its filled amounts; both are no-ops on an absent key (it
-        // cold-loads once next tick) so a dropped WS signal self-heals via the
-        // key TTL rather than a fabricated entry.
-        // The read is non-destructive because every profile on this account is
-        // routed this same report: each of them must be able to hand the whole
-        // fee to the adopter. A single-trade order is covered too, its only
-        // TRADE report being the terminal one that was recorded above.
+        // The read is non-destructive because every profile on this account is routed this same report: each of them must be able to hand the whole fee to the adopter. A single-trade order is covered too, its only TRADE report being the terminal one that was recorded above.
         const orderCommission = isTerminalOrderStatus(event.orderStatus)
           ? commissions.take(feeKey)
           : null;
-        try {
-          const key = buildOpenOrdersKey(accountId, event.symbol);
-          // `isTerminalOrderStatus` is the shared vocabulary from `@app/contracts`,
-          // not a local set: the cache eviction here, the boot reaper's close and
-          // the `orders` row's `closed_at` stamp must agree on which statuses are
-          // done, or a status terminal for one of them (`EXPIRED_IN_MATCH`, the
-          // self-trade-prevention terminator) leaves the ledger claiming the order
-          // still rests while the cache says it is gone.
-          if (isTerminalOrderStatus(event.orderStatus)) {
-            await removeOpenOrder(deps.redis, key, event.orderId);
-          } else if (event.orderStatus === 'PARTIALLY_FILLED') {
-            await patchOpenOrder(deps.redis, key, event.orderId, {
-              executedQty: event.cumQty,
-              cumQuote: event.cumQuoteQty,
-              status: event.orderStatus,
-            });
-          }
-        } catch (err) {
-          deps.logger.warn(
-            { profileId: event.profileId, symbol: event.symbol, err: err },
-            'event-router: failed to patch open-orders cache on execution-report; next tick reads stale snapshot',
-          );
-        }
         // Adopt the fill into TT state BEFORE enqueueing the tick so
         // the strategy sees the post-fill position. A failure here
         // must not block the tick — the operator will still benefit

@@ -10,7 +10,7 @@ import {
   profileRepo,
   type Database,
 } from '@app/db';
-import { asProfileId, unwrapId, type ProfileId } from '@app/contracts';
+import { asProfileId, unwrapId, type AccountId, type ProfileId } from '@app/contracts';
 
 import { createUnownedReportThrottle } from 'executor/notifier-gap-throttle.js';
 import { createPlacementOwner } from 'executor/placement-owner.js';
@@ -24,6 +24,12 @@ export interface ClassifyOrderDeps {
   readonly redis: Redis;
   /** Sink for the fail-safe warning raised when the ownership lookup fails, and for the one raised when no evidence names an owner at all. */
   readonly logger: Logger;
+  /**
+   * How many profiles the account's user-data stream is currently routed to, the asking one included.
+   *
+   * Must NOT be answered from `profiles.enabled`. That column is the target the profile manager converges its active set to on an interval, so it moves first and the routing follows: a profile disabled in the database is still receiving reports until the next reconcile, and counting off the column would report "no sibling" for exactly the window where one is still live. It also defaults to false, so a profile created and never started would count as a sibling that cannot receive anything.
+   */
+  readonly countActiveProfiles: (accountId: AccountId) => number;
 }
 
 /**
@@ -36,6 +42,7 @@ export const createClassifyOrder = ({
   db,
   redis,
   logger,
+  countActiveProfiles,
 }: ClassifyOrderDeps): EventRouterDeps['classifyOrder'] => {
   const placementOwner = createPlacementOwner({ redis, logger });
   const unownedReportThrottle = createUnownedReportThrottle({ redis, logger });
@@ -87,8 +94,10 @@ export const createClassifyOrder = ({
       //
       // The verdict turns on whether a sibling exists to corrupt, because this branch answers identically for EVERY profile on the account. With more than one, `own` tells all of them to adopt the same fill, which is the cross-profile corruption this gate exists to prevent, so the honest reading of "unknown" is drop. With exactly one profile there is nobody to leak into: adopting keeps the operator's hand-placed fill in the position state that mirrors their wallet, and dropping it would silently drift that state for no safety gain.
       //
+      // Counted over the ACTIVE profiles, not the rows just read for the manual-order scan. A profile that is not being routed cannot answer this branch and cannot adopt anything, so counting it would drop the fill of the only profile that trades. The scan above still needs every row: a manual order rests on the exchange whether or not its profile is currently running.
+      //
       // Throttled per (account, order) rather than logged per report, because one hand-placed order emits a NEW, its TRADE partials and a terminal report to every profile at once. An operator who learns the message cries wolf will ignore the one occurrence that says the isolation control is disarmed.
-      const soleProfile = accountProfiles.length <= 1;
+      const soleProfile = countActiveProfiles(accountId) <= 1;
       if (await unownedReportThrottle.allow(`${unwrapId(accountId)}:${binanceOrderId}`)) {
         logger.warn(
           { operatorId, accountId, profileId, binanceOrderId, clientOrderId, soleProfile },

@@ -13,8 +13,10 @@ import { fakeDb, silentLogger } from '../boot/builders/fakes.js';
 const state = {
   // The account-domain `orders` row for the id under test, or null when nothing has committed.
   orderRow: null as { profileId: string | null } | null,
-  // Every profile on the shared account, in the order `listForAccount` yields them.
+  // Every profile on the shared account, in the order `listForAccount` yields them. Includes disabled rows, exactly as the repo does.
   profileIds: ['p1', 'p2'],
+  // The subset the account's user-data stream is actually routed to. Separate from `profileIds` on purpose: only these can receive a report, so only these can adopt a fill.
+  activeProfileIds: ['p1', 'p2'],
   // The profile owning a matching `manual_orders` row, or null when no profile does.
   manualOwner: null as string | null,
   // Makes the ownership resolve fail, so the fail-safe branch is reachable. An Error value is thrown as-is, which is how the quiet-suppression arm is reached with the real error classes.
@@ -68,16 +70,20 @@ const makeRedis = (entries: Record<string, string> = {}): Redis => {
   } as unknown as Redis;
 };
 
+const countActiveProfiles = (): number => state.activeProfileIds.length;
+
 const gate = (redis: Redis = makeRedis()) =>
   createClassifyOrder({
     db: fakeDb(),
     redis,
     logger: silentLogger(),
+    countActiveProfiles,
   });
 
 beforeEach(() => {
   state.orderRow = null;
   state.profileIds = ['p1', 'p2'];
+  state.activeProfileIds = ['p1', 'p2'];
   state.manualOwner = null;
   state.lookupThrows = false;
 });
@@ -121,13 +127,17 @@ describe('createClassifyOrder', () => {
   );
 
   // The no-evidence branch answers identically for EVERY profile on the account, so the verdict has to turn on whether there is a sibling to corrupt. With one profile there is nobody to leak into and adopting keeps the operator's hand-placed fill in the position state that mirrors their wallet; with two, `own` would tell both of them to adopt the same fill, which is the corruption this gate exists to prevent.
+  //
+  // The third case is the one a row count gets wrong. `listForAccount` returns disabled rows too, and a profile that is not being routed cannot receive this report, so counting it would drop the fill of the only profile that trades.
   it.each([
-    ['adopts', ['p2'], 'own'],
-    ['drops', ['p1', 'p2'], 'sibling'],
+    ['adopts', ['p2'], ['p2'], 'own'],
+    ['drops', ['p1', 'p2'], ['p1', 'p2'], 'sibling'],
+    ['adopts', ['p1', 'p2'], ['p2'], 'own'],
   ])(
-    '%s a report nothing names an owner for, by whether the account has a sibling',
-    async (_label, profileIds, verdict) => {
+    '%s a report nothing names an owner for, by whether a sibling is actually being routed',
+    async (_label, profileIds, activeProfileIds, verdict) => {
       state.profileIds = profileIds;
+      state.activeProfileIds = activeProfileIds;
       await expect(gate()(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
         verdict,
       );
@@ -138,7 +148,12 @@ describe('createClassifyOrder', () => {
   it('warns when nothing names an owner', async () => {
     const warn = vi.fn();
     const logger = { ...silentLogger(), warn } as unknown as Logger;
-    const classify = createClassifyOrder({ db: fakeDb(), redis: makeRedis(), logger });
+    const classify = createClassifyOrder({
+      db: fakeDb(),
+      redis: makeRedis(),
+      logger,
+      countActiveProfiles,
+    });
 
     await expect(classify(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID)).resolves.toBe(
       'sibling',
@@ -165,7 +180,7 @@ describe('createClassifyOrder', () => {
     const warn = vi.fn();
     const logger = { ...silentLogger(), warn } as unknown as Logger;
     const redis = makeRedis();
-    const classify = createClassifyOrder({ db: fakeDb(), redis, logger });
+    const classify = createClassifyOrder({ db: fakeDb(), redis, logger, countActiveProfiles });
 
     await classify(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
     await classify(OPERATOR, ACCOUNT, P1, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
@@ -191,7 +206,7 @@ describe('createClassifyOrder', () => {
     const logger = { ...silentLogger(), warn } as unknown as Logger;
 
     await expect(
-      createClassifyOrder({ db: fakeDb(), redis, logger })(
+      createClassifyOrder({ db: fakeDb(), redis, logger, countActiveProfiles })(
         OPERATOR,
         ACCOUNT,
         P2,
@@ -231,6 +246,7 @@ describe('createClassifyOrder', () => {
   // An empty clientOrderId is one shared key for every report Binance sent without `c`, so the gate must not read it at all: a marker written by ANY profile would otherwise answer for all of them. Proven by planting exactly that key and showing the verdict ignores it. The account is given a single profile so the no-evidence fallthrough answers `own`, which the planted marker naming `p1` could not produce.
   it('ignores the marker keyspace entirely when the report carries no clientOrderId', async () => {
     state.profileIds = ['p2'];
+    state.activeProfileIds = ['p2'];
     const redis = makeRedis({ [buildPlacementOwnerKey(ACCOUNT, '')]: 'p1' });
     await expect(gate(redis)(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, '')).resolves.toBe('own');
   });
@@ -251,13 +267,12 @@ describe('createClassifyOrder', () => {
     const warn = vi.fn();
     const logger = { ...silentLogger(), warn } as unknown as Logger;
 
-    const verdict = await createClassifyOrder({ db: fakeDb(), redis: makeRedis(), logger })(
-      OPERATOR,
-      ACCOUNT,
-      P2,
-      BINANCE_ORDER_ID,
-      CLIENT_ORDER_ID,
-    );
+    const verdict = await createClassifyOrder({
+      db: fakeDb(),
+      redis: makeRedis(),
+      logger,
+      countActiveProfiles,
+    })(OPERATOR, ACCOUNT, P2, BINANCE_ORDER_ID, CLIENT_ORDER_ID);
 
     expect(verdict).toBe('sibling');
     expect(warn).not.toHaveBeenCalled();
@@ -290,7 +305,7 @@ describe('placement marker, written by the executor and read by the gate', () =>
     const logger = silentLogger();
     await createPlacementOwner({ redis, logger }).register(ACCOUNT, P1, CLIENT_ORDER_ID);
 
-    const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger })(
+    const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger, countActiveProfiles })(
       OPERATOR,
       ACCOUNT,
       P2,
@@ -308,7 +323,7 @@ describe('placement marker, written by the executor and read by the gate', () =>
     // Without the marker this arrangement resolves to `sibling`, because P2 holds the matching manual order, so `own` can only come from the marker.
     state.manualOwner = 'p2';
 
-    const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger })(
+    const verdict = await createClassifyOrder({ db: fakeDb(), redis, logger, countActiveProfiles })(
       OPERATOR,
       ACCOUNT,
       P1,

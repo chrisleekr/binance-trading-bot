@@ -298,7 +298,7 @@ describe('EventRouter', () => {
 
   it('drops an execution-report for an order owned by a sibling profile (shared master-account listenKey)', async () => {
     const tickQueue = makeQueue();
-    const redis = makeRedis();
+    const redis = makeRedisWithEval();
     const adopt = vi.fn(async () => undefined);
     const classifyOrder = vi.fn(async () => 'sibling' as const);
     const router = createEventRouter({
@@ -343,11 +343,19 @@ describe('EventRouter', () => {
       99,
       'tt-foreign',
     );
-    // No adoption (would write a foreign position), no tick (would run the
-    // strategy on a symbol this profile never subscribed), no cache write.
+    // No adoption (would write a foreign position) and no tick (would run the strategy on a symbol this profile never subscribed).
     expect(adopt).not.toHaveBeenCalled();
     expect(tickQueue.add).not.toHaveBeenCalled();
     expect(redis.del).not.toHaveBeenCalled();
+    // The open-orders snapshot IS patched, because the verdict is profile-scoped and that key is not: it is minted from the accountId alone, describes the exchange rather than any one profile's position, and every profile on the account is routed this same report. Leaving it to the owner would strand an order nobody owns in the snapshot until the TTL cold-load, and the strategy reads that list to find the protective stop it fuses its exit against.
+    expect(redis.eval).toHaveBeenCalledWith(
+      expect.any(String),
+      1,
+      expect.stringMatching(/open-orders:XPLUSDT$/),
+      'remove',
+      '99',
+      expect.anything(),
+    );
   });
 
   it('routes a DETACHED order’s terminal report to the ledger-only reconcile: no adopt, no tick', async () => {
