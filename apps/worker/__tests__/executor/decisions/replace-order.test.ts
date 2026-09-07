@@ -988,6 +988,39 @@ describe('replaceOrderHandler', () => {
     expect(out).toEqual({ ok: true });
   });
 
+  // `placementDedup.record` is documented and implemented never-throw, so this fake is not a scenario production can reach. What it pins is the containment: `recordPlacedOrder` runs after Binance has accepted, and no dependency failure inside it may escape as an exception, because the caller would then have a live order with no row, no tracking row, no emergency and no action-log entry. The bookkeeping-failure path is the floor.
+  it('degrades to the bookkeeping-failure path if the dedup record throws', async () => {
+    const cancelReplaceOrder = cancelReplaceOrderMock(async () => filledSuccessor());
+    const binance = fakeBinance({ cancelReplaceOrder });
+    const persistTrackingOrder = vi.fn(async () => undefined);
+    const recordBookkeepingFailure = vi.fn(async () => undefined);
+    const bindings = buildBindings({
+      binance,
+      persistence: {
+        persistTrackingOrder:
+          persistTrackingOrder as unknown as ProfilePersistence['persistTrackingOrder'],
+        recordBookkeepingFailure,
+      },
+    });
+    const placementDedup = {
+      seenRecently: vi.fn(async () => false),
+      record: vi.fn(async () => {
+        throw new Error('redis exploded');
+      }),
+      forgetSymbol: vi.fn(async () => undefined),
+    };
+    const deps = buildDeps(bindings, fakeRedis(), {
+      placementDedup,
+    } as unknown as Partial<DecisionDeps>);
+
+    const out = await replaceOrderHandler(deps, CTX, FUSED_CLOSE);
+
+    // `accepted` and non-retryable: the order IS live, so no caller may re-issue it.
+    expect(out).toMatchObject({ ok: false, retryable: false, phase: 'accepted' });
+    expect(persistTrackingOrder).toHaveBeenCalled();
+    expect(recordBookkeepingFailure).toHaveBeenCalled();
+  });
+
   // The dedup record is what stops a tick that lost read-your-writes re-emitting a MARKET it already placed. A successor is the same live order as a bare placement, so it must be remembered on the same terms; recording in only one handler made suppression depend on which decision shape produced the order.
   it('records a MARKET successor with the duplicate-placement guard', async () => {
     const cancelReplaceOrder = cancelReplaceOrderMock(async () => filledSuccessor());
