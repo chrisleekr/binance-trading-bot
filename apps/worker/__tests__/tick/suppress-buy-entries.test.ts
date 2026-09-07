@@ -15,6 +15,23 @@ const sell = (): Decision =>
     intent: { symbol: 'BTCUSDT', side: 'SELL', reason: 'tt-stop-loss', clientOrderId: 'c-sell' },
     params: { type: 'MARKET', quantity: '1' },
   }) as Decision;
+// A replacement's successor is unconstrained by the order it retires, so a BUY replacement can commit strictly more than what was resting. The breaker keys on the variant, so leaving this shape out is a way around it.
+const replaceBuy = (): Decision =>
+  ({
+    type: 'replace-order',
+    cancelOrderId: 7,
+    reason: 'tt-grid-trail-down',
+    intent: { symbol: 'BTCUSDT', side: 'BUY', reason: 'tt-entry', clientOrderId: 'c-rebuy' },
+    params: { type: 'LIMIT', quantity: '1', price: '90', timeInForce: 'GTC' },
+  }) as Decision;
+const replaceSell = (): Decision =>
+  ({
+    type: 'replace-order',
+    cancelOrderId: 8,
+    reason: 'tt-protective-stop-superseded',
+    intent: { symbol: 'BTCUSDT', side: 'SELL', reason: 'tt-stop-loss', clientOrderId: 'c-exit' },
+    params: { type: 'MARKET', quantity: '1' },
+  }) as Decision;
 const cancel = (): Decision => ({ type: 'cancel-order', orderId: 1, reason: 'x' }) as Decision;
 const noop = (): Decision => ({ type: 'noop' }) as Decision;
 
@@ -35,6 +52,13 @@ describe('suppressBuyEntries (daily-loss breaker filter)', () => {
     expect(suppressBuyEntries([buy('ETHUSDT')])).toEqual({
       kept: [],
       dropped: [buy('ETHUSDT')],
+    });
+  });
+
+  it('drops a BUY replacement and keeps a SELL one', () => {
+    expect(suppressBuyEntries([replaceBuy(), replaceSell()])).toEqual({
+      kept: [replaceSell()],
+      dropped: [replaceBuy()],
     });
   });
 

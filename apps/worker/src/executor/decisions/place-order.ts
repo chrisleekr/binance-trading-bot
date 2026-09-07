@@ -458,6 +458,14 @@ export const recordPlacedOrder = async (
 ): Promise<DecisionResult> => {
   const userId = asUserId(ctx.userId);
   const profileId = asProfileId(ctx.profileId);
+  // Record the accepted MARKET clientOrderId so the next tick's duplicate guard suppresses a re-emit of this just-placed order. Held here rather than in each caller because a MARKET successor placed through `replace-order` is the same live order as one placed bare, and recording it in only one handler made suppression depend on which decision shape produced it. Before the bookkeeping below, so it stands even if persistence then fails.
+  if (params.type === 'MARKET') {
+    await deps.placementDedup?.record(
+      intent.clientOrderId,
+      `${deps.accountId}:${intent.symbol}`,
+      deps.clock.nowMs(),
+    );
+  }
   // An accepted order without a status is by definition resting/NEW. Default it
   // rather than throw: the order is already live on Binance, this is the money path.
   const status = dto.status ?? 'NEW';
@@ -870,11 +878,5 @@ export const placeOrderHandler = async (
   // Order accepted by Binance. Bookkeeping failures must NOT trigger a retry,
   // a retry would place a duplicate live order. Mark failures as non-retryable.
   await recordWeight(deps, deps.accountId, profileId, bindings.binance.ctx().weightUsed1m);
-  // Record the accepted MARKET clientOrderId so the next tick's duplicate guard
-  // above suppresses a re-emit of this just-placed order. On ACCEPT (not the
-  // bookkeeping below) so it stands even if persistence then fails.
-  if (decision.params.type === 'MARKET') {
-    await deps.placementDedup?.record(decision.intent.clientOrderId, symbolKey, deps.clock.nowMs());
-  }
   return recordPlacedOrder(deps, ctx, bindings, decision.intent, decision.params, dto);
 };

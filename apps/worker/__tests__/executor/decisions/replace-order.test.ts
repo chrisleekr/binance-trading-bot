@@ -651,7 +651,8 @@ describe('replaceOrderHandler', () => {
   });
 
   // Binance's documented partial-cancel body: a terminal CANCELED carrying the quantity that DID execute. The successor is still owed — there is base left to sell — but the fill is invisible to the stream, because `fill-adopter` drops every execution report whose order status is not FILLED. So this is the one shape that needs BOTH halves: re-place, and reconcile.
-  it('re-places the successor and reconciles when the -2011 probe says a cancelled partial', async () => {
+  // A partial that was then cancelled leaves base still to sell, but LESS than the successor was sized for. Re-placing that quantity asks the exchange to sell base the position no longer holds, which the shared account wallet can fund out of a sibling profile. The repair is the reconcile this path already schedules plus a re-derived size next tick, so the successor is withheld rather than re-sent.
+  it('withholds the successor when the -2011 probe says a cancelled partial', async () => {
     const cancelReplaceOrder = cancelReplaceOrderMock(async () => {
       throw new BinanceApiError(
         { status: 400, code: -2022, msg: 'Order cancel-replace failed.', cancelLegCode: -2011 },
@@ -682,14 +683,16 @@ describe('replaceOrderHandler', () => {
       FUSED_CLOSE,
     );
 
-    expect(placeOrder).toHaveBeenCalledTimes(1);
+    expect(placeOrder).not.toHaveBeenCalled();
     expect(closeOrder).toHaveBeenCalledWith(42, 'CANCELED', CANCEL_LEG_MS, probed);
     expect(enqueueSymbolReconcile).toHaveBeenCalledWith({
       profileId: PROFILE,
       symbol: 'BTCUSDT',
       cause: 'cancel-2011-fill',
     });
-    expect(out).toEqual({ ok: true });
+    // Retryable, unlike the FILLED withhold: base is still held, so the next tick must re-derive the size and try again rather than settle the exit as done.
+    expect(out).toMatchObject({ ok: false, retryable: true, phase: 'rejected' });
+    if (out.ok === false) expect(out.reason).toContain('partially filled (0.0004)');
   });
 
   // The row and the live event must agree. Before the leg could ever read FILLED a constant was harmless; now a hard-coded CANCELED would tell the operator nothing sold at the exact moment their position was sold.
@@ -939,13 +942,73 @@ describe('replaceOrderHandler', () => {
     );
 
     expect(closeOrder).toHaveBeenCalledWith(42, 'CANCELED', CANCEL_LEG_MS, CANCEL_LEG);
-    // This leg had partially filled, and no execution report will ever carry that fill, so the successor landing is not the end of the repair.
+    // This leg had partially filled, and no execution report will ever carry that fill, so the row close is only half the repair.
     expect(enqueueSymbolReconcile).toHaveBeenCalledWith({
       profileId: PROFILE,
       symbol: 'BTCUSDT',
       cause: 'cancel-2011-fill',
     });
+    // The same partial makes the successor's quantity stale, so the -2021 retry is withheld on the same terms as the probe path's.
+    expect(placeOrder).not.toHaveBeenCalled();
+    expect(out).toMatchObject({ ok: false, retryable: true, phase: 'rejected' });
+  });
+
+  it('still re-places after -2021 when the cancel record shows nothing executed', async () => {
+    const cancelReplaceOrder = cancelReplaceOrderMock(async () => {
+      throw new BinanceApiError(
+        {
+          status: 409,
+          code: -2021,
+          msg: 'Order cancel-replace partially failed.',
+          cancelLeg: { ...CANCEL_LEG, executedQty: '0' },
+        },
+        false,
+        'rejected',
+      );
+    });
+    const placeOrder = placeOrderMock(async () => ({
+      orderId: 44,
+      clientOrderId: 'client-2',
+      status: 'NEW',
+    }));
+    const closeOrder = vi.fn(async () => undefined);
+    const binance = fakeBinance({ cancelReplaceOrder, placeOrder });
+    const bindings = buildBindings({ binance, persistence: { closeOrder } });
+    const enqueueSymbolReconcile = vi.fn();
+
+    const out = await replaceOrderHandler(
+      buildDeps(bindings, fakeRedis(), { enqueueSymbolReconcile }),
+      CTX,
+      REPLACE,
+    );
+
+    // Nothing executed, so the strategy's quantity is still the position's: the naked window is closed by re-placing, which is the whole point of the retry.
+    expect(placeOrder).toHaveBeenCalledTimes(1);
+    expect(enqueueSymbolReconcile).not.toHaveBeenCalled();
     expect(out).toEqual({ ok: true });
+  });
+
+  // The dedup record is what stops a tick that lost read-your-writes re-emitting a MARKET it already placed. A successor is the same live order as a bare placement, so it must be remembered on the same terms; recording in only one handler made suppression depend on which decision shape produced the order.
+  it('records a MARKET successor with the duplicate-placement guard', async () => {
+    const cancelReplaceOrder = cancelReplaceOrderMock(async () => filledSuccessor());
+    const binance = fakeBinance({ cancelReplaceOrder });
+    const record = vi.fn(async () => undefined);
+    const placementDedup = {
+      record,
+      seenRecently: vi.fn(async () => false),
+      forgetSymbol: vi.fn(async () => undefined),
+    };
+
+    const out = await replaceOrderHandler(
+      buildDeps(buildBindings({ binance }), fakeRedis(), {
+        placementDedup,
+      } as unknown as Partial<DecisionDeps>),
+      CTX,
+      FUSED_CLOSE,
+    );
+
+    expect(out).toEqual({ ok: true });
+    expect(record).toHaveBeenCalledWith('client-exit', `${ACCOUNT}:BTCUSDT`, CLOCK.nowMs());
   });
 
   // A close is where the duplicate-MARKET guard must forget this symbol's entry records. Entry clientOrderIds are stable per (profile, symbol, level), and a grid promotion or pyramid add recorded WHILE the stop rested would otherwise suppress a legitimate re-entry at that level for the rest of the 60s window. Before the exit and its stop-retraction were fused, the exit was a `place-order` SELL and cleared them.

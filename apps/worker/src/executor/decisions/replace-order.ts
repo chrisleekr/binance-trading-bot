@@ -221,6 +221,25 @@ export const replaceOrderHandler = async (
     leg?: RetiredLeg,
   ): Promise<DecisionResult> => {
     await reportCancelledLeg(leg);
+    // The successor's quantity was sized before the retired leg's fill, and the close above has just read that fill to schedule the reconcile, so re-sending it would ask Binance for a size this same code path has proven stale. On the primary shape, a protective stop retired in favour of a position-closing SELL, that means selling more base than the position still holds: `-2010` at best, and at worst the shared account wallet funds the excess out of a sibling profile's base, which is the hazard the FILLED branch is written to avoid arriving through the partial-fill door. Re-sizing here is not the alternative: the executor would have to re-derive against LOT_SIZE and minNotional, and for a successor on the opposite side of the retired leg the subtraction means nothing. So withhold and let the reconcile repair `heldQuantity`, exactly as the FILLED branch does. Retryable, unlike that branch, because a partial leaves base still to sell.
+    if (leg !== undefined && executedSomething(leg.executedQty)) {
+      deps.logger.warn(
+        {
+          profileId,
+          symbol: decision.intent.symbol,
+          orderId: decision.cancelOrderId,
+          retiredBy,
+          executedQty: leg.executedQty,
+        },
+        'replace-order: the retired leg had partially filled, so the successor quantity is stale; withholding it until the position reconciles',
+      );
+      return {
+        ok: false,
+        retryable: true,
+        phase: 'rejected',
+        reason: `cancelReplace: the retired leg partially filled (${leg.executedQty}) after ${retiredBy}; successor withheld until the position reconciles`,
+      };
+    }
     // Stamp this profile again before the bare retry, because the retry transmits the same successor id and can publish its report before persistence catches up.
     await deps.placementOwner?.register(deps.accountId, profileId, decision.intent.clientOrderId);
     // Still needed by the ambiguous-placement resolver below, which dates the successor attempt.

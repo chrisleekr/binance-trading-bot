@@ -24,12 +24,20 @@ export interface HaltFilterResult {
  * The dropped set is returned, not just discarded: an operator override whose
  * order lands in it must be told the breaker killed it, and the only way to know
  * which dropped order was the override's is to look at the orders themselves.
+ *
+ * A BUY `replace-order` is dropped on the same terms. The variant is not proof
+ * that no new capital is committed: its successor's quantity and price are
+ * unconstrained by the order it retires, so a replacement can commit strictly
+ * more than what was resting. Suppressing it leaves that resting BUY live, which
+ * matches what the breaker already does with every other resting order, since it
+ * pauses new risk and never cancels what the profile committed before the breach.
  */
 export const suppressBuyEntries = (decisions: readonly Decision[]): HaltFilterResult => {
   const kept: Decision[] = [];
   const dropped: Decision[] = [];
   for (const d of decisions) {
-    if (d.type === 'place-order' && d.intent.side === 'BUY') dropped.push(d);
+    if ((d.type === 'place-order' || d.type === 'replace-order') && d.intent.side === 'BUY')
+      dropped.push(d);
     else kept.push(d);
   }
   return { kept, dropped };
