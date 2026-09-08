@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Decimal } from '@app/money';
 
 import type {
@@ -335,6 +335,17 @@ describe('evaluateProtectiveStopArm — shared orchestration', () => {
     reason: 'superseded',
   });
 
+  const buildReplace = (resting: OpenOrder, place: Decision): Decision => {
+    if (place.type !== 'place-order') throw new Error('expected place-order successor');
+    return {
+      type: 'replace-order',
+      cancelOrderId: resting.orderId,
+      reason: 'test',
+      intent: place.intent,
+      params: place.params,
+    };
+  };
+
   const placed = (over: Partial<DesiredProtectiveStop> = {}): Decision =>
     buildPlace({ stopPrice: '95.00', price: '94.00', quantity: '1.000', ...over });
 
@@ -347,6 +358,7 @@ describe('evaluateProtectiveStopArm — shared orchestration', () => {
       ourClientOrderId: OURS,
       buildPlace,
       buildCancel,
+      buildReplace,
       ...over,
     } as Params);
 
@@ -368,17 +380,133 @@ describe('evaluateProtectiveStopArm — shared orchestration', () => {
     expect(out).toEqual({ decisions: [], blocker: null });
   });
 
-  it('full size below the exchange minimum and nothing resting ⇒ no decisions', () => {
+  it('full size below the exchange minimum and nothing resting ⇒ no decisions and a base-below-exchange-minimum blocker', () => {
+    // The tracked position cannot satisfy the exchange minimum at the 94 limit leg the order would rest at, so the arm must report the held exposure instead of silently treating it as a normal no-op.
     const out = run({ level: stopLevel({ held: new Decimal('0.0001') }) });
-    expect(out).toEqual({ decisions: [], blocker: null });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: { resting: null },
+    });
   });
 
-  it('full size below the exchange minimum with a stop resting ⇒ cancels it', () => {
+  it('full size below the exchange minimum with a stop resting ⇒ leaves it alone and reports the blocker', () => {
+    // The resting stop still protects more than the wallet can currently arm, and cancelling it would leave the held position naked with no replacement possible.
     const out = run({
       level: stopLevel({ held: new Decimal('0.0001') }),
       input: armInput([order()], account({ BTC: bal('BTC', '5') })),
     });
-    expect(out).toEqual({ decisions: [buildCancel(order())], blocker: null });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: { resting: '2', guarded: true },
+    });
+  });
+
+  it('full size below the exchange minimum on an UNREADABLE wallet ⇒ reports free as unknown, not zero', () => {
+    // Fail-open sizes the arm from the tracked position, so the blocker must say the wallet was unreadable rather than fabricate a zero balance the operator would act on.
+    const out = run({
+      level: stopLevel({ held: new Decimal('0.0001') }),
+      input: armInput([], { balances: {}, readable: false }),
+    });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: { free: null, available: '0.0001', held: '0.0001' },
+    });
+  });
+
+  it('a non-positive stop level cannot price a minimum ⇒ the blocker reports required as unknown', () => {
+    // The core arm cannot prove the plugin's stop positive at the type level; a zero stop fails every notional check, and the refusal must still land without throwing.
+    const out = run({ level: stopLevel({ stop: new Decimal('0'), limit: new Decimal('0') }) });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: { required: null, skip: 'min-notional', stop: '0' },
+    });
+  });
+
+  it('does not report a PENDING_CANCEL stop as working coverage', () => {
+    const out = run({
+      level: stopLevel({ held: new Decimal('0.1') }),
+      input: armInput([order({ status: 'PENDING_CANCEL' })], account({ BTC: bal('BTC', '5') })),
+    });
+    expect(out.blocker?.detail).toMatchObject({ resting: null, guarded: false });
+  });
+
+  it('does not report a stop with an unreadable fill count as resting coverage', () => {
+    const out = run({
+      level: stopLevel({ held: new Decimal('0.1') }),
+      input: armInput(
+        [order({ status: 'NEW', origQty: '2', executedQty: 'abc' })],
+        account({ BTC: bal('BTC', '5') }),
+      ),
+    });
+    expect(out.blocker?.detail).toMatchObject({ resting: null, guarded: false });
+  });
+
+  it('reports the working remainder and guarded coverage when it covers the held size', () => {
+    const out = run({
+      level: stopLevel({ held: new Decimal('0.1') }),
+      input: armInput(
+        [order({ status: 'NEW', origQty: '0.2', executedQty: '0.1' })],
+        account({ BTC: bal('BTC', '5') }),
+      ),
+    });
+    expect(out.blocker?.detail).toMatchObject({ resting: '0.1', guarded: true });
+  });
+
+  it('reports a working remainder that is materially short as unguarded', () => {
+    const out = run({
+      level: stopLevel({ held: new Decimal('0.1') }),
+      input: armInput(
+        [order({ status: 'NEW', origQty: '0.05', executedQty: '0' })],
+        account({ BTC: bal('BTC', '5') }),
+      ),
+    });
+    expect(out.blocker?.detail).toMatchObject({ resting: '0.05', guarded: false });
+  });
+
+  it('uses the held-side minimum on ZEC-style filters', () => {
+    const zecFilters: SizeFilters = {
+      step: new Decimal('0.001'),
+      minQty: new Decimal('0.001'),
+      minNotional: new Decimal('0.0001'),
+    };
+    // A `stop` override must carry its own `limit`: every level builder derives one from the other as `stop × offset` with the offset in (0, 1], so inheriting the factory's default limit would model a limit leg thousands of times the trigger, which no plugin can emit and the arm now prices its minimums at.
+    const out = run({
+      level: stopLevel({
+        filters: zecFilters,
+        held: new Decimal('0.001'),
+        stop: new Decimal('0.0104076'),
+        limit: new Decimal('0.010199448'),
+      }),
+    });
+    expect(out.blocker?.detail).toMatchObject({ required: '0.010' });
+  });
+
+  it('sizes the full stop against the LIMIT leg, not the trigger, so Binance cannot refuse what the arm sized', () => {
+    // Binance evaluates its NOTIONAL filter against the order's `price`, which on a STOP_LOSS_LIMIT is the limit leg, not the trigger. Sizing at the trigger passes a position the exchange answers with a non-retryable -1013, leaving it unguarded while the arm reports no blocker at all. 0.106 clears the 10 minimum at the 95 trigger and misses it at the 94 limit.
+    const out = run({ level: stopLevel({ held: new Decimal('0.106') }) });
+    expect(out.decisions).toEqual([]);
+    // `required` must be the floor at the price actually checked: 0.107 at the limit leg, where the trigger would quote a 0.106 the exchange still refuses.
+    expect(out.blocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: { skip: 'min-notional', required: '0.107', held: '0.106' },
+    });
+  });
+
+  it('applies the limit-leg price to the wallet-capped partial size too', () => {
+    // The partial branch re-sizes on the wallet's free base, so it must ask the same price question as the full size or the wallet cap becomes a second route to an order Binance refuses. The full 0.5 clears at either price; the 0.106 the wallet funds clears only at the trigger.
+    const out = run({
+      level: stopLevel({ held: new Decimal('0.5') }),
+      input: armInput([], account({ BTC: bal('BTC', '0.106') })),
+    });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: { required: '0.500', free: '0.106', available: '0.106' },
+    });
   });
 
   it('places a full-quantity stop when the wallet funds it and none is resting', () => {
@@ -393,11 +521,11 @@ describe('evaluateProtectiveStopArm — shared orchestration', () => {
     expect(out).toEqual({ decisions: [], blocker: null });
   });
 
-  it('cancels and re-places when the resting trigger has drifted past the band', () => {
+  it('atomically replaces when the resting trigger has drifted past the band', () => {
     const resting = order({ stopPrice: '80.00', origQty: '1' });
     const out = run({ input: armInput([resting], account({ BTC: bal('BTC', '5') })) });
     expect(out.blocker).toBeNull();
-    expect(out.decisions).toEqual([buildCancel(resting), placed()]);
+    expect(out.decisions).toEqual([buildReplace(resting, placed())]);
   });
 
   it('FAILS OPEN on an unreadable wallet: arms the full tracked held', () => {
@@ -426,6 +554,541 @@ describe('evaluateProtectiveStopArm — shared orchestration', () => {
     });
     expect(out.blocker).toBeNull();
     expect(out.decisions).toEqual([placed({ quantity: '0.344' })]);
+  });
+});
+
+describe('evaluateProtectiveStopArm — replace-order re-arm', () => {
+  const FILTERS: SizeFilters = {
+    step: new Decimal('0.001'),
+    minQty: new Decimal('0.001'),
+    minNotional: new Decimal('10'),
+  };
+
+  const BAND_FILTERS: SymbolFilters = {
+    minNotional: '10',
+    tickSize: '0.01',
+    stepSize: '0.001',
+    minQty: '0.001',
+    maxQty: '9000',
+    minPrice: '0.01',
+    maxPrice: '1000000',
+    percentPriceBySide: {
+      askMultiplierUp: '2',
+      askMultiplierDown: '0.9',
+      bidMultiplierUp: '1.1',
+      bidMultiplierDown: '0.5',
+      avgPriceMins: 5,
+    },
+    trailingDelta: {
+      minTrailingAboveDelta: 10,
+      maxTrailingAboveDelta: 2000,
+      minTrailingBelowDelta: 10,
+      maxTrailingBelowDelta: 2000,
+    },
+  };
+
+  type Params = ProtectiveStopArmParams<unknown, unknown, Record<string, never>>;
+
+  const level = (over: Partial<ProtectiveStopLevel> = {}): ProtectiveStopLevel => ({
+    stop: new Decimal('95'),
+    limit: new Decimal('94'),
+    held: new Decimal('1'),
+    filters: FILTERS,
+    tick: new Decimal('0.01'),
+    ...over,
+  });
+
+  const input = (openOrders: OpenOrder[], currentPrice = '100'): Params['input'] =>
+    ({
+      openOrders,
+      account: {
+        balances: {
+          BTC: { asset: 'BTC', free: new Decimal('5'), locked: new Decimal('0') },
+        },
+        readable: true,
+      },
+      market: {
+        symbol: 'BTCUSDT',
+        currentPrice,
+        symbolInfo: { baseAsset: 'BTC', filters: BAND_FILTERS },
+      },
+    }) as unknown as Params['input'];
+
+  const buildPlace = (desired: DesiredProtectiveStop, rearm: boolean): Decision => ({
+    type: 'place-order',
+    intent: {
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      reason: 'protective-stop',
+      clientOrderId: OURS,
+      ...(rearm ? { deferrable: true } : {}),
+    },
+    params: {
+      type: 'STOP_LOSS_LIMIT',
+      stopPrice: desired.stopPrice,
+      price: desired.price,
+      quantity: desired.quantity,
+      timeInForce: 'GTC',
+    },
+  });
+
+  const buildNative = (
+    desired: { quantity: string; trailingDelta: number },
+    rearm: boolean,
+  ): Decision => ({
+    type: 'place-order',
+    intent: {
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      reason: 'protective-stop',
+      clientOrderId: OURS,
+      ...(rearm ? { deferrable: true } : {}),
+    },
+    params: { type: 'STOP_LOSS', quantity: desired.quantity, trailingDelta: desired.trailingDelta },
+  });
+
+  const buildCancel = (resting: OpenOrder): Decision => ({
+    type: 'cancel-order',
+    orderId: resting.orderId,
+    symbol: 'BTCUSDT',
+    reason: 'superseded',
+  });
+
+  const buildReplace = vi.fn((resting: OpenOrder, place: Decision): Decision => {
+    if (place.type !== 'place-order') throw new Error('expected place-order successor');
+    return {
+      type: 'replace-order',
+      cancelOrderId: resting.orderId,
+      reason: 'test',
+      intent: place.intent,
+      params: place.params,
+    } as unknown as Decision;
+  });
+
+  beforeEach(() => {
+    buildReplace.mockClear();
+  });
+
+  const run = (over: Partial<Params> = {}): ReturnType<typeof evaluateProtectiveStopArm> =>
+    evaluateProtectiveStopArm({
+      input: input([]),
+      enabled: true,
+      level: level(),
+      reclaimableBase: new Decimal('0'),
+      ourClientOrderId: OURS,
+      buildPlace,
+      buildCancel,
+      buildReplace,
+      ...over,
+    } as Params);
+
+  const native = (over: Partial<OpenOrder> = {}): OpenOrder =>
+    order({
+      type: 'STOP_LOSS',
+      price: '0',
+      stopPrice: undefined,
+      trailingDelta: 1000,
+      origQty: '1',
+      ...over,
+    });
+
+  // Guard: a priced re-arm must be one atomic replace-order, not a cancel/place pair.
+  it('replaces a drifted priced stop with the exact buildPlace successor', () => {
+    const resting = order({ stopPrice: '80.00', origQty: '1' });
+    const successor = buildPlace({ stopPrice: '95.00', price: '94.00', quantity: '1.000' }, true);
+    const out = run({ input: input([resting]) });
+
+    expect(out.decisions).toHaveLength(1);
+    expect(buildReplace).toHaveBeenCalledWith(resting, successor);
+    expect(out.decisions[0]).toEqual({
+      type: 'replace-order',
+      cancelOrderId: resting.orderId,
+      reason: 'test',
+      intent: successor.intent,
+      params: successor.params,
+    });
+    expect(out.decisions.some((decision) => decision.type === 'cancel-order')).toBe(false);
+  });
+
+  // Guard: a band-floor escape must replace the resting order atomically with its native successor.
+  it('replaces a resting order on a native band-floor escape', () => {
+    const resting = order({ stopPrice: '96.00', origQty: '1' });
+    const out = run({
+      input: input([resting]),
+      level: level({ stop: new Decimal('80'), limit: new Decimal('79') }),
+      nativeTrail: { stopDistancePct: new Decimal('0.1'), build: buildNative },
+    });
+
+    expect(out.decisions).toHaveLength(1);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'replace-order',
+      cancelOrderId: resting.orderId,
+      params: { type: 'STOP_LOSS', quantity: '1.000', trailingDelta: 1000 },
+    });
+    expect(out.decisions.some((decision) => decision.type === 'cancel-order')).toBe(false);
+  });
+
+  // Guard: a native primary with no resting order must emit exactly one native place-order.
+  it('places the native primary when nothing is resting', () => {
+    const out = run({
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.1'),
+        markPrice: new Decimal('100'),
+        restingHigh: null,
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.1'), build: buildNative },
+    });
+
+    expect(out.decisions).toHaveLength(1);
+    expect(out.decisions[0]).toEqual(
+      buildNative({ quantity: '1.000', trailingDelta: 1000 }, false),
+    );
+  });
+
+  // Guard: a tightening native delta must replace only when the high-water guard permits it.
+  it('tightens a resting native delta from 1000 to 300 at the tracked high', () => {
+    const resting = native();
+    const out = run({
+      input: input([resting]),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('100'),
+        restingHigh: new Decimal('100'),
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+
+    expect(out.decisions).toHaveLength(1);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'replace-order',
+      cancelOrderId: resting.orderId,
+      params: { trailingDelta: 300 },
+    });
+  });
+
+  // Guard: a tightening native delta must be withheld when it would loosen protection below the tracked high.
+  it('does not tighten a native delta when the mark/high guard fails', () => {
+    const out = run({
+      input: input([native()]),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('90'),
+        restingHigh: new Decimal('100'),
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+
+    expect(out.decisions).toEqual([]);
+    expect(buildReplace).not.toHaveBeenCalled();
+  });
+
+  // Guard: a widened native delta must never replace a tighter resting trail.
+  it('does not replace when the wanted native delta is wider', () => {
+    const out = run({
+      input: input([native({ trailingDelta: 300 })]),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.12'),
+        markPrice: new Decimal('100'),
+        restingHigh: new Decimal('100'),
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.12'), build: buildNative },
+    });
+
+    expect(out.decisions).toEqual([]);
+    expect(buildReplace).not.toHaveBeenCalled();
+  });
+
+  // Guard: over-quantity native protection must be resized unconditionally, even when the trigger guard fails.
+  it('replaces an over-quantity native order without the mark/high guard', () => {
+    const resting = native({ origQty: '2' });
+    const out = run({
+      input: input([resting]),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('90'),
+        restingHigh: new Decimal('100'),
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+
+    expect(out.decisions).toHaveLength(1);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'replace-order',
+      params: { quantity: '1.000', trailingDelta: 300 },
+    });
+  });
+
+  // Guard: under-quantity native protection may resize only when the mark/high guard passes.
+  it('keeps an under-quantity native order when the guard fails and resizes when it passes', () => {
+    const under = native({ origQty: '0.5' });
+    const blocked = run({
+      input: input([under]),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('90'),
+        restingHigh: new Decimal('100'),
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+    expect(blocked.decisions).toEqual([]);
+
+    const allowed = run({
+      input: input([under]),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('100'),
+        restingHigh: new Decimal('100'),
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+    expect(allowed.decisions).toHaveLength(1);
+    expect(allowed.decisions[0]).toMatchObject({
+      type: 'replace-order',
+      params: { quantity: '1.000', trailingDelta: 300 },
+    });
+  });
+
+  // Guard: switching a resting priced stop to native-trail is an atomic mode-switch replace.
+  it('replaces a resting priced order with the native primary unconditionally', () => {
+    const resting = order({ stopPrice: '95.00', origQty: '1' });
+    const out = run({
+      input: input([resting]),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('100'),
+        restingHigh: new Decimal('100'),
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+
+    expect(out.decisions).toHaveLength(1);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'replace-order',
+      cancelOrderId: resting.orderId,
+      params: { type: 'STOP_LOSS', trailingDelta: 300 },
+    });
+  });
+
+  // Guard: an out-of-filter native distance must fall through to the priced path, never emit an invalid trail.
+  it('falls back to a priced place when nativeTrailingDelta is unavailable', () => {
+    const out = run({
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.25'),
+        markPrice: new Decimal('100'),
+        restingHigh: null,
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.25'), build: buildNative },
+    });
+
+    expect(out.decisions).toHaveLength(1);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      params: { type: 'STOP_LOSS_LIMIT', stopPrice: '95.00', price: '94.00' },
+    });
+    expect(out.decisions[0]).not.toMatchObject({ params: { trailingDelta: expect.anything() } });
+  });
+
+  // Guard: a native STOP_LOSS carries no `price` at all, so sizing this path at the limit leg would refuse protection Binance accepts, and a false refusal on the stop arm leaves the position naked. 0.106 clears the 100 market reference and misses the 94 limit leg.
+  it('sizes a native PRIMARY stop above the limit leg, because that order carries no limit leg', () => {
+    const out = run({
+      level: level({ held: new Decimal('0.106') }),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('100'),
+        restingHigh: null,
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+
+    expect(out.blocker).toBeNull();
+    expect(out.decisions).toEqual([buildNative({ quantity: '0.106', trailingDelta: 300 }, false)]);
+  });
+
+  // Guard: a native trailing STOP_LOSS is a MARKET-type order, so Binance measures its notional against a recent-trade reference, not against a trigger the order never carries. 0.105 clears the minimum at the 100 market price and misses it at the 95 trigger: judging it at the trigger refuses a stop the exchange would have taken and leaves the position with none at all.
+  it('arms a native PRIMARY stop that clears the minimum at market but not at its trigger', () => {
+    const out = run({
+      level: level({ held: new Decimal('0.105') }),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('100'),
+        restingHigh: null,
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+
+    expect(out.blocker).toBeNull();
+    expect(out.decisions).toEqual([buildNative({ quantity: '0.105', trailingDelta: 300 }, false)]);
+  });
+
+  // Guard: the native path's OWN refusal. `checkedAt` alone is ambiguous, and a reader who assumes the limit leg is told a market-selling order has a sell price, so the leg label is the only thing that makes the number readable. 0.099 misses the minimum at the 100 market reference itself, which is the only price that can refuse this order type.
+  it('names MARKET as the leg it checked when a native PRIMARY stop misses the minimum there too', () => {
+    const out = run({
+      level: level({ held: new Decimal('0.099') }),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('100'),
+        restingHigh: null,
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: {
+        skip: 'min-notional',
+        held: '0.099',
+        stop: '95',
+        required: '0.100',
+        checkedAt: '100',
+        checkedAtLeg: 'market',
+      },
+    });
+  });
+
+  // Guard: an unreadable market reference must not fail open. A cold ticker cache reports a non-positive price, and sizing an order on a price nobody could read is how an unfundable stop reaches the exchange. The trigger sits below the market, so falling back to it can only refuse an order Binance would have taken, never send one it rejects — and 0.105 is exactly the quantity a readable reference arms.
+  it('falls back to the TRIGGER when the market reference is unusable on the native PRIMARY path', () => {
+    const out = run({
+      input: input([], '0'),
+      level: level({ held: new Decimal('0.105') }),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('100'),
+        restingHigh: null,
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: {
+        skip: 'min-notional',
+        held: '0.105',
+        required: '0.106',
+        checkedAt: '95',
+        checkedAtLeg: 'trigger',
+      },
+    });
+  });
+
+  it('sizes against the LIMIT leg when the primary native delta cannot be derived and the priced stop is what will rest', () => {
+    // A 0.25 distance is outside the symbol's published trailingDelta bounds, so no native order can be built and the arm falls through to the priced path. What will actually rest is a STOP_LOSS_LIMIT, so the notional question belongs to its limit leg even though the native seams were supplied.
+    const out = run({
+      level: level({ held: new Decimal('0.106') }),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.25'),
+        markPrice: new Decimal('100'),
+        restingHigh: null,
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.25'), build: buildNative },
+    });
+
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: { skip: 'min-notional', required: '0.107', held: '0.106' },
+    });
+  });
+
+  // Guard: `roundToTick` floors while `toFixedStep` rounds half-up, so a level that is not already tick-aligned makes the price the check uses and the price the order carries two different numbers, and the check must use the one the exchange will read. A 93.995 limit floors to 93.99 but serialises to the 94.00 the order actually sends, and a 94 minimum sits exactly between the two: the full 1.000 is worth 93.995 at the raw level and 94 on the wire, so sizing on the raw level would refuse a stop Binance accepts.
+  it('sizes on the price the order will carry, not on the pre-rounding level', () => {
+    const out = run({
+      level: level({
+        limit: new Decimal('93.995'),
+        filters: { ...FILTERS, minNotional: new Decimal('94') },
+      }),
+    });
+
+    expect(out.blocker).toBeNull();
+    expect(out.decisions).toEqual([
+      buildPlace({ stopPrice: '95.00', price: '94.00', quantity: '1.000' }, false),
+    ]);
+  });
+
+  // Guard: a missing tracked high must use the mark itself and still permit a safe tightening.
+  it('uses the mark as the high when no resting high is tracked', () => {
+    const out = run({
+      input: input([native()]),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.03'),
+        markPrice: new Decimal('100'),
+        restingHigh: null,
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.03'), build: buildNative },
+    });
+
+    expect(out.decisions).toHaveLength(1);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'replace-order',
+      params: { trailingDelta: 300 },
+    });
+  });
+
+  // Guard: an equal native delta and matching quantity must preserve Binance's accumulated high-water mark.
+  it('does nothing when the native delta and quantity already match', () => {
+    const out = run({
+      input: input([native()]),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.1'),
+        markPrice: new Decimal('100'),
+        restingHigh: new Decimal('100'),
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.1'), build: buildNative },
+    });
+
+    expect(out.decisions).toEqual([]);
+    expect(buildReplace).not.toHaveBeenCalled();
+  });
+
+  // Guard: over-quantity drift is ignored below 1% and replaces unconditionally at the tolerance boundary.
+  it('applies the native over-quantity tolerance at its boundary', () => {
+    const primaryTrail = {
+      desiredDistancePct: new Decimal('0.1'),
+      markPrice: new Decimal('90'),
+      restingHigh: new Decimal('100'),
+    };
+    const nativeTrail = { stopDistancePct: new Decimal('0.1'), build: buildNative };
+
+    expect(
+      run({ input: input([native({ origQty: '1.009' })]), primaryTrail, nativeTrail }).decisions,
+    ).toEqual([]);
+    expect(
+      run({ input: input([native({ origQty: '1.01' })]), primaryTrail, nativeTrail }).decisions,
+    ).toHaveLength(1);
+  });
+
+  // Guard: under-quantity drift is ignored below 1% and requires the guard at the tolerance boundary.
+  it('applies the native under-quantity tolerance at its boundary', () => {
+    const primaryTrail = {
+      desiredDistancePct: new Decimal('0.1'),
+      markPrice: new Decimal('100'),
+      restingHigh: new Decimal('100'),
+    };
+    const nativeTrail = { stopDistancePct: new Decimal('0.1'), build: buildNative };
+
+    expect(
+      run({ input: input([native({ origQty: '0.991' })]), primaryTrail, nativeTrail }).decisions,
+    ).toEqual([]);
+    expect(
+      run({ input: input([native({ origQty: '0.99' })]), primaryTrail, nativeTrail }).decisions,
+    ).toHaveLength(1);
+  });
+
+  // Guard: an unreadable native quantity must not crash or invent a resize signal.
+  it('leaves a native order with an unreadable quantity unchanged', () => {
+    const out = run({
+      input: input([native({ origQty: 'not-a-decimal' })]),
+      primaryTrail: {
+        desiredDistancePct: new Decimal('0.1'),
+        markPrice: new Decimal('100'),
+        restingHigh: new Decimal('100'),
+      },
+      nativeTrail: { stopDistancePct: new Decimal('0.1'), build: buildNative },
+    });
+
+    expect(out.decisions).toEqual([]);
+    expect(buildReplace).not.toHaveBeenCalled();
   });
 });
 
@@ -529,8 +1192,18 @@ describe('evaluateProtectiveStopArm — PERCENT_PRICE_BY_SIDE band', () => {
     reason: 'superseded',
   });
 
-  // The previous trail level, far enough below the recomputed 7.462 to clear the
-  // drift band, so today's arm reaches the [cancel, place] re-arm return.
+  const buildReplace = (resting: OpenOrder, place: Decision): Decision => {
+    if (place.type !== 'place-order') throw new Error('expected place-order successor');
+    return {
+      type: 'replace-order',
+      cancelOrderId: resting.orderId,
+      reason: 'test',
+      intent: place.intent,
+      params: place.params,
+    };
+  };
+
+  // The previous trail level is far enough below the recomputed 7.462 to clear the drift band, so today's arm reaches the atomic replace return.
   const resting = (): OpenOrder =>
     order({
       orderId: 4242,
@@ -554,6 +1227,7 @@ describe('evaluateProtectiveStopArm — PERCENT_PRICE_BY_SIDE band', () => {
       ourClientOrderId: LINK_OURS,
       buildPlace,
       buildCancel,
+      buildReplace,
       ...over,
     } as Params);
 
@@ -584,7 +1258,7 @@ describe('evaluateProtectiveStopArm — PERCENT_PRICE_BY_SIDE band', () => {
     // 7.312 / 0.9 = 8.1244 is the highest reference that still admits this stop.
     const out = run({ input: armInput('8.10', true, [resting()]) });
     expect(out.blocker).toBeNull();
-    expect(out.decisions).toEqual([buildCancel(resting()), placed()]);
+    expect(out.decisions).toEqual([buildReplace(resting(), placed())]);
   });
 
   it('places unchanged when the symbol carries no percentPriceBySide filter', () => {
@@ -592,7 +1266,7 @@ describe('evaluateProtectiveStopArm — PERCENT_PRICE_BY_SIDE band', () => {
     // a position needs proof, so the arm must behave exactly as it does today.
     const out = run({ input: armInput('8.8320', false, [resting()]) });
     expect(out.blocker).toBeNull();
-    expect(out.decisions).toEqual([buildCancel(resting()), placed()]);
+    expect(out.decisions).toEqual([buildReplace(resting(), placed())]);
   });
 
   it('marks the blocker terminal when the limit offset can never clear the ask floor', () => {
@@ -1049,6 +1723,17 @@ describe('evaluateProtectiveStopArm — exchange-native trailing escape', () => 
     reason: 'superseded',
   });
 
+  const buildReplace = (resting: OpenOrder, place: Decision): Decision => {
+    if (place.type !== 'place-order') throw new Error('expected place-order successor');
+    return {
+      type: 'replace-order',
+      cancelOrderId: resting.orderId,
+      reason: 'test',
+      intent: place.intent,
+      params: place.params,
+    };
+  };
+
   // The plugin seam the worker really uses: a STOP_LOSS with a distance and no
   // prices at all.
   const buildNativeTrailPlace = (desired: {
@@ -1103,6 +1788,7 @@ describe('evaluateProtectiveStopArm — exchange-native trailing escape', () => 
       ourClientOrderId: LINK_OURS,
       buildPlace,
       buildCancel,
+      buildReplace,
       nativeTrail: { stopDistancePct: new Decimal('0.1551'), build: buildNativeTrailPlace },
       ...over,
     } as Params);
@@ -1123,13 +1809,57 @@ describe('evaluateProtectiveStopArm — exchange-native trailing escape', () => 
     expect(params?.type).toBe('STOP_LOSS');
   });
 
-  it('swaps a refused priced stop for the trail, cancelling the old one in the same batch', () => {
+  it('atomically swaps a refused priced stop for the trail', () => {
     const out = run({});
     expect(out.blocker).toBeNull();
     expect(out.decisions).toEqual([
-      buildCancel(priced()),
-      buildNativeTrailPlace({ quantity: '3.13', trailingDelta: 1551 }),
+      buildReplace(priced(), buildNativeTrailPlace({ quantity: '3.13', trailingDelta: 1551 })),
     ]);
+  });
+
+  // Guard: the priced order's notional refusal must not settle a question only the band can answer. 0.68 LINK is 4.97 quote at the 7.312 limit leg, under the 5 minimum, but 6.00 at the 8.832 market the trailing order is really judged at — so the escape's order is feasible and the position gets a stop instead of a blocker.
+  it('rests the trail for a position the priced notional bar refuses but the market price clears', () => {
+    const out = run({
+      input: armInput('8.8320', true, []),
+      level: stopLevel({ held: new Decimal('0.68') }),
+    });
+    expect(out.blocker).toBeNull();
+    expect(out.decisions).toEqual([
+      buildNativeTrailPlace({ quantity: '0.68', trailingDelta: 1551 }),
+    ]);
+  });
+
+  // Guard: the deferral must not become a licence to send the priced order. Inside the band there is no escape to reach, so the same 0.68 position that the trail would have saved returns the notional refusal and sends nothing — a STOP_LOSS_LIMIT on a quantity that failed the priced bar is the exact -1013 this whole mechanism exists to prevent.
+  it('returns the min-notional refusal and places nothing when no band breach reaches the escape', () => {
+    // 8.00 puts the floor at 7.20, below the 7.312 limit leg, so the priced stop is inside the band.
+    const out = run({
+      input: armInput('8.00', true, []),
+      level: stopLevel({ held: new Decimal('0.68') }),
+    });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toMatchObject({
+      reason: 'base-below-exchange-minimum',
+      detail: { skip: 'min-notional', held: '0.68', checkedAt: '7.312', checkedAtLeg: 'limit' },
+    });
+  });
+
+  // Guard: a carried refusal must not leak past the settled-stop return. Binance already holds an order over this position at the level it should have, so nothing is owed and nothing is at risk — reporting a blocker here would paint an unguarded position on a screen whose operator can only read it as "no stop".
+  it('reports no blocker for a settled resting stop even while a notional refusal is pending', () => {
+    const settled = order({
+      orderId: 4244,
+      clientOrderId: LINK_OURS,
+      symbol: 'LINKUSDT',
+      price: '7.312',
+      stopPrice: '7.462',
+      origQty: '0.68',
+      executedQty: '0',
+    });
+    const out = run({
+      input: armInput('8.8320', true, [settled]),
+      level: stopLevel({ held: new Decimal('0.68') }),
+    });
+    expect(out.decisions).toEqual([]);
+    expect(out.blocker).toBeNull();
   });
 
   it('falls back to the ordinary refusal when the symbol publishes no TRAILING_DELTA bounds', () => {
@@ -1160,9 +1890,7 @@ describe('evaluateProtectiveStopArm — exchange-native trailing escape', () => 
   });
 
   it('leaves a resting trail alone while its distance still matches the configuration', () => {
-    // Price moves every tick; the trail moves with it. Cancel + re-place would
-    // reset the high-water mark Binance has been accumulating and hand back a
-    // stop measured from a lower peak — strictly worse protection, for free.
+    // Price moves every tick; the trail moves with it. Replacing would reset the high-water mark Binance has been accumulating and hand back a stop measured from a lower peak, strictly worse protection for free.
     const out = run({ input: armInput('9.50', true, [trailing(1551)]) });
     expect(out.decisions).toEqual([]);
     expect(out.blocker).toBeNull();
@@ -1171,8 +1899,7 @@ describe('evaluateProtectiveStopArm — exchange-native trailing escape', () => 
   it('re-arms a resting trail only when the CONFIGURED distance differs from the resting one', () => {
     const out = run({ input: armInput('8.8320', true, [trailing(900)]) });
     expect(out.decisions).toEqual([
-      buildCancel(trailing(900)),
-      buildNativeTrailPlace({ quantity: '3.13', trailingDelta: 1551 }),
+      buildReplace(trailing(900), buildNativeTrailPlace({ quantity: '3.13', trailingDelta: 1551 })),
     ]);
   });
 
@@ -1182,8 +1909,10 @@ describe('evaluateProtectiveStopArm — exchange-native trailing escape', () => 
     // quantity band for trails leaves the position permanently under-protected.
     const out = run({ input: armInput('8.8320', true, [trailing(1551, '1.00')]) });
     expect(out.decisions).toEqual([
-      buildCancel(trailing(1551, '1.00')),
-      buildNativeTrailPlace({ quantity: '3.13', trailingDelta: 1551 }),
+      buildReplace(
+        trailing(1551, '1.00'),
+        buildNativeTrailPlace({ quantity: '3.13', trailingDelta: 1551 }),
+      ),
     ]);
   });
 
@@ -1200,11 +1929,14 @@ describe('evaluateProtectiveStopArm — exchange-native trailing escape', () => 
       ourClientOrderId: LINK_OURS,
       buildPlace,
       buildCancel,
+      buildReplace,
     } as Params);
     expect(out.blocker).toBeNull();
     expect(out.decisions).toEqual([
-      buildCancel(trailing(1551)),
-      buildPlace({ stopPrice: '7.462', price: '7.312', quantity: '3.13' }),
+      buildReplace(
+        trailing(1551),
+        buildPlace({ stopPrice: '7.462', price: '7.312', quantity: '3.13' }),
+      ),
     ]);
   });
 
@@ -1229,6 +1961,7 @@ describe('evaluateProtectiveStopArm — exchange-native trailing escape', () => 
       ourClientOrderId: LINK_OURS,
       buildPlace,
       buildCancel,
+      buildReplace,
     } as Params);
     expect(notify.decisions).toEqual([]);
     expect(notify.blocker?.reason).toBe('price-outside-exchange-band');
@@ -1241,8 +1974,7 @@ describe('evaluateProtectiveStopArm — exchange-native trailing escape', () => 
     const out = run({ input: armInput('8.10', true, [priced()]) });
     expect(out.blocker).toBeNull();
     expect(out.decisions).toEqual([
-      buildCancel(priced()),
-      buildPlace({ stopPrice: '7.462', price: '7.312', quantity: '3.13' }),
+      buildReplace(priced(), buildPlace({ stopPrice: '7.462', price: '7.312', quantity: '3.13' })),
     ]);
   });
 });

@@ -14,7 +14,11 @@ import type {
   TickInput,
 } from '@app/strategy-core';
 import { protectiveStopClientOrderId } from '../client-order-id.js';
-import { buildProtectiveStopCancel, buildSellDecision } from '../decisions.js';
+import {
+  buildProtectiveStopCancel,
+  buildProtectiveStopReplace,
+  buildSellDecision,
+} from '../decisions.js';
 import type { TTBundle, TTConfig, TTState } from '../schema.js';
 import { resolveTTStopLevel, ttStopBandSettings } from '../stop-level.js';
 import { reclaimableOwnSellBase } from './sell-gate.js';
@@ -112,8 +116,11 @@ const computeProtectiveStopLevel = (
  * `-x` clientOrderId, and its place/cancel builders — and handing them to the
  * shared orchestrator, which owns the full/partial sizing, the foreign-lock
  * refusal, and the re-arm drift band. An ARM, not a sell: callers preserve the
- * position state. The resting order is cancelled explicitly by the closing batch
- * when the position exits.
+ * position state. On the EXIT path nothing here cancels the resting order — the
+ * same `cancelReplace` that transmits the closing sell retires it. The one bare
+ * `cancel-order` this function still produces comes from `buildCancel`, which
+ * the shared arm emits when a position keeps a resting stop but no level
+ * resolves for it any more, so there is no successor to fuse the retraction into.
  */
 export const evaluateProtectiveStop = (input: TTInput, state: TTState): TTProtectiveStopArm => {
   const symbol = input.market.symbol;
@@ -143,19 +150,20 @@ export const evaluateProtectiveStop = (input: TTInput, state: TTState): TTProtec
     input,
     enabled,
     level: resolved.level,
-    // A closing batch cancels our own resting stop before the market sell, so the
-    // base it locks is reclaimable here — otherwise `free` reads zero the moment
-    // our stop rests and the arm churns every tick.
+    // A closing sell retires our own resting stop in the same exchange request that
+    // places it, so the base it locks is reclaimable here — otherwise `free` reads
+    // zero the moment our stop rests and the arm churns every tick.
     reclaimableBase: reclaimableOwnSellBase(input),
     ourClientOrderId: ourId,
     // A clamped level is pinned to the exchange floor, which is a fraction of the
     // CURRENT price: at the shared default band the resting stop would be
     // re-placed on nearly every tick for as long as the band binds.
     ...(resolved.floorClamped ? { minStopDrift: clampedStopDrift(null) } : {}),
-    buildPlace: (desired) =>
+    buildPlace: (desired, rearm) =>
       buildSellDecision(input, 'protective-stop', desired.quantity, '', {
         stopLimit: { stopPrice: desired.stopPrice, price: desired.price },
         clientOrderId: ourId,
+        ...(rearm ? { deferrable: true } : {}),
       }),
     // Supplied only under `native-trail`: its presence is what tells the shared
     // arm a band refusal has an escape rather than being a dead end. Same
@@ -164,17 +172,20 @@ export const evaluateProtectiveStop = (input: TTInput, state: TTState): TTProtec
       ? {
           nativeTrail: {
             stopDistancePct: bandSettings.stopDistancePct,
-            build: (desired: DesiredNativeTrailingStop) => {
+            build: (desired: DesiredNativeTrailingStop, rearm: boolean) => {
               nativeTrailed = true;
               return buildSellDecision(input, 'protective-stop', desired.quantity, '', {
                 trailingDelta: desired.trailingDelta,
                 clientOrderId: ourId,
+                ...(rearm ? { deferrable: true } : {}),
               });
             },
           },
         }
       : {}),
     buildCancel: (resting) => buildProtectiveStopCancel(resting, 'tt-protective-stop-superseded'),
+    buildReplace: (resting, place) =>
+      buildProtectiveStopReplace(resting, place, 'tt-protective-stop-superseded'),
   });
   return { ...arm, floorClamped: resolved.floorClamped, nativeTrailed };
 };
@@ -187,19 +198,21 @@ export const evaluateProtectiveStopArm = (input: TTInput, state: TTState): Decis
   evaluateProtectiveStop(input, state).decisions;
 
 /**
- * Cancel decisions to prepend before any position-closing SELL: a resting
- * protective stop must be retracted before the market sell so the exchange does
- * not hold a stale limit order against an already-flat position. Empty when no
- * protective stop is resting (the common case, so closing batches stay
- * byte-identical for profiles that never armed one).
+ * Fuse a position-closing SELL with the retraction of our own resting protective stop into ONE exchange request.
+ *
+ * A separate cancel followed by a separate place leaves a window in which the retired stop and the exit are both live against the same base, so a gap-down inside that window sells one position twice. The atomic replacement removes the window: the exit is transmitted only once the cancel has succeeded, and a refused cancel leaves the stop resting and still protecting the position until the next tick retries.
+ *
+ * @param input - The tick input whose open orders are searched for our own resting protective stop.
+ * @param sell - The position-closing SELL this batch would emit on its own.
+ * @returns One fused replacement when our protective stop is resting, else the sell unchanged — the common case, so a profile that never armed a stop emits exactly the batch it always did.
  */
-export const protectiveStopCancelDecisions = (input: TTInput): Decision[] => {
+export const closingSellDecisions = (input: TTInput, sell: Decision): Decision[] => {
   const resting = findRestingProtectiveStop(
     input.openOrders,
     input.profile.id,
     input.market.symbol,
   );
   return resting === undefined
-    ? []
-    : [buildProtectiveStopCancel(resting, 'tt-protective-stop-superseded')];
+    ? [sell]
+    : [buildProtectiveStopReplace(resting, sell, 'tt-protective-stop-superseded')];
 };

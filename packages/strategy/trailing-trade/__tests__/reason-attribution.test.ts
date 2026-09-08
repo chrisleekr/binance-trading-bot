@@ -22,6 +22,7 @@ describe('trailingTrade.reasonAttribution', () => {
         'invalid-filters',
         'min-notional',
         'min-purchase',
+        'entry-below-stop-notional',
         'min-qty',
         'technicals-disallowed',
         'technicals-no-signal',
@@ -38,6 +39,7 @@ describe('trailingTrade.reasonAttribution', () => {
         'exit-order-open',
         'exit-unsellable',
         'exit-config-invalid',
+        'stop-infeasible-dust',
         'trail-high-raised',
         'atr-trail-above-price',
         'trail-above-price',
@@ -51,6 +53,7 @@ describe('trailingTrade.reasonAttribution', () => {
         'price-outside-exchange-band',
         'base-locked-by-foreign-order',
         'base-short-of-tracked-position',
+        'resting-stop-short-of-position',
         'base-below-exchange-minimum',
       ].sort(),
     );

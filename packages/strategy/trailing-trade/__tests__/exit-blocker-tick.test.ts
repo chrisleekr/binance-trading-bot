@@ -4,7 +4,7 @@
 // gates the sell ladder never sees (sell disabled, an exit already resting).
 
 import { Decimal } from '@app/money';
-import type { OpenOrder, TickInput } from '@app/strategy-core';
+import type { OpenOrder, SymbolFilters, TickInput } from '@app/strategy-core';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -50,6 +50,8 @@ const input = (o: {
   config?: TTConfig;
   state: TTState;
   openOrders?: readonly OpenOrder[];
+  currentPrice?: string;
+  filters?: SymbolFilters;
 }): TickInput<TTConfig, TTState, TTBundle> => ({
   clock: { nowMs: () => NOW_MS },
   rng: { next: () => 0 },
@@ -65,14 +67,14 @@ const input = (o: {
   state: o.state,
   market: {
     symbol: 'BTCUSDT',
-    currentPrice: '50000',
+    currentPrice: o.currentPrice ?? '50000',
     candlesByInterval: {},
     symbolInfo: {
       symbol: 'BTCUSDT',
       baseAsset: 'BTC',
       quoteAsset: 'USDT',
       status: 'TRADING',
-      filters: {
+      filters: o.filters ?? {
         minNotional: '10',
         tickSize: '0.01',
         stepSize: '0.0001',
@@ -154,6 +156,38 @@ describe('trailingTrade.tick — exitBlocker', () => {
       input({ config: cfg({ stopLossPercentage: '0.97' }), state: state(HELD) }),
     );
     expect(out.nextState.exitBlocker?.detail?.['hasDownsideExit']).toBe(true);
+  });
+
+  it('flags a held dust position whose configured stop cannot be sold', () => {
+    const out = trailingTrade.tick(
+      input({
+        config: cfg({
+          stopLossPercentage: '0.9',
+          protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+        }),
+        currentPrice: '0.0118',
+        filters: {
+          minNotional: '0.0001',
+          tickSize: '0.000001',
+          stepSize: '0.001',
+          minQty: '0.001',
+          maxQty: '1000000',
+          minPrice: '0.000001',
+          maxPrice: '1000000',
+        },
+        state: state({ avgEntryPrice: '0.0118', heldQuantity: '0.00999' }),
+      }),
+    );
+
+    expect(out.nextState.exitBlocker?.reason).toBe('stop-infeasible-dust');
+    expect(out.nextState.exitBlocker?.detail).toMatchObject({
+      heldQuantity: '0.00999',
+      // The limit leg the arm would rest, floored onto the 1e-6 tick. Quoting the exact 0.0104076 product would name a price no order can carry, and would measure the operator's dust against a price the exchange never sees.
+      stopPrice: '0.010407',
+      minNotional: '0.0001',
+      // The flag keeps its configured meaning: a stop IS configured; infeasibility is reported via the `stop-infeasible-dust` reason, not by falsifying this flag.
+      hasDownsideExit: true,
+    });
   });
 
   it('clears a stale blocker once the position is flat', () => {

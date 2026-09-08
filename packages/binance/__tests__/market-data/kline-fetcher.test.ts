@@ -16,6 +16,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  BINANCE_MAX_KLINE_LIMIT,
   createKlineFetcher,
   createWeightGovernor,
   type BinanceWs,
@@ -505,8 +506,635 @@ describe('createKlineFetcher', () => {
         logger: silentLogger,
       });
       const w = await fetcher.loadWindow('BTCUSDT', '1h', 50);
-      expect(rest).toHaveBeenCalledWith('BTCUSDT', '1h', 50);
+      expect(rest).toHaveBeenCalledWith('BTCUSDT', '1h', 51);
       expect(w.map((k) => k.close)).toEqual(['100', '101']);
+    });
+
+    it('backfills a subscribed short ring once and asks for one bar more than the window', async () => {
+      const rest = vi.fn(async () => [
+        mkClosedKline(1000, '100'),
+        mkClosedKline(2000, '101'),
+        mkClosedKline(3000, '102'),
+      ]);
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      // Let the cold-load settle, then scope the spy to loadWindow's own calls.
+      await sync();
+      rest.mockClear();
+
+      // Ring holds 3 candles; ask for 20 twice inside the same candle.
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sub.unsubscribe();
+
+      // A REST result that the ring never absorbs re-fetches every tick, ~1/s/symbol/interval in production.
+      expect(rest).toHaveBeenCalledTimes(1);
+      // fetchClosedKlines drops the still-forming bar, so a limit of `size` yields `size - 1` closed candles and the caller's `length >= size` gate can never pass.
+      expect(rest).toHaveBeenCalledWith('BTCUSDT', '1h', 21);
+    });
+
+    it('re-fetches per call for an unsubscribed key and still adds no subscriber', async () => {
+      const rest = vi.fn(async () => [mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+      });
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      // Nothing holds a memo for an unsubscribed key, and nothing would ever invalidate one, so each call re-fetches.
+      expect(rest).toHaveBeenCalledTimes(2);
+      // loadWindow is a pull-style seed: no WS, no ring, no subscriber.
+      expect(sockets).toHaveLength(0);
+      expect(fetcher.subscriberCount('BTCUSDT', '1h')).toBe(0);
+      expect(fetcher.activeKeyCount()).toBe(0);
+    });
+
+    it('re-fetches an above-ring window once the candle it was cached against closes', async () => {
+      const rest = vi.fn(async () => [mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      await sync();
+      rest.mockClear();
+
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sockets[0]?.triggerMessage(
+        klineFrame('btcusdt@kline_1h', {
+          openMs: 9000,
+          closeMs: 9999,
+          close: '109',
+          isClosed: true,
+        }),
+      );
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sub.unsubscribe();
+
+      // A closed candle moves the ring, so the memo must not outlive it.
+      expect(rest).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not cache a REST window that a candle close overtook mid-flight', async () => {
+      // Hand back a promise the test resolves by hand, so a candle can close while the request is still out.
+      const pending: ((rows: ClosedKline[]) => void)[] = [];
+      const rest = vi.fn(() => new Promise<ClosedKline[]>((resolve) => pending.push(resolve)));
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      // Settle the cold-load first; it is the first in-flight request.
+      pending.shift()?.([mkClosedKline(1000, '100')]);
+      await sync();
+      rest.mockClear();
+
+      const inFlight = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      // The ring moves while the request is out, so the rows about to resolve were read from before that close.
+      sockets[0]?.triggerMessage(
+        klineFrame('btcusdt@kline_1h', {
+          openMs: 9000,
+          closeMs: 9999,
+          close: '109',
+          isClosed: true,
+        }),
+      );
+      pending.shift()?.([mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      await inFlight;
+      rest.mockClear();
+
+      const next = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      pending.shift()?.([mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      await next;
+      sub.unsubscribe();
+      // Caching that window would pin the strategy to pre-close candles until the NEXT close, which is a whole candle period of stale data.
+      expect(rest).toHaveBeenCalledTimes(1);
+    });
+
+    it('never asks Binance for more rows than the klines endpoint accepts', async () => {
+      const rest = vi.fn(async () => [mkClosedKline(1000, '100')]);
+      const { factory } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+      });
+      await fetcher.loadWindow('BTCUSDT', '1h', BINANCE_MAX_KLINE_LIMIT);
+      // size + 1 would exceed the ceiling and Binance rejects the request.
+      expect(rest).toHaveBeenCalledWith('BTCUSDT', '1h', BINANCE_MAX_KLINE_LIMIT);
+    });
+
+    it('memoises per window size so two sizes on one key never evict each other', async () => {
+      const rest = vi.fn(async () =>
+        Array.from({ length: 6 }, (_, i) => mkClosedKline(1000 * (i + 1), String(100 + i))),
+      );
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      await sync();
+      rest.mockClear();
+
+      // The key is (symbol, interval) but the size is per profile: 20 is above the 6-candle ring so it costs a REST fetch, 5 comes off the ring. Two profiles on one symbol with different lookbacks interleave exactly like this, every tick.
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      await fetcher.loadWindow('BTCUSDT', '1h', 5);
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sub.unsubscribe();
+
+      // A one-slot memo loses the above-ring answer to every interleaved call, putting it back on a REST fetch per tick — the storm this memo exists to remove.
+      expect(rest).toHaveBeenCalledTimes(1);
+    });
+
+    it('bounds the per-size memo so a caller cycling sizes cannot grow it without limit', async () => {
+      const rest = vi.fn(async () =>
+        Array.from({ length: 6 }, (_, i) => mkClosedKline(1000 * (i + 1), String(100 + i))),
+      );
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      await sync();
+      rest.mockClear();
+
+      // One above-ring size that cost a request, then five ring-served ones cycling past the ceiling. Sizes cycling once per tick is the real access pattern, and under it the map has to stay bounded WITHOUT spending the one entry that is expensive to rebuild.
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      const firstOne = await fetcher.loadWindow('BTCUSDT', '1h', 1);
+      for (const size of [2, 3, 4]) await fetcher.loadWindow('BTCUSDT', '1h', size);
+      const secondOne = await fetcher.loadWindow('BTCUSDT', '1h', 1);
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sub.unsubscribe();
+
+      // Size 1 was evicted somewhere in the cycle, so the map never grew to hold all five sizes at once.
+      expect(secondOne).not.toBe(firstOne);
+      // The above-ring answer survived every eviction. A policy that can spend it — a wholesale clear, but FIFO and LRU too, since this cycle touches the cheap sizes more recently than the expensive one — puts it back on a weight-2 request per tick, which is the storm the memo exists to remove.
+      expect(rest).toHaveBeenCalledTimes(1);
+    });
+
+    it('spends the oldest REST entry only when the cap holds nothing cheaper', async () => {
+      const rest = vi.fn(async () =>
+        Array.from({ length: 6 }, (_, i) => mkClosedKline(1000 * (i + 1), String(100 + i))),
+      );
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      await sync();
+      rest.mockClear();
+
+      // Every size is above the 6-candle ring, so the map fills with nothing but expensive entries and the ring-first preference has no candidate.
+      for (const size of [20, 21, 22, 23, 24]) await fetcher.loadWindow('BTCUSDT', '1h', size);
+      expect(rest).toHaveBeenCalledTimes(5);
+
+      // The newest entry is still memoised; the oldest was the one spent to make room for it.
+      await fetcher.loadWindow('BTCUSDT', '1h', 24);
+      expect(rest).toHaveBeenCalledTimes(5);
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sub.unsubscribe();
+      expect(rest).toHaveBeenCalledTimes(6);
+    });
+
+    it('expires a memo on wall-clock age so a silent stream cannot freeze a window', async () => {
+      const rest = vi.fn(async () =>
+        Array.from({ length: 6 }, (_, i) => mkClosedKline(1000 * (i + 1), String(100 + i))),
+      );
+      let clockMs = 1_000_000;
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+        now: () => clockMs,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      await sync();
+      rest.mockClear();
+
+      // No close, no candle: the socket stays open and only THIS stream stopped delivering, which is the shape every other invalidator is blind to — onClose never fires, fanOut never runs, and msSinceLastFrame is per member so the member's other streams keep it healthy.
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      expect(rest).toHaveBeenCalledTimes(1);
+
+      // One ms short of the bound, asserted BEFORE the expiry step: without this side, any bound at all passes — a 1ms one included, which would restore the per-tick REST storm the memo exists to remove — because the still-served read would otherwise be taken at an age of zero. A memo hit returns without re-stamping `installedAtMs`, so both reads measure from the same install.
+      clockMs += 59_999;
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      expect(rest).toHaveBeenCalledTimes(1);
+
+      clockMs += 1;
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sub.unsubscribe();
+
+      // Without an age bound this window is served for the whole silence, against the live mini-ticker price the liveness watchdog keeps ticks running on.
+      expect(rest).toHaveBeenCalledTimes(2);
+    });
+
+    it('refetches when the clock steps backwards under an installed memo', async () => {
+      const rest = vi.fn(async () =>
+        Array.from({ length: 6 }, (_, i) => mkClosedKline(1000 * (i + 1), String(100 + i))),
+      );
+      let clockMs = 1_000_000;
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+        now: () => clockMs,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      await sync();
+      rest.mockClear();
+
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      expect(rest).toHaveBeenCalledTimes(1);
+
+      // Production passes no `now`, so this clock is `Date.now` — wall clock, which an NTP correction or a container resync can step BACKWARDS. A bare `age < MAX` reads the resulting negative age as fresh and pins the entry until the clock catches up, on exactly the silent-stream key where no socket event can invalidate it either.
+      clockMs -= 5_000;
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sub.unsubscribe();
+
+      expect(rest).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses a slower REST install that would replace a newer answer', async () => {
+      const pending: ((rows: ClosedKline[]) => void)[] = [];
+      const rest = vi.fn(() => new Promise<ClosedKline[]>((resolve) => pending.push(resolve)));
+      let clockMs = 1_000_000;
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+        now: () => clockMs,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      pending.shift()?.([mkClosedKline(1000, '100')]);
+      await sync();
+      rest.mockClear();
+
+      // Two concurrent calls for one (symbol, interval, size) is the production shape: the tick assembler issues one per interval per profile, and two profiles on the same symbol tick on separate chains, so both miss the memo and both fetch. Resolved in start order here, so the later install is not stale and must land.
+      const first = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      const second = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      expect(rest).toHaveBeenCalledTimes(2);
+      pending.shift()?.([mkClosedKline(1000, '100')]);
+      await first;
+      pending.shift()?.([mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      await second;
+      expect((await fetcher.loadWindow('BTCUSDT', '1h', 20)).map((k) => k.close)).toEqual([
+        '100',
+        '101',
+      ]);
+      expect(rest).toHaveBeenCalledTimes(2);
+
+      // Same pair, resolved out of order. The age bound drops the entry above so both calls reach REST again.
+      clockMs += 60_000;
+      const slow = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      clockMs += 1_000;
+      const fast = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      expect(rest).toHaveBeenCalledTimes(4);
+      const slowResolve = pending.shift();
+      const fastResolve = pending.shift();
+      fastResolve?.([
+        mkClosedKline(1000, '100'),
+        mkClosedKline(2000, '101'),
+        mkClosedKline(3000, '102'),
+      ]);
+      await fast;
+      slowResolve?.([mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      await slow;
+
+      const served = await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sub.unsubscribe();
+      // Letting the slower call install would swap the newer candles for older ones AND re-stamp them as freshly installed, so the age backstop would then serve the older answer for a further full MEMO_MAX_AGE_MS.
+      expect(served.map((k) => k.close)).toEqual(['100', '101', '102']);
+      expect(rest).toHaveBeenCalledTimes(4);
+    });
+
+    it('refuses a REST window the cold-load rebuild overtook while it was in flight', async () => {
+      // The interleaving the generation bump exists for, and the mirror of the `drops a memo installed before the cold load rebuilt the ring under it` case above: there the memo is already installed when the rebuild lands and the wholesale clear covers it, here the rebuild lands FIRST and only the generation can tell the in-flight request its answer is stale.
+      const pending: ((rows: ClosedKline[]) => void)[] = [];
+      const rest = vi.fn(() => new Promise<ClosedKline[]>((resolve) => pending.push(resolve)));
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      const settleColdLoad = pending.shift();
+      expect(settleColdLoad).toBeDefined();
+
+      const inFlight = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      const settleWindow = pending.shift();
+      expect(settleWindow).toBeDefined();
+
+      settleColdLoad?.([mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      await sync();
+      settleWindow?.([mkClosedKline(1000, '100')]);
+      await inFlight;
+      rest.mockClear();
+
+      const next = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      pending.shift()?.([mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      await next;
+      sub.unsubscribe();
+
+      // Installing that window would pin the key to the one-candle answer it read before its history arrived, for a whole candle period on a key that has just been seeded.
+      expect(rest).toHaveBeenCalledTimes(1);
+    });
+
+    it('refuses a REST window whose socket closed while it was in flight', async () => {
+      // The close clears the map, but the map is empty while the request is still out — only the generation survives to refuse the install when it lands.
+      const pending: ((rows: ClosedKline[]) => void)[] = [];
+      const rest = vi.fn(() => new Promise<ClosedKline[]>((resolve) => pending.push(resolve)));
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+        // Park the reconnect so the feed stays down for the rest of the test.
+        schedule: () => {},
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      pending.shift()?.([mkClosedKline(1000, '100')]);
+      await sync();
+      rest.mockClear();
+
+      const inFlight = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sockets[0]?.triggerClose();
+      pending.shift()?.([mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      await inFlight;
+
+      const next = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      pending.shift()?.([mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      await next;
+      sub.unsubscribe();
+
+      // No candle can arrive to invalidate an entry installed after the close, so it would be served for the whole outage against the live price.
+      expect(rest).toHaveBeenCalledTimes(2);
+    });
+
+    it('drops a memo installed before the cold load rebuilt the ring under it', async () => {
+      // Hold the cold load open so a loadWindow can land between subscribe and rebuild — the one interleaving in which a memo is installed against an empty ring.
+      const pending: ((rows: ClosedKline[]) => void)[] = [];
+      const rest = vi.fn(() => new Promise<ClosedKline[]>((resolve) => pending.push(resolve)));
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      // The cold-load request is issued synchronously by subscribeKlines; park its resolver rather than settling it.
+      const settleColdLoad = pending.shift();
+      expect(settleColdLoad).toBeDefined();
+
+      const preSeed = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      await sync();
+      pending.shift()?.([mkClosedKline(1000, '100')]);
+      await preSeed;
+
+      // The rebuild lands under the memo just installed. Nothing else can invalidate it: no candle has closed and the socket never dropped.
+      settleColdLoad?.([mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      await sync();
+
+      rest.mockClear();
+      const after = fetcher.loadWindow('BTCUSDT', '1h', 20);
+      await sync();
+      pending.shift()?.([mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      await after;
+      sub.unsubscribe();
+
+      // Serving the pre-rebuild window would pin the strategy to a one-candle ring for a whole candle period, on a key that has just been given its history.
+      expect(rest).toHaveBeenCalledTimes(1);
+    });
+
+    it('drops the memo when the socket closes so an above-ring window refreshes during the outage', async () => {
+      const rest = vi.fn(async () =>
+        Array.from({ length: 6 }, (_, i) => mkClosedKline(1000 * (i + 1), String(100 + i))),
+      );
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+        // Park the reconnect so the close leaves the feed down for the duration of the test.
+        schedule: () => {},
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      await sync();
+      rest.mockClear();
+
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sockets[0]?.triggerClose();
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      sub.unsubscribe();
+
+      // No candle can arrive to invalidate the memo while the feed is down, so holding it would serve one pre-outage window for the whole gap — against the live price the liveness watchdog keeps synthesising.
+      expect(rest).toHaveBeenCalledTimes(2);
+    });
+
+    it('drops only the closing member memos and leaves a sibling member untouched', async () => {
+      const rest = vi.fn(async () =>
+        Array.from({ length: 6 }, (_, i) => mkClosedKline(1000 * (i + 1), String(100 + i))),
+      );
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize: 10,
+        schedule: () => {},
+      });
+      // 1025 streams spill onto a second pool member; SYM0 lands on member 0 and SYM1024 on member 1.
+      const subs = [fetcher.subscribeKlines('SYM0USDT', '1h')];
+      sockets[0]?.triggerOpen();
+      for (let i = 1; i <= 1024; i++) subs.push(fetcher.subscribeKlines(`SYM${i}USDT`, '1h'));
+      sockets[1]?.triggerOpen();
+      await sync();
+      rest.mockClear();
+
+      await fetcher.loadWindow('SYM0USDT', '1h', 20);
+      await fetcher.loadWindow('SYM1024USDT', '1h', 20);
+      expect(rest).toHaveBeenCalledTimes(2);
+      rest.mockClear();
+
+      sockets[0]?.triggerClose();
+      await fetcher.loadWindow('SYM0USDT', '1h', 20);
+      await fetcher.loadWindow('SYM1024USDT', '1h', 20);
+      for (const s of subs) s.unsubscribe();
+
+      // Member 1 never went down and its candles still arrive, so evicting its memos would restart the per-tick REST storm on a healthy shard.
+      expect(rest).toHaveBeenCalledTimes(1);
+      expect(rest).toHaveBeenCalledWith('SYM0USDT', '1h', 21);
+      // 1025 subscriptions plus their cold-loads outrun the 5s default on a loaded runner.
+    }, 20_000);
+
+    it('normalises a window size the worker may hand it unparsed', async () => {
+      const warn = vi.fn<KlineFetcherLogger['warn']>();
+      // Model the real client, which drops the still-forming bar: a limit of N comes back as N-1 closed rows. A stub returning a fixed row count would hide the whole point of the collapse below — at `limit=1` production gets NOTHING back.
+      const rest = vi.fn(async (_symbol: string, _interval: string, limit: number) =>
+        Array.from({ length: Math.max(0, limit - 1) }, (_, i) =>
+          mkClosedKline(1000 * (i + 1), String(100 + i)),
+        ),
+      );
+      const { factory } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: { info: vi.fn<KlineFetcherLogger['info']>(), warn },
+      });
+      // The worker may pass strategy config unparsed, so a hand-written or DB-written fractional window reaches here un-validated and would interpolate as `&limit=21.5`, which Binance rejects — failing every tick for that (profile, symbol), exits included.
+      await fetcher.loadWindow('BTCUSDT', '1h', 20.5);
+      expect(rest).toHaveBeenLastCalledWith('BTCUSDT', '1h', 22);
+      // 21 closed rows satisfy a 20.5 window rounded up, so the collapse below is the only thing this test can be reading.
+      expect(warn).not.toHaveBeenCalled();
+      // Binance documents limit as an integer of at least 1, so a non-positive window must not send `limit=0`.
+      await fetcher.loadWindow('BTCUSDT', '1h', -1);
+      expect(rest).toHaveBeenLastCalledWith('BTCUSDT', '1h', 1);
+
+      // The clamp is pure arithmetic and every step of it propagates a non-finite input, so without its own arm the value rides out as `&limit=NaN` and Binance rejects the request with nothing naming the malformed field. The smallest legal limit keeps the request well-formed — but that collapse is only visible if the SIZE is normalised the same way: read the slice bound and the short-window verdict off a raw NaN and `slice(NaN)` returns everything while `length < NaN` is false, so an empty window is memoised silently and served for a full minute. Asserting only the limit would pass with the warn dead.
+      warn.mockClear();
+      await fetcher.loadWindow('BTCUSDT', '1h', Number.NaN);
+      expect(rest).toHaveBeenLastCalledWith('BTCUSDT', '1h', 1);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]?.[0]).toMatchObject({
+        requestedSize: Number.NaN,
+        normalisedSize: 1,
+        returnedSize: 0,
+        limit: 1,
+        unfillable: true,
+      });
+
+      warn.mockClear();
+      await fetcher.loadWindow('BTCUSDT', '1h', Number.POSITIVE_INFINITY);
+      expect(rest).toHaveBeenLastCalledWith('BTCUSDT', '1h', 1);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]?.[0]).toMatchObject({
+        requestedSize: Number.POSITIVE_INFINITY,
+        normalisedSize: 1,
+        returnedSize: 0,
+        unfillable: true,
+      });
+    });
+
+    it('warns when a REST window comes back short of the size asked for', async () => {
+      const warn = vi.fn<KlineFetcherLogger['warn']>();
+      const rest = vi.fn(async () => [mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      const { factory } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: { info: vi.fn<KlineFetcherLogger['info']>(), warn },
+      });
+      await fetcher.loadWindow('BTCUSDT', '1h', 20);
+      // The only downstream symptom is a strategy holding fail-closed and logging its own warm-up at debug, so silence here leaves an operator with no visible cause.
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]?.[0]).toMatchObject({
+        symbol: 'BTCUSDT',
+        interval: '1h',
+        requestedSize: 20,
+        returnedSize: 2,
+        limit: 21,
+        maxLimit: BINANCE_MAX_KLINE_LIMIT,
+        // Recoverable: the symbol simply has less history than asked for and the window fills as candles close.
+        unfillable: false,
+      });
+
+      await fetcher.loadWindow('BTCUSDT', '1h', BINANCE_MAX_KLINE_LIMIT + 5);
+      // Unrecoverable: the request was clamped, so no amount of waiting fills this window and the operator has to lower it.
+      expect(warn.mock.calls[1]?.[0]).toMatchObject({
+        requestedSize: BINANCE_MAX_KLINE_LIMIT + 5,
+        limit: BINANCE_MAX_KLINE_LIMIT,
+        maxLimit: BINANCE_MAX_KLINE_LIMIT,
+        unfillable: true,
+      });
+
+      await fetcher.loadWindow('BTCUSDT', '1h', BINANCE_MAX_KLINE_LIMIT - 1);
+      // The boundary the verdict exists for. `MAX_CANDLE_WINDOW` is the single size `resolveCandleWindow` returns for EVERY config at or above the ceiling, including a maxed momentum profile, and it lands on the maximum limit naturally rather than by clamping: one request supplies exactly it. Reading the verdict off `limit === maxLimit` would tell the operator to lower the largest window the pipeline promises to serve.
+      expect(warn.mock.calls[2]?.[0]).toMatchObject({
+        requestedSize: BINANCE_MAX_KLINE_LIMIT - 1,
+        limit: BINANCE_MAX_KLINE_LIMIT,
+        maxLimit: BINANCE_MAX_KLINE_LIMIT,
+        unfillable: false,
+      });
+    });
+
+    it('stays silent when a REST window comes back complete', async () => {
+      const warn = vi.fn<KlineFetcherLogger['warn']>();
+      const rest = vi.fn(async () => [mkClosedKline(1000, '100'), mkClosedKline(2000, '101')]);
+      const { factory } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: { info: vi.fn<KlineFetcherLogger['info']>(), warn },
+      });
+      const w = await fetcher.loadWindow('BTCUSDT', '1h', 2);
+      expect(w).toHaveLength(2);
+      expect(warn).not.toHaveBeenCalled();
     });
 
     it('reserves weight on the REST fallback when a governor is configured', async () => {
@@ -525,6 +1153,34 @@ describe('createKlineFetcher', () => {
       expect(spy).toHaveBeenCalledTimes(1);
       // klines is a flat weight 2 regardless of limit.
       expect(spy.mock.calls[0]?.[0]).toBe(2);
+    });
+
+    it('cold-loads a full ring by asking for one row more than it holds', async () => {
+      const ringSize = 5;
+      const rows = Array.from({ length: ringSize + 1 }, (_, i) =>
+        mkClosedKline(1000 * (i + 1), String(100 + i)),
+      );
+      // Model the real client: fetchClosedKlines drops the still-forming bar, so a limit of N comes back as N-1 closed rows. A stub ignoring `limit` would pass the length assertion below even if restLimitFor stopped adding the +1.
+      const rest = vi.fn(async (_symbol: string, _interval: string, limit: number) =>
+        rows.slice(0, limit - 1),
+      );
+      const { factory, sockets } = makeFactory();
+      const fetcher = createKlineFetcher({
+        wsUrl: 'wss://fake/ws',
+        wsFactory: factory,
+        fetchRestKlines: rest,
+        logger: silentLogger,
+        ringSize,
+      });
+      const sub = fetcher.subscribeKlines('BTCUSDT', '1h');
+      sockets[0]?.triggerOpen();
+      await sync();
+      expect(rest).toHaveBeenCalledWith('BTCUSDT', '1h', ringSize + 1);
+      // A cold-load short by one leaves the ring below ringSize, and loadWindow then falls back to a SECOND REST request — which is what the call count below catches. The length assertion is not redundant with it: drop the +1 in `restLimitFor` itself and BOTH call sites lose it, so the fallback asks for `size` rows, gets `size - 1` closed ones, and the length is short too. What the count catches on its own is a loss confined to the cold-load call site, where the fallback still returns a full window.
+      const w = await fetcher.loadWindow('BTCUSDT', '1h', ringSize);
+      sub.unsubscribe();
+      expect(rest).toHaveBeenCalledTimes(1);
+      expect(w).toHaveLength(ringSize);
     });
 
     it('cold-loads the ring asynchronously on a new subscription', async () => {

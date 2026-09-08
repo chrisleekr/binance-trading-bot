@@ -1,6 +1,11 @@
 import { Decimal } from '@app/money';
 import { ema, sma } from '@app/indicators';
-import { decOrNull, nativeTrailPreviewNote } from '@app/strategy-core';
+import {
+  decOrNull,
+  nativeTrailDistanceSentence,
+  nativeTrailingDelta,
+  nativeTrailPreviewNote,
+} from '@app/strategy-core';
 import type {
   AccountSnapshot,
   AccountSnapshotWire,
@@ -10,6 +15,7 @@ import type {
   PreviewModel,
   PreviewRow,
   PreviewSection,
+  TrailingDeltaFilter,
 } from '@app/strategy-core';
 
 import { coerceInt } from './config-coerce.js';
@@ -18,7 +24,7 @@ import { extensionMaxPercent, extensionPeriod } from './extension.js';
 import { resolveStopLevel } from './stop-level.js';
 import { DEFAULT_LIMIT_OFFSET } from './protective-stop.js';
 import { resolveEntryBudget } from './sizing.js';
-import { computeEntryQuantity } from './quantity.js';
+import { computeEntryQuantity, entryStopFloor } from './quantity.js';
 
 /**
  * Revive a wire account (decimal-string balances) to the Decimal
@@ -118,9 +124,11 @@ export const momentumPreviewLevels = (
     // where the emitted level cleared a preview row the projection left
     // unclamped, so skipping it is a hard failure, not a cosmetic mismatch.
     { reference: input.currentPrice, band: input.filters?.percentPriceBySide },
+    // A preview projects from config and candles alone; it never sees live open orders, so it cannot pin against a resting order's stop price.
+    null,
   ).stop;
 
-  const entryRows: PreviewRow[] = [buildEntryRow(input, bandStr)];
+  const entryRows: PreviewRow[] = [buildEntryRow(input, bandStr, candles)];
   if (stopBase !== null) {
     entryRows.push({
       code: 'trail',
@@ -149,6 +157,7 @@ export const momentumPreviewLevels = (
 const buildEntryRow = (
   input: PreviewInput<MomentumConfig, MomentumState>,
   bandStr: string,
+  candles: readonly Candle[],
 ): PreviewRow => {
   // The entry band is where the fast EMA must cross, not a `currentPrice`
   // threshold: the tick fires on `fastEMA > slowEMA*band` off closed candles,
@@ -163,18 +172,55 @@ const buildEntryRow = (
     chartLine: true,
   };
   const account = reviveAccount(input.account);
-  const budget = resolveEntryBudget(input.config, account, input.quoteAsset ?? '');
+  // The caller's already-closed window, passed down rather than recomputed, so the risk cap sizes this row off exactly the closed window the stop and guard rows are built from.
+  const budget = resolveEntryBudget(input.config, account, input.quoteAsset ?? '', {
+    price: bandStr,
+    candles,
+  });
   if ('skip' in budget) return { ...base, skip: budget.skip };
   if (input.filters === undefined) return base;
-  const sized = computeEntryQuantity(budget.budget, bandStr, input.filters);
+  const sized = computeEntryQuantity(
+    budget.budget,
+    bandStr,
+    input.filters,
+    entryStopFloor(input.config, candles, bandStr),
+  );
   return 'skip' in sized ? { ...base, skip: sized.skip } : { ...base, quantity: sized.quantity };
 };
 
 interface RawProtectiveStop {
   readonly enabled?: unknown;
+  readonly mode?: unknown;
   readonly limitOffsetPercentage?: unknown;
   readonly onBandBlock?: unknown;
 }
+
+/**
+ * Operator-facing line for a stop that rests as a trail because the profile ASKED for one, or null when no such order can be built and a priced stop is what will rest.
+ *
+ * The shared band-escape note cannot answer this case: it reports on a trail SUBSTITUTED for a band-refused priced stop, so it returns null whenever the band would have accepted that stop — the ordinary case for an order that was never priced to begin with. Only the reachability test differs, so this reimplements that and defers to the shared sentence for the wording, which is what keeps the two preview surfaces describing one resting order the same way.
+ *
+ * The distance quoted is the CONFIGURED retrace read back OUT of the basis-point delta, which is the FALLBACK arm of `desiredTrailDistance` rather than always the distance the resting order carries: an armed profit leg takes priority over it and the ATR mode replaces it. Neither is reconstructable here, because the preview is handed no resolved stop level and may describe a config with no position at all, so the sentence says which distance it is naming instead of quoting a number the exchange may never have been given. Reading it out of the delta is also why the null answer is the right fallback: a symbol publishing no usable `TRAILING_DELTA` bounds is exactly the case where the arm abandons the trail and prices the stop instead.
+ *
+ * @param config - The possibly unparsed momentum config supplying the configured retrace fraction.
+ * @param trailing - The symbol's published trailing-delta bounds, or undefined when the preview carries no filters.
+ * @returns The sentence naming the distance, or null when the priced stop is what the arm will rest.
+ */
+const primaryNativeTrailNote = (
+  config: MomentumConfig,
+  trailing: TrailingDeltaFilter | undefined,
+): string | null => {
+  const stopDistancePct = decOrNull(config.trailingStopPct);
+  if (stopDistancePct === null) return null;
+  const delta = nativeTrailingDelta({ stopDistancePct, filter: trailing });
+  if (delta === null) return null;
+  // Only when one of the two can actually win. With both off the configured retrace IS what the arm sends, and a caveat there would be noise on the ordinary config.
+  const overridable =
+    config.profitTrail?.enabled === true || config.atrTrailingStop?.enabled === true;
+  return overridable
+    ? `${nativeTrailDistanceSentence(delta)} That is the configured retrace: an armed profit leg or the ATR trail can resolve a tighter distance, and the resting order then carries that one instead.`
+    : nativeTrailDistanceSentence(delta);
+};
 
 const buildProtectiveStopRow = (
   input: PreviewInput<MomentumConfig, MomentumState>,
@@ -183,6 +229,21 @@ const buildProtectiveStopRow = (
   const ps = (input.config as { protectiveStop?: RawProtectiveStop }).protectiveStop;
   if (ps?.enabled !== true) return null;
   if (stopBase === null) return null;
+
+  // A profile in `native-trail` mode rests a trail on every tick, not only on a band refusal, and that order carries a quantity and a delta and nothing else. Drawn as a priced row it would put a fixed trigger and a limit price on the symbol screen and a line on the chart, none of which the resting order holds. Judged BEFORE the limit offset is read because a trail has no limit leg to offset: an unparseable offset must not suppress a row for an order that goes out regardless.
+  if (ps.mode === 'native-trail') {
+    const note = primaryNativeTrailNote(input.config, input.filters?.trailingDelta);
+    // Null means no native order can be built, which is the same condition under which the arm falls back to pricing the stop — so the priced row below is then the honest one.
+    if (note !== null) {
+      return {
+        code: 'protective-stop',
+        label: 'Protective stop (exchange trail)',
+        tone: 'stop',
+        note,
+      };
+    }
+  }
+
   // Default applied INSIDE the read, so only an absent key falls back. An
   // unparseable one reads as null here exactly as it does in the arm, which
   // returns no level at all: defaulting it would draw a row for a stop that

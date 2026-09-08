@@ -189,6 +189,16 @@ const hasMarketSell = (decisions: readonly Decision[]): boolean =>
     (d) => d.type === 'place-order' && d.params.type === 'MARKET' && d.intent.side === 'SELL',
   );
 
+const fusedClose = (
+  decisions: readonly Decision[],
+): Extract<Decision, { type: 'replace-order' }> => {
+  const fused = decisions.find((d) => d.type === 'replace-order');
+  if (fused === undefined || fused.type !== 'replace-order') {
+    throw new Error('expected a replace-order close');
+  }
+  return fused;
+};
+
 describe('resolveHeldForSell — unreadable wallet fails OPEN on the tracked position', () => {
   it('sizes from heldQuantity when the balance map is empty (snapshot unreadable)', () => {
     expect(resolveHeldForSell(st('2'), 'BTC', UNREADABLE)).toBe('2');
@@ -307,7 +317,7 @@ describe('trailingTrade.tick — an exit is never suppressed by an unreadable wa
     expect(sell.params.quantity).toBe('2.0000');
   });
 
-  it('still cancels the resting protective stop ahead of the fail-open close', () => {
+  it('retires the resting protective stop inside the fail-open close itself', () => {
     const out = trailingTrade.tick(
       buildInput({
         account: UNREADABLE,
@@ -316,12 +326,13 @@ describe('trailingTrade.tick — an exit is never suppressed by an unreadable wa
         openOrders: [restingProtectiveStop()],
       }),
     );
-    const cancelIdx = out.decisions.findIndex((d) => d.type === 'cancel-order');
-    const sellIdx = out.decisions.findIndex(
-      (d) => d.type === 'place-order' && d.params.type === 'MARKET' && d.intent.side === 'SELL',
-    );
-    expect(cancelIdx).toBeGreaterThanOrEqual(0);
-    expect(cancelIdx).toBeLessThan(sellIdx);
+    const fused = fusedClose(out.decisions);
+    expect(fused.cancelOrderId).toBe(9001);
+    expect(fused.intent.reason).toBe('grid-stop-loss');
+    expect(fused.params.type).toBe('MARKET');
+    // A standalone retraction is the hazard the fusion removes: it frees the base before the close reaches the exchange.
+    expect(out.decisions.some((d) => d.type === 'cancel-order')).toBe(false);
+    expect(hasMarketSell(out.decisions)).toBe(false);
   });
 });
 
@@ -370,7 +381,7 @@ describe('trigger-sell override — credits the base our own protective stop loc
   } as TTBundle['override'];
 
   it('emits the MARKET close when our resting stop holds the whole free balance', () => {
-    // free reads 0 because OUR stop locks all 2 BTC; the same batch cancels it,
+    // free reads 0 because OUR stop locks all 2 BTC; the same request retires it,
     // so that base is reclaimable and the operator's close must go out.
     const out = trailingTrade.tick(
       buildInput({
@@ -381,8 +392,10 @@ describe('trigger-sell override — credits the base our own protective stop loc
         override: triggerSell,
       }),
     );
-    const sell = marketSell(out.decisions);
+    const sell = fusedClose(out.decisions);
+    expect(sell.cancelOrderId).toBe(9001);
     expect(sell.intent.reason).toBe('manual');
+    expect(sell.params.type).toBe('MARKET');
     expect(sell.params.quantity).toBe('2.0000');
     expect(out.logs.some((l) => l.message === 'tt-trigger-sell-skipped')).toBe(false);
   });

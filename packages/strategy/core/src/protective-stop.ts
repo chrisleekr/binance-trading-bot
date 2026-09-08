@@ -12,7 +12,7 @@ import type {
 import type { Decision } from './decision.js';
 import { metric } from './emit.js';
 import { sizableBase } from './balances.js';
-import { finalise, type SizeFilters } from './sizing.js';
+import { finalise, minSellableHeldQuantity, type SizeFilters } from './sizing.js';
 
 // `new Decimal` throws on malformed input; an unreadable order field must never
 // crash a tick, so parse defensively and treat a failure as "unknown".
@@ -23,6 +23,12 @@ const safeDecimal = (value: string | undefined): Decimal | null => {
   } catch {
     return null;
   }
+};
+
+// Unfilled remainder used only by the reclaimable-base sum for our own resting stops. An unreadable fill count reads as zero fills here so a malformed fill count cannot discard base the bot may reclaim.
+const unfilledQuantity = (order: OpenOrder): Decimal | null => {
+  const orig = safeDecimal(order.origQty);
+  return orig === null ? null : orig.minus(safeDecimal(order.executedQty) ?? new Decimal(0));
 };
 
 /**
@@ -50,9 +56,7 @@ export const ownRestingSellBase = (
     ) {
       continue;
     }
-    const orig = safeDecimal(order.origQty);
-    const done = safeDecimal(order.executedQty) ?? new Decimal(0);
-    const remaining = orig === null ? null : orig.minus(done);
+    const remaining = unfilledQuantity(order);
     if (remaining !== null && remaining.gt(0)) sum = sum.add(remaining);
   }
   return sum;
@@ -115,6 +119,7 @@ export const PROTECTIVE_STOP_BLOCKER_REASONS = [
   'base-below-exchange-minimum',
   'base-short-of-tracked-position',
   'price-outside-exchange-band',
+  'resting-stop-short-of-position',
 ] as const;
 
 export type ProtectiveStopBlockerReason = (typeof PROTECTIVE_STOP_BLOCKER_REASONS)[number];
@@ -592,6 +597,17 @@ export const nativeTrailingDelta = (params: {
  * Null tick means the symbol published no step to round to, so both sides judge
  * the raw prices and still agree.
  */
+/**
+ * The single sentence any preview surface uses to describe a resting exchange trail, so the two places that draw one cannot describe the same order differently.
+ *
+ * A profile reaches a trail by two routes that no shared predicate can cover: the band refusing a priced stop, and the operator selecting the mode outright. Each route owns its own reachability test, but the order they end up resting is identical, so the description belongs here rather than being restated at each call site where an edit would touch only one screen.
+ *
+ * @param delta - The basis-point trailing delta the order will actually carry, read back out of the exchange bounds so the sentence cannot quote a distance Binance was never given.
+ * @returns The operator-facing sentence naming the distance and the market sale.
+ */
+export const nativeTrailDistanceSentence = (delta: number): string =>
+  `No fixed trigger price — Binance trails this stop ${new Decimal(delta).div(100).toString()}% below the highest price seen since it was placed, then sells at market.`;
+
 export const nativeTrailPreviewNote = (params: {
   readonly stop: Decimal;
   readonly limit: Decimal;
@@ -619,8 +635,7 @@ export const nativeTrailPreviewNote = (params: {
   if (refused.detail['bound'] !== 'floor') return null;
   const delta = nativeTrailingDelta({ stopDistancePct, filter: trailing });
   if (delta === null) return null;
-  const pct = new Decimal(delta).div(100).toString();
-  return `No fixed trigger price — Binance trails this stop ${pct}% below the highest price seen since it was placed, then sells at market.`;
+  return nativeTrailDistanceSentence(delta);
 };
 
 // Re-place the resting stop only when the recomputed trigger has moved by at
@@ -658,11 +673,7 @@ export const clampedStopDrift = (operatorBand: Decimal | null): Decimal =>
   operatorBand === null ? CLAMPED_STOP_DRIFT : Decimal.max(operatorBand, CLAMPED_STOP_DRIFT);
 
 /**
- * Whether a resting protective stop (matched by OUR clientOrderId, so it is our
- * live order placed with the trigger we chose) must be cancelled and re-placed to
- * match `desired`. True on a material move in EITHER the trigger price or the
- * sized quantity — comparing only the price leaves a partially-sized stop
- * un-resized forever.
+ * Whether a resting protective stop (matched by OUR clientOrderId, so it is our live order placed with the trigger we chose) must be replaced to match `desired`. True on a material move in EITHER the trigger price or the sized quantity because comparing only the price leaves a partially-sized stop un-resized forever.
  *
  * A resting order whose `stopPrice` or `origQty` reads back unparseable is LEFT
  * in place: some Binance open-orders snapshots return an empty stopPrice for a
@@ -779,6 +790,7 @@ export interface DesiredProtectiveStop {
  */
 export interface ProtectiveStopLevel {
   readonly stop: Decimal;
+  /** The resting order's limit leg, and therefore the price its exchange minimums are judged at: Binance measures NOTIONAL against the order's own `price`, so a level whose limit is not the price that will rest sizes orders the exchange refuses. Not cosmetic, and not optional. */
   readonly limit: Decimal;
   readonly held: Decimal;
   readonly filters: SizeFilters;
@@ -799,11 +811,7 @@ export interface ProtectiveStopArm {
 }
 
 /**
- * The per-strategy seams the shared arm consumes. The two plugins differ ONLY in
- * how they compute the level, where they source reclaimable own-locked base, how
- * they build the place/cancel decisions, and their clientOrderId scheme;
- * everything downstream — full/partial sizing, the foreign-lock refusal, and the
- * re-arm drift band — is identical and lives in {@link evaluateProtectiveStopArm}.
+ * The per-strategy seams the shared arm consumes. The two plugins differ ONLY in how they compute the level, where they source reclaimable own-locked base, how they build the place/cancel/replace decisions, and their clientOrderId scheme; everything downstream — full/partial sizing, the foreign-lock refusal, and the re-arm drift band — is identical and lives in {@link evaluateProtectiveStopArm}.
  */
 export interface ProtectiveStopArmParams<C, S, B extends Readonly<Record<string, unknown>>> {
   readonly input: TickInput<C, S, B>;
@@ -812,14 +820,21 @@ export interface ProtectiveStopArmParams<C, S, B extends Readonly<Record<string,
   readonly reclaimableBase: Decimal;
   readonly ourClientOrderId: string;
   /**
-   * `rearm` is true when a stop of ours is already resting and this placement
-   * only re-prices it. It exists so a plugin can mark the replacement
-   * `deferrable`: the old stop stays live until the cancel lands, so skipping the
-   * pair costs a stale trigger, not protection. A FIRST arm is never deferrable —
-   * nothing is resting behind it.
+   * `rearm` is true when a stop of ours is already resting and this successor only re-prices it. It exists so a plugin can mark the replacement `deferrable`: shedding the atomic request leaves the old stop live, so skipping it costs a stale trigger, not protection. A FIRST arm is never deferrable because nothing is resting behind it.
    */
   readonly buildPlace: (desired: DesiredProtectiveStop, rearm: boolean) => Decision;
   readonly buildCancel: (resting: OpenOrder) => Decision;
+  /** Builds one atomic cancel-replace request around the exact successor produced by `buildPlace` or `nativeTrail.build`, preserving the old stop while the exchange performs the replacement. */
+  readonly buildReplace: (resting: OpenOrder, place: Decision) => Decision;
+  /** Native-trail inputs derived by the strategy for its primary protective-stop mode. Absent unless the strategy selected native mode and could derive a distance. */
+  readonly primaryTrail?: {
+    /** The configured trailing distance used to derive the desired native stop. */
+    readonly desiredDistancePct: Decimal;
+    /** The current mark price used to evaluate the trailing stop. */
+    readonly markPrice: Decimal;
+    /** Our reconstruction of the highest mark price or 1m-candle high seen since the resting order was placed, not a value Binance reports; null when unknown. */
+    readonly restingHigh: Decimal | null;
+  };
   /**
    * The EXCHANGE-NATIVE trailing escape for a stop the price band refuses.
    * Present only when the operator chose `onBandBlock: 'native-trail'`; absent, a
@@ -849,41 +864,32 @@ export interface ProtectiveStopArmParams<C, S, B extends Readonly<Record<string,
 }
 
 /**
- * Arm or re-arm the exchange-side protective stop from the plugin's resolved
- * seams. The outcome:
+ * Arm or re-arm the exchange-side protective stop from the plugin's resolved seams. The outcome:
  *
- *   - feature off ⇒ [] and NO cancel: the operator disabled the feature, not the
- *     position, so a resting stop stays live to catch a gap while the bot is down.
- *   - no level (flat / unconfigured / unparseable) or the full size skips a filter
- *     ⇒ cancel any resting stop (or []): a now-mismatched order can't reject when
- *     it triggers.
- *   - part of the base locked by a FOREIGN resting SELL ⇒ arm on what is left:
- *     protecting most of the position beats protecting none of it.
- *   - NOTHING armable (the free remainder is zero / below minQty / below
- *     minNotional) ⇒ [] + a blocker. A stop Binance can only answer with -2010
- *     would otherwise be re-derived every tick, forever; the blocker names what
- *     the operator must cancel. The resting stop and any foreign order are LEFT
- *     untouched — `openOrders` is a TTL cache and cancelling a live stop we merely
- *     cannot resize strips real protection.
- *   - the priced order falls outside Binance's `PERCENT_PRICE_BY_SIDE` band ⇒
- *     [] + a blocker, again leaving anything resting alone. The exchange can only
- *     answer -1013, so cancelling to make room buys nothing and costs the
- *     protection already in place. UNLESS `buildNativeTrailPlace` is supplied, in
- *     which case the same protection goes out as an exchange-native trailing
- *     `STOP_LOSS`, which the band does not reach.
- *   - no resting stop ⇒ [place]; trigger OR sized quantity drifted materially ⇒
- *     [cancel, place]; within both bands ⇒ [] (no churn).
+ *   - feature off ⇒ [] and NO cancel: the operator disabled the feature, not the position, so a resting stop stays live to catch a gap while the bot is down.
+ *   - no level (flat / unconfigured / unparseable) ⇒ cancel any resting stop (or []): a now-mismatched order can't reject when it triggers.
+ *   - full size skips a filter ⇒ [] + a blocker: a resting stop the exchange already accepted still guards more than the wallet can currently arm, so cancelling it would leave the position naked with no replacement possible. The filters are applied at the price the order will actually carry — the LIMIT leg for a priced stop, because that is the `price` Binance measures NOTIONAL against, and the MARKET reference when a native primary delta resolved, because that order rests with no price at all and Binance measures a market-type order against recent trades. A NOTIONAL-only failure on the priced path does not return here when a native trailing successor is reachable and feasible: the refusal is carried to the band check, which either rests that successor or returns the refusal with nothing sent.
+ *   - part of the base locked by a FOREIGN resting SELL ⇒ arm on what is left: protecting most of the position beats protecting none of it.
+ *   - NOTHING armable (the free remainder is zero / below minQty / below minNotional) ⇒ [] + a blocker. A stop Binance can only answer with -2010 would otherwise be re-derived every tick, forever; the blocker names what the operator must cancel. The resting stop and any foreign order are LEFT untouched because cancelling a live stop we cannot resize strips real protection.
+ *   - a native primary with an accepted delta ⇒ [native place] when none rests; a priced-to-native mode switch or a guarded native tightening/under-size correction ⇒ [replace]; a materially oversized native stop ⇒ [replace] without the high-water guard; otherwise [] so Binance keeps its accumulated high-water mark.
+ *   - the priced order falls outside Binance's `PERCENT_PRICE_BY_SIDE` band ⇒ [] + a blocker, again leaving anything resting alone. When the native-trail escape applies to a floor breach, the arm emits [native place] for a first arm or [replace] around the exact native successor for a re-arm.
+ *   - no resting stop on the priced path ⇒ [place]; trigger OR sized quantity drifted materially ⇒ [replace]; within both bands ⇒ [] (no churn).
  *
- * Fail-OPEN: an unreadable wallet (`free === undefined`) skips the partial branch
- * and arms the full tracked `held` — refusing to protect an open position needs
- * proof the coins are gone. Position-preserving: this places / re-prices a resting
- * order, it never closes the position.
+ * Fail-OPEN: an unreadable wallet (`free === undefined`) skips the partial branch and arms the full tracked `held`; refusing to protect an open position needs proof the coins are gone. Position-preserving: this places or re-prices a resting order, it never closes the position.
  */
 export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string, unknown>>>(
   params: ProtectiveStopArmParams<C, S, B>,
 ): ProtectiveStopArm => {
-  const { input, enabled, level, reclaimableBase, ourClientOrderId, buildPlace, buildCancel } =
-    params;
+  const {
+    input,
+    enabled,
+    level,
+    reclaimableBase,
+    ourClientOrderId,
+    buildPlace,
+    buildCancel,
+    buildReplace,
+  } = params;
 
   const cancelResting = (): Decision[] => {
     const resting = findRestingProtectiveStop(input.openOrders, ourClientOrderId);
@@ -894,12 +900,41 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
   if (level === null) return { decisions: cancelResting(), blocker: null };
   const { stop, limit, held, filters, tick } = level;
 
+  // The delta the NATIVE primary mode would rest at, resolved once because the sizing below and the native branch further down must agree on the same value: recomputing it in two places lets a later edit move one and silently re-open the gap this price choice exists to close.
+  const primaryNativeDelta =
+    params.primaryTrail !== undefined && params.nativeTrail !== undefined
+      ? nativeTrailingDelta({
+          stopDistancePct: params.primaryTrail.desiredDistancePct,
+          filter: input.market.symbolInfo.filters.trailingDelta,
+        })
+      : null;
+
+  // The basis-point distance the operator's CONFIGURED stop maps to on this symbol, or null when they did not choose native trailing or the symbol will not accept that distance. Stable across ticks by construction: it is derived from config, never from the moving price. Resolved before sizing because it is also the reachability test the min-notional deferral below asks: a refusal only defers to the trailing escape when that escape has a distance to send.
+  const trailingDelta =
+    params.nativeTrail === undefined
+      ? null
+      : nativeTrailingDelta({
+          stopDistancePct: params.nativeTrail.stopDistancePct,
+          filter: input.market.symbolInfo.filters.trailingDelta,
+        });
+
+  // The price Binance judges an exchange-native trailing STOP_LOSS at. That order carries no `price` and no trigger of its own — Binance derives the trigger from the high-water mark it tracks and then sells at MARKET — so the NOTIONAL minimum is measured against a recent-trade reference, i.e. roughly the current market price, not a trigger the order never carries. The trigger sits BELOW the market, so judging the native arm there is strictly harsher than the exchange: it refuses a stop Binance would have accepted and leaves the position with none at all. An unreadable or non-positive reference falls back to the trigger, which is the conservative price — never size an order on a price that could not be read.
+  const marketReference = positiveDecimal(input.market.currentPrice);
+  const nativeNotionalPrice = new Decimal(toFixedStep(marketReference ?? stop, tick));
+
+  // The price Binance will actually judge this order's minimums at. A STOP_LOSS_LIMIT is measured on its own `price`, i.e. the LIMIT leg, so checking the trigger is looser than the exchange by the whole limit offset and sizes orders Binance answers with a non-retryable -1013 — leaving the position unguarded with no blocker to say why. The predicate is that the native delta RESOLVED, not that both native seams were supplied: an underivable delta falls through to the priced path, so it must be judged as the priced order it is about to become.
+  // Read off the WIRE bytes, not the raw level, so sizing and the order cannot diverge by construction: `toFixedStep` rounds half-up while every plugin's `roundToTick` floors, so an off-grid `limit` handed to this seam would be judged a fraction above the price the exchange reads, and the minimum must be judged on the price Binance will actually read. Both current plugins pre-align, which is exactly why the divergence would be silent.
+  const notionalPrice =
+    primaryNativeDelta === null ? new Decimal(toFixedStep(limit, tick)) : nativeNotionalPrice;
+
+  // Which price `checkedAt` reports. Without it the operator gloss can only guess, and the guess is wrong on the native path: a trailing stop sells at MARKET, so calling its trigger "the price it would sell at" is a claim the order cannot keep. `trigger` survives only for the native fallback, where the market reference was unreadable.
+  const checkedAtLeg =
+    primaryNativeDelta === null ? 'limit' : marketReference === null ? 'trigger' : 'market';
+
   // What FULL protection costs, from the bot's tracked position. Sized first so a
   // refusal can still tell the operator what the stop needed.
-  const full = finalise(roundToStep(held, filters.step), stop, filters);
-  if ('skip' in full) return { decisions: cancelResting(), blocker: null };
-
   const symbol = input.market.symbol;
+  const pricedFull = finalise(roundToStep(held, filters.step), notionalPrice, filters);
   // `sizableBase` decides unknown-vs-zero: an unreadable wallet (`!readable`)
   // fails OPEN on the tracked position, while a base absent from a readable
   // snapshot is Binance saying the coins are gone — arm nothing, and do not credit
@@ -911,9 +946,57 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
   );
   const available = armableBaseQuantity(held, free, reclaimable);
 
-  let sized = full;
+  // A priced stop that misses the NOTIONAL bar is not the same thing as a position that cannot be protected: the band's native-trail escape lower down rests a market-type trailing order, judged at the market price, which clears a minimum the limit leg misses by the whole limit offset. Returning the refusal here would settle that question before the band has been asked, so it is carried as PENDING and the escape decides. Only the notional arm defers — a `min-qty` failure is a quantity no order type can meet — and only when the escape is reachable AND the position is feasible at the native price, so nothing rides on a successor that could never be sent. Scoped to the PRICED path because that is the only one whose refusal has an escape downstream: a resolved primary native delta returns its own order long before the band, so carrying a refusal past it would hand a branch that ignores blockers a reason to have stopped. Nothing priced may be placed once this is set: the quantity failed the very bar that produces the non-retryable -1013 this mechanism exists to prevent.
+  let pendingMinNotional: ProtectiveStopBlocker | null = null;
+  let fullSized: { quantity: string };
+  if ('skip' in pricedFull) {
+    const required = minSellableHeldQuantity(filters, notionalPrice);
+    const resting = findRestingProtectiveStop(input.openOrders, ourClientOrderId);
+    const readableRemainder =
+      resting !== undefined &&
+      GUARDING_STATUSES.has(resting.status.toUpperCase()) &&
+      safeDecimal(resting.origQty) !== null &&
+      safeDecimal(resting.executedQty) !== null;
+    const unfilled = readableRemainder && resting !== undefined ? unfilledQuantity(resting) : null;
+    const restingQuantity = unfilled === null || !unfilled.gt(0) ? null : unfilled.toFixed();
+    const blocker: ProtectiveStopBlocker = {
+      reason: 'base-below-exchange-minimum',
+      detail: {
+        symbol,
+        required: required?.toFixed(filters.step.decimalPlaces()) ?? null,
+        free: free?.toFixed() ?? null,
+        available: available.toFixed(),
+        held: held.toFixed(),
+        stop: stop.toFixed(),
+        // The trigger the operator recognises and the price the arithmetic actually used are two different numbers whenever a limit leg exists, so both are reported: quoting only the trigger would make `required` look wrong against it.
+        checkedAt: notionalPrice.toFixed(),
+        checkedAtLeg,
+        skip: pricedFull.skip,
+        resting: restingQuantity,
+        // Rounding held to the step can floor a sub-step holding to zero, making every dust position with a resting stop look unguarded.
+        guarded: stillGuarding(resting, held.toFixed()),
+      },
+    };
+    const nativeFull =
+      primaryNativeDelta === null &&
+      pricedFull.skip === 'min-notional' &&
+      params.nativeTrail !== undefined &&
+      trailingDelta !== null
+        ? finalise(roundToStep(held, filters.step), nativeNotionalPrice, filters)
+        : null;
+    if (nativeFull === null || 'skip' in nativeFull) return { decisions: [], blocker };
+    pendingMinNotional = blocker;
+    fullSized = nativeFull;
+  } else {
+    fullSized = pricedFull;
+  }
+
+  // A deferred refusal has already ruled the priced order out, so the partial must be judged at the only price still in play: the one the native successor will be measured against.
+  const sizingPrice = pendingMinNotional === null ? notionalPrice : nativeNotionalPrice;
+
+  let sized = fullSized;
   if (free !== undefined && available.lt(held)) {
-    const partial = finalise(roundToStep(available, filters.step), stop, filters);
+    const partial = finalise(roundToStep(available, filters.step), sizingPrice, filters);
     if ('skip' in partial) {
       // NOTHING is armable. Refuse, and always say why: an open position with no
       // stop and no explanation is the silent failure this branch exists to end.
@@ -925,7 +1008,7 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
           openOrders: input.openOrders,
           ourClientOrderId,
           free,
-          required: full.quantity,
+          required: fullSized.quantity,
           available,
         }),
       };
@@ -933,27 +1016,91 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
     sized = partial;
   }
 
+  // Resolved once and reused by the native-primary and priced paths so both modes act on the same open-order snapshot.
+  const resting = findRestingProtectiveStop(input.openOrders, ourClientOrderId);
+
+  // The outer guard stays even though `primaryNativeDelta` already encodes it: it is what narrows `params.primaryTrail` and `params.nativeTrail` to defined for the builder and high-water reads below.
+  if (params.primaryTrail !== undefined && params.nativeTrail !== undefined) {
+    if (primaryNativeDelta !== null) {
+      const desiredNative: DesiredNativeTrailingStop = {
+        quantity: sized.quantity,
+        trailingDelta: primaryNativeDelta,
+      };
+      if (resting === undefined) {
+        return { decisions: [params.nativeTrail.build(desiredNative, false)], blocker: null };
+      }
+      if (resting.trailingDelta === undefined) {
+        return {
+          decisions: [buildReplace(resting, params.nativeTrail.build(desiredNative, true))],
+          blocker: null,
+        };
+      }
+
+      const tightening = primaryNativeDelta < resting.trailingDelta;
+      const effective = tightening ? primaryNativeDelta : resting.trailingDelta;
+      const restingQuantity = unfilledQuantity(resting);
+      const desiredQuantity = new Decimal(sized.quantity);
+      const quantityTolerance = desiredQuantity.mul(MIN_QTY_DRIFT);
+      // Judgment call: native re-arms use the priced path's 1% quantity tolerance so sub-band balance and step-size movement cannot churn the exchange-managed high-water mark.
+      const overQty =
+        restingQuantity !== null && restingQuantity.minus(desiredQuantity).gte(quantityTolerance);
+      // Holds the under-covering resting quantity rather than a flag, so the refusal below can quote it without a second null test that no input could reach.
+      const underQty =
+        restingQuantity !== null && desiredQuantity.minus(restingQuantity).gte(quantityTolerance)
+          ? restingQuantity
+          : null;
+
+      let guard = false;
+      if (!overQty && (tightening || underQty !== null)) {
+        const high = Decimal.max(
+          params.primaryTrail.restingHigh ?? params.primaryTrail.markPrice,
+          params.primaryTrail.markPrice,
+        );
+        guard = params.primaryTrail.markPrice
+          .mul(new Decimal(1).minus(new Decimal(effective).div(10_000)))
+          .gte(high.mul(new Decimal(1).minus(new Decimal(resting.trailingDelta).div(10_000))));
+      }
+
+      if (overQty || ((tightening || underQty !== null) && guard)) {
+        return {
+          decisions: [
+            buildReplace(
+              resting,
+              params.nativeTrail.build(
+                { quantity: sized.quantity, trailingDelta: effective },
+                true,
+              ),
+            ),
+          ],
+          blocker: null,
+        };
+      }
+      // A re-arm refused over DISTANCE alone needs no explanation: the guard just proved the resting order's trigger is the higher of the two, so keeping it is strictly better protection. A re-arm refused over COVERAGE is the opposite. The resting order sells less base than the position now holds, and the guard reduces to `markPrice >= high` for it, which holds only at the running maximum. So the shortfall persists for the whole of any drawdown, which is exactly what the stop is for, and returning a null blocker here reports that as a healthy tick.
+      return {
+        decisions: [],
+        blocker:
+          underQty === null
+            ? null
+            : {
+                reason: 'resting-stop-short-of-position',
+                detail: {
+                  symbol,
+                  required: sized.quantity,
+                  resting: underQty.toFixed(),
+                  held: held.toFixed(),
+                  trailingDelta: resting.trailingDelta,
+                  desiredTrailingDelta: primaryNativeDelta,
+                },
+              },
+      };
+    }
+  }
+
   const desired: DesiredProtectiveStop = {
     stopPrice: toFixedStep(stop, tick),
     price: toFixedStep(limit, tick),
     quantity: sized.quantity,
   };
-
-  // Resolved before `buildPlace` so the plugin is told whether this placement is
-  // a first arm or a re-price of a live stop.
-  const resting = findRestingProtectiveStop(input.openOrders, ourClientOrderId);
-
-  // The basis-point distance the operator's CONFIGURED stop maps to on this
-  // symbol, or null when they did not choose native trailing or the symbol will
-  // not accept that distance. Stable across ticks by construction: it is derived
-  // from config, never from the moving price.
-  const trailingDelta =
-    params.nativeTrail === undefined
-      ? null
-      : nativeTrailingDelta({
-          stopDistancePct: params.nativeTrail.stopDistancePct,
-          filter: input.market.symbolInfo.filters.trailingDelta,
-        });
 
   // A resting order carrying a delta is an exchange-native trail and is judged on
   // distance alone.
@@ -976,7 +1123,10 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
   // sent, so no band applies. Tested BEFORE the band check because a blocker
   // here would be a lie the operator cannot ignore — every consumer reads the
   // field as "this position has no stop" and paints it red, and a static level
-  // sits outside a tight band for most of a winning position's life.
+  // sits outside a tight band for most of a winning position's life. A deferred
+  // min-notional refusal is dropped here for the same reason: the exchange is
+  // already holding an order over this position, so nothing is owed and nothing
+  // is at risk.
   if (
     resting !== undefined &&
     !protectiveStopNeedsRearm(
@@ -990,12 +1140,7 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
     return { decisions: [], blocker: null };
   }
 
-  // Checked on the exact bytes the executor would send, and gating BOTH halves
-  // of the re-arm from ONE return so a later edit cannot let the cancel through
-  // alone. Emitting the pair is what left a live position unguarded: the cancel
-  // lands, the replacement comes back -1013, and the arm re-derives the same
-  // impossible order every tick. Leaving the resting stop in place keeps the
-  // protection that does exist while the band moves back.
+  // Checked on the exact successor bytes before the atomic request. A known-invalid successor can still produce cancelReplace's partial-failure outcome, so withholding the request preserves the resting protection while the band moves back.
   const outsideBand = percentPriceBySideRefusal({
     symbol,
     reference: input.market.currentPrice,
@@ -1005,7 +1150,7 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
     // A stop armed while a foreign order held most of the base covers a fraction
     // of the position; calling that guarded is exactly the dismissible-amber-chip
     // downgrade `stillGuarding` exists to refuse.
-    guarded: stillGuarding(resting, full.quantity),
+    guarded: stillGuarding(resting, fullSized.quantity),
   });
   if (outsideBand !== null) {
     // The band refuses the PRICED stop, and the operator asked for the trailing
@@ -1030,15 +1175,18 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
         resting !== undefined,
       );
       return {
-        decisions: resting === undefined ? [place] : [buildCancel(resting), place],
+        decisions: resting === undefined ? [place] : [buildReplace(resting, place)],
         blocker: null,
       };
     }
-    return { decisions: [], blocker: outsideBand };
+    // A deferred min-notional refusal outranks the band's: it says the priced order cannot be sent at any price the band would allow, so quoting the band would point the operator at a constraint that is not the binding one.
+    return { decisions: [], blocker: pendingMinNotional ?? outsideBand };
   }
 
+  // The escape did not fire, so the priced order is the only thing left to send and its quantity failed the notional bar. Refuse it, place nothing, and leave anything resting alone.
+  if (pendingMinNotional !== null) return { decisions: [], blocker: pendingMinNotional };
+
   if (resting === undefined) return { decisions: [buildPlace(desired, false)], blocker: null };
-  // Our own stop is cancelled in the same batch, so the base it locks is released
-  // before the replacement is sent: no funding check is owed here.
-  return { decisions: [buildCancel(resting), buildPlace(desired, true)], blocker: null };
+  // The exchange releases our resting stop's base inside the atomic replacement, so no funding check is owed here.
+  return { decisions: [buildReplace(resting, buildPlace(desired, true))], blocker: null };
 };

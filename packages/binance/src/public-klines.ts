@@ -8,7 +8,10 @@
 import { parseKlines } from './binance-rest.js';
 import type { ClosedKline } from './market-data/types.js';
 
-/** Flat Binance spot weight for `GET /api/v3/klines` (2, any limit ≤ 1000). */
+/** Documented maximum for the `limit` query parameter of `GET /api/v3/klines`. Every caller sizing a request from a configured lookback clamps to it. */
+export const BINANCE_MAX_KLINE_LIMIT = 1_000;
+
+/** Flat Binance spot weight for `GET /api/v3/klines` (2 at any limit up to {@link BINANCE_MAX_KLINE_LIMIT}). */
 const KLINES_WEIGHT = 2;
 
 export interface PublicKlinesRequest {

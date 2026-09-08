@@ -2,7 +2,8 @@ import { Decimal } from '@app/money';
 import { clampStopToExchangeFloor, decOrNull } from '@app/strategy-core';
 import type { Candle, StopBandContext } from '@app/strategy-core';
 
-import { coerceDec, coerceInt } from './config-coerce.js';
+import { coerceInt } from './config-coerce.js';
+import { profitLegDistance } from './profit-leg.js';
 import { DEFAULT_LIMIT_OFFSET } from './protective-stop.js';
 import type { MomentumConfig } from './schema.js';
 import { atrTrailingStopPrice } from './trailing-stop.js';
@@ -11,12 +12,6 @@ import { atrTrailingStopPrice } from './trailing-stop.js';
 // report the same number — the in-process trail, the resting protective stop,
 // and the operator preview — and they used to compute it independently, which is
 // exactly how they would diverge once a second leg was added.
-
-/** Activation threshold as a fraction in (0, 1), else the schema default. Live config is unparsed. */
-const activationPct = (raw: unknown): Decimal => coerceDec(raw, { fallback: '0.05' });
-
-/** Pullback fraction in (0, 1), else the schema default. */
-const trailPct = (raw: unknown): Decimal => coerceDec(raw, { fallback: '0.03' });
 
 /** Bucket width in whole minutes, clamped to >= 1, else the schema default. */
 const ratchetMinutes = (raw: unknown): number => coerceInt(raw, { min: 1, fallback: 5 });
@@ -105,6 +100,8 @@ export const ratchetProfitHigh = (
 
 /** The stop level for a held long, plus the profit mark the tick persists. */
 export interface StopResolution {
+  /** Trail high-water mark the hard leg resolved against on this tick. */
+  readonly effectiveHigh: Decimal;
   /** Profit-side high-water mark, or null when the profit trail is off. Persisted by `tick()`. */
   readonly profitHigh: Decimal | null;
   /**
@@ -123,31 +120,24 @@ export interface StopResolution {
 }
 
 /**
- * Resolve the one stop level for a held long from marks the caller already
- * advanced.
+ * Resolve the one stop level for a held long from marks the caller already advanced, keeping the in-process exit, exchange order, and operator preview on one number.
  *
- * Two independent legs. The HARD leg is the pre-existing expression — the ATR
- * chandelier when enabled and computable, else `effectiveHigh × (1 −
- * trailingStopPct)` — anchored on the trading interval, so on a 1d profile it
- * moves once a day. The PROFIT leg is `profitHigh × (1 − trailPct)`, live only
- * once `profitHigh` clears `entryPrice × (1 + activationPct)`.
+ * The hard leg is the ATR chandelier when enabled and computable, otherwise `effectiveHigh × (1 - trailingStopPct)`. The profit leg is `profitHigh × (1 - trailPct)` after activation. Taking their maximum lets the profit leg tighten protection without loosening the hard leg.
  *
- * The result is the MAX of the two, which is what makes the second leg safe: it
- * can only tighten protection, never loosen it, and a trade that never clears
- * activation behaves exactly as it did before the leg existed.
+ * The profit leg is floored at `entryPrice` so unparsed stored config cannot manufacture a loss after bypassing the schema's cross-field rule.
  *
- * The profit leg is floored at `entryPrice` so it cannot manufacture a loss.
- * The schema's `trailPct < activationPct / (1 + activationPct)` rule already
- * implies that, but only at save time: the worker reads stored config unparsed,
- * and lowering a profile's `activationPct` does not re-validate symbol
- * overrides that were merged against the old one. The floor makes the guarantee
- * structural.
+ * Under `onBandBlock: 'clamp'` the result is raised to the lowest trigger Binance's price band accepts here, before any consumer sees it. A clamp follows that market-anchored floor in both directions, so the ordinary priced-stop pin is deliberately disabled in clamp mode.
  *
- * Under `onBandBlock: 'clamp'` the result is finally raised to the lowest
- * trigger Binance's price band accepts. That happens HERE rather than at the
- * three consumers so the in-process trail fires at exactly the price the resting
- * order rests at; clamping only where the order is built would leave the in-app
- * stop below a level the exchange never held.
+ * Outside clamp mode, a priced order already resting on Binance is a final monotone floor. Keeping the resolver at or above that trigger prevents the in-process exit and its exchange backstop from disagreeing while a re-arm candidate would otherwise loosen.
+ *
+ * @param config - The possibly unparsed momentum settings that select and parameterise both stop legs and the protective-stop band policy.
+ * @param entryPrice - The open position's cost basis, used to activate and floor the profit leg.
+ * @param effectiveHigh - The hard leg's high-water mark after the caller has advanced it for this tick.
+ * @param profitHigh - The profit leg's bucketed high-water mark, or null while that leg is disabled or unavailable.
+ * @param tradingCandles - The closed trading-interval candles used to resolve an ATR hard leg.
+ * @param bandContext - The current reference price and Binance price band used to derive a clamp floor when configured.
+ * @param previousStop - The trigger of our own resting PRICED stop, or null; it is a monotone floor outside clamp mode and is never pinned under clamp mode so the clamp can follow the market down.
+ * @returns The shared stop level, its input marks, and whether the exchange floor raised it.
  */
 export const resolveStopLevel = (
   config: MomentumConfig,
@@ -156,6 +146,7 @@ export const resolveStopLevel = (
   profitHigh: Decimal | null,
   tradingCandles: readonly Candle[],
   bandContext: StopBandContext,
+  previousStop: Decimal | null,
 ): StopResolution => {
   let hard = atrTrailingStopPrice(config, tradingCandles, effectiveHigh);
   if (hard === null) {
@@ -167,16 +158,11 @@ export const resolveStopLevel = (
       pct !== null && pct.gt(0) && pct.lt(1) ? effectiveHigh.mul(new Decimal(1).minus(pct)) : null;
   }
 
-  const cfg = config.profitTrail;
-  const activation = entryPrice.mul(new Decimal(1).plus(activationPct(cfg?.activationPct)));
-  // Narrowed to the mark itself rather than to a boolean, so the leg below reads
-  // it without an assertion that armed implies non-null.
-  const armedHigh =
-    cfg?.enabled === true && profitHigh !== null && profitHigh.gte(activation) ? profitHigh : null;
+  const profitDistance = profitLegDistance(config, profitHigh, entryPrice);
   const profitStop =
-    armedHigh === null
+    profitHigh === null || profitDistance === null
       ? null
-      : Decimal.max(entryPrice, armedHigh.mul(new Decimal(1).minus(trailPct(cfg?.trailPct))));
+      : Decimal.max(entryPrice, profitHigh.mul(new Decimal(1).minus(profitDistance)));
 
   // The max of whichever legs resolved; null only when neither did.
   const stop =
@@ -187,20 +173,33 @@ export const resolveStopLevel = (
   // With no order resting at Binance there is no band to satisfy, so a disabled
   // protective stop never tightens the in-app trail.
   const ps = config.protectiveStop;
-  const unclamped = { profitHigh, stop, floorClamped: false };
-  if (ps?.enabled !== true || ps.onBandBlock !== 'clamp') return unclamped;
+  const clampMode = ps?.enabled === true && ps.onBandBlock === 'clamp';
+  let resolved: StopResolution = { effectiveHigh, profitHigh, stop, floorClamped: false };
   // The same window `computeProtectiveStopLevel` arms in. The clamp exists to
   // keep the in-process level and the resting order on one number, so an offset
   // that resolves to no order must not move the level: outside (0, 1) it would
   // tighten the operator's exit to satisfy a band nothing is ever judged against.
-  const limitOffset = decOrNull(ps.limitOffsetPercentage ?? DEFAULT_LIMIT_OFFSET);
-  if (limitOffset === null || limitOffset.lte(0) || limitOffset.gte(1)) return unclamped;
+  if (clampMode) {
+    const limitOffset = decOrNull(ps.limitOffsetPercentage ?? DEFAULT_LIMIT_OFFSET);
+    if (limitOffset !== null && limitOffset.gt(0) && limitOffset.lt(1)) {
+      const clamped = clampStopToExchangeFloor({
+        stop,
+        reference: bandContext.reference ?? '',
+        band: bandContext.band,
+        limitOffset,
+      });
+      resolved = {
+        effectiveHigh,
+        profitHigh,
+        stop: clamped.stop,
+        floorClamped: clamped.clamped,
+      };
+    }
+  }
 
-  const clamped = clampStopToExchangeFloor({
-    stop,
-    reference: bandContext.reference ?? '',
-    band: bandContext.band,
-    limitOffset,
-  });
-  return { profitHigh, stop: clamped.stop, floorClamped: clamped.clamped };
+  const pinnedStop =
+    resolved.stop === null || previousStop === null || clampMode
+      ? resolved.stop
+      : Decimal.max(resolved.stop, previousStop);
+  return { ...resolved, stop: pinnedStop };
 };

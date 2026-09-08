@@ -20,7 +20,7 @@ const strategyRoot = join(here, '..', '..');
 const bundlesOf = (absPath: string): readonly unknown[] =>
   readFileSync(absPath, 'utf8')
     .split('\n')
-    .filter((line) => line.trim().length > 0)
+    .filter((line) => line.trim().length > 0 && !line.startsWith('#'))
     .map((line) => (JSON.parse(line) as { input: { bundle: unknown } }).input.bundle);
 
 const ttDir = join(strategyRoot, 'trailing-trade', 'fixtures', 'replay', 'synthesised');

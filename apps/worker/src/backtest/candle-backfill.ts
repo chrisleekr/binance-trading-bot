@@ -1,11 +1,7 @@
 import type { Logger } from 'pino';
+import { BINANCE_MAX_KLINE_LIMIT } from '@app/binance';
 import type { BinanceRestClient, ParsedKline } from '@app/binance';
 import { intervalToMs, schema, type MsRange } from '@app/db';
-
-// Binance returns at most 1000 candles per klines call; weight is 2 at
-// limit <= 500, 5 above. We page at 500 to stay on the cheap weight tier —
-// the same ceiling the technicals cron observes.
-const PAGE_LIMIT = 500;
 
 export interface CandleBackfillDeps {
   /**
@@ -58,12 +54,13 @@ export async function backfillCandles(
   for (const gap of gaps) {
     let cursor = gap.fromMs;
     while (cursor <= gap.toMs) {
+      // A klines call returns at most BINANCE_MAX_KLINE_LIMIT candles and costs a flat weight of 2 at any limit, so the largest page is also the cheapest way to cover a gap. Paging smaller buys no rate-limit headroom and only multiplies round trips.
       const rows = await deps.getKlines({
         symbol: bare,
         interval,
         startTime: cursor,
         endTime: gap.toMs,
-        limit: PAGE_LIMIT,
+        limit: BINANCE_MAX_KLINE_LIMIT,
       });
       requests += 1;
       if (rows.length === 0) break;

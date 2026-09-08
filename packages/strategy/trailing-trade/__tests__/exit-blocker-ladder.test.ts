@@ -232,6 +232,7 @@ describe('evaluateSellGate — the blocker names the rung that held the position
       held({ heldQuantity: '0' }),
     );
     expect(blockerOf(out)?.reason).toBe('exit-unsellable');
+    expect(blockerOf(out)?.detail).toMatchObject({ hasDownsideExit: true });
   });
 
   it('reports a corrupted threshold as a dead rung, not as a level', () => {

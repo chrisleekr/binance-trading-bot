@@ -14,12 +14,13 @@
 // asset free. The ledger carries that fact to the place.
 //
 // Both asset directions are covered because they credit different ledger fields:
-// a cancelled BUY frees quote, a cancelled SELL frees base. Both directions are
-// pinned for any batch that arrives in this shape, which is what trailing-trade
-// and momentum emit for an exit today. A strategy that instead retires its own
-// protective stop inside a single `cancelReplace` emits no such pair, and the
-// replace path has no funding pre-flight at all, so nothing about that shape
-// relieves the executor of this contract.
+// a cancelled BUY frees quote, a cancelled SELL frees base. Trailing-trade and
+// momentum now retire their own protective stop inside the exit's single
+// `cancelReplace`, so neither emits this pair for a full exit any more, and the
+// replace path has no funding pre-flight at all. The contract still binds: a
+// partial manual sell leaves the stop resting and emits the SELL on its own, and
+// any strategy may emit the pair, so this pins the executor's behaviour for the
+// shape rather than for the batch those two happen to produce.
 
 import { describe, expect, it, vi } from 'vitest';
 import { pino } from 'pino';

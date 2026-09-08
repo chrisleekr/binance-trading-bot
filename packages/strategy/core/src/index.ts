@@ -90,10 +90,17 @@ export {
   signatureForBacktest,
 } from './config-fingerprint.js';
 export type { BacktestSignatureInput } from './config-fingerprint.js';
-export { parseFilters, finalise } from './sizing.js';
-export type { SizeFilters } from './sizing.js';
+export {
+  parseFilters,
+  finalise,
+  minSellableQuantityAtStop,
+  minSellableHeldQuantity,
+  sellableAtStop,
+  applyEntryStopFloor,
+} from './sizing.js';
+export type { EntryStopFloor, SizeFilters } from './sizing.js';
 export { log, metric } from './emit.js';
-export { resolveCandleWindow } from './window.js';
+export { MAX_CANDLE_WINDOW, resolveCandleWindow } from './window.js';
 export { explainProtectiveStopBandRefusal } from './protective-stop-gloss.js';
 export type { ProtectiveStopBandExplanation } from './protective-stop-gloss.js';
 export {
@@ -105,6 +112,8 @@ export {
   evaluateProtectiveStopArm,
   findForeignRestingSell,
   findRestingProtectiveStop,
+  nativeTrailingDelta,
+  nativeTrailDistanceSentence,
   nativeTrailPreviewNote,
   ownRestingSellBase,
   percentPriceBySideRefusal,

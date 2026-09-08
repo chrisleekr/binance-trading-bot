@@ -174,6 +174,16 @@ const FILTERS = {
   maxPrice: '1000000',
 };
 
+const ZEC_FILTERS = {
+  minNotional: '0.0001',
+  tickSize: '0.000001',
+  stepSize: '0.001',
+  minQty: '0.001',
+  maxQty: '1000000',
+  minPrice: '0.000001',
+  maxPrice: '1000000',
+};
+
 // A profile whose buy gate consults a single 5m technicals interval.
 const entryConfig = (): TTConfig =>
   trailingTrade.configSchema.parse({
@@ -219,6 +229,49 @@ const makeInput = (
     account: { balances: { USDT: { free: '1000', locked: '0' } }, readable: true },
     bundle: { technicals, override: null, entryHint },
   }) as unknown as TickInput<TTConfig, TTState, TTBundle>;
+
+const zecGridConfig = (): TTConfig =>
+  trailingTrade.configSchema.parse({
+    symbol: 'ZECBTC',
+    candleInterval: '1h',
+    buy: {
+      enabled: true,
+      entrySizing: { mode: 'fixed', amount: '0.00012' },
+      avgEntryPriceRemoveThreshold: '0',
+      firstBuyTriggerBasis: 'immediate',
+      gridLevels: [
+        { triggerPercentage: '1', maxPurchaseAmount: '0.00012' },
+        { triggerPercentage: '0.99', maxPurchaseAmount: '0.00012' },
+      ],
+    },
+    sell: {
+      enabled: true,
+      stopLossPercentage: '0.9',
+      triggerPercentage: '1.05',
+      protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' },
+    },
+    technicals: { useOnlyWithinMin: 2, ifExpires: 'do-not-buy', intervals: [] },
+  }) as TTConfig;
+
+const makeZecInput = (config: TTConfig, state: TTState): TickInput<TTConfig, TTState, TTBundle> => {
+  const base = makeInput(config, tv([], []), undefined, '0.0118');
+  return {
+    ...base,
+    market: {
+      ...base.market,
+      symbol: 'ZECBTC',
+      symbolInfo: {
+        ...base.market.symbolInfo,
+        symbol: 'ZECBTC',
+        baseAsset: 'ZEC',
+        quoteAsset: 'BTC',
+        filters: ZEC_FILTERS,
+      },
+    },
+    state,
+    account: { balances: { BTC: { free: '1', locked: '0' } }, readable: true },
+  };
+};
 
 describe('evaluateGridBuy — enterOnAdd entry relaxation (issue #434)', () => {
   const sellTv = tv([intervalRow('5m')], [{ interval: '5m', signal: sig('SELL') }]);
@@ -300,6 +353,35 @@ describe('evaluateGridBuy — enterOnAdd entry relaxation (issue #434)', () => {
     // promotion path does not consult Technicals at all).
     expect(withHint.kind).toBe(withoutHint.kind);
     expect(withHint.kind).not.toBe('skip-tv');
+  });
+});
+
+describe('evaluateGridBuy — entry stop-floor scope', () => {
+  it('rejects a flat dust entry whose stop cannot be sold within the budget', () => {
+    const config = zecGridConfig();
+    const result = evaluateGridBuy(
+      makeZecInput(config, initialTTState()),
+      initialTTState(),
+      NOW_MS,
+    );
+
+    expect(result).toEqual({ kind: 'skip-filter', skip: 'entry-below-stop-notional' });
+  });
+
+  it('allows the same dust budget as an add-on because the floor applies only to opening buys', () => {
+    const config = zecGridConfig();
+    const state = {
+      ...initialTTState(),
+      avgEntryPrice: '0.012',
+      heldQuantity: '0.1',
+      currentGridTradeIndex: 0,
+    } as TTState;
+    const result = evaluateGridBuy(makeZecInput(config, state), state, NOW_MS);
+
+    expect(result).toMatchObject({
+      kind: 'emit',
+      decisions: [{ type: 'place-order', params: { type: 'MARKET', quantity: '0.010' } }],
+    });
   });
 });
 

@@ -121,6 +121,47 @@ An **orphan** is an order open on Binance's book that no profile is tracking. Be
 
 **Playbook:** open **[Orphan orders](../user-guide/account/orphan-orders.md)**, adopt any the bot recognises, and cancel-or-leave the rest as that page directs. That page also explains what an orphan is, why a resting order locks the base asset, which order ids each strategy can re-derive, and why deleting a profile is the one path that cancels orphans for you.
 
+## A stored config now exceeds a schema maximum
+
+A strategy's config schema can gain a **tighter** maximum in a release: the trailing-trade first-buy `candleLimit` ceiling moved from 1000 to 999, and the momentum slow EMA period gained one of 998. A maximum binds when a config is **parsed**, so it never rewrites a config row already stored above it — neither the profile's own config nor a per-symbol override of it. Such a profile keeps trading, because the live tick path reads its stored config without parsing it, but every path that does parse degrades quietly: adopting an orphan order, proving ownership of a resting order while the profile is being deleted, the live gate's backtest match, and saving the profile at all. `buy.candleLimit` is the one to check first — 1000 was the previously advertised legal maximum and is the round number an operator picks, and its default is 60.
+
+Open a database shell on the running stack:
+
+```bash
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+A strategy config is stored in **two** places, so this takes two read-only queries. The profile's own config is `profiles.config`:
+
+```sql
+-- Profiles whose stored strategy config now exceeds a schema maximum and can no longer be parsed.
+SELECT id, name, strategy_name,
+       config #>> '{buy,candleLimit}' AS candle_limit,
+       config #>> '{ema,slow}'        AS ema_slow
+FROM profiles
+WHERE jsonb_path_exists(config, '$.buy.candleLimit ? (@ > 999)')
+   OR jsonb_path_exists(config, '$.ema.slow ? (@ > 998)');
+```
+
+The other is the per-symbol patch in `profile_symbols.override_config`, which carries both of these knobs (trailing-trade rebuilds its whole `buy` block into the override schema, momentum exposes `ema` wholesale). The disposal path parses the **merged** config once per symbol, so an override holding an illegal value breaks the ownership proof for that symbol even when `profiles.config` is perfectly legal:
+
+```sql
+-- Per-symbol overrides that exceed the same maxima. The merged config is what gets parsed, so one of these breaks that symbol on its own.
+SELECT ps.profile_id, p.name, p.strategy_name, ps.symbol,
+       ps.override_config #>> '{buy,candleLimit}' AS candle_limit,
+       ps.override_config #>> '{ema,slow}'        AS ema_slow
+FROM profile_symbols ps
+JOIN profiles p ON p.id = ps.profile_id
+WHERE jsonb_path_exists(ps.override_config, '$.buy.candleLimit ? (@ > 999)')
+   OR jsonb_path_exists(ps.override_config, '$.ema.slow ? (@ > 998)');
+```
+
+Both use `jsonb_path_exists` rather than a cast in the `WHERE` clause on purpose. PostgreSQL does not promise that a `> 999` test filters rows before an adjacent `::numeric` cast runs, so one row holding a non-numeric value at either path would abort the whole query with `invalid input syntax for type numeric` — on the one query you were told to run before deleting a profile. A path predicate matches nothing on a non-numeric operand in lax mode instead, and `config` / `override_config` are already `jsonb`, so no cast is needed.
+
+There is nothing to do only when **both** queries come back empty. An empty first query on its own proves nothing: a legal `profiles.config` is exactly the case an illegal override hides behind. Every row either query returns needs its flagged value lowered inside the new bound **before** you next edit or delete that profile: set the knob to a legal value — 999 or less for the first-buy candle window, 998 or less for the slow EMA period — then save. The save is itself the repair, and it is also the operation the stale value blocks, so the form rejects the save until that field is legal. A row from the first query is repaired in the profile's config form; a row from the second is repaired in that symbol's per-symbol override editor, and editing the profile form will not touch it.
+
+Do it before the next profile deletion in particular. Deleting a profile whose config will not parse loses the **fingerprint** half of its order-ownership proof. Orders the bot recorded locally are still claimed and cancelled, a protective stop placed by the bot included; an order it never recorded — the kind a bookkeeping failure leaves behind — has only the fingerprint left to claim it, so it is not cancelled and stays resting on Binance as an [orphan](../user-guide/account/orphan-orders.md). Usually it is announced in the log as well: that announcement covers the symbols the profile still has a live order row or an open position on, which is the ordinary case. It is **not** announced on a symbol the profile has since unbound and holds no position on — there the order is abandoned with no log line at all. So after deleting a profile whose config would not parse, confirm on the [Orphan orders](../user-guide/account/orphan-orders.md) page rather than trusting the log to have listed everything.
+
 ## Still stuck?
 
 The [Contributing](../contributing/index.md) section covers the internals if you are comfortable reading logs and code.

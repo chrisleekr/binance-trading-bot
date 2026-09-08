@@ -92,6 +92,56 @@ describe('momentumRequiredWindow', () => {
     ).toBe(200);
   });
 
+  it('honours an enabled ATR trailing-stop lookback above the other needs', () => {
+    // Risk-based entry sizing divides by the initial stop distance, which
+    // `initialStopDistanceFraction` refuses on fewer than period + 1 candles, so a
+    // short window stops the profile entering at all rather than merely degrading
+    // the exit trail. The 300 here is deliberately above the schema's max of 100:
+    // only an out-of-schema stored period can outrun `resolveCandleWindow`'s 200
+    // floor, so this pins the declared arithmetic, not a shortfall a saved config
+    // can currently reach.
+    const c = cfg({
+      ema: { fast: 9, slow: 20 },
+      atrTrailingStop: { enabled: true, period: 300, multiple: '3' },
+    });
+    expect(momentumRequiredWindow(c)).toBe(301);
+  });
+
+  it('ignores a disabled ATR trailing stop', () => {
+    // A disabled block reads no candles, so declaring a need for them would stop
+    // this function describing what a decision reads. (The floor hides the effect
+    // on the loaded window either way; the declaration is what is under test.)
+    const c = cfg({
+      ema: { fast: 9, slow: 20 },
+      atrTrailingStop: { enabled: false, period: 400 },
+    });
+    expect(momentumRequiredWindow(c)).toBe(21);
+  });
+
+  it('keeps a wider EMA need when an enabled ATR block asks for less', () => {
+    // The ATR term is a hard need but not automatically the widest one. Without this
+    // the final comparison could be rewritten to prefer `atrNeed` whenever it is set
+    // and every other case here would still pass, collapsing a long-EMA profile's
+    // window to 15 candles.
+    const c = cfg({ ema: { fast: 9, slow: 200 }, atrTrailingStop: { enabled: true, period: 14 } });
+    expect(momentumRequiredWindow(c)).toBe(201);
+  });
+
+  it('coerces an omitted or invalid ATR period to the 14 default on an enabled block', () => {
+    // Same `atrStopPeriod` coercion the guard uses, so the declared need and
+    // the refusal threshold cannot drift: 14 + 1 closed candles.
+    expect(
+      momentumRequiredWindow(
+        cfg({ ema: { fast: 9, slow: 5 }, atrTrailingStop: { enabled: true } }),
+      ),
+    ).toBe(15);
+    expect(
+      momentumRequiredWindow(
+        cfg({ ema: { fast: 9, slow: 5 }, atrTrailingStop: { enabled: true, period: 'x' } }),
+      ),
+    ).toBe(15);
+  });
+
   it('coerces an unparsed (string) config and never throws on missing fields', () => {
     expect(momentumRequiredWindow(cfg({ ema: { slow: '50' } }))).toBe(51);
     expect(momentumRequiredWindow(cfg({}))).toBe(1); // slow absent → 0 + 1

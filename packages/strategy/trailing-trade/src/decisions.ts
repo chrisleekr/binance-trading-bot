@@ -192,7 +192,7 @@ export const buildManualOrderDecision = (
  * doesn't race a manual sell already in flight.
  *
  * The strategy's OWN resting exchange-side protective stop is excluded: it is
- * strategy-managed (cancelled in the same batch ahead of any closing sell), so
+ * strategy-managed (retired by the same exchange request that places any closing sell), so
  * counting it would freeze the in-process stop-loss the moment the protective
  * stop arms — defeating the backstop's primary path. `profileId` keys the
  * protective stop's deterministic clientOrderId so only that one order is
@@ -237,6 +237,7 @@ export const buildSellDecision = (
     readonly stopLimit?: { readonly stopPrice: string; readonly price: string };
     readonly trailingDelta?: number;
     readonly clientOrderId?: string;
+    readonly deferrable?: boolean;
   },
 ): Decision => {
   const intent: OrderIntent = {
@@ -246,6 +247,7 @@ export const buildSellDecision = (
     clientOrderId:
       opts?.clientOrderId ??
       sellClientOrderId(input.profile.id, input.market.symbol, clientOrderIdSeed),
+    ...(opts?.deferrable ? { deferrable: true } : {}),
   };
   let params: OrderParams;
   if (opts?.stopLimit) {
@@ -266,13 +268,42 @@ export const buildSellDecision = (
   return { type: 'place-order', intent, params };
 };
 
-/** Build the `cancel-order` Decision that retracts a resting protective stop (superseded by a re-arm or about to be closed by a market sell). Carries the symbol so the executor can cancel even with no local order row. */
+/** Build the `cancel-order` Decision that retracts a resting protective stop with nothing to put in its place. Reached only when no stop level resolves for a position that still has one resting — every other retraction rides a `replace-order` carrying its successor, and a disabled stop emits nothing at all. Carries the symbol so the executor can cancel even with no local order row. */
 export const buildProtectiveStopCancel = (order: OpenOrder, reason: string): Decision => ({
   type: 'cancel-order',
   orderId: order.orderId,
   symbol: order.symbol,
   reason,
 });
+
+/**
+ * Build one atomic cancel-replace request that retires a resting protective stop and transmits its successor, avoiding the window between a separate cancel and a separate place.
+ *
+ * The successor is not required to be another protective stop. A re-arm at a new level and a position-closing exit SELL are both legitimate here, because the `replace-order` contract constrains nothing about the successor's intent — it pairs a cancel with a placement, and the two need only concern the same base.
+ *
+ * `STOP_ON_FAILURE` is the right pairing for both. The only reason to retire the stop is to free the base the successor needs, so a refused cancel leaves the successor unplaceable anyway, and the still-resting stop keeps protecting the position until the next tick retries. The split shape failed the opposite way: the cancel could fail while the successor was transmitted regardless, leaving the stop and the exit both live against one base.
+ *
+ * @param resting - The exchange-side protective stop that the replacement retires.
+ * @param place - The successor order decision, which must be a `place-order` decision rather than any other decision.
+ * @param reason - The strategy-owned reason recorded for retiring the resting stop.
+ * @returns A generic `replace-order` decision carrying the successor order's intent and parameters.
+ */
+export const buildProtectiveStopReplace = (
+  resting: OpenOrder,
+  place: Decision,
+  reason: string,
+): Decision => {
+  if (place.type !== 'place-order') {
+    throw new Error('protective stop replacement requires a place-order successor');
+  }
+  return {
+    type: 'replace-order',
+    cancelOrderId: resting.orderId,
+    reason,
+    intent: place.intent,
+    params: place.params,
+  };
+};
 
 const sellClientOrderId = (profileId: string, symbol: string, seed: string): string =>
   // Tagged with seed so trailing-stop, stop-loss, and manual cycles get

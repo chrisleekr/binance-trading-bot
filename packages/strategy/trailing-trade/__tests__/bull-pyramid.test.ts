@@ -38,6 +38,22 @@ const SYMBOL_INFO = {
   },
 } as const;
 
+const ZEC_SYMBOL_INFO = {
+  symbol: 'ZECBTC',
+  baseAsset: 'ZEC',
+  quoteAsset: 'BTC',
+  status: 'TRADING',
+  filters: {
+    minNotional: '0.0001',
+    tickSize: '0.000001',
+    stepSize: '0.001',
+    minQty: '0.001',
+    maxQty: '1000000',
+    minPrice: '0.000001',
+    maxPrice: '1000000',
+  },
+} as const;
+
 const dayCandles = (closes: string[]): Candle[] =>
   closes.map((close, i) => ({
     openTimeMs: i * 86_400_000,
@@ -56,6 +72,7 @@ const BULL = ['100', '100', '100', '115', '120'];
 const NEUTRAL = ['100', '100', '100', '115', '105'];
 
 interface CfgOpts {
+  readonly symbol?: string;
   readonly enabled?: boolean;
   readonly step?: string;
   readonly maxAdds?: number;
@@ -64,6 +81,7 @@ interface CfgOpts {
   readonly maxPositionLossQuote?: string;
   readonly maxAccountExposureQuote?: string;
   readonly stopLossPercentage?: string;
+  readonly protectiveStop?: boolean;
 }
 
 // An amount-mode account cap from a legacy quote string ('' / '0' = off).
@@ -72,7 +90,7 @@ const amountCap = (v: string) =>
 
 const pyramidConfig = (o: CfgOpts = {}): TTConfig =>
   TTConfigSchema.parse({
-    symbol: 'BTCUSDT',
+    symbol: o.symbol ?? 'BTCUSDT',
     candleInterval: '1h',
     buy: {
       enabled: true,
@@ -84,7 +102,14 @@ const pyramidConfig = (o: CfgOpts = {}): TTConfig =>
       maxPositionLossQuote: o.maxPositionLossQuote ?? '',
       accountCap: amountCap(o.maxAccountExposureQuote ?? ''),
     },
-    sell: { enabled: true, stopLossPercentage: o.stopLossPercentage ?? '', triggerPercentage: '' },
+    sell: {
+      enabled: true,
+      stopLossPercentage: o.stopLossPercentage ?? '',
+      triggerPercentage: '',
+      ...(o.protectiveStop === true
+        ? { protectiveStop: { enabled: true, limitOffsetPercentage: '0.98' } }
+        : {}),
+    },
     regime: {
       ma: 'sma',
       period: 3,
@@ -116,6 +141,7 @@ const buildInput = (opts: {
   dailyCloses: string[];
   accountDeployedQuote?: string;
   openOrders?: readonly OpenOrder[];
+  symbolInfo?: typeof SYMBOL_INFO | typeof ZEC_SYMBOL_INFO;
 }): TickInput<TTConfig, TTState, TTBundle> => {
   const { config } = opts;
   const bundle = TTBundleSchema.parse({
@@ -136,10 +162,10 @@ const buildInput = (opts: {
     config,
     state: opts.state,
     market: {
-      symbol: 'BTCUSDT',
+      symbol: opts.symbolInfo?.symbol ?? 'BTCUSDT',
       currentPrice: opts.currentPrice,
       candlesByInterval: { '1d': dayCandles(opts.dailyCloses) },
-      symbolInfo: SYMBOL_INFO,
+      symbolInfo: opts.symbolInfo ?? SYMBOL_INFO,
     },
     account: {
       balances: {
@@ -160,6 +186,36 @@ const buildInput = (opts: {
 };
 
 describe('evaluateBullPyramid', () => {
+  it('allows a dust-budget add because the entry stop floor applies only to opening buys', () => {
+    const config = pyramidConfig({
+      symbol: 'ZECBTC',
+      addBudget: '0.00012',
+      stopLossPercentage: '0.9',
+      protectiveStop: true,
+    });
+    const state = {
+      ...trailingTrade.initialState(config),
+      avgEntryPrice: '0.011',
+      heldQuantity: '0.1',
+      currentGridTradeIndex: 0,
+    } as TTState;
+    const out = evaluateBullPyramid(
+      buildInput({
+        config,
+        state,
+        currentPrice: '0.0118',
+        dailyCloses: BULL,
+        symbolInfo: ZEC_SYMBOL_INFO,
+      }),
+      state,
+    );
+
+    expect(out).toMatchObject({
+      kind: 'add',
+      decisions: [{ type: 'place-order', params: { type: 'MARKET', quantity: '0.010' } }],
+    });
+  });
+
   it('adds on strength above cost: bumps count, sets lastBullAddPrice, pyr clientOrderId', () => {
     // price 105 >= anchor 100 (avgEntryPrice fallback) × (1 + 0.05).
     const config = pyramidConfig();

@@ -9,7 +9,8 @@ import {
 import type { TTBundle, TTConfig, TTState } from '../schema.js';
 import { clearedSellPosition } from '../position-lifecycle.js';
 import { armAutoTriggerBuy, emitForcedFirstEntry } from './first-entry.js';
-import { protectiveStopCancelDecisions } from './protective-stop.js';
+import { closingSellDecisions } from './protective-stop.js';
+import { safeDecimal } from './safe-decimal.js';
 import { reclaimableOwnSellBase, resolveHeldForSell, sellSkipLogLevel } from './sell-gate.js';
 import { forceSellCooldownActive, forceSellCooldownBlock } from '../force-sell-cooldown.js';
 
@@ -19,13 +20,20 @@ import { forceSellCooldownActive, forceSellCooldownBlock } from '../force-sell-c
  * and it can only tie an order back to the override if the order carries the
  * id — a positional or side-based guess would settle the wrong row whenever a
  * tick emits an unrelated order alongside the override's.
+ *
+ * `replace-order` carries the same successor intent as the `place-order` it
+ * replaced, so it must be stamped too: an override SELL that fuses with a
+ * resting protective stop emits no `place-order` at all, and skipping it here
+ * would leave the operator's close unattributable and unsettleable.
  */
 const attributeToOverride = (
   decisions: readonly Decision[],
   overrideActionId: string,
 ): Decision[] =>
   decisions.map((d) =>
-    d.type === 'place-order' ? { ...d, intent: { ...d.intent, overrideActionId } } : d,
+    d.type === 'place-order' || d.type === 'replace-order'
+      ? { ...d, intent: { ...d.intent, overrideActionId } }
+      : d,
   );
 
 /** The override the caller has already proven non-null. */
@@ -51,6 +59,22 @@ export const handleOverride = (
   return { ...out, decisions: attributeToOverride(out.decisions, override.overrideActionId) };
 };
 
+/**
+ * Whether a manual SELL of `quantity` leaves nothing of the tracked position behind.
+ *
+ * Fails CLOSED on anything it cannot prove: an unset or unparseable `heldQuantity` is not evidence of a full close, and treating it as one would retire the protective stop off a number the strategy does not have. Keeping the stop costs an over-sized resting order for one tick, which the next tick re-sizes; retiring it wrongly costs the protection itself.
+ *
+ * @param quantity - The step-rounded manual SELL quantity the operator's order will carry.
+ * @param state - The tick's next state, whose `heldQuantity` is the strategy's tracked position size.
+ * @returns True only when the sell provably covers the whole tracked position.
+ */
+const emptiesPosition = (quantity: string, state: TTState): boolean => {
+  if (state.heldQuantity === null) return false;
+  const held = safeDecimal(state.heldQuantity);
+  const selling = safeDecimal(quantity);
+  return held !== null && selling !== null && held.gt(0) && selling.gte(held);
+};
+
 const overrideOutput = (
   input: TickInput<TTConfig, TTState, TTBundle>,
   nextState: TTState,
@@ -70,26 +94,21 @@ const overrideOutput = (
         market.symbolInfo.filters,
       );
       if ('quantity' in result) {
-        // A manual SELL may close the whole position; retract any resting
-        // protective stop ahead of it so the exchange does not hold a stale
-        // limit against an already-flat position (orphan ⇒ double-sell on a
-        // later gap-down). A partial close re-arms next tick; a manual BUY adds
-        // exposure and leaves the stop correctly in place, so cancel SELL-only.
-        const cancels =
-          override.payload.side === 'SELL' ? protectiveStopCancelDecisions(input) : [];
+        const manualDecision = buildManualOrderDecision(
+          input,
+          override.payload,
+          result.quantity,
+          override.overrideActionId,
+        );
         return {
           // A manual order is not a buy-gate evaluation; clear any stale blocker
           // so the worker's prev/next diff and the symbol page do not show one.
           nextState: { ...nextState, entryBlocker: null },
-          decisions: [
-            ...cancels,
-            buildManualOrderDecision(
-              input,
-              override.payload,
-              result.quantity,
-              override.overrideActionId,
-            ),
-          ],
+          // Only a SELL that empties the position retires the resting protective stop with it: fusing is what stops an orphaned stop double-selling on a later gap-down, and there is no orphan while the position it was sized for is still there. A PARTIAL manual sell must keep the stop, because the fusion places the operator's sell as the successor and a `replace-order` carries exactly one, so the remainder would be left with no protective order until a later tick armed one. This branch returns before `evaluateProtectiveStop`, and the tick runs on `candleInterval`, so on a `1h` or `1d` profile that gap is an hour or a day, not a moment. A BUY adds exposure and leaves the stop correctly in place, so it never fuses either.
+          decisions:
+            override.payload.side === 'SELL' && emptiesPosition(result.quantity, nextState)
+              ? closingSellDecisions(input, manualDecision)
+              : [manualDecision],
           logs: [
             log('info', 'tt-manual-order', {
               symbol: market.symbol,
@@ -192,8 +211,9 @@ const overrideOutput = (
       // dust amount fails filters; in those cases the operator's
       // override is consumed but no order goes out, with a warn log.
       const baseAsset = market.symbolInfo.baseAsset;
-      // The close batch below cancels our own resting protective stop before the
-      // MARKET sell, so the base that stop locks is sellable here. Omitting it
+      // The close below retires our own resting protective stop in the same
+      // exchange request that places the MARKET sell, so the base that stop locks
+      // is sellable here. Omitting it
       // read `free` as zero on any position its own stop defends — the operator's
       // manual close was refused on exactly the positions that needed it most.
       const free = resolveHeldForSell(
@@ -221,18 +241,16 @@ const overrideOutput = (
         };
         return {
           nextState: postSellState,
-          decisions: [
-            // Full-position MARKET close: retract any resting protective stop
-            // first so it does not survive the flat position and double-sell on
-            // a later gap-down.
-            ...protectiveStopCancelDecisions(input),
+          // Full-position MARKET close: one atomic request retires any resting protective stop AND places the close, so the stop can never survive the flat position and double-sell on a later gap-down.
+          decisions: closingSellDecisions(
+            input,
             buildSellDecision(
               input,
               'manual',
               result.quantity,
               `trigger-sell-${override.overrideActionId}`,
             ),
-          ],
+          ),
           logs: [
             log('info', 'tt-trigger-sell', {
               symbol: market.symbol,

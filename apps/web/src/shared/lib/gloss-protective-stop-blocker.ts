@@ -63,6 +63,14 @@ export function glossProtectiveStopBlocker(blocker: ProtectiveStopBlocker): stri
         : ' None of the coins are free to sell.';
       return `The bot thinks it holds this position, but the coins are not free in your Binance wallet — they were moved, withdrawn, or are locked in another order — so it cannot place its protective stop (the automatic sell that caps a loss).${detail} Move the coins back (or cancel whatever is holding them) and the stop arms itself on the next check. Until then this position has no safety net.`;
     }
+    case 'resting-stop-short-of-position': {
+      const resting = str(d, 'resting');
+      const held = str(d, 'held');
+      // Named as a partial safety net rather than none, because that is what it is, and the badge derived from `guarded` says the same thing. Telling this operator the position is unprotected would send them to cancel a stop that is protecting most of it.
+      const cover =
+        resting && held ? ` It sells ${resting} coins, and the position now holds ${held}.` : '';
+      return `The protective stop (the automatic sell that caps a loss) resting on Binance covers only part of this position, because the position grew after that stop was placed.${cover} Binance trails the stop from the highest price it has seen since the order went on, and replacing the order restarts that from today's price, which would hand back a worse trigger on the coins already covered. So the bot keeps the stop it has until the price sets a new high, at which point it re-arms for the full amount. Until then the extra coins have no safety net; selling them by hand also clears it.`;
+    }
     case 'price-outside-exchange-band': {
       const price = str(d, 'price');
       // Which end of the range was breached. A stop priced ABOVE the ceiling is
@@ -88,8 +96,43 @@ export function glossProtectiveStopBlocker(blocker: ProtectiveStopBlocker): stri
     }
     case 'base-below-exchange-minimum': {
       const free = str(d, 'free');
-      const detail = free ? ` Only ${free} coins are free.` : '';
-      return `Too few coins are free to sell: what is left is below Binance's minimum order size, so the bot cannot place a protective stop (the automatic sell that caps a loss) against it.${detail} Free up more of the position — cancel other sell orders on this pair — and the stop arms itself on the next check. Until then this position has no safety net.`;
+      const resting = str(d, 'resting');
+      const held = str(d, 'held');
+      const required = str(d, 'required');
+      // The full-size refusal carries `skip`; the foreign-lock classifier does not, so this field identifies the producer.
+      const fullSizeRefusal = typeof d?.['skip'] === 'string';
+      // The `required` figure is worked out at the price written on the order, and which price that is depends on the order. An ordinary stop sells down to a limit a little under the trigger, so calling it "the stop price" invites the operator to check the number against the trigger and conclude the bot is wrong. A native trailing stop carries no price at all, so naming its trigger "the price it would sell at" names the one price that order will not sell at. Blockers persisted before these fields existed carry no `checkedAt`, and they must still read as a clean sentence rather than quoting nothing; an old one carrying `checkedAt` without the leg was a priced stop, which is what the limit wording describes.
+      const checkedAt = str(d, 'checkedAt');
+      const checkedAtLeg = str(d, 'checkedAtLeg');
+      const atPrice = !checkedAt
+        ? 'the stop price'
+        : checkedAtLeg === 'trigger'
+          ? `its trigger price (${checkedAt})`
+          : checkedAtLeg === 'market'
+            ? `the current market price (${checkedAt})`
+            : `the price it would sell at (${checkedAt})`;
+      // Which price the bot chose is its own decision, not an exchange rule, so the copy attributes it to the bot: Binance values a market-type order at an average of recent trade prices, and only when `applyMinToMarket` is set. Naming Binance as the one that measured would send an operator to divide the exchange minimum by a price the exchange never looked at. `trigger` is now the degraded case rather than the normal one, so it says why the bot settled for it and which way the error runs.
+      const legNote = !checkedAt
+        ? ''
+        : checkedAtLeg === 'market'
+          ? ' This stop is a trailing one with no price written on it — it sells at whatever the market pays the moment it fires — so the bot sizes it against the market price.'
+          : checkedAtLeg === 'trigger'
+            ? ' This stop is a trailing one with no price written on it, and the bot could not read a usable market price this tick, so it fell back to the trigger. That is the cautious side: the trigger sits below the market, so the bot asks for more coins than it strictly needs rather than fewer.'
+            : '';
+      const lead = fullSizeRefusal
+        ? `The whole position${held ? ` (${held} coins held)` : ''} is below Binance's minimum sellable size${required ? ` (${required} coins required)` : ''} at ${atPrice}, so the bot cannot place a protective stop (the automatic sell that caps a loss).${legNote}`
+        : `Too few coins are free to sell: what is left is below Binance's minimum order size, so the bot cannot place a protective stop (the automatic sell that caps a loss) against it.${free ? ` Only ${free} coins are free.` : ''}`;
+      // The badge reads this same guarded flag, so deriving the copy from it keeps the two surfaces from disagreeing about whether the position has a safety net.
+      const guarded = blockerPositionGuarded(blocker);
+      const remedy =
+        resting && guarded
+          ? ' The existing protective stop stays in place at its old trigger and still covers the whole position, so it cannot be re-armed at a new level until the position is topped up or sold by hand.'
+          : resting
+            ? ` An older protective stop still rests at its previous trigger but covers only ${resting}${held ? ` of the ${held} coins held` : ' coins held'}; the rest has no safety net until the position is topped up or sold by hand.`
+            : fullSizeRefusal
+              ? ' Top the position up above the minimum or sell it by hand. Until then this position has no safety net.'
+              : ' Free up more of the position — cancel other sell orders on this pair — and the stop arms itself on the next check. Until then this position has no safety net.';
+      return `${lead}${remedy}`;
     }
     default:
       return 'The protective stop (the automatic sell that caps a loss) is not in place on this position right now.';

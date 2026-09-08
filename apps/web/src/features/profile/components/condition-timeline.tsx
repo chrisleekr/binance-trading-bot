@@ -186,8 +186,12 @@ export const buildTimeline = (report: ProfileDiagnosis): Timeline => {
   };
 };
 
-const spanTone = (severity: DiagnosisItem['severity']): string =>
-  severity === 'blocking' ? 'bg-danger' : 'bg-warning';
+// A map rather than a ternary, so a severity added to the contract fails the build instead of silently inheriting the amber default: a by-design span painted the same colour as a real problem is the confusion the third severity exists to remove.
+const SPAN_TONE: Record<DiagnosisItem['severity'], string> = {
+  blocking: 'bg-danger',
+  degraded: 'bg-warning',
+  'by-design': 'bg-muted-fg',
+};
 
 function Lane({
   lane,
@@ -215,7 +219,7 @@ function Lane({
               data-open={s.open ? 'true' : 'false'}
               title={`${s.label} — ${humaniseAge(s.endMs - s.startMs)}${s.clipped ? ', began before the log window' : ''}`}
               data-severity={s.severity}
-              className={`absolute inset-y-0 ${spanTone(s.severity)} ${
+              className={`absolute inset-y-0 ${SPAN_TONE[s.severity]} ${
                 // A clipped span keeps its square left edge and a marker stripe: a rounded start would draw a beginning that was not observed.
                 s.clipped ? 'rounded-r-sm border-l-2 border-dashed border-fg' : 'rounded-sm'
               }`}

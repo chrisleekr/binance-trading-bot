@@ -3,7 +3,7 @@ import { accountEquity, log } from '@app/strategy-core';
 import type { Decision, LogEntry, TickInput } from '@app/strategy-core';
 import { gridBuyClientOrderId } from '../client-order-id.js';
 import { buildGridBuyDecision } from '../decisions.js';
-import { computeFirstBuyQuantity, type FirstBuySkipReason } from '../quantity.js';
+import { computeFirstBuyQuantity, ttEntryStopFloor, type FirstBuySkipReason } from '../quantity.js';
 import type { TTBundle, TTConfig, TTState } from '../schema.js';
 import {
   evaluateEnterOnAddFloor,
@@ -449,6 +449,7 @@ export const evaluateGridBuy = (
     market.currentPrice,
     market.symbolInfo.filters,
     level.minPurchaseAmount,
+    state.avgEntryPrice === null ? ttEntryStopFloor(config) : null,
   );
   if ('skip' in result) {
     return { kind: 'skip-filter', skip: result.skip };

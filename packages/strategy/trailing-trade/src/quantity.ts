@@ -1,30 +1,38 @@
 import type { ManualOrderRequest } from '@app/contracts';
 import { Decimal, roundToStep } from '@app/money';
-import { finalise, parseFilters, type SymbolFilters } from '@app/strategy-core';
+import {
+  applyEntryStopFloor,
+  decOrNull,
+  finalise,
+  parseFilters,
+  type EntryStopFloor,
+  type SymbolFilters,
+} from '@app/strategy-core';
+import type { TTConfig } from './schema.js';
+import { ttStopLimitOffset } from './stop-level.js';
 
 /**
  * Skip-reason tag every first-buy rejection carries so the
  * no-silent-failure invariant holds for cases that look like a hung
  * strategy from outside; downstream metrics key on each tag.
  */
-export type FirstBuySkipReason = 'min-qty' | 'min-notional' | 'min-purchase' | 'invalid-filters';
+export type FirstBuySkipReason =
+  'min-qty' | 'min-notional' | 'min-purchase' | 'invalid-filters' | 'entry-below-stop-notional';
 
-/**
- * Decide the first-buy quantity for the configured max-purchase budget under
- * Binance's per-symbol filters. Returns a skip-reason rather than throwing so
- * the caller can emit the corresponding metric; downstream dashboards
- * distinguish filter rejections from a gate veto.
+/** Decide the first-buy quantity for the configured max-purchase budget under Binance's per-symbol filters. Returns a skip-reason rather than throwing so the caller can emit the corresponding metric; downstream dashboards distinguish filter rejections from a gate veto.
+ * @param maxPurchaseAmount - The maximum quote amount the buy may spend.
+ * @param currentPrice - The current quote price used to convert the budget into base quantity.
+ * @param filters - The exchange filters that constrain the quantity and notional.
+ * @param minPurchaseAmount - The per-grid minimum quote spend; empty means no floor, and an order whose step-rounded notional falls below it skips with `min-purchase` rather than placing a smaller order than the operator allowed.
+ * @param stop - The entry stop-floor inputs, or `null` when no stop is configured, so no sellability floor applies.
+ * @returns The filter-valid quantity, or a typed skip reason when the budget cannot produce one.
  */
 export const computeFirstBuyQuantity = (
   maxPurchaseAmount: string,
   currentPrice: string,
   filters: SymbolFilters,
-  // Per-grid min purchase amount: the floor on quote spent at this level.
-  // Empty (default) applies no floor, so the single-buy call site and
-  // existing grid configs are unchanged. When set, an order whose notional
-  // (after stepSize rounding) falls below it skips with `min-purchase` rather
-  // than placing a smaller order than the operator allowed.
   minPurchaseAmount = '',
+  stop: EntryStopFloor | null,
 ): { quantity: string } | { skip: FirstBuySkipReason } => {
   // `new Decimal()` throws on malformed input (empty / `'abc'` / `undefined`),
   // which would break the documented "skip-not-throw" contract if a snapshot
@@ -43,6 +51,8 @@ export const computeFirstBuyQuantity = (
   const quantity = roundToStep(budget.div(price), parsed.step);
   const sized = finalise(quantity, price, parsed);
   if ('skip' in sized) return sized;
+  const stopChecked = applyEntryStopFloor(quantity, price, parsed, stop);
+  if ('skip' in stopChecked) return stopChecked;
   if (minPurchaseAmount !== '') {
     let minSpend: Decimal;
     try {
@@ -58,6 +68,19 @@ export const computeFirstBuyQuantity = (
     if (minSpend.gt(0) && quantity.mul(price).lt(minSpend)) return { skip: 'min-purchase' };
   }
   return sized;
+};
+
+/** Resolve the protective-stop floor inputs used by a flat trailing-trade entry, so the entry cannot create a position too small to sell at its stop. The protective-stop arm rests no limit leg when an enabled stop's offset is missing, unparseable, or non-positive, so 1 models the in-process MARKET sell at the trigger. An offset above 1 would make the arm rest a limit above the trigger; capping it at 1 prices the sell no higher than the trigger and demands at least as much quantity as the arm's real limit, keeping the entry floor conservative. A disabled protective stop also has no limit leg and therefore uses 1. The raw-config read preserves compatibility with profiles saved before the protective-stop fields existed. Unlike `stopDistanceFraction`, this accepts a stop percentage of 1 because risk sizing divides by the distance and must reject zero, while the sell gate still fires at the entry price.
+ * @param config - The trailing-trade settings that determine the stop distance and limit offset.
+ * @returns The entry stop-floor inputs, or null when no usable loss-side stop is configured.
+ */
+export const ttEntryStopFloor = (config: TTConfig): EntryStopFloor | null => {
+  if (config.sell?.enabled !== true) return null;
+  const stopPct = decOrNull(config.sell.stopLossPercentage);
+  if (stopPct === null || !stopPct.gt(0) || stopPct.gt(1)) return null;
+  const distanceFraction = new Decimal(1).sub(stopPct);
+  const protectiveStop = config.sell?.protectiveStop;
+  return { distanceFraction, limitOffset: ttStopLimitOffset(protectiveStop) };
 };
 
 /**

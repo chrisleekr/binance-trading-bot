@@ -77,6 +77,7 @@ export {
 export { parseUserStreamFrame, type UserStreamEvent } from './user-stream-frame.js';
 
 export {
+  BINANCE_MAX_KLINE_LIMIT,
   fetchClosedKlines,
   type FetchClosedKlinesDeps,
   type PublicKlinesRequest,

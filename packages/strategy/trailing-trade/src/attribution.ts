@@ -106,6 +106,12 @@ export const ttReasonAttribution: ReasonAttribution = {
     gloss: "Order fell below Binance's minimum notional",
     kind: 'sizing',
   },
+  'entry-below-stop-notional': {
+    setting: 'Entry budget',
+    note: 'The budget cannot fund the minimum position that would remain sellable at the protective stop',
+    gloss: 'The position would be too small to sell at its stop',
+    kind: 'sizing',
+  },
   'min-qty': {
     setting: 'Binance minimum quantity',
     note: "Binance's per-symbol minimum order size, not your setting — raise your per-trade budget to clear it",
@@ -144,6 +150,12 @@ export const ttReasonAttribution: ReasonAttribution = {
     note: 'a stored exit threshold could not be read, so that rung is inactive — re-save the profile settings',
     gloss: 'An exit setting could not be read',
     kind: 'config',
+  },
+  'stop-infeasible-dust': {
+    setting: 'Held quantity',
+    note: 'the position is too small to sell if its stop triggers, so top up the position or accept the dust and sell it by hand',
+    gloss: 'The position is too small to sell if its stop triggers',
+    kind: 'sizing',
   },
   'trail-high-raised': {
     gloss: 'Price made a new high and the trailing stop followed it up',
@@ -219,9 +231,16 @@ export const ttReasonAttribution: ReasonAttribution = {
     gloss: 'The wallet no longer backs this position, so no protective stop could be placed',
     kind: 'sizing',
   },
+  // Same no-lever reasoning as the exchange-minimum entry below: the settings that would force the re-arm sooner all do it by widening the trail, trading the trigger level on the covered coins for coverage of the rest.
+  'resting-stop-short-of-position': {
+    note: 'the trailing stop resting on Binance sells fewer coins than the position now holds, because the position grew after it was placed; replacing it would restart the high-water mark Binance trails from and hand back a worse trigger, so it is kept until the price sets a new high',
+    gloss: 'The protective stop on Binance covers only part of the position',
+    kind: 'sizing',
+  },
+  // The note names the limit offset because the refusal threshold moves with it, but no `paths` lever is offered: the offset shifts the measured price by a couple of percent, which clears only a position sitting just under the minimum. On the common shape, a position genuinely too small, pointing the operator at that setting would spend their one obvious action on a change that cannot work.
   'base-below-exchange-minimum': {
-    note: "what is free to sell is under Binance's fixed minimum order size for this pair, which is not a setting you can lower",
-    gloss: 'Too few coins are free to meet the exchange minimum for a protective stop',
+    note: "measured at the stop's own price rather than today's market price, the coins the stop would sell fall under Binance's fixed minimum order size for this pair; the minimum itself is not a setting you can lower, but the price it is measured against moves with the stop's limit offset — either the position is that small or too little of it is free, so it clears by freeing coins, adding to the position, selling it by hand, or raising the limit offset so the limit price sits closer to the trigger",
+    gloss: "The coins the stop would sell are under Binance's minimum order size",
     kind: 'sizing',
   },
 };

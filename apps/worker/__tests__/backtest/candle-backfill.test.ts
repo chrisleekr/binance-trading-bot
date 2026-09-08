@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
+import { BINANCE_MAX_KLINE_LIMIT } from '@app/binance';
 import type { ParsedKline } from '@app/binance';
 import type { MsRange, schema } from '@app/db';
 import { backfillCandles } from '../../src/backtest/candle-backfill.js';
@@ -29,6 +30,18 @@ function fakeKlines(startTime: number, endTime: number, limit: number): ParsedKl
   return out;
 }
 
+/**
+ * Same grid as `fakeKlines`, but it refuses to invent a page size: given no `limit`, `fakeKlines` yields nothing and the backfill breaks out on its first iteration, so a regression that dropped the explicit `limit` from the request would surface as a confusing zero-insert failure instead of a named throw. The page size itself is pinned by the direct assertion on the first `getKlines` call, not by this helper.
+ */
+const strictKlines = (p: {
+  startTime?: number;
+  endTime?: number;
+  limit?: number;
+}): ParsedKline[] => {
+  if (p.limit === undefined) throw new Error('backfill must send an explicit klines limit');
+  return fakeKlines(p.startTime ?? 0, p.endTime ?? 0, p.limit);
+};
+
 /** One ParsedKline with placeholder OHLCV; only the times drive these tests. */
 const c = (openTimeMs: number, closeTimeMs: number): ParsedKline => ({
   openTimeMs,
@@ -47,7 +60,10 @@ function harness(opts: {
 }) {
   const inserted: schema.CandleInsert[] = [];
   const getKlines = vi.fn(async (p: { startTime?: number; endTime?: number; limit?: number }) =>
-    (opts.getKlines ?? ((q) => fakeKlines(q.startTime ?? 0, q.endTime ?? 0, q.limit ?? 500)))(p),
+    (
+      opts.getKlines ??
+      ((q) => fakeKlines(q.startTime ?? 0, q.endTime ?? 0, q.limit ?? BINANCE_MAX_KLINE_LIMIT))
+    )(p),
   );
   const deps = {
     getKlines: getKlines as never,
@@ -93,11 +109,14 @@ describe('backfillCandles', () => {
   });
 
   it('paginates a gap larger than the page limit', async () => {
-    // 1200-candle gap, page 500 → 3 requests (500 + 500 + 200)
-    const span = 1199; // candles 0..1199 inclusive = 1200
+    // Two full pages plus a partial tail. What is pinned is the cursor advance: every call must resume exactly one page after the previous one, with no candle skipped and none re-fetched, so the expected startTimes are computed from the page size rather than written down.
+    const totalCandles = BINANCE_MAX_KLINE_LIMIT * 2 + 200;
+    const pages = Math.ceil(totalCandles / BINANCE_MAX_KLINE_LIMIT);
+    const span = totalCandles - 1; // candles 0..span inclusive
     const { deps, getKlines } = harness({
       gaps: [{ fromMs: 0, toMs: span * MIN }],
       nowMs: 100_000 * MIN,
+      getKlines: strictKlines,
     });
     const res = await backfillCandles(deps, {
       symbol: 'BTCUSDT',
@@ -105,11 +124,41 @@ describe('backfillCandles', () => {
       fromMs: 0,
       toMs: span * MIN,
     });
-    expect(getKlines).toHaveBeenCalledTimes(3);
-    expect(res.inserted).toBe(1200);
-    // pages advance startTime: 0, 500m, 1000m
-    expect(getKlines.mock.calls[1]?.[0]).toMatchObject({ startTime: 500 * MIN });
-    expect(getKlines.mock.calls[2]?.[0]).toMatchObject({ startTime: 1000 * MIN });
+    expect(getKlines).toHaveBeenCalledTimes(pages);
+    expect(res.inserted).toBe(totalCandles);
+    expect(getKlines.mock.calls.map((call) => call[0]?.startTime)).toEqual(
+      Array.from({ length: pages }, (_, page) => page * BINANCE_MAX_KLINE_LIMIT * MIN),
+    );
+  });
+
+  it('asks for the largest page the exchange accepts', async () => {
+    // The page size is the exchange ceiling, not a hand-picked number. Klines weight is flat across every legal limit, so paging below the ceiling buys no rate-limit headroom and only multiplies round trips.
+    const { deps, getKlines } = harness({
+      gaps: [{ fromMs: 0, toMs: 4 * MIN }],
+      nowMs: 100 * MIN,
+      getKlines: strictKlines,
+    });
+    await backfillCandles(deps, { symbol: 'BTCUSDT', interval: '1m', fromMs: 0, toMs: 4 * MIN });
+    expect(getKlines.mock.calls[0]?.[0]).toMatchObject({ limit: BINANCE_MAX_KLINE_LIMIT });
+  });
+
+  it('spends only the requests the exchange ceiling implies on a multi-page gap', async () => {
+    // The expected count is derived from the constant rather than written as a literal, so a page size below the ceiling surfaces here as extra round trips even though every candle still lands.
+    const totalCandles = BINANCE_MAX_KLINE_LIMIT + 250;
+    const lastOpenMs = (totalCandles - 1) * MIN;
+    const { deps } = harness({
+      gaps: [{ fromMs: 0, toMs: lastOpenMs }],
+      nowMs: (totalCandles + 1_000) * MIN,
+      getKlines: strictKlines,
+    });
+    const res = await backfillCandles(deps, {
+      symbol: 'BTCUSDT',
+      interval: '1m',
+      fromMs: 0,
+      toMs: lastOpenMs,
+    });
+    expect(res.inserted).toBe(totalCandles);
+    expect(res.requests).toBe(Math.ceil(totalCandles / BINANCE_MAX_KLINE_LIMIT));
   });
 
   it('drops the currently-forming bar', async () => {
@@ -208,9 +257,7 @@ describe('backfillCandles', () => {
   });
 
   it('keeps paging after a short page that does not reach the gap end (reproducibility)', async () => {
-    // Binance can return < PAGE_LIMIT mid-gap (clipping / sparse window) while
-    // more candles exist later. The backfill must page on, not stop, so two
-    // runs read the identical complete set (the cross-run drift root cause).
+    // Binance can return fewer rows than a full page mid-gap (clipping / sparse window) while more candles exist later. The backfill must page on, not stop, so two runs read the identical complete set (the cross-run drift root cause).
     const range = (fromIdx: number, toIdx: number): ParsedKline[] => {
       const out: ParsedKline[] = [];
       for (let i = fromIdx; i <= toIdx; i += 1) out.push(c(i * MIN, i * MIN + MIN - 1));
@@ -221,8 +268,8 @@ describe('backfillCandles', () => {
       nowMs: 100_000 * MIN,
       getKlines: (p) => {
         const start = p.startTime ?? 0;
-        if (start === 0) return range(0, 99); // short first page (100 < 500), mid-gap
-        if (start === 100 * MIN) return range(100, 599); // full page
+        if (start === 0) return range(0, 99); // short first page (100 rows), mid-gap
+        if (start === 100 * MIN) return range(100, 599); // another short page (500 rows), still mid-gap
         if (start === 600 * MIN) return range(600, 1000); // tail
         return [];
       },

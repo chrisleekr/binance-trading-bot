@@ -23,6 +23,7 @@
 // and the ring — strategies and indicators must never fold a still-
 // forming bar.
 
+import { BINANCE_MAX_KLINE_LIMIT } from '../public-klines.js';
 import { queueAsyncIterable } from './async-queue.js';
 import type { BinanceWs, BinanceWsFactory } from './ws.js';
 
@@ -53,16 +54,22 @@ const BINANCE_MAX_STREAMS_PER_CONNECTION = 1024;
 // symbol set this large needs the deferred consistent-hash sharding, not a wider
 // single-process fan-out.
 const BINANCE_MAX_POOL_MEMBERS = 16;
-// Sized to the largest window any live consumer requests (build-tick-input and
-// indicator-computer both ask for 200) plus headroom; the offline backtest
-// runner uses its own candle cache, not this ring. 500 was 2x what anything
-// reads — wasted heap that multiplies by (symbols x intervals), which matters
-// on a low-RAM host with a large symbol set. `loadWindow` still REST-falls-back
-// if a future caller ever asks for more than the ring holds.
+// Sized for the common case, not the worst one: the ring is per (symbol, interval) heap that multiplies across the whole symbol set, so it holds the window a typical config asks for rather than the ceiling one could ask for. `requiredWindow` is config-driven, so a lookback beyond the ring is legitimate and stays served by `loadWindow`'s REST fallback, memoised per candle.
 const DEFAULT_RING_SIZE = 256;
 const DEFAULT_BACKOFF = { initialMs: 1_000, maxMs: 60_000, factor: 2 } as const;
-/** Flat Binance spot weight for `GET /api/v3/klines` (2, any limit ≤ 1000). */
+/** Flat Binance spot weight for `GET /api/v3/klines` (2 at any limit up to {@link BINANCE_MAX_KLINE_LIMIT}). */
 const KLINE_WEIGHT = 2;
+
+/**
+ * REST `limit` that yields `closedNeeded` CLOSED candles. `fetchClosedKlines` drops the still-forming bar, so a request for N rows comes back with N-1 closed ones and a caller gating on `candles.length >= closedNeeded` would never pass. Binance documents `limit` as an integer in [1, {@link BINANCE_MAX_KLINE_LIMIT}] and the value is interpolated straight into the query string, so this is the single normalisation point as well as the single clamp point: a fractional input would ride out as `&limit=250.5` and Binance would reject every request, failing that (profile, symbol) on every tick, exits included. A non-finite input needs its own arm because the arithmetic cannot clamp it: `Math.ceil(NaN) + 1` is NaN and both `Math.max` and `Math.min` propagate it, so it would ride out as `&limit=NaN` and Binance would reject the request with no clue as to which value was malformed. Collapsing it to the smallest legal limit keeps the request well-formed, but only the caller can make that collapse visible: it must normalise the size the same way and read both its slice bound and its short-window verdict off the normalised value, because a raw NaN silently defeats both (`slice(NaN)` coerces to 0 and returns everything, and `length < NaN` is false), turning a collapsed request into an empty window that is memoised without a single log line.
+ *
+ * @param closedNeeded - Count of closed candles the caller must end up holding. Originates in operator config, which the live worker may hand to a strategy unparsed, so it is not guaranteed to be a positive integer, nor even a number at all.
+ * @returns The `limit` to send: an integer in [1, {@link BINANCE_MAX_KLINE_LIMIT}].
+ */
+const restLimitFor = (closedNeeded: number): number => {
+  if (!Number.isFinite(closedNeeded)) return 1;
+  return Math.min(Math.max(Math.ceil(closedNeeded) + 1, 1), BINANCE_MAX_KLINE_LIMIT);
+};
 
 interface BackoffConfig {
   readonly initialMs: number;
@@ -80,6 +87,16 @@ interface SubscriberState {
   cancelled: boolean;
 }
 
+/** Which branch of `loadWindow` produced a memoised answer. A ring answer is a synchronous slice of an in-memory array, so recomputing it is free; a REST answer cost a weight-2 network round trip. The eviction policy needs to tell them apart so it can prefer spending a cheap entry over an expensive one. It is a preference, not a guarantee: once every entry under the cap is REST-sourced there is nothing cheap left to spend, and the oldest expensive one goes even for a ring-sourced insert. That degrades only past four distinct sizes on one key, which is beyond the handful the profiles sharing a (symbol, interval) plus the indicator computer actually ask for. */
+type WindowSource = 'ring' | 'rest';
+
+interface MemoEntry {
+  readonly window: readonly ClosedKline[];
+  /** Wall-clock ms at which this answer was installed, from the injected clock. Read only by the age backstop. */
+  readonly installedAtMs: number;
+  readonly source: WindowSource;
+}
+
 interface KeyState {
   readonly symbol: string;
   readonly interval: string;
@@ -89,14 +106,13 @@ interface KeyState {
   /** True while the REST cold-load for this key is in flight. */
   coldLoading: boolean;
   /**
-   * Memoised `loadWindow` slice for the last-requested size. The ring changes
-   * only on a candle close (fanOut) or cold-load, but `loadWindow` is called
-   * every tick (~1/s/symbol on the mini-ticker path); without this each call
-   * re-copies up to `size` candles. Invalidated (set null) on every ring
-   * mutation, so a returned window is never stale. The window is typed
-   * `readonly` and consumers (indicators, strategy) only iterate it.
+   * Memoised `loadWindow` answers for this key, keyed by requested window size and sourced either from a ring slice or from the REST fallback that serves a size the ring cannot cover. `loadWindow` runs every tick (~1/s/symbol on the mini-ticker path), so without the memo the ring path re-copies up to `size` candles per tick and the REST path re-issues a weight-2 request per tick, forever. Holding the REST answer here is what collapses that to one request per candle. Keyed by size rather than holding one slot because the key is `(symbol, interval)` while the size is per profile: two profiles on one symbol with different lookbacks, plus the indicator computer's fixed 200, hit the same key with different sizes, and a single slot would have them evict each other every tick — putting the above-ring one straight back on a REST fetch per tick. Freshness takes three mechanisms, not one: every ring mutation clears the whole map, which is sufficient for the ring branch because that branch computes and installs its answer synchronously; the REST branch additionally re-checks {@link KeyState.ringGeneration} because its answer is computed across an await; and every entry carries an install timestamp so it expires on its own once no invalidating event can reach it at all. Windows are typed `readonly` and consumers (indicators, strategy) only iterate them.
    */
-  windowCache: { readonly size: number; readonly window: readonly ClosedKline[] } | null;
+  readonly windowCache: Map<number, MemoEntry>;
+  /**
+   * Bumped on every ring mutation, beside the `windowCache` clear. Exists because clearing alone cannot be observed by a writer that resolves later: an in-flight REST window captured before a candle closed would re-install itself over the cleared map and then go unrefreshed until the following close, serving a one-candle-stale window for a whole candle period. Re-reading the map cannot stand in for this — an entry for a DIFFERENT size leaves the map non-empty, and an entry for this size may have been installed by a later caller, so "cleared while I was fetching" and "never set" are indistinguishable.
+   */
+  ringGeneration: number;
   /** Stable id of the pool member that owns this key's stream (O(1) routing). */
   memberId: number;
 }
@@ -165,16 +181,13 @@ export interface KlineFetcherOptions {
    */
   readonly weightGovernor?: WeightGovernor;
   readonly logger: AdapterLogger;
-  /** Default `DEFAULT_RING_SIZE` (256). Live readers request <=200; the rest is headroom. */
+  /** Rows held per (symbol, interval); defaults to `DEFAULT_RING_SIZE` (256). A `loadWindow` above it is answered by REST rather than by growing the ring. */
   readonly ringSize?: number;
   readonly backoff?: BackoffConfig;
   /** Injected for tests so reconnect schedules don't depend on real timers. */
   readonly schedule?: (fn: () => void, delayMs: number) => void;
   /**
-   * Monotonic clock for frame-liveness tracking. Defaults to `Date.now`;
-   * injected so the liveness watchdog's stale-feed detection is testable
-   * without real time. Date is allowed here (this is the I/O boundary, not a
-   * pure strategy package).
+   * Clock for frame-liveness tracking and for stamping/expiring memoised `loadWindow` answers. Defaults to `Date.now`, which is wall clock and NOT monotonic: a step backwards (NTP correction, container resync) makes both elapsed reads negative, which the liveness watchdog reads as a fresh frame and the memo age check treats as expired so it fails toward a refetch rather than toward serving a frozen window. Injected so both are testable without real time. Date is allowed here (this is the I/O boundary, not a pure strategy package).
    */
   readonly now?: () => number;
   /**
@@ -235,6 +248,51 @@ const streamOf = (symbol: string, interval: string): string =>
 const tickerStreamOf = (symbol: string): string => `${symbol.toLowerCase()}@miniTicker`;
 
 const keyOf = (symbol: string, interval: string): string => `${symbol}|${interval}`;
+
+// Ceiling on distinct memoised window sizes per key. The real population is the set of window sizes the profiles sharing this (symbol, interval) ask for plus the indicator computer's fixed one, which is a handful; the cap only exists so a caller outside that shape cannot grow the map once per call. It also bounds the memo's heap against the same (symbols × intervals) multiplier the DEFAULT_RING_SIZE rationale above weighs, and the two bounds are not the same size: a 'ring' entry is a slice of the ring, so it copies references and duplicates no kline objects, while a 'rest' entry OWNS every object it returned. Worst case per key is therefore four REST entries at MAX_CANDLE_WINDOW, 3,996 owned klines ≈ 1.4-1.8 MB, against the ring's ~100 KB — roughly 15×. The realistic case is one above-ring size per key, ≈160 KB.
+const MAX_WINDOW_CACHE_ENTRIES = 4;
+// Backstop expiry for a memoised window, needed because every other invalidator is socket-driven and there are two shapes of outage where no such event can ever arrive: a dead socket (onClose fires once, and the very next loadWindow re-installs an entry that nothing will clear for the rest of the outage) and a single stream that goes silent while its pool member stays open serving its other streams (no fanOut, no onClose, and `msSinceLastFrame` is per-member so the watchdog cannot see it either). Both leave ticks running on live mini-ticker prices against a frozen window. 60s is one 1m candle, the shortest interval the worker subscribes, so on a healthy 1m key the natural fanOut almost always invalidates first and this bound adds no fetches there.
+const MEMO_MAX_AGE_MS = 60_000;
+
+/**
+ * Make room for one more entry when the memo map is at its ceiling, sacrificing the cheapest answer available. A ring answer is a synchronous slice of an in-memory array and costs nothing to recompute, while a REST answer costs a weight-2 network round trip, so the cheap entries are spent first and the expensive one survives. Recency policies do not work here: the access pattern is a fixed set of sizes cycling once per tick, under which FIFO and LRU both evict the REST entry as reliably as a wholesale clear did, putting the above-ring window straight back on a request per tick.
+ *
+ * @param cache - Memo map at its ceiling; exactly one entry is removed from it.
+ */
+const evictForInsert = (cache: Map<number, MemoEntry>): void => {
+  // Map iterates in insertion order, so the first ring-sourced entry is the oldest cheap one.
+  for (const [key, entry] of cache) {
+    if (entry.source === 'ring') {
+      cache.delete(key);
+      return;
+    }
+  }
+  // Nothing cheap to sacrifice — every entry cost a request, so the oldest goes.
+  for (const key of cache.keys()) {
+    cache.delete(key);
+    return;
+  }
+};
+
+/**
+ * Install a memoised window, evicting one entry first when the map is at its ceiling.
+ *
+ * @param state - Key whose memo map receives the window.
+ * @param size - Requested window size this answer belongs to; also the map key.
+ * @param window - Candles to serve for that size until the ring next moves or the entry ages out.
+ * @param installedAtMs - Wall-clock ms this answer was computed at, from the fetcher's injected clock; the age backstop measures from it.
+ * @param source - Which branch produced the window, which is what decides whether it is cheap enough to evict.
+ */
+const rememberWindow = (
+  state: KeyState,
+  size: number,
+  window: readonly ClosedKline[],
+  installedAtMs: number,
+  source: WindowSource,
+): void => {
+  if (state.windowCache.size >= MAX_WINDOW_CACHE_ENTRIES) evictForInsert(state.windowCache);
+  state.windowCache.set(size, { window, installedAtMs, source });
+};
 
 interface KlineFrameInner {
   readonly t?: number;
@@ -435,8 +493,9 @@ export const createKlineFetcher = (opts: KlineFetcherOptions): KlineFetcher => {
   const fanOut = (state: KeyState, kline: ClosedKline): void => {
     state.ring.push(kline);
     if (state.ring.length > ringSize) state.ring.shift();
-    // The ring changed; drop the memoised window so the next loadWindow recomputes.
-    state.windowCache = null;
+    // The ring changed; drop every memoised window so the next loadWindow recomputes, and bump the generation so a REST window already in flight cannot install itself over that drop.
+    state.windowCache.clear();
+    state.ringGeneration += 1;
     for (const sub of state.subscribers) {
       /* v8 ignore start -- reason: cancelSubscriber deletes a sub from the set in the same step it sets cancelled, so a cancelled sub is never iterated here */
       if (sub.cancelled) continue;
@@ -512,7 +571,7 @@ export const createKlineFetcher = (opts: KlineFetcherOptions): KlineFetcher => {
     state.coldLoading = true;
     try {
       if (opts.weightGovernor) await opts.weightGovernor.reserve(KLINE_WEIGHT);
-      const rows = await opts.fetchRestKlines(state.symbol, state.interval, ringSize);
+      const rows = await opts.fetchRestKlines(state.symbol, state.interval, restLimitFor(ringSize));
       // Prepend any historical candles we don't already hold. Production
       // WS may have landed a candle by now; preserve those in the ring.
       const have = new Set(state.ring.map((k) => k.openTimeMs));
@@ -522,7 +581,9 @@ export const createKlineFetcher = (opts: KlineFetcherOptions): KlineFetcher => {
       while (merged.length > ringSize) merged.shift();
       state.ring.length = 0;
       state.ring.push(...merged);
-      state.windowCache = null; // ring rebuilt; invalidate the memoised window.
+      // Ring rebuilt; invalidate every memoised window and bump the generation for any REST window in flight.
+      state.windowCache.clear();
+      state.ringGeneration += 1;
     } catch (err) {
       opts.logger.warn(
         { symbol: state.symbol, interval: state.interval, err: err },
@@ -592,6 +653,12 @@ export const createKlineFetcher = (opts: KlineFetcherOptions): KlineFetcher => {
     conn.onClose(() => {
       m.ws = null;
       m.isOpen = false;
+      // Nothing invalidates a memo while this member is down: no fanOut can arrive and the ring stops advancing, so a window held across the outage would pin every consumer to pre-outage candles for its whole duration — against a live price, since the liveness watchdog keeps ticks running off the mini-ticker. Dropping them puts an above-ring size back on the REST path, which is what served it before the memo existed and is independent of this socket. Scoped to this member's own keys so a sibling shard's close does not evict a healthy shard's memos.
+      for (const state of byKey.values()) {
+        if (state.memberId !== m.id) continue;
+        state.windowCache.clear();
+        state.ringGeneration += 1;
+      }
       // Pending RPCs are obsolete after disconnect: the next `connect(m)`
       // rebuilds the URL from this member's `activeStreams`, covering every
       // still-subscribed stream it owns. Clear the buffer so a reconnect doesn't
@@ -664,7 +731,8 @@ export const createKlineFetcher = (opts: KlineFetcherOptions): KlineFetcher => {
           ring: [],
           subscribers: new Set(),
           coldLoading: false,
-          windowCache: null,
+          windowCache: new Map(),
+          ringGeneration: 0,
           memberId: -1, // assigned below on the isNewKey path
         };
         byKey.set(k, state);
@@ -747,23 +815,59 @@ export const createKlineFetcher = (opts: KlineFetcherOptions): KlineFetcher => {
     async loadWindow(symbol, interval, size): Promise<KlineWindow> {
       const k = keyOf(symbol, interval);
       const state = byKey.get(k);
+      const readAtMs = now();
+      // The memo is read before the ring-length guard so it covers the REST answer too: a size above the ring can never be served from the ring, so without this the fallback re-fetches every tick. The ring branch below is stale-free by construction — it slices and installs synchronously, and the ring mutates in exactly two places (fanOut and the cold-load rebuild) which both clear the memo beside the mutation, as does a WS close. The REST branch is not, because a candle can close while its request is in flight; the generation check at the install guards that. Every one of those invalidators is driven by a socket event, so an entry is also refused once it reaches MEMO_MAX_AGE_MS — that is the only check that still fires when no event can arrive at all.
+      const memo = state?.windowCache.get(size);
+      if (state !== undefined && memo !== undefined) {
+        // A negative age counts as expired rather than as young: `now` defaults to `Date.now`, so an NTP correction or container resync can step the clock backwards under an installed entry, and a bare `<` reads that as fresh and serves the entry until the clock catches up. That is exactly the silent-stream case the bound exists for, where nothing else can invalidate.
+        const ageMs = readAtMs - memo.installedAtMs;
+        if (ageMs >= 0 && ageMs < MEMO_MAX_AGE_MS) return memo.window;
+        // Dropped rather than left for the refetch below to overwrite, so an expired entry cannot keep counting against MAX_WINDOW_CACHE_ENTRIES on the path where that refetch throws and never installs anything.
+        state.windowCache.delete(size);
+      }
       if (state && state.ring.length >= size) {
-        // Reuse the memoised window when the ring hasn't changed since the last
-        // request for this size (the common per-tick case). The cache holds one
-        // size; a different size recomputes and re-caches.
-        if (state.windowCache !== null && state.windowCache.size === size) {
-          return state.windowCache.window;
-        }
         const window = state.ring.slice(Math.max(0, state.ring.length - size));
-        state.windowCache = { size, window };
+        rememberWindow(state, size, window, readAtMs, 'ring');
         return window;
       }
       // No subscriber yet, or the ring is shorter than requested — REST
       // fetch directly. This path does NOT add a subscriber or open the
       // WS; loadWindow is a pull-style cold seed, not a subscription.
+      const gen = state?.ringGeneration;
+      // Normalised once, and the slice bound and the short-window verdict below both read off it rather than off the raw `size`, so a request `restLimitFor` had to collapse always comes with a log line. Reading either off the raw value makes a NaN size a silent trap: `slice(NaN)` coerces the index to 0 so the window is whatever came back, and `length < NaN` is false so the warn never fires, leaving an empty window memoised for a full MEMO_MAX_AGE_MS. Identical to the raw value for every finite input.
+      const closedNeeded = Number.isFinite(size) ? Math.max(Math.ceil(size), 1) : 1;
+      const limit = restLimitFor(size);
       if (opts.weightGovernor) await opts.weightGovernor.reserve(KLINE_WEIGHT);
-      const rows = await opts.fetchRestKlines(symbol, interval, size);
-      return rows.slice(Math.max(0, rows.length - size));
+      const rows = await opts.fetchRestKlines(symbol, interval, limit);
+      const window = rows.slice(Math.max(0, rows.length - closedNeeded));
+      if (window.length < closedNeeded) {
+        // A consumer that gates on a full window holds fail-closed until this fills, and its own "warming up" is logged at debug, so without this the hold has no visible cause. The two causes need telling apart and only one of them is recoverable: a symbol that simply has less history than asked for fills as candles close, while a request clamped at the endpoint ceiling can NEVER reach `requestedSize` and needs the operator to lower the window. The verdict is computed rather than left to the reader, because `limit === maxLimit` is not the discriminator it looks like: `size === MAX_CANDLE_WINDOW` lands on the maximum limit naturally rather than by clamping, and that is the single size `resolveCandleWindow` returns for every config at or above the ceiling, so reading the verdict off the limit would call the largest legitimate window unfillable. Carried in the payload so a log search can filter on it. The payload also carries the raw `requestedSize` beside the `normalisedSize` the request was actually built for: they differ exactly when the input needed collapsing, which is the diagnosis. Fires at most once per candle for a subscribed key, since the memo below answers the repeat calls.
+        const unfillable = limit - 1 < closedNeeded;
+        opts.logger.warn(
+          {
+            symbol,
+            interval,
+            requestedSize: size,
+            normalisedSize: closedNeeded,
+            returnedSize: window.length,
+            limit,
+            maxLimit: BINANCE_MAX_KLINE_LIMIT,
+            unfillable,
+          },
+          unfillable
+            ? 'kline-fetcher: requested window exceeds what one klines request can supply and can never fill'
+            : 'kline-fetcher: REST returned fewer closed candles than the requested window',
+        );
+      }
+      // Memoised only for a subscribed key whose ring did not move while the request was in flight. An unsubscribed key holds no state to invalidate, so a memo there could never be dropped on a candle close; a key whose ring DID move would be pinned to a pre-close window until the following close. The window is still returned either way — it is the freshest single answer this call has, and only the caching is skipped.
+      // Stamped at the install rather than at the read above, so the age backstop measures how long the entry is SERVED and a slow round trip does not spend part of its life. That stamp is also why the install has to refuse a strictly newer entry: two loadWindow calls for the same (symbol, interval, size) run concurrently in production (one per interval per profile, on separate chains), both miss the memo and both fetch, and the one that STARTED first can land last — overwriting the newer candles with older ones AND re-stamping them as freshly installed, so the age backstop then serves the older answer for a further MEMO_MAX_AGE_MS. `readAtMs` orders the two calls by when each started, which is the only ordering either call can observe.
+      if (state && state.ringGeneration === gen) {
+        const current = state.windowCache.get(size);
+        if (current === undefined || current.installedAtMs <= readAtMs) {
+          rememberWindow(state, size, window, now(), 'rest');
+        }
+      }
+      return window;
     },
 
     setOnReconnect(handler): void {

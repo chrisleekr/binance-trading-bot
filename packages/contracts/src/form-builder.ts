@@ -224,6 +224,7 @@ const LABEL_OVERRIDES: Record<string, string> = {
   // `onBandBlock` humanises to "On Band Block", which names an implementation
   // detail the operator has no word for. Label the decision they are making.
   onBandBlock: 'If Binance rejects the backup stop',
+  'protectiveStop.mode': 'Who moves the stop',
   'sell.triggerPercentage': 'Trailing-stop arm (above entry)',
   'sell.trailingStopPercentage': 'Trailing-stop distance (from peak)',
   trailingStopPct: 'Trailing-stop distance (from peak)',
@@ -457,11 +458,15 @@ function walkField(
       if (node.pattern !== undefined) out.pattern = node.pattern;
       return out;
     }
+    // An integer schema with no explicit bound still arrives carrying the JS safe-integer range, because that is the widest value a JS number can represent exactly and the schema conversion stamps it as the type's representation limit. Copying it through made a docs table advertise a maximum of 9007199254740991 and put a meaningless `max` on the SPA's number input. An author who declares that exact bound on an integer is indistinguishable here — the emitted schema is byte-identical to the unbounded one — but dropping it is right either way, since a declared safe-integer ceiling and the representation ceiling are the same ceiling and neither is worth rendering. The drop is per-end (only MIN_SAFE_INTEGER counts as a sentinel on the low side), so an integer declaring MAX_SAFE_INTEGER as its FLOOR keeps that floor. Only integers get this treatment: a non-integer schema is emitted with no bounds unless the author declared them, so a sentinel-valued bound there is a real declaration and must survive. No schema fed to this builder emits a low-side sentinel today, because the only schemas converted for it are config schemas (each strategy's `configSchema` and `overrideConfigSchema`, `RiskConfigSchema`, `DiscoveryConfigSchema`, and the notifier provider schemas) and every integer field in those declares a floor. Unbounded-low `z.number().int()` fields do exist, but only in the per-(profile, symbol) state schemas, which are never converted to JSON Schema for a form. So only the unit test exercises that branch: it is kept as the symmetric half of one representation-artefact rule rather than as a feature of its own, since `apps/web/src/shared/forms/field-renderer.tsx` feeds `minimum` straight into a number input's `min` attribute and the first integer declared without a floor would otherwise render a spinner floor of -9007199254740991.
     case 'integer':
     case 'number': {
-      const out: FormField = { ...base, kind: 'number', integer: type === 'integer' };
-      if (node.minimum !== undefined) out.minimum = node.minimum;
-      if (node.maximum !== undefined) out.maximum = node.maximum;
+      const integer = type === 'integer';
+      const out: FormField = { ...base, kind: 'number', integer };
+      if (node.minimum !== undefined && !(integer && node.minimum === Number.MIN_SAFE_INTEGER))
+        out.minimum = node.minimum;
+      if (node.maximum !== undefined && !(integer && node.maximum === Number.MAX_SAFE_INTEGER))
+        out.maximum = node.maximum;
       if (node.exclusiveMinimum !== undefined) out.exclusiveMinimum = node.exclusiveMinimum;
       if (node.exclusiveMaximum !== undefined) out.exclusiveMaximum = node.exclusiveMaximum;
       if (node.multipleOf !== undefined) out.step = node.multipleOf;

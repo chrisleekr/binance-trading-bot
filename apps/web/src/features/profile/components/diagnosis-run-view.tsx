@@ -46,10 +46,12 @@ const STEP_ICON: Record<DiagnosisStepStatus, { icon: typeof Check; className: st
   unknown: { icon: HelpCircle, className: 'text-muted-fg' },
 };
 
+// Keyed by the verdict union, so a verdict added to the contract fails the build here rather than rendering a blank strapline. `needs-attention` must read as neither of its neighbours: "blocking" would claim the bot has stopped and "on purpose" would claim there is nothing to do, and it is precisely the state where both are wrong.
 const VERDICT_COPY: Record<DiagnosisVerdict, { label: string; className: string }> = {
   trading: { label: 'Nothing is in the way', className: 'text-success' },
   blocked: { label: 'Something is blocking it', className: 'text-danger' },
-  'idle-by-design': { label: 'Idle on purpose', className: 'text-warning' },
+  'needs-attention': { label: 'Needs your attention', className: 'text-warning' },
+  'idle-by-design': { label: 'Idle on purpose', className: 'text-muted-fg' },
   unknown: { label: 'Not enough information', className: 'text-muted-fg' },
 };
 

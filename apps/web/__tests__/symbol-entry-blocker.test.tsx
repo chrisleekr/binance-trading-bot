@@ -33,6 +33,7 @@ const ALL_REASONS = [
   'min-qty',
   'min-notional',
   'min-purchase',
+  'entry-below-stop-notional',
   'invalid-filters',
 ] as const;
 
@@ -78,6 +79,12 @@ describe('glossEntryBlocker', () => {
       const sentence = glossEntryBlocker({ reason });
       expect(sentence.length).toBeGreaterThan(0);
     }
+  });
+
+  it('names the stop-loss as the reason an entry below the stop notional was refused', () => {
+    expect(glossEntryBlocker({ reason: 'entry-below-stop-notional' })).toContain(
+      'too small to sell if its stop-loss',
+    );
   });
 
   it('falls back to a generic sentence for an unknown reason', () => {
