@@ -300,6 +300,43 @@ describe('<HistoryEquityCard>', () => {
     expect(footnote).toHaveTextContent('Worst drop from a high point in this window: 4.00 USDT');
   });
 
+  it('drops the previous window’s marks while the action read for the new one is still in flight', async () => {
+    // What `keepPreviousData` costs: the two reads key on the same window but resolve independently, so the snapshot read landing first draws the NEW curve under the PREVIOUS window's marks, and the footnote states that window's change count as fact. The domain filter does not catch it — an overlapping window contains those instants, which is exactly the All-time-to-This-month case.
+    fetchEquitySnapshots.mockResolvedValue(
+      snapshots([
+        point('2026-05-01T00:00:00.000Z', '0', '0'),
+        point('2026-05-10T00:00:00.000Z', '5'),
+        point('2026-05-20T00:00:00.000Z', '9'),
+      ]),
+    );
+    fetchProfileAuditLogs.mockResolvedValue({
+      items: [auditRow('a1', 'switch-strategy', '2026-05-15T00:00:00.000Z')],
+      nextCursor: null,
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(['account-settings'], { timezone: 'UTC' });
+    const { rerender } = render(
+      <QueryClientProvider client={qc}>
+        <HistoryEquityCard profileId={PID} from={'2026-01-01T00:00:00.000Z'} to={TO} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(screen.getAllByTestId('history-equity-marker')).toHaveLength(1));
+
+    // A narrower window that still contains the old action's instant. Its snapshots resolve; its actions do not.
+    fetchProfileAuditLogs.mockReturnValue(new Promise(() => {}));
+    rerender(
+      <QueryClientProvider client={qc}>
+        <HistoryEquityCard profileId={PID} from={FROM} to={TO} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(screen.queryByTestId('history-equity-marker')).toBeNull());
+    // And the footnote stops claiming a count for them. The curve itself stays, which is what the placeholder is for.
+    expect(screen.getByTestId('history-equity-footnote').textContent ?? '').not.toContain(
+      'marked on the axis',
+    );
+  });
+
   it('keeps the previous window on screen while a re-resolved one loads', async () => {
     // The archive response's `to` is the instant the SERVER answered, for every preset, so each refetch of the ledger above hands this card a window it has never seen and re-keys both reads. Without the placeholder the whole card falls back to its skeleton on every one of them, which during an archive recovery is every three seconds.
     fetchEquitySnapshots.mockResolvedValue(

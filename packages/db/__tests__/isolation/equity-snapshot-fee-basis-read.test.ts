@@ -96,6 +96,32 @@ describeIfDb('equity-snapshot fee-basis read', () => {
     expect(whole).toHaveLength(25);
   });
 
+  it('derives the bucket width from a rounded-UP span, so a fractional second cannot clip the curve', async () => {
+    // `::int` on a numeric ROUNDS, so a 2.2-second span reported 2 and the width came out one second instead of two. The bound the width exists to hold is `width >= span / (limit - 1)`; under-report the span and it does not hold, the reduction returns MORE buckets than the budget, and the trim then drops the oldest — which is the clipped-start failure the whole downsample exists to prevent, arriving through the arithmetic instead of through a LIMIT.
+    // Four points across four whole seconds but only three two-second buckets, with the earliest alone in its bucket under either width, so the assertion is about which points survive and not about how they were grouped.
+    const base = new Date('2036-01-01T00:00:00Z').getTime();
+    const at = (ms: number): string => new Date(base + ms).toISOString();
+    const oldest = at(1_900);
+    await fx.db
+      .insert(equitySnapshots)
+      .values([
+        snapshotRow(fx.alice.profileId, oldest, 'exact'),
+        snapshotRow(fx.alice.profileId, at(2_100), 'exact'),
+        snapshotRow(fx.alice.profileId, at(3_100), 'exact'),
+        snapshotRow(fx.alice.profileId, at(4_100), 'exact'),
+      ]);
+
+    const capped = await ap.equitySnapshots.listForProfileInRange(
+      'USDT',
+      new Date(base),
+      new Date(base + 10_000),
+      3,
+    );
+    expect(capped.length).toBeLessThanOrEqual(3);
+    // The window's first snapshot is still the series' first point. Under the rounded-DOWN span this read returned four buckets against a budget of three and this row was the one trimmed away.
+    expect(capped[0]?.capturedAt.toISOString()).toBe(oldest);
+  });
+
   it('honours a budget of one, where the bucket arithmetic alone overshoots', async () => {
     // `limit = 1` collapses the `limit - 1` divisor to 1, so the bucket becomes the whole span — and `time_bucket` aligns to the EPOCH, not to the first row, so the two endpoints can fall either side of a boundary and come back as two rows against a cap of one. Every other limit is bounded by the arithmetic; this one is the arithmetic's blind spot, and it is a real request: a caller asking for a single representative point.
     const oneFrom = new Date('2034-01-01T00:00:00Z');

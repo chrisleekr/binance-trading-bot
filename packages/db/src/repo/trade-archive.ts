@@ -149,6 +149,24 @@ const weakestFeeBasisAgg = sql<FeeBasis>`case when count(*) = 0 then 'exact' els
     'unknown'
   ) end`;
 
+/**
+ * The weakest tier over EVERY matched row, `unknown` the moment one cycle went unvalued.
+ *
+ * The counterpart to {@link weakestFeeBasisAgg}, and the difference is which set the tier is a claim about. That one describes the rows a Net figure was folded FROM, which is the right claim wherever `netTradeCount` travels beside it to state the coverage. This one describes the WINDOW, which is the right claim for a consumer that gets one number and one tier and has nowhere to put a denominator: there, a tier read off the valued rows alone certifies as complete a figure that is not.
+ *
+ * `unknown` also ranks here rather than dropping out, so the empty set is the only NULL and still coalesces to `exact`.
+ */
+const windowFeeBasisAgg = sql<FeeBasis>`coalesce(
+    (array['unknown', 'estimated', 'exact'])[
+      min(case ${tradeArchive.feeBasis}
+            when 'unknown' then 1
+            when 'estimated' then 2
+            when 'exact' then 3
+            else 1 end)
+    ],
+    'exact'
+  )`;
+
 /** Rows in the group that carry fee evidence, i.e. the denominator of every Net figure beside them. A row whose fees are missing outright has a real cost-basis result but no net one, so it counts in `tradeCount` and in nothing below it. */
 const netTradeCountAgg = sql<number>`count(*) filter (where ${tradeArchive.feeBasis} <> 'unknown')::int`;
 
@@ -171,11 +189,15 @@ export interface RealizedTotals {
   readonly totalFees: string;
   /** `totalProfit - totalFees`; an exact Net P/L only when `feeBasis` is `exact`. */
   readonly netProfit: string;
-  /** The WEAKEST fee tier any matched row carried, so the window is reported as its worst evidence. `exact` when nothing matched. */
+  /**
+   * The WEAKEST fee tier the result rests on, so the window is reported as its worst evidence. `exact` when nothing matched.
+   *
+   * WHICH ROWS it is a claim about follows the Net leg beside it, and the two readers differ. The source-split readers value the evidenced rows only and return `netTradeCount` as that leg's denominator, so their tier describes those rows: `unknown` there means nothing at all could be valued. {@link sumProfitInRange} sums every row and returns no denominator to its caller's caller, so its tier describes the WINDOW: `unknown` there means at least one cycle went unvalued. Each function's `@returns` says which it is.
+   */
   readonly feeBasis: FeeBasis;
   /** Archived CYCLES matched, not orders and not symbols. */
   readonly tradeCount: number;
-  /** Matched cycles carrying fee evidence: the denominator of `totalFees`, `netProfit` and any win/loss split beside them. Equal to `tradeCount` when every matched row was valued, and `0` when none was, which is the only state in which `feeBasis` reads `unknown` on a non-empty window. */
+  /** Matched cycles carrying fee evidence. On the source-split readers this is the denominator of `totalFees`, `netProfit` and the win/loss split beside them. On {@link sumProfitInRange}, whose Net leg spans every row, it is coverage information only. Equal to `tradeCount` when every matched row was valued. */
   readonly netTradeCount: number;
 }
 
@@ -188,7 +210,9 @@ export interface RealizedTotals {
  * @param quoteAsset - The currency to count in. Archive rows in any other quote are excluded, so history from before a quote change does not leak into the current-quote total.
  * @param from - Inclusive lower bound on `archived_at`.
  * @param to - Exclusive upper bound on `archived_at`.
- * @returns The window's Recorded result, known Net subtotal, weakest fee tier, and trade count, tagged with `quoteAsset`. All-zero (and `tradeCount: 0`) when nothing matches.
+ * @returns The window's Recorded result, its Net result over EVERY matched cycle, the weakest tier any of them carried, and both counts, tagged with `quoteAsset`. All-zero (and `tradeCount: 0`) when nothing matches.
+ *
+ * The Net leg here spans every row, unlike the source-split readers next door, because its only consumer is the equity-snapshot cron: one cumulative number and one tier on a row that has no column for a denominator. Dropping an unvalued cycle there does not withhold an uncertain figure, it removes a known realised gain from a running total and leaves the curve missing a step — and with the tier read off the valued rows alone, marks the result complete while doing it. Included and marked is wrong by the fee that was never read; excluded is wrong by the whole cycle. `netTradeCount` comes back beside it so a future consumer with somewhere to put the coverage can state it.
  */
 export async function sumProfitInRange(
   scope: ProfileScope,
@@ -204,9 +228,10 @@ export async function sumProfitInRange(
         when coalesce(sum(${tradeArchive.totalBuyQuote}), 0) = 0 then '0'
         else round(coalesce(sum(${tradeArchive.profit}), 0)
               / sum(${tradeArchive.totalBuyQuote}) * 100, 8)::text end`,
-      totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}) filter (where ${valuedRow}), 0)::text`,
-      netProfit: sql<string>`coalesce(sum(${tradeArchive.profit} - ${tradeArchive.feesQuote}) filter (where ${valuedRow}), 0)::text`,
-      feeBasis: weakestFeeBasisAgg,
+      // Unfiltered, unlike the source-split readers: every fee that WAS read is subtracted from every recorded result, and the tier below says the window holds one that was not. See this function's `@returns`.
+      totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}), 0)::text`,
+      netProfit: sql<string>`coalesce(sum(${tradeArchive.profit} - ${tradeArchive.feesQuote}), 0)::text`,
+      feeBasis: windowFeeBasisAgg,
       tradeCount: sql<number>`count(*)::int`,
       netTradeCount: netTradeCountAgg,
     })

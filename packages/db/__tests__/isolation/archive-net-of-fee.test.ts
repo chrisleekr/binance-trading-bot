@@ -99,7 +99,7 @@ describeIfDb('trade-archive net-of-fee aggregation', () => {
     expect(out.feeBasis).toBe('exact');
   });
 
-  it('excludes a row that cannot state its commission from the net leg', async () => {
+  it('keeps an unvalued row in the whole-window net leg, and marks the window for it', async () => {
     const from = new Date('2029-01-01T00:00:00Z');
     const to = new Date('2029-01-02T00:00:00Z');
     await ap.tradeArchive.insert({
@@ -116,12 +116,50 @@ describeIfDb('trade-archive net-of-fee aggregation', () => {
       archivedAt: new Date('2029-01-01T12:00:00Z'),
     });
     const out = await ap.tradeArchive.sumProfitInRange('USDT', from, to);
-    // The row is Recorded but not Net: its commission was paid in BNB, which this window cannot price, so it carries the Recorded leg alone. Summing it into net anyway would report a 1-unit profit as if the fee were proven zero, and that is the number an operator reads as take-home.
+    // Its commission was paid in BNB, which this window cannot price. This reader's Net leg still carries the row, because its only consumer is the equity-snapshot cron: one cumulative number and one tier on a row with no column for a denominator, so dropping the cycle removes a known realised gain from a running total instead of withholding an uncertain one. What keeps that honest is the tier, which reads `unknown` off the WINDOW rather than off the rows the sum was folded from — otherwise this same figure comes back marked `exact` the moment one valued cycle sits beside it.
     expect(out.tradeCount).toBe(1);
     expect(Number(out.totalProfit)).toBe(1);
     expect(out.netTradeCount).toBe(0);
-    expect(Number(out.netProfit)).toBe(0);
+    expect(Number(out.netProfit)).toBe(1);
     expect(out.feeBasis).toBe('unknown');
+  });
+
+  it('marks the window unvalued even when valued cycles sit beside the unvalued one', async () => {
+    // The case a tier read off the folded rows gets exactly backwards, and the one the equity curve actually meets: nine good cycles and one old fill nobody could price. `weakestFeeBasisAgg` skips the unvalued row, so the source-split readers correctly report `exact` over the set they summed — but this reader sums every row, and a curve labelled `exact` while carrying an unpriced commission certifies what it cannot.
+    const from = new Date('2035-01-01T00:00:00Z');
+    const to = new Date('2035-01-02T00:00:00Z');
+    const at = new Date('2035-01-01T12:00:00Z');
+    const row = (symbol: string, profit: string, feesQuote: string, feeBasis: string) => ({
+      symbol,
+      baseAsset: symbol.replace('USDT', ''),
+      quoteAsset: 'USDT',
+      totalBuyQuote: '100',
+      totalSellQuote: '110',
+      breakdown: {},
+      profit,
+      orders: [{ side: 'BUY' as const }, { side: 'SELL' as const }],
+      feesQuote,
+      feeBasis,
+      source: 'manual' as const,
+      archivedAt: at,
+    });
+    for (const r of [row('WINAUSDT', '10', '1', 'exact'), row('WINBUSDT', '100', '0', 'unknown')]) {
+      await ap.tradeArchive.insert(r as Parameters<typeof ap.tradeArchive.insert>[0]);
+    }
+
+    const out = await ap.tradeArchive.sumProfitInRange('USDT', from, to);
+    expect(out.tradeCount).toBe(2);
+    expect(out.netTradeCount).toBe(1);
+    // (10 − 1) + (100 − 0). The unvalued cycle's 100 is a realised gain the curve has to step up by; what it does not know is the commission taken out of it.
+    expect(Number(out.netProfit)).toBe(109);
+    // And the whole point: not `exact`. This is the marker the dashboard renders as "fees not accounted".
+    expect(out.feeBasis).toBe('unknown');
+    // The source-split reader over the same rows reports the other tier, off the rows IT summed, and discloses the gap with its denominator instead.
+    const bySource = await ap.tradeArchive.sumProfitInRangeForSource('USDT', from, to, 'manual');
+    expect(bySource.feeBasis).toBe('exact');
+    expect(bySource.netTradeCount).toBe(1);
+    expect(bySource.tradeCount).toBe(2);
+    expect(Number(bySource.netProfit)).toBe(9);
   });
 
   it('reports the weakest fee tier present across a mixed window', async () => {

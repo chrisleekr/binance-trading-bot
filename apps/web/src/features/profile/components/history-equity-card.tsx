@@ -105,14 +105,24 @@ export function HistoryEquityCard({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['equity-snapshots', profileId] }),
   });
 
+  // The marks are a claim about the SAME window the line is drawn from, so they are shown only while both reads are answering for that window. `keepPreviousData` above is what makes this necessary: the two queries resolve independently, so the snapshot read landing first leaves the new curve drawn under the previous window's marks. Comparing the flags rather than testing one keeps the marks while BOTH are still showing the previous window, where they do agree with the line.
+  // Placeholder data is served while a query is pending and not after it fails, so a failed action read already clears its own marks by leaving `actions.data` undefined. This is about the pending window only.
+  // The domain filter below is not a substitute: an overlapping window (All time to This month) contains the previous window's rows, so they pass it.
+  const markersDescribeSeries = actions.isPlaceholderData === snapshots.isPlaceholderData;
   // Anchored to the SERIES, not to the requested window: `toSeries` drops every instant before capital was first deployed, so the plotted domain starts later than `from` and a marker placed outside it would be drawn against an axis that does not contain it.
   const firstMs = series[0]?.tsMs ?? 0;
   const lastMs = series.at(-1)?.tsMs ?? 0;
-  const markers: Marker[] = (actions.data?.items ?? [])
-    .map((item) => ({ id: item.id, tsMs: new Date(item.createdAt).getTime(), event: item.event }))
-    .filter((m) => Number.isFinite(m.tsMs) && m.tsMs >= firstMs && m.tsMs <= lastMs);
-  // A non-null continuation token means the window holds changes past the page that was read, so the axis carries some of them and the footnote must not name a count it would be stating as the total.
-  const markersPartial = (actions.data?.nextCursor ?? null) !== null;
+  const markers: Marker[] = !markersDescribeSeries
+    ? []
+    : (actions.data?.items ?? [])
+        .map((item) => ({
+          id: item.id,
+          tsMs: new Date(item.createdAt).getTime(),
+          event: item.event,
+        }))
+        .filter((m) => Number.isFinite(m.tsMs) && m.tsMs >= firstMs && m.tsMs <= lastMs);
+  // A non-null continuation token means the window holds changes past the page that was read, so the axis carries some of them and the footnote must not name a count it would be stating as the total. Gated on the same condition: a truncation note about another window's page is as wrong as its marks.
+  const markersPartial = markersDescribeSeries && (actions.data?.nextCursor ?? null) !== null;
 
   return (
     <section

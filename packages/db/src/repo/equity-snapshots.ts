@@ -58,7 +58,8 @@ export async function listForProfileInRange(
   const [extent] = await scope.db
     .select({
       points: sql<number>`count(*)::int`,
-      spanSeconds: sql<number>`coalesce(extract(epoch from (max(${equitySnapshots.capturedAt}) - min(${equitySnapshots.capturedAt}))), 0)::int`,
+      // `ceil` INSIDE the cast. `::int` rounds to nearest, so a 2.1-second span reports 2, and the width derived from it is then narrower than the true span requires — which lets the bucket count exceed `limit` and the trim below silently clip the start of the curve. Rounding up can only widen a bucket, which is always within budget.
+      spanSeconds: sql<number>`ceil(coalesce(extract(epoch from (max(${equitySnapshots.capturedAt}) - min(${equitySnapshots.capturedAt}))), 0))::int`,
     })
     .from(equitySnapshots)
     .where(where);
@@ -73,11 +74,18 @@ export async function listForProfileInRange(
   const width = sql.raw(String(Math.trunc(widthSeconds)));
   const bucket = sql`time_bucket(make_interval(secs => ${width}), ${equitySnapshots.capturedAt})`;
   // DISTINCT ON keeps one WHOLE row per bucket rather than aggregating the columns apart: an averaged point would pair a P/L with a benchmark price that never stood beside it, and the fee tier, which is a claim about one row's evidence, has no average at all. The last snapshot in each bucket is the state the period actually ended each interval in, which is what a cumulative curve plots.
-  const reduced = await scope.db
-    .selectDistinctOn([bucket], getTableColumns(equitySnapshots))
+  // Ids first, rows second. `time_bucket(...)` is an expression no index covers, so the DISTINCT ON is always a Sort node over every matching row — and selecting whole rows there makes that sort carry each tuple's `benchmark_prices` jsonb, for a window that on the all-time read is the profile's entire history. Picking ids under the bucket sort keeps it two narrow columns wide, and the row width is paid only for the points that survive.
+  const picked = scope.db
+    .selectDistinctOn([bucket], { id: equitySnapshots.id })
     .from(equitySnapshots)
     .where(where)
-    .orderBy(bucket, desc(equitySnapshots.capturedAt));
+    .orderBy(bucket, desc(equitySnapshots.capturedAt))
+    .as('picked');
+  const reduced = await scope.db
+    .select(getTableColumns(equitySnapshots))
+    .from(equitySnapshots)
+    .innerJoin(picked, eq(equitySnapshots.id, picked.id))
+    .orderBy(equitySnapshots.capturedAt);
   // The bucket arithmetic above bounds the count for every limit but one. At `limit = 1` the divisor collapses to 1, the width becomes the whole span, and `time_bucket` aligns to the epoch rather than to the first row — so the two endpoints can fall either side of a boundary and come back as two rows against a cap of one. Trimming here rather than widening the bucket, because a wider bucket would move every OTHER limit's points to fix the one that is wrong.
   // Trimmed off the FRONT: the rows arrive oldest bucket first, and dropping from the end would discard the newest point, which is the one the doc above promises the curve keeps and the only one a single-point read can mean.
   return reduced.slice(Math.max(0, reduced.length - limit));

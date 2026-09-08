@@ -363,6 +363,8 @@ const exportRoute = createRoute({
       description: 'VALIDATION_FAILED',
       content: { 'application/json': { schema: ErrorEnvelope } },
     },
+    // Declared for the same reason as on the list route, and more sharply here: this handler runs the same unpaginated read under the same `ARCHIVE_READ_BUDGET_MS`, and it defaults to the whole archive, so it is the request that budget most exists for. A generated client would otherwise meet the expiry as an undeclared protocol error.
+    503: { description: 'UNAVAILABLE', content: { 'application/json': { schema: ErrorEnvelope } } },
   },
 });
 
