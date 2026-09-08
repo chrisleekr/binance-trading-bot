@@ -150,14 +150,15 @@ for (const [path, reason] of [...skipped.entries()].sort(([a], [b]) => a.localeC
 if (process.argv.includes('--forbid-skips') && skipped.size > 0) {
   const gated = [...skipped.keys()].filter((path) => path.startsWith(INTEGRATION_DIR));
   const ungated = [...skipped.keys()].filter((path) => !path.startsWith(INTEGRATION_DIR));
+  // Each refusal divides by its OWN scope, never `reportScope`: a numerator that can only come from the gated suites read against the whole-tree total turns a total infrastructure blackout into a 5% blip.
   if (gated.length > 0) {
     console.error(
-      `worker-integration: ${gated.length} of ${reportScope} stood down in a lane that supplies Postgres and Redis itself — the infrastructure is misconfigured, not the tests`,
+      `worker-integration: ${gated.length} of ${integrationFiles.length} integration files stood down in a lane that supplies Postgres and Redis itself — the infrastructure is misconfigured, not the tests`,
     );
   }
   if (ungated.length > 0) {
     console.error(
-      `worker-integration: ${ungated.length} of ${reportScope} stood down outside ${INTEGRATION_DIR} in a lane that forbids skips — these files admit themselves without a service container, so the stand-down is in the test`,
+      `worker-integration: ${ungated.length} of ${nonIntegrationFiles.length} non-integration worker files stood down outside ${INTEGRATION_DIR} in a lane that forbids skips — these files admit themselves without a service container, so the stand-down is in the test`,
     );
   }
   process.exit(1);

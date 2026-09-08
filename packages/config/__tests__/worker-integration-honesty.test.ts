@@ -248,7 +248,7 @@ describe('worker integration lane honesty', () => {
     ]);
     expect(strict.status).not.toBe(0);
     expect(strict.stderr).toContain(
-      `2 of ${SYNTHETIC_NON_INTEGRATION_FILES + EXPECTED_INTEGRATION_FILES} worker files stood down`,
+      `2 of ${SYNTHETIC_NON_INTEGRATION_FILES} non-integration worker files stood down`,
     );
   });
 
@@ -275,13 +275,13 @@ describe('worker integration lane honesty', () => {
       `--min-non-integration-files=${SYNTHETIC_NON_INTEGRATION_FILES}`,
     ]);
 
-    const total = SYNTHETIC_NON_INTEGRATION_FILES + EXPECTED_INTEGRATION_FILES;
+    // Each denominator is its own scope's total. The union count would read a whole-lane infrastructure blackout, every gated suite down and nothing else, as a single-digit fraction of the tree.
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain(
-      `1 of ${total} worker files stood down in a lane that supplies Postgres and Redis itself`,
+      `1 of ${EXPECTED_INTEGRATION_FILES} integration files stood down in a lane that supplies Postgres and Redis itself`,
     );
     expect(result.stderr).toContain(
-      `1 of ${total} worker files stood down outside ${INTEGRATION_REL}/ in a lane that forbids skips`,
+      `1 of ${SYNTHETIC_NON_INTEGRATION_FILES} non-integration worker files stood down outside ${INTEGRATION_REL}/ in a lane that forbids skips`,
     );
   });
 
@@ -322,17 +322,24 @@ describe('worker integration lane honesty', () => {
       completeLogicalSource
         .split(/\r?\n/)
         .find((line) => line.includes('check-worker-integration-honesty')) ?? '';
-    const localInvocation =
-      localLogicalSource
-        .split(/\r?\n/)
-        .find((line) => line.includes('check-worker-integration-honesty')) ?? '';
+    // EVERY matching line, not the first: the negative assertions below pass on any line that lacks the flags, so a prose mention of the script ahead of the real invocation would retarget them at a comment and let the local caller quietly acquire both. The emptiness guard is what stops a rename from satisfying them with no lines at all.
+    const localInvocations = localLogicalSource
+      .split(/\r?\n/)
+      .filter((line) => line.includes('check-worker-integration-honesty'));
     // Read off disk, not from a constant this file also feeds the caller: a floor asserted against its own literal proves the wiring and can never catch the number going stale, which is the only way this gate actually rots.
     const floorArg = `--min-non-integration-files=${nonIntegrationTestFiles().length}`;
 
-    expect(completeInvocation).toContain(floorArg);
+    // The message carries the remedy because this is the suite's most frequent failure by far: any PR that adds or deletes a worker test file lands here, under a test name that says nothing about the file to edit.
+    expect(
+      completeInvocation,
+      `${COMPLETE_CALLER} must pass ${floorArg}: the worker tree holds ${nonIntegrationTestFiles().length} non-integration test files`,
+    ).toContain(floorArg);
     expect(completeInvocation).toContain('--forbid-skips');
-    expect(localInvocation).not.toContain('--min-non-integration-files=');
-    expect(localInvocation).not.toContain('--forbid-skips');
+    expect(localInvocations).not.toHaveLength(0);
+    for (const line of localInvocations) {
+      expect(line).not.toContain('--min-non-integration-files=');
+      expect(line).not.toContain('--forbid-skips');
+    }
   });
 
   // These tests execute and read files outside their workspace, so the package task must hash those surfaces or Turbo replays an obsolete verdict: a stale checker, a stale caller, or a floor that no longer matches the worker tree. Containment rather than exact equality, because the same task input list serves every other test in this package and freezing it here would make an unrelated addition fail as this file's problem.
