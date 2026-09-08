@@ -1044,11 +1044,14 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
       // Judgment call: native re-arms use the priced path's 1% quantity tolerance so sub-band balance and step-size movement cannot churn the exchange-managed high-water mark.
       const overQty =
         restingQuantity !== null && restingQuantity.minus(desiredQuantity).gte(quantityTolerance);
+      // Holds the under-covering resting quantity rather than a flag, so the refusal below can quote it without a second null test that no input could reach.
       const underQty =
-        restingQuantity !== null && desiredQuantity.minus(restingQuantity).gte(quantityTolerance);
+        restingQuantity !== null && desiredQuantity.minus(restingQuantity).gte(quantityTolerance)
+          ? restingQuantity
+          : null;
 
       let guard = false;
-      if (!overQty && (tightening || underQty)) {
+      if (!overQty && (tightening || underQty !== null)) {
         const high = Decimal.max(
           params.primaryTrail.restingHigh ?? params.primaryTrail.markPrice,
           params.primaryTrail.markPrice,
@@ -1058,7 +1061,7 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
           .gte(high.mul(new Decimal(1).minus(new Decimal(resting.trailingDelta).div(10_000))));
       }
 
-      if (overQty || ((tightening || underQty) && guard)) {
+      if (overQty || ((tightening || underQty !== null) && guard)) {
         return {
           decisions: [
             buildReplace(
@@ -1075,19 +1078,20 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
       // A re-arm refused over DISTANCE alone needs no explanation: the guard just proved the resting order's trigger is the higher of the two, so keeping it is strictly better protection. A re-arm refused over COVERAGE is the opposite. The resting order sells less base than the position now holds, and the guard reduces to `markPrice >= high` for it, which holds only at the running maximum. So the shortfall persists for the whole of any drawdown, which is exactly what the stop is for, and returning a null blocker here reports that as a healthy tick.
       return {
         decisions: [],
-        blocker: underQty
-          ? {
-              reason: 'resting-stop-short-of-position',
-              detail: {
-                symbol,
-                required: sized.quantity,
-                resting: restingQuantity?.toFixed() ?? null,
-                held: held.toFixed(),
-                trailingDelta: resting.trailingDelta,
-                desiredTrailingDelta: primaryNativeDelta,
+        blocker:
+          underQty === null
+            ? null
+            : {
+                reason: 'resting-stop-short-of-position',
+                detail: {
+                  symbol,
+                  required: sized.quantity,
+                  resting: underQty.toFixed(),
+                  held: held.toFixed(),
+                  trailingDelta: resting.trailingDelta,
+                  desiredTrailingDelta: primaryNativeDelta,
+                },
               },
-            }
-          : null,
       };
     }
   }
