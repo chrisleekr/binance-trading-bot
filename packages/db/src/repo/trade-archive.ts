@@ -192,7 +192,7 @@ export interface RealizedTotals {
   /**
    * The WEAKEST fee tier the result rests on, so the window is reported as its worst evidence. `exact` when nothing matched.
    *
-   * WHICH ROWS it is a claim about follows the Net leg beside it, and the two readers differ. The source-split readers value the evidenced rows only and return `netTradeCount` as that leg's denominator, so their tier describes those rows: `unknown` there means nothing at all could be valued. {@link sumProfitInRange} sums every row and returns no denominator to its caller's caller, so its tier describes the WINDOW: `unknown` there means at least one cycle went unvalued. Each function's `@returns` says which it is.
+   * WHICH ROWS it is a claim about follows the Net leg beside it, and the two readers differ. The source-split readers value the evidenced rows only and return `netTradeCount` as that leg's denominator, so their tier describes those rows: `unknown` there means nothing at all could be valued. {@link sumProfitInRange} sums every row for a consumer that has no room to carry a denominator, so its tier describes the WINDOW: `unknown` there means at least one cycle went unvalued. Each function's `@returns` says which it is.
    */
   readonly feeBasis: FeeBasis;
   /** Archived CYCLES matched, not orders and not symbols. */
@@ -212,7 +212,7 @@ export interface RealizedTotals {
  * @param to - Exclusive upper bound on `archived_at`.
  * @returns The window's Recorded result, its Net result over EVERY matched cycle, the weakest tier any of them carried, and both counts, tagged with `quoteAsset`. All-zero (and `tradeCount: 0`) when nothing matches.
  *
- * The Net leg here spans every row, unlike the source-split readers next door, because its only consumer is the equity-snapshot cron: one cumulative number and one tier on a row that has no column for a denominator. Dropping an unvalued cycle there does not withhold an uncertain figure, it removes a known realised gain from a running total and leaves the curve missing a step — and with the tier read off the valued rows alone, marks the result complete while doing it. Included and marked is wrong by the fee that was never read; excluded is wrong by the whole cycle. `netTradeCount` comes back beside it so a future consumer with somewhere to put the coverage can state it.
+ * The Net leg here spans every row, unlike the source-split readers next door, because this result is folded into a PERSISTED equity-curve point: one cumulative amount and one tier per row, with no column for a denominator, and no later pass that re-derives either. Dropping an unvalued cycle under that storage shape does not withhold an uncertain figure, it removes a known realised gain from a running total and leaves the curve missing a step — and with the tier read off the valued rows alone, marks the result complete while doing it. Included and marked is wrong by the commission that was never read; excluded is wrong by the whole cycle. `netTradeCount` comes back beside it so a consumer that DOES have somewhere to put a denominator can state the coverage instead.
  */
 export async function sumProfitInRange(
   scope: ProfileScope,
@@ -228,7 +228,7 @@ export async function sumProfitInRange(
         when coalesce(sum(${tradeArchive.totalBuyQuote}), 0) = 0 then '0'
         else round(coalesce(sum(${tradeArchive.profit}), 0)
               / sum(${tradeArchive.totalBuyQuote}) * 100, 8)::text end`,
-      // Unfiltered, unlike the source-split readers: every fee that WAS read is subtracted from every recorded result, and the tier below says the window holds one that was not. See this function's `@returns`.
+      // Unfiltered, unlike the source-split readers: every commission that WAS read is subtracted from every recorded result, and the tier below says the window holds one that was not. See this function's `@returns` for the storage shape that decides it.
       totalFees: sql<string>`coalesce(sum(${tradeArchive.feesQuote}), 0)::text`,
       netProfit: sql<string>`coalesce(sum(${tradeArchive.profit} - ${tradeArchive.feesQuote}), 0)::text`,
       feeBasis: windowFeeBasisAgg,

@@ -165,6 +165,18 @@ describe('deriveEntryAt / deriveExitAt', () => {
     ).toBe('2026-08-20T02:00:00.000Z');
   });
 
+  it('picks the closing SELL on the same readable-stamp rule the exit time uses', () => {
+    // The two derivations have to name ONE order: the ledger prints the exit reason and the hold beside each other, and both readers document them as coming off the same SELL. A bare `Date.parse` here against an ISO screen there splits them on exactly the spellings the screen was added for — the badge would read `grid-stop-loss` while the Held column measured to a different, earlier fill.
+    const orders = [
+      { side: 'SELL', intent: 'grid-sell', closedAt: '2026-05-09T00:00:00.000Z' },
+      { side: 'SELL', intent: 'grid-stop-loss', closedAt: '2026-05-10' },
+    ];
+    // The later stamp by `Date.parse`, and not an instant the wire contract can carry.
+    expect(Date.parse('2026-05-10')).toBeGreaterThan(Date.parse('2026-05-09T00:00:00.000Z'));
+    expect(deriveExitAt(orders)).toBe('2026-05-09T00:00:00.000Z');
+    expect(deriveExitIntent(orders)).toBe('grid-sell');
+  });
+
   it('ignores a stamp that is a real instant to Date.parse and not the ISO one the wire declares', () => {
     // These four are the gap between the two tests. `Date.parse` reads every one of them as a moment, so a NaN guard passes them through, and the value is returned VERBATIM into `entryAt`/`exitAt`, which the response schema types `z.iso.datetime()` and nothing validates at runtime. A row written by an older producer, or repaired by hand, then ships a field the contract says is an ISO instant and is not.
     for (const spelling of [

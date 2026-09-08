@@ -13,7 +13,13 @@
 // Cursor pagination because new archive entries land continuously while the
 // operator pages through; an offset would re-show or skip rows.
 
-import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
 import { Eye, Trash2 } from 'lucide-react';
@@ -211,6 +217,8 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
     // The full view, explicitly: every default below depends on it.
     queryFn: timeZone === undefined ? skipToken : () => fetchProfileArchive(profileId, selection),
     refetchInterval: recovering ? 3000 : false,
+    // The key folds the cursor, the ordering and the row filters, so paging or sorting the ledger re-keys this read — and without a placeholder `list.data` is undefined for that render, which takes `windowFrom`/`windowTo` with it and unmounts the curve below on its own guard. A remount is not a re-render: the card's queries come back as fresh observers with no previous data of their own, so their placeholders cannot fire either, and a sort click costs a chart teardown plus two whole-window reads for a window that did not change. For a genuine period change the previous window is replaced one render later, which is the same trade the card itself already makes.
+    placeholderData: keepPreviousData,
   });
 
   // These two defaults are safe ONLY because the query above always asks for the full view, so a response reaching this component always carried a page. Under `rollup` they would be a lie of the kind the line below refuses: `[]` would claim the window holds no trades and `null` would claim end-of-stream, neither of which a rollup-only read checked. If this query ever takes its view from a prop, these have to branch on `undefined` too.

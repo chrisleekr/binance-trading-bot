@@ -24,11 +24,14 @@ const archiveExportUrl = vi.fn(() => '/export.ndjson');
 const backfillTradeArchive = vi.fn();
 const deleteArchiveEntry = vi.fn();
 const dismissUnreconstructable = vi.fn();
+// Spied rather than inlined: a case below counts its calls, because a whole-window read issued for a window nobody changed is the evidence that the card was torn down and rebuilt.
+const fetchEquitySnapshots = vi.fn(() =>
+  Promise.resolve({ profileId: 'p', quoteAsset: 'USDT', benchmarkMode: 'btc', points: [] }),
+);
 
 // The equity curve mounts inside the panel and issues its own reads. Stubbed to an empty series so these cases stay about the archive, and so the card renders its empty state rather than reaching the network.
 vi.mock('@/features/dashboard/api/equity-snapshots', () => ({
-  fetchEquitySnapshots: () =>
-    Promise.resolve({ profileId: 'p', quoteAsset: 'USDT', benchmarkMode: 'btc', points: [] }),
+  fetchEquitySnapshots: (...a: unknown[]) => fetchEquitySnapshots(...(a as [])),
 }));
 vi.mock('@/features/profile/api/audit-logs', () => ({
   fetchProfileAuditLogs: () => Promise.resolve({ items: [], nextCursor: null }),
@@ -1388,6 +1391,44 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     expect(screen.queryByTestId('archive-export')).toBeNull();
     // No URL is built at all, rather than one built and hidden.
     expect(archiveExportUrl).not.toHaveBeenCalled();
+  });
+
+  it('keeps the equity curve mounted across a sort, whose read does not change the window', async () => {
+    // The key folds the cursor, the ordering and the row filters, so a sort click re-keys the ledger read. Without a placeholder `list.data` is undefined for that render, `windowFrom`/`windowTo` go with it, and the card's own `from`/`to` guard unmounts it. That is not a flicker: a remount gives the card's two queries fresh observers with no previous data, so their own `keepPreviousData` cannot fire, and the chart drops to its skeleton and re-issues both whole-window reads for a window nobody changed.
+    fetchProfileArchive.mockResolvedValue({
+      ...response([]),
+      items: [
+        {
+          id: 'arch-mounted',
+          symbol: 'BTCUSDT',
+          exitIntent: 'grid-sell',
+          totalBuyQuote: '100',
+          totalSellQuote: '110',
+          profit: '10',
+          netProfit: '9',
+          feeBasis: 'exact',
+          fees: {},
+          quoteAsset: 'USDT',
+          missingCostBasis: 0,
+          archivedAt: '2026-05-10T00:00:00.000Z',
+        },
+      ],
+    });
+    renderPanel();
+    await screen.findByTestId('history-equity-card');
+    await screen.findByTestId('archive-sort-symbol');
+    const snapshotReads = fetchEquitySnapshots.mock.calls.length;
+
+    // The re-keyed read never resolves, which is the whole window in which the teardown happened.
+    fetchProfileArchive.mockReturnValue(new Promise(() => {}));
+    await userEvent.click(screen.getByTestId('archive-sort-symbol'));
+    await waitFor(() => {
+      expect(fetchProfileArchive.mock.calls.at(-1)?.[1]).toMatchObject({ sort: 'symbol' });
+    });
+
+    expect(screen.getByTestId('history-equity-card')).toBeInTheDocument();
+    // And no second pair of whole-window reads was issued, because the card never remounted.
+    expect(fetchEquitySnapshots.mock.calls.length).toBe(snapshotReads);
   });
 
   it('re-reads the whole selection when a ledger column is sorted, rather than reordering the page', async () => {

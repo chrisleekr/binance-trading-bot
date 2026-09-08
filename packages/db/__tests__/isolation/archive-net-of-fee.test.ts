@@ -116,7 +116,7 @@ describeIfDb('trade-archive net-of-fee aggregation', () => {
       archivedAt: new Date('2029-01-01T12:00:00Z'),
     });
     const out = await ap.tradeArchive.sumProfitInRange('USDT', from, to);
-    // Its commission was paid in BNB, which this window cannot price. This reader's Net leg still carries the row, because its only consumer is the equity-snapshot cron: one cumulative number and one tier on a row with no column for a denominator, so dropping the cycle removes a known realised gain from a running total instead of withholding an uncertain one. What keeps that honest is the tier, which reads `unknown` off the WINDOW rather than off the rows the sum was folded from — otherwise this same figure comes back marked `exact` the moment one valued cycle sits beside it.
+    // Its commission was paid in BNB, which this window cannot price. This reader's Net leg still carries the row, because the result is folded into a persisted curve point that stores one cumulative amount and one tier with no column for a denominator: dropping the cycle there removes a known realised gain from a running total instead of withholding an uncertain one. What keeps that honest is the tier, which reads `unknown` off the WINDOW rather than off the rows the sum was folded from — otherwise this same figure comes back marked `exact` the moment one valued cycle sits beside it.
     expect(out.tradeCount).toBe(1);
     expect(Number(out.totalProfit)).toBe(1);
     expect(out.netTradeCount).toBe(0);
@@ -125,7 +125,7 @@ describeIfDb('trade-archive net-of-fee aggregation', () => {
   });
 
   it('marks the window unvalued even when valued cycles sit beside the unvalued one', async () => {
-    // The case a tier read off the folded rows gets exactly backwards, and the one the equity curve actually meets: nine good cycles and one old fill nobody could price. `weakestFeeBasisAgg` skips the unvalued row, so the source-split readers correctly report `exact` over the set they summed — but this reader sums every row, and a curve labelled `exact` while carrying an unpriced commission certifies what it cannot.
+    // The case a tier read off the folded rows gets exactly backwards, and the one a long-lived curve actually meets: nine good cycles and one old fill nobody could price. `weakestFeeBasisAgg` skips the unvalued row, so the source-split readers correctly report `exact` over the set they summed — but this reader sums every row, and a curve labelled `exact` while carrying an unpriced commission certifies what it cannot.
     const from = new Date('2035-01-01T00:00:00Z');
     const to = new Date('2035-01-02T00:00:00Z');
     const at = new Date('2035-01-01T12:00:00Z');

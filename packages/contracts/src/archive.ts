@@ -3,11 +3,20 @@ import { z } from 'zod';
 import { asDecimalString, DecimalString, decimalAdd } from './decimal.js';
 
 /**
+ * The stored stamp when it is the ISO-8601 instant the wire declares, else null.
+ *
+ * `Date.parse` is deliberately not the test. It accepts spellings this schema rejects, `'2026-05-09'` and `'Mon, 09 May 2026'` among them, and every value screened here is returned VERBATIM into a response field typed `z.iso.datetime()`. Nothing validates a response body at runtime, so a legacy or hand-repaired row written in one of those spellings ships a field the contract says is an ISO instant and is not, and the client parses it under whatever its own engine makes of it.
+ */
+const ISO_INSTANT = z.iso.datetime();
+const isoInstant = (value: string | null | undefined): string | null =>
+  value != null && ISO_INSTANT.safeParse(value).success ? value : null;
+
+/**
  * The exit intent of one archived buy/sell cycle: the `intent` of the SELL that closed it, i.e. the one with the greatest `closedAt`. The closing SELL is what actually realized the cycle's P/L, so its intent (e.g. `grid-stop-loss`, `technicals-force-sell`, `grid-sell`, `manual`) is the honest "why did this trade close" label. A cycle with no SELL, or a SELL whose intent is missing, is `'unknown'` so recovered/backfilled rows read truthfully rather than being dropped.
  *
  * Selection is by timestamp, never by array position, because no writer guarantees a chronological array and the two disagree: the forward archive emits `desc(closedAt)` so its LAST SELL is the cycle's FIRST exit, and the backfill emits Map-insertion order keyed on each order's FIRST fill, so an order that partially fills, yields to a second SELL, then flattens the position lands before that second SELL. Reading by position picked the wrong SELL in both, which mislabels every cycle closed by more than one SELL and mis-buckets the by-exit-reason rollup that shares this function.
  *
- * Rows written before `closedAt` was carried, or whose stamps are unparseable, keep the previous last-in-array behaviour: with nothing to order by, position is the only signal left.
+ * Rows written before `closedAt` was carried, or whose stamps are not the ISO instant the wire declares, keep the previous last-in-array behaviour: with nothing to order by, position is the only signal left.
  *
  * @param orders - Archived order summaries of one cycle, in any order.
  * @returns The closing SELL's base intent, or `'unknown'` when no SELL carries one.
@@ -19,12 +28,14 @@ export function deriveExitIntent(
   let closingAt = -Infinity;
   for (const order of orders) {
     if (order.side !== 'SELL') continue;
-    const at = order.closedAt == null ? NaN : Date.parse(order.closedAt);
-    if (Number.isNaN(at)) {
-      // Unstamped rows only compete with each other, and the last one wins, which is the legacy behaviour. One stamped SELL retires them all.
+    // The same screen {@link deriveExitAt} ranks on, so ONE definition of a readable stamp decides both. A bare `Date.parse` accepts spellings that screen rejects, and a SELL ranked here on such a stamp but skipped there gives the cycle an exit REASON off one order and an exit TIME off another, which is the pairing both callers document.
+    const closedAt = isoInstant(order.closedAt);
+    if (closedAt === null) {
+      // Rows with no readable stamp only compete with each other, and the last one wins, which is the legacy behaviour. One stamped SELL retires them all.
       if (closingAt === -Infinity) closing = order;
       continue;
     }
+    const at = Date.parse(closedAt);
     // `>=` keeps the later array element on a tie, so equal stamps degrade to the same last-wins rule.
     if (at >= closingAt) {
       closing = order;
@@ -62,15 +73,6 @@ export function deriveExitAt(
 ): string | null {
   return extremeAt(orders, 'SELL', 'latest');
 }
-
-/**
- * The stored stamp when it is the ISO-8601 instant the wire declares, else null.
- *
- * `Date.parse` is deliberately not the test. It accepts spellings this schema rejects, `'2026-05-09'` and `'Mon, 09 May 2026'` among them, and every value screened here is returned VERBATIM into a response field typed `z.iso.datetime()`. Nothing validates a response body at runtime, so a legacy or hand-repaired row written in one of those spellings ships a field the contract says is an ISO instant and is not, and the client parses it under whatever its own engine makes of it.
- */
-const ISO_INSTANT = z.iso.datetime();
-const isoInstant = (value: string | null | undefined): string | null =>
-  value != null && ISO_INSTANT.safeParse(value).success ? value : null;
 
 /** The earliest or latest ISO `closedAt` among the orders on one side, returned verbatim so the caller keeps the stored spelling rather than a re-serialised one. */
 function extremeAt(

@@ -331,10 +331,12 @@ describe('<HistoryEquityCard>', () => {
     );
 
     await waitFor(() => expect(screen.queryByTestId('history-equity-marker')).toBeNull());
-    // And the footnote stops claiming a count for them. The curve itself stays, which is what the placeholder is for.
-    expect(screen.getByTestId('history-equity-footnote').textContent ?? '').not.toContain(
-      'marked on the axis',
-    );
+    // The CURVE stays, which is the whole point of the placeholder and the half a marker assertion cannot see: a regression that blanked the card while the audit read was in flight would satisfy every line above.
+    expect(screen.queryByTestId('history-equity-empty')).toBeNull();
+    const footnote = screen.getByTestId('history-equity-footnote');
+    expect(footnote).toHaveTextContent('Worst drop from a high point in this window');
+    // And the footnote stops claiming a count for the marks it is no longer drawing.
+    expect(footnote.textContent ?? '').not.toContain('marked on the axis');
   });
 
   it('keeps the previous window on screen while a re-resolved one loads', async () => {

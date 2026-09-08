@@ -379,6 +379,11 @@ const detailRoute = createRoute({
       content: { 'application/json': { schema: TradeArchiveDetailResponse } },
     },
     404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
+    // `archiveId` is a uuid, so any other spelling in the path fails at the boundary. Undeclared, a generated client meets that as a protocol error rather than the validation failure it is, exactly as on the two routes above.
+    422: {
+      description: 'VALIDATION_FAILED',
+      content: { 'application/json': { schema: ErrorEnvelope } },
+    },
   },
 });
 
