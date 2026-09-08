@@ -3,11 +3,20 @@ import { z } from 'zod';
 import { asDecimalString, DecimalString, decimalAdd } from './decimal.js';
 
 /**
+ * The stored stamp when it is the ISO-8601 instant the wire declares, else null.
+ *
+ * `Date.parse` is deliberately not the test. It accepts spellings this schema rejects, `'2026-05-09'` and `'Mon, 09 May 2026'` among them, and every value screened here is returned VERBATIM into a response field typed `z.iso.datetime()`. Nothing validates a response body at runtime, so a legacy or hand-repaired row written in one of those spellings ships a field the contract says is an ISO instant and is not, and the client parses it under whatever its own engine makes of it.
+ */
+const ISO_INSTANT = z.iso.datetime();
+const isoInstant = (value: string | null | undefined): string | null =>
+  value != null && ISO_INSTANT.safeParse(value).success ? value : null;
+
+/**
  * The exit intent of one archived buy/sell cycle: the `intent` of the SELL that closed it, i.e. the one with the greatest `closedAt`. The closing SELL is what actually realized the cycle's P/L, so its intent (e.g. `grid-stop-loss`, `technicals-force-sell`, `grid-sell`, `manual`) is the honest "why did this trade close" label. A cycle with no SELL, or a SELL whose intent is missing, is `'unknown'` so recovered/backfilled rows read truthfully rather than being dropped.
  *
  * Selection is by timestamp, never by array position, because no writer guarantees a chronological array and the two disagree: the forward archive emits `desc(closedAt)` so its LAST SELL is the cycle's FIRST exit, and the backfill emits Map-insertion order keyed on each order's FIRST fill, so an order that partially fills, yields to a second SELL, then flattens the position lands before that second SELL. Reading by position picked the wrong SELL in both, which mislabels every cycle closed by more than one SELL and mis-buckets the by-exit-reason rollup that shares this function.
  *
- * Rows written before `closedAt` was carried, or whose stamps are unparseable, keep the previous last-in-array behaviour: with nothing to order by, position is the only signal left.
+ * Rows written before `closedAt` was carried, or whose stamps are not the ISO instant the wire declares, keep the previous last-in-array behaviour: with nothing to order by, position is the only signal left.
  *
  * @param orders - Archived order summaries of one cycle, in any order.
  * @returns The closing SELL's base intent, or `'unknown'` when no SELL carries one.
@@ -19,12 +28,14 @@ export function deriveExitIntent(
   let closingAt = -Infinity;
   for (const order of orders) {
     if (order.side !== 'SELL') continue;
-    const at = order.closedAt == null ? NaN : Date.parse(order.closedAt);
-    if (Number.isNaN(at)) {
-      // Unstamped rows only compete with each other, and the last one wins, which is the legacy behaviour. One stamped SELL retires them all.
+    // The same screen {@link deriveExitAt} ranks on, so ONE definition of a readable stamp decides both. A bare `Date.parse` accepts spellings that screen rejects, and a SELL ranked here on such a stamp but skipped there gives the cycle an exit REASON off one order and an exit TIME off another, which is the pairing both callers document.
+    const closedAt = isoInstant(order.closedAt);
+    if (closedAt === null) {
+      // Rows with no readable stamp only compete with each other, and the last one wins, which is the legacy behaviour. One stamped SELL retires them all.
       if (closingAt === -Infinity) closing = order;
       continue;
     }
+    const at = Date.parse(closedAt);
     // `>=` keeps the later array element on a tie, so equal stamps degrade to the same last-wins rule.
     if (at >= closingAt) {
       closing = order;
@@ -33,6 +44,56 @@ export function deriveExitIntent(
   }
   const intent = closing?.intent;
   return intent != null && intent.length > 0 ? baseIntent(intent) : 'unknown';
+}
+
+/**
+ * When the cycle was opened: the EARLIEST `closedAt` on a BUY.
+ *
+ * By timestamp and never by array position, for the reason {@link deriveExitIntent} documents at length: no writer guarantees a chronological array, and the two disagree in both directions. Null when no BUY carries a stamp, which is the honest answer for a backfilled cycle whose reconstructed orders have none — a caller must render that as unknown rather than as a zero-length hold, which would read as a trade that opened and closed in the same instant.
+ *
+ * @param orders - Archived order summaries of one cycle, in any order.
+ * @returns The opening instant as its stored ISO string, or null when no BUY is stamped.
+ */
+export function deriveEntryAt(
+  orders: readonly { side: string; closedAt?: string | null }[],
+): string | null {
+  return extremeAt(orders, 'BUY', 'earliest');
+}
+
+/**
+ * When the cycle was closed: the LATEST `closedAt` on a SELL, i.e. the fill that realized the P/L.
+ *
+ * The same selection {@link deriveExitIntent} makes for the intent, so the reported exit time and the reported exit reason always come off the same order.
+ *
+ * @param orders - Archived order summaries of one cycle, in any order.
+ * @returns The closing instant as its stored ISO string, or null when no SELL is stamped.
+ */
+export function deriveExitAt(
+  orders: readonly { side: string; closedAt?: string | null }[],
+): string | null {
+  return extremeAt(orders, 'SELL', 'latest');
+}
+
+/** The earliest or latest ISO `closedAt` among the orders on one side, returned verbatim so the caller keeps the stored spelling rather than a re-serialised one. */
+function extremeAt(
+  orders: readonly { side: string; closedAt?: string | null }[],
+  side: 'BUY' | 'SELL',
+  pick: 'earliest' | 'latest',
+): string | null {
+  let best: string | null = null;
+  let bestAt = pick === 'earliest' ? Infinity : -Infinity;
+  for (const order of orders) {
+    if (order.side !== side) continue;
+    // Screened before it is ordered by, not after: a stamp that is not an instant is not a time, and one this function would emit is also a contract violation at the caller's response boundary.
+    const closedAt = isoInstant(order.closedAt);
+    if (closedAt === null) continue;
+    const at = Date.parse(closedAt);
+    if (pick === 'earliest' ? at < bestAt : at > bestAt) {
+      best = closedAt;
+      bestAt = at;
+    }
+  }
+  return best;
 }
 
 /**
@@ -121,6 +182,7 @@ export function weakestFeeBasis(a: string, b: string): FeeBasis {
  */
 const rollupMetricFields = {
   tradeCount: z.number().int().nonnegative(),
+  netTradeCount: z.number().int().nonnegative(),
   wins: z.number().int().nonnegative(),
   losses: z.number().int().nonnegative(),
   profitSum: DecimalString,
@@ -129,6 +191,8 @@ const rollupMetricFields = {
   grossLoss: DecimalString,
   totalFees: DecimalString,
   feeBasis: FeeBasis.default('unknown'),
+  // Mean holding period in milliseconds over the cycles that carry both an entry and an exit stamp, or null when none does. Milliseconds and not a formatted string because the reader renders it at its own scale, and nullable because a backfilled cycle with no BUY stamp has no duration at all — a zero there would read as a trade that opened and closed in the same instant.
+  avgHoldMs: z.number().nonnegative().nullable().default(null),
 } as const;
 
 /** One period-scoped P/L bucket grouped by `(quoteAsset, exitIntent)`. */
@@ -165,14 +229,24 @@ export interface ArchiveRollupItem {
 interface RollupBucket {
   quoteAsset: string;
   dimension: string;
+  /** Every row. Denominator for `profitSum` and the Recorded basis. */
   tradeCount: number;
+  /** Rows whose `feeBasis` is not `unknown`. Denominator for every Net-derived figure below it. */
+  netTradeCount: number;
   wins: number;
   losses: number;
+  /** Recorded result over all `tradeCount` rows. An unvalued row still has a real cost-basis P/L, so excluding it here would withhold a figure its evidence fully supports. */
   profitSum: string;
+  /** Recorded result over the `netTradeCount` valued rows only, so `netProfit` subtracts fees from the same rows those fees came off. Summing `totalFees` out of the whole-bucket `profitSum` would charge the valued rows' fees against the unvalued rows' profit. */
+  netProfitSum: string;
   grossProfit: string;
   grossLoss: string;
   totalFees: string;
+  /** Weakest tier among the VALUED rows only. `unknown` now means exactly one thing: nothing in this bucket could be valued at all. */
   feeBasis: FeeBasis;
+  /** Total holding time of the cycles that could be timed, and how many those were. Their own denominator, because a cycle with no entry stamp is not a zero-length hold, it is one nobody can time. */
+  holdMsSum: number;
+  holdCount: number;
 }
 
 /**
@@ -200,22 +274,40 @@ function accumulateBuckets(
         quoteAsset: item.quoteAsset,
         dimension,
         tradeCount: 0,
+        netTradeCount: 0,
         wins: 0,
         losses: 0,
         profitSum: '0',
+        netProfitSum: '0',
         grossProfit: '0',
         grossLoss: '0',
         totalFees: '0',
-        // Seeded at the STRONGEST tier so the fold below can only ever weaken it. An empty bucket is one nothing is wrong with, which is the reading `coalesce(bool_and(...), true)` already had on the SQL side.
+        holdMsSum: 0,
+        holdCount: 0,
+        // Seeded at the STRONGEST tier so the fold below can only ever weaken it, and now only by rows that cleared the valued gate, so it can no longer reach `unknown` while a real Net figure stands beside it. A bucket that valued nothing reports `unknown` at projection time instead.
         feeBasis: 'exact' as FeeBasis,
       };
       buckets.set(key, b);
     }
     b.tradeCount += 1;
-    // Win/loss and the gross winner/loser magnitudes are classified on Net = Recorded profit - the additional fee adjustment.
     b.profitSum = decimalAdd(b.profitSum, item.profit);
+    // Timed on the Recorded leg, not the Net one: how long a cycle was held is a fact about the orders, which the fee evidence has nothing to do with.
+    const holdMs = holdMsOf(item.orders);
+    if (holdMs !== null) {
+      b.holdMsSum += holdMs;
+      b.holdCount += 1;
+    }
+
+    // Canonicalised through the same fold the bucket's tier uses, so a tier this build does not recognise reads as unvalued rather than as evidence. `netTradeCount === 0` and a reported `unknown` tier then mean exactly one thing between them, and the SQL half agrees, whose rank expression maps any unrecognised value to NULL.
+    const rowBasis = weakestFeeBasis(item.feeBasis ?? 'unknown', 'exact');
+    // An `unknown` row contributes to the Recorded leg and to nothing else. Its fee is missing outright, so folding it into `totalFees`, into the win/loss split, or into the tier would each corrupt a different Net statistic, and the previous fold did all three at once by weakening the whole bucket to `unknown` and charging the valued rows' fees against this row's profit.
+    if (rowBasis === 'unknown') continue;
+
+    // Win/loss and the gross winner/loser magnitudes are classified on Net = Recorded profit - the additional fee adjustment, over the valued rows alone so every Net statistic shares one denominator.
     const feesQuote = item.feesQuote ?? '0';
-    b.feeBasis = weakestFeeBasis(b.feeBasis, item.feeBasis ?? 'unknown');
+    b.netTradeCount += 1;
+    b.netProfitSum = decimalAdd(b.netProfitSum, item.profit);
+    b.feeBasis = weakestFeeBasis(b.feeBasis, rowBasis);
     b.totalFees = decimalAdd(b.totalFees, feesQuote);
     const net = new Decimal(item.profit).sub(feesQuote);
     if (net.gt(0)) {
@@ -231,10 +323,38 @@ function accumulateBuckets(
   );
 }
 
-/** Shared decimal-string projection of a bucket's metrics (everything but the dimension label). */
+/**
+ * How long a cycle was held, from its two derived stamps.
+ *
+ * The one negative-span rule every surface shares. A negative span means the two stamps came from orders that cannot both belong to this cycle, and it must read as unstamped rather than as a duration: dropped here, a bad row sorts to the end of either direction and renders an em dash, while a negative number sorts FIRST under an ascending hold sort and renders as the shortest hold in the list. `null` also stays distinct from `0`, because a zero-length hold is a claim that a cycle opened and closed in the same instant.
+ *
+ * @param entryAt - The cycle's opening instant as an ISO string, or null when no buy in it is stamped.
+ * @param exitAt - The cycle's closing instant as an ISO string, or null when no sell in it is stamped.
+ * @returns Elapsed milliseconds, or null when either end is unstamped or the span is unusable.
+ */
+export function holdMsBetween(entryAt: string | null, exitAt: string | null): number | null {
+  if (entryAt === null || exitAt === null) return null;
+  const ms = Date.parse(exitAt) - Date.parse(entryAt);
+  return Number.isFinite(ms) && ms >= 0 ? ms : null;
+}
+
+/** How long one cycle was held off its orders, or null when either end is unstamped. Delegates the span rule to {@link holdMsBetween} so the rollup's average and the row's own Held column cannot disagree about what a negative span means. */
+function holdMsOf(orders: readonly { side: string; closedAt?: string | null }[]): number | null {
+  return holdMsBetween(deriveEntryAt(orders), deriveExitAt(orders));
+}
+
+/**
+ * The shared decimal-string projection of one accumulated bucket: everything the wire carries except the dimension label, which only the caller knows the name of.
+ *
+ * One projection for both rollups, because the by-exit-reason and by-source bands partition the SAME cycles and a reader compares them against each other; two projections drifting apart is how a bucket comes to mean something different in the band beside it.
+ *
+ * @param b - The accumulated bucket: raw running totals, with `netTradeCount` counting only the rows whose fees could be read and `holdCount` only the ones that could be timed.
+ * @returns The bucket as the wire carries it. Every money field is a decimal STRING, and three fields are deliberately not the obvious read of their accumulator — `netProfit` is the valued rows' result net of their own fees and is meaningless unless `netTradeCount` is above zero, `feeBasis` reports `unknown` rather than the `exact` seed when nothing was valued, and `avgHoldMs` is null rather than zero when nothing could be timed.
+ */
 function bucketMetrics(b: RollupBucket): {
   quoteAsset: string;
   tradeCount: number;
+  netTradeCount: number;
   wins: number;
   losses: number;
   profitSum: DecimalString;
@@ -243,19 +363,24 @@ function bucketMetrics(b: RollupBucket): {
   grossLoss: DecimalString;
   totalFees: DecimalString;
   feeBasis: FeeBasis;
+  avgHoldMs: number | null;
 } {
   return {
     quoteAsset: b.quoteAsset,
     tradeCount: b.tradeCount,
+    netTradeCount: b.netTradeCount,
     wins: b.wins,
     losses: b.losses,
     profitSum: asDecimalString(b.profitSum),
-    // Net = Recorded result minus the additional fee adjustment.
-    netProfit: asDecimalString(new Decimal(b.profitSum).sub(b.totalFees)),
+    // Net = the VALUED rows' Recorded result minus their own fees. Zero when nothing was valued, which is why `netTradeCount`, not this number, is what decides whether a caller may render it.
+    netProfit: asDecimalString(new Decimal(b.netProfitSum).sub(b.totalFees)),
     grossProfit: asDecimalString(b.grossProfit),
     grossLoss: asDecimalString(b.grossLoss),
     totalFees: asDecimalString(b.totalFees),
-    feeBasis: b.feeBasis,
+    // A bucket with no valued rows reports `unknown` rather than the `exact` seed: both mean nothing was read, but here the caller must be able to tell "nothing to distrust" from "nothing to trust".
+    feeBasis: b.netTradeCount === 0 ? 'unknown' : b.feeBasis,
+    // Null, never zero, when nothing in the bucket could be timed.
+    avgHoldMs: b.holdCount === 0 ? null : b.holdMsSum / b.holdCount,
   };
 }
 
@@ -280,6 +405,8 @@ export function rollupBySource(items: readonly ArchiveRollupItem[]): BySourceRol
 /** One overall closed-trade summary (the per-quote/source split collapsed). */
 export interface ClosedTradesSummary {
   readonly tradeCount: number;
+  /** Rows carrying fee evidence: the denominator of `netProfit`, `totalFees` and the win/loss split beside it. */
+  readonly netTradeCount: number;
   readonly wins: number;
   readonly losses: number;
   readonly grossProfit: string;
@@ -291,6 +418,7 @@ export interface ClosedTradesSummary {
 
 const EMPTY_CLOSED_TRADES_SUMMARY: ClosedTradesSummary = {
   tradeCount: 0,
+  netTradeCount: 0,
   wins: 0,
   losses: 0,
   grossProfit: '0',
@@ -312,6 +440,7 @@ export function summarizeClosedTrades(items: readonly ArchiveRollupItem[]): Clos
   const m = bucketMetrics(bucket);
   return {
     tradeCount: m.tradeCount,
+    netTradeCount: m.netTradeCount,
     wins: m.wins,
     losses: m.losses,
     grossProfit: m.grossProfit,
@@ -344,12 +473,87 @@ export const TradeArchiveResponse = z.object({
   profit: DecimalString,
   // Why the cycle closed: the intent of the SELL that closed it, i.e. the one with the greatest `closedAt`, derived at read time from the archived `orders` (no stored column). `'unknown'` for rows with no SELL or a missing intent (e.g. backfilled history). `.default` keeps pre-existing response producers/consumers from breaking.
   exitIntent: z.string().default('unknown'),
+  // When the cycle opened and closed, derived server-side from the archived `orders` the same way `exitIntent` is, so the browser never sees the raw Binance payload those stamps come from. Null when the stored orders carry no stamp on that side, which is a real state for a backfilled cycle and must render as unknown rather than as a hold of zero.
+  entryAt: z.iso.datetime().nullable().default(null),
+  exitAt: z.iso.datetime().nullable().default(null),
   // How many SELLs had no cost basis. A positive count makes both P/L bases unavailable because their numeric subtotal is an under-count. The default preserves the earlier wire shape.
   missingCostBasis: z.number().int().nonnegative().default(0),
   archivedAt: z.iso.datetime(),
 });
 /** TS type derived from {@link TradeArchiveResponse} so consumers don't re-run z.infer at every call site. */
 export type TradeArchiveResponse = z.infer<typeof TradeArchiveResponse>;
+
+/**
+ * One order of an archived cycle, as the detail sheet states it.
+ *
+ * A projection of the stored summary, not the summary itself: each stored element embeds the whole raw Binance order payload, which is why the list ships no `orders` at all and why this drops `raw` and the strategy-owned `meta`. What is left is what an operator auditing a cycle needs — which side, why, whether it filled, for how much, and when.
+ */
+export const ArchivedOrderDetail = z.object({
+  orderId: z.string(),
+  // Binance's id as a decimal string. It is a 64-bit integer, so it does not survive a JSON number.
+  binanceOrderId: z.string(),
+  clientOrderId: z.string(),
+  intent: z.string(),
+  // Null on a row whose stored side was neither BUY nor SELL — unreachable for a live archive, real for a hand-repaired one.
+  side: z.enum(['BUY', 'SELL']).nullable(),
+  status: z.string(),
+  // Execution totals off the exchange snapshot, null when the archive was written without one. Not defaulted to '0': an unproven fill is not an empty fill.
+  executedQty: DecimalString.nullable(),
+  cummulativeQuoteQty: DecimalString.nullable(),
+  closedAt: z.iso.datetime().nullable(),
+});
+/** TS type derived from {@link ArchivedOrderDetail} so consumers don't re-run z.infer at every call site. */
+export type ArchivedOrderDetail = z.infer<typeof ArchivedOrderDetail>;
+
+/**
+ * The fills behind one archived cycle, fetched when its sheet opens.
+ *
+ * Progressive disclosure at the API layer. The list carries every scalar the ledger renders and none of the orders; this carries the orders and nothing else, so the cost of the payload is paid once, by the one row the operator actually opened.
+ */
+export const TradeArchiveDetailResponse = z.object({
+  id: z.uuid(),
+  orders: z.array(ArchivedOrderDetail),
+});
+/** TS type derived from {@link TradeArchiveDetailResponse} so consumers don't re-run z.infer at every call site. */
+export type TradeArchiveDetailResponse = z.infer<typeof TradeArchiveDetailResponse>;
+
+/**
+ * Read the stored `orders` jsonb into the detail projection, dropping anything that does not carry the fields the sheet states.
+ *
+ * Defensive in the same way {@link coerceArchivedOrders} is, and for the same reason: the column is jsonb written by two different producers across the archive's history, so a row can legitimately hold an element this shape cannot describe. Such an element is dropped rather than rendered half-formed — a fill the sheet cannot state is better absent than shown with blank facts an operator would read as proven zeros.
+ *
+ * @param value - The stored `orders` jsonb, in whatever shape the row actually holds.
+ * @returns Every element that carried a string `orderId` and `side`, projected to the wire shape; `[]` for anything else.
+ */
+export function coerceArchivedOrderDetails(value: unknown): ArchivedOrderDetail[] {
+  if (!Array.isArray(value)) return [];
+  const out: ArchivedOrderDetail[] = [];
+  for (const o of value) {
+    if (o === null || typeof o !== 'object') continue;
+    const r = o as Record<string, unknown>;
+    if (typeof r['orderId'] !== 'string') continue;
+    const str = (k: string): string | null => (typeof r[k] === 'string' ? (r[k] as string) : null);
+    const side = str('side');
+    // Parsed through the wire schema, never cast into it: the column holds whatever its producer wrote, and a value that is not a well-formed decimal has to become `null` here — casting it would ship a field the response's own contract says is a decimal and is not.
+    const decimalOrNull = (k: string): ArchivedOrderDetail['executedQty'] => {
+      const parsed = DecimalString.safeParse(r[k]);
+      return parsed.success ? parsed.data : null;
+    };
+    out.push({
+      orderId: r['orderId'],
+      binanceOrderId: str('binanceOrderId') ?? '',
+      clientOrderId: str('clientOrderId') ?? '',
+      intent: str('intent') ?? 'unknown',
+      side: side === 'BUY' || side === 'SELL' ? side : null,
+      status: str('status') ?? 'UNKNOWN',
+      executedQty: decimalOrNull('executedQty'),
+      cummulativeQuoteQty: decimalOrNull('cummulativeQuoteQty'),
+      // Screened, not merely read as a string: this lands in a field the detail response types `z.iso.datetime()`, and the column holds whatever its producer wrote.
+      closedAt: isoInstant(str('closedAt')),
+    });
+  }
+  return out;
+}
 
 /** Paginated archive list. Cursor-based for stable pages over a growing table. */
 export const TradeArchiveList = z.object({
@@ -366,6 +570,20 @@ export type TradeArchiveList = z.infer<typeof TradeArchiveList>;
  * keeping the same enum lets the operator's mental model carry across.
  */
 export const ArchivePeriod = z.enum(['a', 'd', 'w', 'm']);
+
+/**
+ * Keys the archive list can be ordered by.
+ *
+ * Declared here, not in the route, because the query string is a contract: the SPA builds the value and the API validates it, and a key that exists on only one side is a silent fallback to the default ordering rather than an error the operator can see.
+ */
+export const ArchiveSort = z.enum(['archivedAt', 'netProfit', 'profit', 'holdMs', 'symbol']);
+/** TS type derived from {@link ArchiveSort} so consumers don't re-run z.infer at every call site. */
+export type ArchiveSort = z.infer<typeof ArchiveSort>;
+
+/** Direction for {@link ArchiveSort}. */
+export const ArchiveSortDir = z.enum(['asc', 'desc']);
+/** TS type derived from {@link ArchiveSortDir} so consumers don't re-run z.infer at every call site. */
+export type ArchiveSortDir = z.infer<typeof ArchiveSortDir>;
 /** TS type derived from {@link ArchivePeriod} so consumers don't re-run z.infer at every call site. */
 export type ArchivePeriod = z.infer<typeof ArchivePeriod>;
 
@@ -426,6 +644,9 @@ export const ProfileArchiveListResponse = z.object({
   byIntent: z.array(ByIntentRollupSchema).default([]),
   // Same period-scoped rollup grouped by where the binding came from (auto = discovery found it, manual = the operator added it, unknown = the bot re-created it to recover an untracked position) so the operator sees which origin is the edge or the drag. Provenance only: a pin does not move a trade between buckets. `.default([])` keeps older producers valid.
   bySource: z.array(BySourceRollupSchema).default([]),
+  // The window the rollups were taken over, resolved server-side and echoed back the way {@link ClosedTradesResponse} echoes its own. The period tokens are cut in the operator's timezone, and a second surface that plots the same window — the History curve and the operator actions on it — must plot the window the numbers came from rather than re-derive it from the same token and drift by a day at a boundary.
+  from: z.iso.datetime(),
+  to: z.iso.datetime(),
 });
 /** TS type derived from {@link ProfileArchiveListResponse} so consumers don't re-run z.infer at every call site. */
 export type ProfileArchiveListResponse = z.infer<typeof ProfileArchiveListResponse>;

@@ -144,10 +144,7 @@ const recentTradesRoute = createRoute({
   },
 });
 
-// Binance `/api/v3/depth` accepts a fixed set of `limit` values. 100 levels
-// per side feed the panel's price-grouping: the operator can aggregate the
-// raw ladder into coarser buckets and still see real liquidity depth. The
-// panel slices the rendered rows down from this regardless of grouping.
+// 100 levels per side feed the panel's price-grouping: the operator can aggregate the raw ladder into coarser buckets and still see real liquidity depth. The panel slices the rendered rows down from this regardless of grouping. Raising it is not free — Binance prices `/api/v3/depth` in bands by `limit`, and the client reserves per band.
 const ORDER_BOOK_LIMIT = 100;
 
 const orderBookRoute = createRoute({

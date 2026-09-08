@@ -180,9 +180,11 @@ describe('DiscoveryDashboardResponse', () => {
         realizedProfit: '0',
         realizedProfitPercent: '0',
         tradeCount: 0,
+        netTradeCount: 0,
         winRate: 0,
         realizedProfit7d: '0',
         tradeCount7d: 0,
+        netTradeCount7d: 0,
       },
       gauge: { deployedQuote: '0', maxAccountExposureQuote: null, autoSymbolCount: 0 },
     });
@@ -203,9 +205,11 @@ describe('DiscoveryDashboardResponse', () => {
         realizedProfit: '0',
         realizedProfitPercent: '0',
         tradeCount: 0,
+        netTradeCount: 0,
         winRate: 0,
         realizedProfit7d: '0',
         tradeCount7d: 0,
+        netTradeCount7d: 0,
       },
       gauge: { deployedQuote: '0', maxAccountExposureQuote: null, autoSymbolCount: 0 },
     });
@@ -223,12 +227,15 @@ describe('DiscoveryScoreboardResponse', () => {
     realizedProfit: '12.5',
     realizedProfitPercent: '4.2',
     tradeCount: 9,
+    netTradeCount: 8,
     winRate: 0.5,
   };
 
   it('parses a period-ranged scoreboard', () => {
     const res = DiscoveryScoreboardResponse.parse(valid);
     expect(res.tradeCount).toBe(9);
+    // The two counts are separate facts on the wire: the window held nine cycles and eight of them carried the fee evidence `winRate` and `netProfit` are computed over. A producer that sent one number for both would be reporting a ratio over rows it never valued.
+    expect(res.netTradeCount).toBe(8);
     expect(res.winRate).toBe(0.5);
     expect(res.feeBasis).toBe('unknown');
   });
@@ -249,6 +256,7 @@ describe('DiscoveryScoreboardResponse', () => {
           source: 'auto',
           realizedProfit: '12.5',
           tradeCount: 9,
+          netTradeCount: 9,
           wins: 5,
           losses: 4,
           grossProfit: '30',
@@ -269,6 +277,7 @@ describe('DiscoveryScoreboardResponse', () => {
             source: 'auto',
             realizedProfit: 'lots',
             tradeCount: 1,
+            netTradeCount: 1,
             wins: 1,
             losses: 0,
             grossProfit: '1',

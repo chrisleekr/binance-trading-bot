@@ -20,12 +20,29 @@ vi.mock('sonner', () => ({
 }));
 
 const fetchProfileArchive = vi.fn();
+const archiveExportUrl = vi.fn(() => '/export.ndjson');
 const backfillTradeArchive = vi.fn();
 const deleteArchiveEntry = vi.fn();
 const dismissUnreconstructable = vi.fn();
+// Spied rather than inlined: a case below counts its calls, because a whole-window read issued for a window nobody changed is the evidence that the card was torn down and rebuilt.
+const fetchEquitySnapshots = vi.fn(() =>
+  Promise.resolve({ profileId: 'p', quoteAsset: 'USDT', benchmarkMode: 'btc', points: [] }),
+);
+
+// The equity curve mounts inside the panel and issues its own reads. Stubbed to an empty series so these cases stay about the archive, and so the card renders its empty state rather than reaching the network.
+vi.mock('@/features/dashboard/api/equity-snapshots', () => ({
+  fetchEquitySnapshots: (...a: unknown[]) => fetchEquitySnapshots(...(a as [])),
+}));
+vi.mock('@/features/profile/api/audit-logs', () => ({
+  fetchProfileAuditLogs: () => Promise.resolve({ items: [], nextCursor: null }),
+  auditLogsExportUrl: () => '/export',
+}));
 
 vi.mock('@/features/profile/api/archive', () => ({
   fetchProfileArchive: (...a: unknown[]) => fetchProfileArchive(...a),
+  // The detail sheet reads the fills only once it opens; the export is a URL, not a request.
+  fetchArchiveDetail: (_p: string, id: string) => Promise.resolve({ id, orders: [] }),
+  archiveExportUrl: (...a: unknown[]) => archiveExportUrl(...a),
   backfillTradeArchive: (...a: unknown[]) => backfillTradeArchive(...a),
   deleteArchiveEntry: (...a: unknown[]) => deleteArchiveEntry(...a),
   dismissUnreconstructable: (...a: unknown[]) => dismissUnreconstructable(...a),
@@ -46,6 +63,8 @@ const response = (
   unreconstructableSymbols: unreconstructable,
   byIntent: [],
   bySource: [],
+  from: '2026-05-01T00:00:00.000Z',
+  to: '2026-06-01T00:00:00.000Z',
 });
 
 function renderPanel(): void {
@@ -58,18 +77,30 @@ function renderPanel(): void {
   );
 }
 
-// The rendered "N% of P/L" shares of the by-exit-reason band, in row order.
-function readIntentShares(): number[] {
-  return screen
-    .getAllByTestId(/^archive-intent-share-/)
-    .map((el) => Number(/^(-?\d+)%/.exec(el.textContent ?? '')?.[1]));
+/** The panel with the operator's zone still in flight, which is the state it mounts in on every load. */
+function renderPanelWithoutTimezone(): void {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <TradeArchivePanel profileId={PID} />
+    </QueryClientProvider>,
+  );
 }
 
-// The rendered "N% of P/L" shares of the by-source band, in row order.
-function readSourceShares(): number[] {
-  return screen
-    .getAllByTestId(/^archive-source-share-/)
-    .map((el) => Number(/^(-?\d+)%/.exec(el.textContent ?? '')?.[1]));
+/** The share a cell states, or null where it states none. `Number` alone maps a withheld cell to NaN, which compares equal to nothing and would let a withheld share and a fabricated zero read the same way in a failure message. */
+const shareOf = (el: HTMLElement): number | null => {
+  const matched = /^(-?\d+)%/.exec(el.textContent ?? '');
+  return matched === null ? null : Number(matched[1]);
+};
+
+// The rendered "N% of P/L" shares of the by-exit-reason band, in row order; null where the share is withheld.
+function readIntentShares(): (number | null)[] {
+  return screen.getAllByTestId(/^edge-card-share-intent-/).map(shareOf);
+}
+
+// The rendered "N% of P/L" shares of the by-source band, in row order; null where the share is withheld.
+function readSourceShares(): (number | null)[] {
+  return screen.getAllByTestId(/^edge-card-share-source-/).map(shareOf);
 }
 
 // A period spanning two quote coins, which an operator reaches by editing a profile's `quoteAsset`: positions held in the old coin exit and archive under it while new trades archive under the new one, and the archive query filters by neither. USDT splits 75/25, BTC is a single bucket at 100 — so the list holds two pools that each total 100 and the percentages add to 200.
@@ -78,6 +109,7 @@ const TWO_COIN_BY_INTENT: ProfileArchiveListResponse['byIntent'] = [
     quoteAsset: 'USDT',
     intent: 'grid-sell',
     tradeCount: 3,
+    netTradeCount: 3,
     wins: 3,
     losses: 0,
     profitSum: '75',
@@ -91,6 +123,7 @@ const TWO_COIN_BY_INTENT: ProfileArchiveListResponse['byIntent'] = [
     quoteAsset: 'USDT',
     intent: 'protective-stop',
     tradeCount: 1,
+    netTradeCount: 1,
     wins: 0,
     losses: 1,
     profitSum: '-25',
@@ -104,6 +137,7 @@ const TWO_COIN_BY_INTENT: ProfileArchiveListResponse['byIntent'] = [
     quoteAsset: 'BTC',
     intent: 'grid-sell',
     tradeCount: 2,
+    netTradeCount: 2,
     wins: 2,
     losses: 0,
     profitSum: '1',
@@ -121,6 +155,7 @@ const TWO_COIN_BY_SOURCE: ProfileArchiveListResponse['bySource'] = [
     quoteAsset: 'USDT',
     source: 'auto',
     tradeCount: 3,
+    netTradeCount: 3,
     wins: 3,
     losses: 0,
     profitSum: '75',
@@ -134,6 +169,7 @@ const TWO_COIN_BY_SOURCE: ProfileArchiveListResponse['bySource'] = [
     quoteAsset: 'USDT',
     source: 'manual',
     tradeCount: 1,
+    netTradeCount: 1,
     wins: 0,
     losses: 1,
     profitSum: '-25',
@@ -147,6 +183,7 @@ const TWO_COIN_BY_SOURCE: ProfileArchiveListResponse['bySource'] = [
     quoteAsset: 'BTC',
     source: 'auto',
     tradeCount: 2,
+    netTradeCount: 2,
     wins: 2,
     losses: 0,
     profitSum: '1',
@@ -206,6 +243,8 @@ describe('<TradeArchivePanel> recovery nudge', () => {
       unreconstructableSymbols: [],
       byIntent: [],
       bySource: [],
+      from: '2026-05-01T00:00:00.000Z',
+      to: '2026-06-01T00:00:00.000Z',
     };
     fetchProfileArchive
       .mockResolvedValueOnce(response(['BTCUSDT']))
@@ -304,6 +343,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           intent: 'grid-sell',
           tradeCount: 5,
+          netTradeCount: 5,
           wins: 4,
           losses: 1,
           profitSum: '10',
@@ -318,6 +358,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           intent: 'protective-stop',
           tradeCount: 2,
+          netTradeCount: 2,
           wins: 0,
           losses: 2,
           profitSum: '-4',
@@ -333,6 +374,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           intent: 'discovery-time-stop',
           tradeCount: 4,
+          netTradeCount: 4,
           wins: 1,
           losses: 3,
           profitSum: '-299',
@@ -349,6 +391,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           source: 'auto',
           tradeCount: 3,
+          netTradeCount: 3,
           wins: 3,
           losses: 0,
           profitSum: '9',
@@ -362,20 +405,20 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     });
     renderPanel();
 
-    const sell = await screen.findByTestId('archive-intent-USDT-grid-sell');
+    const sell = await screen.findByTestId('edge-card-intent-USDT-grid-sell');
     expect(sell).toHaveTextContent('80% win');
     expect(sell).toHaveTextContent('PF 6');
-    const stop = screen.getByTestId('archive-intent-USDT-protective-stop');
+    const stop = screen.getByTestId('edge-card-intent-USDT-protective-stop');
     expect(stop).toHaveTextContent('0% win');
     expect(stop).toHaveTextContent('PF 0');
 
     // A real sub-1 factor keeps significant figures instead of collapsing to 0
     // (which is the "no winners" sentinel).
-    const tiny = screen.getByTestId('archive-intent-USDT-discovery-time-stop');
+    const tiny = screen.getByTestId('edge-card-intent-USDT-discovery-time-stop');
     expect(tiny).toHaveTextContent('25% win');
     expect(tiny).toHaveTextContent('PF 0.0033');
 
-    const auto = screen.getByTestId('archive-source-USDT-auto');
+    const auto = screen.getByTestId('edge-card-source-USDT-auto');
     expect(auto).toHaveTextContent('Discovery (auto-found)');
     expect(auto).toHaveTextContent('100% win');
     expect(auto).toHaveTextContent('PF ∞');
@@ -386,6 +429,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     const numbers = {
       quoteAsset: 'USDT',
       tradeCount: 5,
+      netTradeCount: 5,
       wins: 4,
       losses: 1,
       profitSum: '10',
@@ -399,23 +443,24 @@ describe('<TradeArchivePanel> recovery nudge', () => {
       byIntent: [
         { ...numbers, intent: 'grid-sell', feeBasis: 'exact' },
         { ...numbers, intent: 'protective-stop', feeBasis: 'estimated' },
-        { ...numbers, intent: 'manual', feeBasis: 'unknown' },
+        // The producer reports `unknown` exactly when it could value no row, so the tier and the zeroed count are one fact and the fixture carries both.
+        { ...numbers, intent: 'manual', netTradeCount: 0, feeBasis: 'unknown' },
       ],
     });
     renderPanel();
 
-    const exact = await screen.findByTestId('archive-intent-USDT-grid-sell');
+    const exact = await screen.findByTestId('edge-card-intent-USDT-grid-sell');
     expect(exact).toHaveTextContent('PF 6');
     expect((exact.textContent ?? '').toLowerCase()).not.toContain('estimated');
 
-    const estimated = screen.getByTestId('archive-intent-USDT-protective-stop');
+    const estimated = screen.getByTestId('edge-card-intent-USDT-protective-stop');
     expect(estimated).toHaveTextContent('PF 6');
     expect((estimated.textContent ?? '').toLowerCase()).toContain('estimated');
 
-    // The fee-independent halves survive; only the ratios OF the fee-adjusted money are withheld.
-    const unknown = screen.getByTestId('archive-intent-USDT-manual');
+    // The count survives; every figure read off the fee-adjusted money, win rate included, is withheld where no cycle could be valued at all.
+    const unknown = screen.getByTestId('edge-card-intent-USDT-manual');
     expect(unknown).toHaveTextContent('5 trades');
-    expect(unknown).toHaveTextContent('80% win');
+    expect(unknown.textContent ?? '').not.toContain('% win');
     expect(unknown.textContent ?? '').not.toContain('PF');
     expect(unknown.textContent ?? '').not.toContain('payoff');
   });
@@ -674,6 +719,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           intent: 'grid-sell',
           tradeCount: 10,
+          netTradeCount: 10,
           wins: 8,
           losses: 2,
           profitSum: '394',
@@ -687,6 +733,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           intent: 'protective-stop',
           tradeCount: 6,
+          netTradeCount: 6,
           wins: 1,
           losses: 5,
           profitSum: '-244',
@@ -700,6 +747,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           intent: 'discovery-time-stop',
           tradeCount: 7,
+          netTradeCount: 7,
           wins: 5,
           losses: 2,
           profitSum: '362',
@@ -728,7 +776,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     expect(grossShares).not.toEqual(netShares);
   });
 
-  it('withholds all Net shares in a quote group when one exit bucket is incomplete', async () => {
+  it('keeps a quote group’s Net shares when one exit bucket valued nothing', async () => {
     fetchProfileArchive.mockResolvedValue({
       ...response([]),
       byIntent: [
@@ -736,6 +784,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           intent: 'grid-sell',
           tradeCount: 1,
+          netTradeCount: 1,
           wins: 1,
           losses: 0,
           profitSum: '75',
@@ -749,34 +798,32 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           intent: 'protective-stop',
           tradeCount: 1,
+          // Counted, but nothing about it is stated net of commission — which is exactly what `unknown` reports.
+          netTradeCount: 0,
           wins: 0,
-          losses: 1,
+          losses: 0,
           profitSum: '-25',
-          netProfit: '-25',
+          netProfit: '0',
           grossProfit: '0',
-          grossLoss: '25',
+          grossLoss: '0',
           totalFees: '0',
           feeBasis: 'unknown',
         },
       ],
     });
     renderPanel();
-    const shares = await screen.findAllByTestId(/^archive-intent-share-/);
+    const shares = await screen.findAllByTestId(/^edge-card-share-intent-/);
     expect(shares).toHaveLength(2);
-    // A share is withheld only ever by incomplete fee evidence, so it carries the fee mark the rows use for that same fault. Plain `n/a` would claim the unrecoverable-history fault instead, and would send the operator looking for a remedy that does not apply.
-    for (const share of shares) {
-      const marker = within(share).getByRole('img');
-      expect(marker).toHaveAccessibleName('Share of P/L unavailable, USDT fee evidence incomplete');
-      expect(marker.textContent).toBe('net n/a');
-    }
+    // The bucket that valued its row keeps its share of the pool it could measure; the one that valued nothing withholds its own rather than claiming a 0% contribution. Previously the second blanked the first, and then briefly asserted a zero.
+    expect(readIntentShares()).toEqual([100, null]);
+    expect(within(shares[0] as HTMLElement).queryByRole('img')).not.toBeInTheDocument();
 
     // The amount is withheld per bucket, so only the incomplete one carries a marker and the complete one keeps its number. Its glyph is pinned separately from its name: the name comes from `unavailablePnlLabel`, which a glyph swapped to the cost-basis mark would not disturb.
-    const stopMarker = within(screen.getByTestId('archive-intent-USDT-protective-stop')).getByRole(
-      'img',
-      { name: 'Net P/L unavailable' },
-    );
+    const stopMarker = within(
+      screen.getByTestId('edge-card-intent-USDT-protective-stop'),
+    ).getByRole('img', { name: 'Net P/L unavailable' });
     expect(stopMarker.textContent).toBe('net n/a');
-    const sellRow = screen.getByTestId('archive-intent-USDT-grid-sell');
+    const sellRow = screen.getByTestId('edge-card-intent-USDT-grid-sell');
     expect(
       within(sellRow).queryByRole('img', { name: 'Net P/L unavailable' }),
     ).not.toBeInTheDocument();
@@ -795,6 +842,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           source: 'auto',
           tradeCount: 9,
+          netTradeCount: 9,
           wins: 7,
           losses: 2,
           profitSum: '300',
@@ -808,6 +856,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           source: 'manual',
           tradeCount: 12,
+          netTradeCount: 12,
           wins: 5,
           losses: 7,
           profitSum: '100',
@@ -836,7 +885,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     expect(grossShares).toEqual([75, 25]);
   });
 
-  it('withholds all Net shares in a quote group when one source bucket is incomplete', async () => {
+  it('keeps a quote group’s Net shares when one source bucket valued nothing', async () => {
     fetchProfileArchive.mockResolvedValue({
       ...response([]),
       bySource: [
@@ -844,6 +893,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           source: 'auto',
           tradeCount: 1,
+          netTradeCount: 1,
           wins: 1,
           losses: 0,
           profitSum: '75',
@@ -857,36 +907,37 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           source: 'manual',
           tradeCount: 1,
+          // Counted, but nothing about it is stated net of commission — which is exactly what `unknown` reports.
+          netTradeCount: 0,
           wins: 0,
-          losses: 1,
+          losses: 0,
           profitSum: '-25',
-          netProfit: '-25',
+          netProfit: '0',
           grossProfit: '0',
-          grossLoss: '25',
+          grossLoss: '0',
           totalFees: '0',
           feeBasis: 'unknown',
         },
       ],
     });
     renderPanel();
-    const shares = await screen.findAllByTestId(/^archive-source-share-/);
+    const shares = await screen.findAllByTestId(/^edge-card-share-source-/);
     expect(shares).toHaveLength(2);
-    for (const share of shares) {
-      const marker = within(share).getByRole('img');
-      expect(marker).toHaveAccessibleName('Share of P/L unavailable, USDT fee evidence incomplete');
-      expect(marker.textContent).toBe('net n/a');
-    }
+    expect(readSourceShares()).toEqual([100, null]);
 
-    // The two withholdings have different scopes, and only the complete bucket can tell them apart: its own net amount survives because the amount is withheld per bucket, while its share is gone because the share is withheld across the whole quote coin. Queried by accessible name because both markers carry the same fee mark, so the name is the only thing separating a withheld amount from a withheld share.
-    const autoRow = screen.getByTestId('archive-source-USDT-auto');
+    // The two withholdings have different scopes, and only the bucket that valued its row can tell them apart: its own net amount survives because the amount is withheld per bucket, and so does its share, because a sibling that valued nothing is no longer allowed to take the whole coin's shares down with it. Queried by accessible name because both markers carry the same fee mark, so the name is the only thing separating a withheld amount from a withheld share.
+    const autoRow = screen.getByTestId('edge-card-source-USDT-auto');
     expect(
       within(autoRow).queryByRole('img', { name: 'Net P/L unavailable' }),
     ).not.toBeInTheDocument();
     // Net 70 rather than Recorded 75: the surviving amount still has to be the one the basis selected.
     expect(autoRow).toHaveTextContent(/\+70\.00\s*USDT/);
-    const manualMarker = within(screen.getByTestId('archive-source-USDT-manual')).getByRole('img', {
-      name: 'Net P/L unavailable',
-    });
+    const manualMarker = within(screen.getByTestId('edge-card-source-USDT-manual')).getByRole(
+      'img',
+      {
+        name: 'Net P/L unavailable',
+      },
+    );
     expect(manualMarker).toBeInTheDocument();
     // The glyph, separately from the name: the name comes from `unavailablePnlLabel`, so on its own it cannot catch an amount mark swapped to the cost-basis glyph, which would send the operator after a remedy that does not apply to a fee gap.
     expect(manualMarker.textContent).toBe('net n/a');
@@ -905,31 +956,31 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     renderPanel();
 
     await screen.findByTestId('archive-by-intent');
-    expect(screen.getByTestId('archive-intent-share-USDT-grid-sell')).toHaveTextContent(
+    expect(screen.getByTestId('edge-card-share-intent-USDT-grid-sell')).toHaveTextContent(
       '75% of USDT P/L',
     );
-    expect(screen.getByTestId('archive-intent-share-USDT-protective-stop')).toHaveTextContent(
+    expect(screen.getByTestId('edge-card-share-intent-USDT-protective-stop')).toHaveTextContent(
       '25% of USDT P/L',
     );
-    expect(screen.getByTestId('archive-intent-share-BTC-grid-sell')).toHaveTextContent(
+    expect(screen.getByTestId('edge-card-share-intent-BTC-grid-sell')).toHaveTextContent(
       '100% of BTC P/L',
     );
 
-    expect(screen.getByTestId('archive-source-share-USDT-auto')).toHaveTextContent(
+    expect(screen.getByTestId('edge-card-share-source-USDT-auto')).toHaveTextContent(
       '75% of USDT P/L',
     );
-    expect(screen.getByTestId('archive-source-share-USDT-manual')).toHaveTextContent(
+    expect(screen.getByTestId('edge-card-share-source-USDT-manual')).toHaveTextContent(
       '25% of USDT P/L',
     );
-    expect(screen.getByTestId('archive-source-share-BTC-auto')).toHaveTextContent(
+    expect(screen.getByTestId('edge-card-share-source-BTC-auto')).toHaveTextContent(
       '100% of BTC P/L',
     );
 
     // Structural parity, not two copies of one sentence held in step by review: equivalent buckets in the two bands must render the same node. Class as well as text, because the drift that matters is not only the wording — a band that grew its own span would be free to size or colour the share differently.
     for (const [intentTestId, sourceTestId] of [
-      ['archive-intent-share-USDT-grid-sell', 'archive-source-share-USDT-auto'],
-      ['archive-intent-share-USDT-protective-stop', 'archive-source-share-USDT-manual'],
-      ['archive-intent-share-BTC-grid-sell', 'archive-source-share-BTC-auto'],
+      ['edge-card-share-intent-USDT-grid-sell', 'edge-card-share-source-USDT-auto'],
+      ['edge-card-share-intent-USDT-protective-stop', 'edge-card-share-source-USDT-manual'],
+      ['edge-card-share-intent-BTC-grid-sell', 'edge-card-share-source-BTC-auto'],
     ] as const) {
       const intentShare = screen.getByTestId(intentTestId);
       const sourceShare = screen.getByTestId(sourceTestId);
@@ -948,10 +999,10 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     renderPanel();
 
     await screen.findByTestId('archive-by-intent');
-    const intentShare = screen.getByTestId('archive-intent-share-USDT-grid-sell');
+    const intentShare = screen.getByTestId('edge-card-share-intent-USDT-grid-sell');
     expect(intentShare).toHaveTextContent('75% of P/L');
     expect(intentShare.textContent).not.toContain('USDT');
-    const sourceShare = screen.getByTestId('archive-source-share-USDT-auto');
+    const sourceShare = screen.getByTestId('edge-card-share-source-USDT-auto');
     expect(sourceShare).toHaveTextContent('75% of P/L');
     expect(sourceShare.textContent).not.toContain('USDT');
   });
@@ -968,7 +1019,10 @@ describe('<TradeArchivePanel> recovery nudge', () => {
       ): T[] =>
         rows
           .filter((b) => !singleCoinOnly || b.quoteAsset === 'USDT')
-          .map((b) => (b.quoteAsset === 'USDT' ? { ...b, feeBasis: 'unknown' } : b));
+          // `netTradeCount: 0` with the tier, because the producer reports `unknown` exactly when it valued no row, and it is the count the share gate now reads.
+          .map((b) =>
+            b.quoteAsset === 'USDT' ? { ...b, netTradeCount: 0, feeBasis: 'unknown' } : b,
+          );
 
       fetchProfileArchive.mockResolvedValue({
         ...response([]),
@@ -979,19 +1033,19 @@ describe('<TradeArchivePanel> recovery nudge', () => {
 
       await screen.findByTestId('archive-by-intent');
       for (const testId of [
-        'archive-intent-share-USDT-grid-sell',
-        'archive-source-share-USDT-auto',
+        'edge-card-share-intent-USDT-grid-sell',
+        'edge-card-share-source-USDT-auto',
       ]) {
         const marker = within(screen.getByTestId(testId)).getByRole('img');
         expect(marker.textContent).toBe('net n/a');
         expect(marker).toHaveAccessibleName(
-          'Share of P/L unavailable, USDT fee evidence incomplete',
+          'Share of P/L unavailable, fee evidence missing for every cycle in this USDT bucket',
         );
         expect(screen.getByTestId(testId).textContent).not.toContain('USDT P/L');
       }
       if (!singleCoinOnly) {
         // The other coin in the same list still resolved, which is what makes this a MULTI-coin withholding rather than a list with nothing left in it to name.
-        expect(screen.getByTestId('archive-intent-share-BTC-grid-sell')).toHaveTextContent(
+        expect(screen.getByTestId('edge-card-share-intent-BTC-grid-sell')).toHaveTextContent(
           '100% of BTC P/L',
         );
       }
@@ -1139,6 +1193,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           intent: 'grid-sell',
           tradeCount: 1,
+          netTradeCount: 1,
           wins: 1,
           losses: 0,
           profitSum: '0.00000036',
@@ -1152,6 +1207,7 @@ describe('<TradeArchivePanel> recovery nudge', () => {
           quoteAsset: 'USDT',
           intent: 'protective-stop',
           tradeCount: 2,
+          netTradeCount: 2,
           wins: 1,
           losses: 1,
           profitSum: '-9.9999964',
@@ -1192,12 +1248,17 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     // An un-costed row has no percentage at all, so it keeps the dash and gains no `%`.
     expect(screen.getByTestId('archive-percent-arch-none').textContent).toBe('—');
 
-    // The sweep: no cell anywhere in the table may carry an exponent, whichever column a future field lands in. The count is exact rather than a floor because the claim is about EVERY column: a floor of one row's worth stays green while eight of the nine columns stop rendering, which is precisely the state in which the sweep has stopped covering anything.
-    const cells = screen.getAllByRole('cell');
-    expect(cells).toHaveLength(7 * 9);
+    // The sweep: no cell anywhere in the ledger may carry an exponent, whichever column a future field lands in. The count is exact rather than a floor because the claim is about EVERY column: a floor of one row's worth stays green while nine of the ten columns stop rendering, which is precisely the state in which the sweep has stopped covering anything. Scoped to the ledger table because the edge grid is a table of its own now, swept separately below on the same terms.
+    const cells = within(screen.getByTestId('archive-list')).getAllByRole('cell');
+    expect(cells).toHaveLength(7 * 10);
     for (const cell of cells) expect(cell.textContent ?? '').not.toMatch(/e[+-]?\d/);
 
-    // The cell sweep above is blind to the rollup bands: they render as `<ul>/<li>`, so `getAllByRole('cell')` walks straight past an exponent in the expectancy or profit-factor readout. A unit test pins one formatter; this pins the whole rendered surface, so a future band field that formats itself by hand is caught here too.
+    // The same claim for the edge grid, whose Net, expectancy and hold columns are the sub-microunit values this fixture was built around. Two buckets, seven columns each.
+    const edgeCells = within(screen.getByTestId('edge-table-intent')).getAllByRole('cell');
+    expect(edgeCells).toHaveLength(2 * 7);
+    for (const cell of edgeCells) expect(cell.textContent ?? '').not.toMatch(/e[+-]?\d/);
+
+    // The cell sweeps above are blind to the compact render of the bands, which is a `<ul>/<li>` list carrying the same figures. A unit test pins one formatter; this pins the whole rendered surface, so a future band field that formats itself by hand is caught here too.
     //
     // Scanned one text node at a time, not as one flattened string: the band's `· exp …/trade` label sits immediately before the `0% of P/L` share, and concatenating them yields `trade0%`, whose `e0` matches the exponent pattern with nothing wrong. A rendered exponent always lives inside a single text node, so the node boundary removes that false positive without loosening the pattern.
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -1218,5 +1279,282 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     // Without this the loop below is satisfied by a table that rendered no costed row at all.
     expect(percents).toHaveLength(6);
     for (const text of percents) expect(text).toMatch(/^[+-]?\d+\.\d{2}%$/);
+  });
+
+  it('narrows the ledger to the bucket an edge row names, and says so until it is cleared', async () => {
+    fetchProfileArchive.mockResolvedValue({
+      ...response([]),
+      byIntent: [
+        {
+          quoteAsset: 'USDT',
+          intent: 'protective-stop',
+          tradeCount: 1,
+          netTradeCount: 1,
+          wins: 0,
+          losses: 1,
+          profitSum: '-25',
+          netProfit: '-25',
+          grossProfit: '0',
+          grossLoss: '25',
+          totalFees: '0',
+          feeBasis: 'exact',
+        },
+      ],
+    });
+    renderPanel();
+
+    await userEvent.click(await screen.findByTestId('edge-open-intent-USDT-protective-stop'));
+
+    // Server-side, not a filter over the page: the ledger is paged, so filtering what arrived would hide matching rows on every other page and call the result the whole bucket.
+    await waitFor(() => {
+      const last = fetchProfileArchive.mock.calls.at(-1);
+      expect(last?.[1]).toMatchObject({ exitIntent: 'protective-stop', cursor: null });
+    });
+    // A filter the operator cannot see is a page that lies about what it is showing.
+    expect(screen.getByTestId('archive-filter-chip')).toHaveTextContent('exit reason');
+
+    await userEvent.click(screen.getByTestId('archive-filter-clear'));
+    await waitFor(() => {
+      const last = fetchProfileArchive.mock.calls.at(-1);
+      expect(last?.[1]?.exitIntent).toBeUndefined();
+    });
+    expect(screen.queryByTestId('archive-filter-chip')).toBeNull();
+  });
+
+  it('keeps the empty state honest about the filter that emptied it', async () => {
+    fetchProfileArchive.mockResolvedValue({
+      ...response([]),
+      byIntent: [
+        {
+          quoteAsset: 'USDT',
+          intent: 'protective-stop',
+          tradeCount: 1,
+          netTradeCount: 1,
+          wins: 0,
+          losses: 1,
+          profitSum: '-25',
+          netProfit: '-25',
+          grossProfit: '0',
+          grossLoss: '25',
+          totalFees: '0',
+          feeBasis: 'exact',
+        },
+      ],
+    });
+    renderPanel();
+    await userEvent.click(await screen.findByTestId('edge-open-intent-USDT-protective-stop'));
+    // Without naming it, "No archive entries for this period" reads as a profile that never traded.
+    await waitFor(() =>
+      expect(screen.getByTestId('archive-empty')).toHaveTextContent('exit reason'),
+    );
+    // And the way out stays on screen exactly when the ledger has nothing in it.
+    expect(screen.getByTestId('archive-filter-clear')).toBeInTheDocument();
+  });
+
+  it('exports the selection on screen, filter and ordering included', async () => {
+    fetchProfileArchive.mockResolvedValue({
+      ...response([]),
+      bySource: [
+        {
+          quoteAsset: 'USDT',
+          source: 'auto',
+          tradeCount: 1,
+          netTradeCount: 1,
+          wins: 1,
+          losses: 0,
+          profitSum: '5',
+          netProfit: '5',
+          grossProfit: '5',
+          grossLoss: '0',
+          totalFees: '0',
+          feeBasis: 'exact',
+        },
+      ],
+    });
+    renderPanel();
+    await userEvent.click(await screen.findByTestId('edge-open-source-USDT-auto'));
+
+    // The export is built from the same selection object the read is, so a file cannot disagree with the screen it was taken from.
+    await waitFor(() => {
+      const last = archiveExportUrl.mock.calls.at(-1);
+      expect(last?.[1]).toMatchObject({ source: 'auto' });
+    });
+    expect(screen.getByTestId('archive-export')).toHaveAttribute('href', '/export.ndjson');
+  });
+
+  it('withholds the export link until the operator zone resolves', async () => {
+    // `tz` stands in an empty string while the settings read is in flight, and the export route requires a non-empty IANA zone, so a link rendered now answers a 422 to the one click it invites — indistinguishable, to the operator, from a broken download. The list read is already behind this same gate; the anchor beside it was not.
+    renderPanelWithoutTimezone();
+    expect(await screen.findByTestId('archive-export-pending')).toHaveTextContent(
+      'Export these trades',
+    );
+    expect(screen.queryByTestId('archive-export')).toBeNull();
+    // No URL is built at all, rather than one built and hidden.
+    expect(archiveExportUrl).not.toHaveBeenCalled();
+  });
+
+  it('keeps the equity curve mounted across a sort, whose read does not change the window', async () => {
+    // The key folds the cursor, the ordering and the row filters, so a sort click re-keys the ledger read. Without a placeholder `list.data` is undefined for that render, `windowFrom`/`windowTo` go with it, and the card's own `from`/`to` guard unmounts it. That is not a flicker: a remount gives the card's two queries fresh observers with no previous data, so their own `keepPreviousData` cannot fire, and the chart drops to its skeleton and re-issues both whole-window reads for a window nobody changed.
+    fetchProfileArchive.mockResolvedValue({
+      ...response([]),
+      items: [
+        {
+          id: 'arch-mounted',
+          symbol: 'BTCUSDT',
+          exitIntent: 'grid-sell',
+          totalBuyQuote: '100',
+          totalSellQuote: '110',
+          profit: '10',
+          netProfit: '9',
+          feeBasis: 'exact',
+          fees: {},
+          quoteAsset: 'USDT',
+          missingCostBasis: 0,
+          archivedAt: '2026-05-10T00:00:00.000Z',
+        },
+      ],
+    });
+    renderPanel();
+    await screen.findByTestId('history-equity-card');
+    await screen.findByTestId('archive-sort-symbol');
+    const snapshotReads = fetchEquitySnapshots.mock.calls.length;
+
+    // The re-keyed read never resolves, which is the whole window in which the teardown happened.
+    fetchProfileArchive.mockReturnValue(new Promise(() => {}));
+    await userEvent.click(screen.getByTestId('archive-sort-symbol'));
+    await waitFor(() => {
+      expect(fetchProfileArchive.mock.calls.at(-1)?.[1]).toMatchObject({ sort: 'symbol' });
+    });
+
+    expect(screen.getByTestId('history-equity-card')).toBeInTheDocument();
+    // And no second pair of whole-window reads was issued, because the card never remounted.
+    expect(fetchEquitySnapshots.mock.calls.length).toBe(snapshotReads);
+  });
+
+  it('re-reads the whole selection when a ledger column is sorted, rather than reordering the page', async () => {
+    fetchProfileArchive.mockResolvedValue({
+      ...response([]),
+      items: [
+        {
+          id: 'arch-sortable',
+          symbol: 'BTCUSDT',
+          exitIntent: 'grid-sell',
+          totalBuyQuote: '100',
+          totalSellQuote: '110',
+          profit: '10',
+          netProfit: '9',
+          feeBasis: 'exact',
+          fees: {},
+          quoteAsset: 'USDT',
+          missingCostBasis: 0,
+          archivedAt: '2026-05-10T00:00:00.000Z',
+        },
+      ],
+    });
+    renderPanel();
+    await screen.findByTestId('archive-sort-archivedAt');
+
+    await userEvent.click(screen.getByTestId('archive-sort-symbol'));
+    await waitFor(() => {
+      const last = fetchProfileArchive.mock.calls.at(-1);
+      // Descending first: every column here answers "which is biggest / newest". And the cursor resets, because an offset taken in one ordering addresses a different row in another.
+      expect(last?.[1]).toMatchObject({ sort: 'symbol', dir: 'desc', cursor: null });
+    });
+    expect(screen.getByTestId('archive-sort-symbol').closest('th')).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
+
+    await userEvent.click(screen.getByTestId('archive-sort-symbol'));
+    await waitFor(() => {
+      const last = fetchProfileArchive.mock.calls.at(-1);
+      expect(last?.[1]).toMatchObject({ sort: 'symbol', dir: 'asc' });
+    });
+  });
+
+  it('moves an active P/L sort onto the basis the column switched to', async () => {
+    // The P/L header's sort key follows the basis it displays, so a basis toggle that leaves `sort` on the other key produces a table ordered by `netProfit` under a header labelled Recorded P/L — with the arrow and `aria-sort` gone, because no rendered header carries the active key any more.
+    fetchProfileArchive.mockResolvedValue({
+      ...response([]),
+      items: [
+        {
+          id: 'arch-sortable',
+          symbol: 'BTCUSDT',
+          exitIntent: 'grid-sell',
+          totalBuyQuote: '100',
+          totalSellQuote: '110',
+          profit: '10',
+          netProfit: '9',
+          feeBasis: 'exact',
+          fees: {},
+          quoteAsset: 'USDT',
+          missingCostBasis: 0,
+          archivedAt: '2026-05-10T00:00:00.000Z',
+        },
+      ],
+    });
+    renderPanel();
+    await screen.findByTestId('archive-sort-archivedAt');
+
+    await userEvent.click(screen.getByTestId('archive-sort-netProfit'));
+    await waitFor(() => {
+      expect(fetchProfileArchive.mock.calls.at(-1)?.[1]).toMatchObject({ sort: 'netProfit' });
+    });
+
+    await userEvent.click(screen.getByTestId('pnl-basis-gross'));
+    await waitFor(() => {
+      const last = fetchProfileArchive.mock.calls.at(-1);
+      // And the cursor resets with it: an offset taken in the old ordering addresses a different row in the new one.
+      expect(last?.[1]).toMatchObject({ sort: 'profit', dir: 'desc', cursor: null });
+    });
+    expect(screen.getByTestId('archive-sort-profit').closest('th')).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
+
+    // And back, so the retarget is not one-way.
+    await userEvent.click(screen.getByTestId('pnl-basis-net'));
+    await waitFor(() => {
+      expect(fetchProfileArchive.mock.calls.at(-1)?.[1]).toMatchObject({ sort: 'netProfit' });
+    });
+  });
+
+  it('leaves a sort on another column alone when the basis changes', async () => {
+    // Anchors the case above: retargeting unconditionally would drag a Symbol sort onto the P/L column, which is a reorder the operator never asked for.
+    fetchProfileArchive.mockResolvedValue({
+      ...response([]),
+      items: [
+        {
+          id: 'arch-sortable',
+          symbol: 'BTCUSDT',
+          exitIntent: 'grid-sell',
+          totalBuyQuote: '100',
+          totalSellQuote: '110',
+          profit: '10',
+          netProfit: '9',
+          feeBasis: 'exact',
+          fees: {},
+          quoteAsset: 'USDT',
+          missingCostBasis: 0,
+          archivedAt: '2026-05-10T00:00:00.000Z',
+        },
+      ],
+    });
+    renderPanel();
+    await screen.findByTestId('archive-sort-archivedAt');
+
+    await userEvent.click(screen.getByTestId('archive-sort-symbol'));
+    await waitFor(() => {
+      expect(fetchProfileArchive.mock.calls.at(-1)?.[1]).toMatchObject({ sort: 'symbol' });
+    });
+
+    await userEvent.click(screen.getByTestId('pnl-basis-gross'));
+    await waitFor(() => {
+      expect(fetchProfileArchive.mock.calls.at(-1)?.[1]).toMatchObject({ sort: 'symbol' });
+    });
+    expect(screen.getByTestId('archive-sort-symbol').closest('th')).toHaveAttribute(
+      'aria-sort',
+      'descending',
+    );
   });
 });

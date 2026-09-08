@@ -18,7 +18,7 @@ import {
   winPct,
 } from '@/shared/lib/rollup-stats';
 
-/** Bucket with sensible defaults; override only what a case exercises. */
+/** Bucket with sensible defaults; override only what a case exercises. `netTradeCount` is deliberately absent from the defaults so a case that does not name it exercises the fallback a pre-split payload takes. */
 function bucket(p: Partial<RollupStatsBucket> = {}): RollupStatsBucket {
   return {
     tradeCount: 0,
@@ -32,9 +32,17 @@ function bucket(p: Partial<RollupStatsBucket> = {}): RollupStatsBucket {
 }
 
 describe('rollup-stats trader metrics', () => {
-  it('winPct rounds wins / trades to a whole percent; 0 trades is 0', () => {
+  it('winPct rounds wins / fee-valued trades to a whole percent; 0 valued trades is 0', () => {
+    expect(winPct(bucket({ tradeCount: 4, netTradeCount: 4, wins: 1 }))).toBe(25);
+    // `wins` only ever counts rows whose fees were known, so the rate divides by those rows. Reading the whole-window count would report 10% here on the same four classified cycles.
+    expect(winPct(bucket({ tradeCount: 10, netTradeCount: 4, wins: 1 }))).toBe(25);
+    expect(winPct(bucket({ tradeCount: 0, netTradeCount: 0 }))).toBe(0);
+  });
+
+  it('falls back to the trade count when a payload carries no second denominator', () => {
+    // A payload written before the split computed its counts over every row it had, so `tradeCount` is that payload's own honest denominator. Falling back to zero would render a real 4-trade bucket as `0% win`, replacing a right number with a wrong one.
     expect(winPct(bucket({ tradeCount: 4, wins: 1 }))).toBe(25);
-    expect(winPct(bucket({ tradeCount: 0 }))).toBe(0);
+    expect(expectancy(bucket({ tradeCount: 3, grossProfit: '12', grossLoss: '6' }))).toBe(2);
   });
 
   it('avgWin / avgLoss divide gross magnitudes by their counts, null when none', () => {
@@ -44,12 +52,20 @@ describe('rollup-stats trader metrics', () => {
     expect(avgLoss(bucket({ losses: 0 }))).toBeNull();
   });
 
-  it('expectancy is net profit per trade (grossProfit − grossLoss) / trades', () => {
-    // 3 trades, +12 winners, −6 losers → net 6 over 3 = +2/trade.
-    expect(expectancy(bucket({ tradeCount: 3, grossProfit: '12', grossLoss: '6' }))).toBe(2);
+  it('expectancy is net profit per fee-valued trade (grossProfit − grossLoss) / valued trades', () => {
+    // 3 valued trades, +12 winners, −6 losers → net 6 over 3 = +2/trade.
+    expect(
+      expectancy(bucket({ tradeCount: 3, netTradeCount: 3, grossProfit: '12', grossLoss: '6' })),
+    ).toBe(2);
+    // Both magnitudes span the valued rows alone, so dividing by every row would drag the average towards zero in proportion to the evidence that was missing.
+    expect(
+      expectancy(bucket({ tradeCount: 9, netTradeCount: 3, grossProfit: '12', grossLoss: '6' })),
+    ).toBe(2);
     // A negative-edge bucket reads negative.
-    expect(expectancy(bucket({ tradeCount: 2, grossProfit: '1', grossLoss: '5' }))).toBe(-2);
-    expect(expectancy(bucket({ tradeCount: 0 }))).toBeNull();
+    expect(
+      expectancy(bucket({ tradeCount: 2, netTradeCount: 2, grossProfit: '1', grossLoss: '5' })),
+    ).toBe(-2);
+    expect(expectancy(bucket({ tradeCount: 4, netTradeCount: 0 }))).toBeNull();
   });
 
   it('payoffRatio is avgWin / avgLoss, null when a side is empty', () => {
@@ -114,6 +130,7 @@ describe('<RollupStatsLine> fee-tier gating', () => {
   // ONE numeric bucket, driven through all three tiers. 5 trades, 4 wins, gross 12 against 2: 80% win, profit factor 6, payoff 1.5, expectancy +2.00 per trade. Anything that reads differently between the cases below is the tier, not the arithmetic.
   const NUMBERS = {
     tradeCount: 5,
+    netTradeCount: 5,
     wins: 4,
     losses: 1,
     grossProfit: '12',
@@ -133,14 +150,34 @@ describe('<RollupStatsLine> fee-tier gating', () => {
     return text;
   };
 
-  it('withholds the fee-sensitive statistics at the unknown tier, keeping the fee-independent ones', () => {
-    // Trade count is a count and win rate is classified on a subtotal that is wrong by the same fee either way, so both survive an unaccounted fee. Profit factor, payoff and expectancy are ratios OF the fee-adjusted money, so with no fee evidence they are not conservative readings, they are arbitrary ones — and today the whole line is replaced by a sentence, which hides the two figures that were always sound.
+  it('withholds every fee-derived statistic at the unknown tier, keeping the trade count', () => {
+    // The tier is reached only when NO cycle in the bucket could be valued, so there is nothing left for a ratio to be a ratio of. The win rate goes with the other three: a cycle counts as a win by clearing its fees, so a rate stated where no fee was ever read is classified against a charge nobody has. Under-stating a fee only ever flatters it, which is the same one-way bias that withholds the other three.
     const text = lineAt('unknown');
     expect(text).toContain('5 trades');
-    expect(text).toContain('80% win');
+    expect(text).not.toContain('% win');
     expect(text).not.toContain('PF');
     expect(text).not.toContain('payoff');
     expect(text).not.toContain('exp ');
+  });
+
+  it('states the covered count when the bucket left cycles out, and stays silent when it did not', () => {
+    // The ratios on this line have a different denominator from the trade count beside them, and this is the only place the reader is told so.
+    const { container, unmount } = render(
+      createElement(RollupStatsLine, {
+        bucket: { ...NUMBERS, tradeCount: 7, netTradeCount: 5, feeBasis: 'exact' } as Parameters<
+          typeof RollupStatsLine
+        >[0]['bucket'],
+      }),
+    );
+    const partial = container.textContent ?? '';
+    unmount();
+    expect(partial).toContain('7 trades');
+    expect(partial).toContain('5 of 7 cycles');
+    // Win rate and expectancy stay on the five rows that were valued, not the seven.
+    expect(partial).toContain('80% win');
+    expect(partial).toContain('exp +2.00');
+    // A bucket that valued everything says nothing extra, or the disclosure becomes noise the reader learns to skip.
+    expect(lineAt('exact')).not.toContain('cycles');
   });
 
   it('renders all five statistics at the estimated tier and says so in words', () => {

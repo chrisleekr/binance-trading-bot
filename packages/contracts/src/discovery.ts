@@ -227,12 +227,16 @@ export const DiscoveryScoreboard = z.object({
   netProfit: DecimalString.default(asDecimalString('0')),
   feeBasis: FeeBasis.default('unknown'),
   tradeCount: z.number().int().nonnegative(),
-  /** Fraction of auto trades that closed NET-positive, 0..1; 0 when no trades. */
+  /** Auto trades carrying fee evidence: the denominator of `netProfit` and of `winRate`, which classifies a NET result and so can only count the rows whose fees are known. */
+  netTradeCount: z.number().int().nonnegative(),
+  /** Fraction of fee-valued auto trades that closed NET-positive, 0..1; 0 when none carried fee evidence. */
   winRate: z.number().min(0).max(1),
   realizedProfit7d: DecimalString,
   netProfit7d: DecimalString.default(asDecimalString('0')),
   feeBasis7d: FeeBasis.default('unknown'),
   tradeCount7d: z.number().int().nonnegative(),
+  /** Auto trades in the 7-day window carrying fee evidence: the denominator of `netProfit7d`. Its own field rather than an inference off `feeBasis7d`, which now says only whether ANY row could be valued — a window that valued three of twelve reads `estimated` there, and a Net figure over three cycles beside a count of twelve is the misreading this denominator exists to prevent. */
+  netTradeCount7d: z.number().int().nonnegative(),
 });
 export type DiscoveryScoreboard = z.infer<typeof DiscoveryScoreboard>;
 
@@ -250,6 +254,7 @@ export const ScoreboardSourceRollup = z.object({
   netProfit: DecimalString.default(asDecimalString('0')),
   feeBasis: FeeBasis.default('unknown'),
   tradeCount: z.number().int().nonnegative(),
+  netTradeCount: z.number().int().nonnegative(),
   wins: z.number().int().nonnegative(),
   losses: z.number().int().nonnegative(),
   grossProfit: DecimalString,
@@ -279,7 +284,9 @@ export const DiscoveryScoreboardResponse = z.object({
   netProfit: DecimalString.default(asDecimalString('0')),
   feeBasis: FeeBasis.default('unknown'),
   tradeCount: z.number().int().nonnegative(),
-  /** Fraction of auto trades that closed NET-positive in the window, 0..1; 0 when none. */
+  /** Auto trades in the window carrying fee evidence: the denominator of `netProfit` and of `winRate`. */
+  netTradeCount: z.number().int().nonnegative(),
+  /** Fraction of fee-valued auto trades that closed NET-positive in the window, 0..1; 0 when none carried fee evidence. */
   winRate: z.number().min(0).max(1),
   /** Per-source slices (auto, manual) for the window; deterministic by source. */
   bySource: z.array(ScoreboardSourceRollup).default([]),

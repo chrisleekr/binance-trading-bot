@@ -36,6 +36,8 @@ describeIfDb('trade-archive aggregates are scoped to one quote asset', () => {
       profit: '10',
       orders: [{ side: 'BUY' as const }, { side: 'SELL' as const }],
       feesQuote: '1',
+      // With evidence, so the fee-derived half of every aggregate below has something to sum: fees, Net and the win/loss split all span only the rows that can state their commission, and an `unknown` row would zero them and hide the quote scoping this suite is about.
+      feeBasis: 'exact' as const,
       source: 'auto',
       archivedAt: AT,
     });
@@ -49,6 +51,7 @@ describeIfDb('trade-archive aggregates are scoped to one quote asset', () => {
       profit: '0.5',
       orders: [{ side: 'BUY' as const }, { side: 'SELL' as const }],
       feesQuote: '0.01',
+      feeBasis: 'exact' as const,
       source: 'auto',
       archivedAt: AT,
     });

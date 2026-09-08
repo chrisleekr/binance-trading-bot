@@ -143,3 +143,21 @@ export function formatPercent(n: number, opts?: { sign?: boolean }): string {
 export function formatWinRate(ratio: number): string {
   return formatPercent(ratio * 100);
 }
+
+const HOLD_DAY_MS = 24 * 60 * 60 * 1000;
+const HOLD_HOUR_MS = 60 * 60 * 1000;
+
+/**
+ * A holding period at the scale a reader can hold in their head: days past a day, else hours, else minutes.
+ *
+ * Rounded arithmetic rather than `toFixed`, which would pad a whole number to `3.0d` and put another entry in the reviewed fixed-precision inventory for a figure that is not money.
+ *
+ * @param ms - Elapsed milliseconds, or null/undefined when nothing could be timed.
+ * @returns The rounded figure with its unit, or an em dash. Never `0m`, which would claim a cycle that opened and closed in the same instant.
+ */
+export function formatHoldDuration(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms)) return '—';
+  if (ms >= HOLD_DAY_MS) return `${Math.round((ms / HOLD_DAY_MS) * 10) / 10}d`;
+  if (ms >= HOLD_HOUR_MS) return `${Math.round(ms / HOLD_HOUR_MS)}h`;
+  return `${Math.max(1, Math.round(ms / 60_000))}m`;
+}

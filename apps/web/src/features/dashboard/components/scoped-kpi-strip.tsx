@@ -126,6 +126,35 @@ function KpiCell({
 }
 
 /**
+ * The denominator a partial figure has to carry, on the same tile as the figure.
+ *
+ * A fee tier no longer says whether a window is partial: `unknown` means nothing at all could be valued, so a window that valued three of twelve reads `estimated` and its Net figure looks complete. The partial test is the pair of counts, and the tile that shows the smaller one has to name it — otherwise Home states a three-cycle Net beside a trade count of twelve while History, over the same window, says "3 of 12 cycles".
+ *
+ * Module-level because `react/no-unstable-nested-components` is armed: a component declared in a render body remounts its subtree every render.
+ *
+ * @param covered - Cycles the figure above was actually taken over.
+ * @param total - Cycles the window holds, which is what the Trades tile beside it counts.
+ * @param testId - Test hook, distinct per tile so a missing note on one cell cannot be masked by a sibling's.
+ * @returns The coverage line, or nothing when the figure already spans the whole window.
+ */
+function CoverageNote({
+  covered,
+  total,
+  testId,
+}: {
+  readonly covered: number;
+  readonly total: number;
+  readonly testId: string;
+}): React.JSX.Element | null {
+  if (total <= covered) return null;
+  return (
+    <span className="block text-[11px] font-normal text-muted-fg" data-testid={testId}>
+      {covered} of {total} cycles
+    </span>
+  );
+}
+
+/**
  * Per-profile KPI strip for the scoped Home view. Renders nothing until the
  * discovery dashboard resolves (or on error) so a slow/failed discovery read
  * never blanks the overview — the realised-P/L card still shows. The discovery
@@ -210,10 +239,20 @@ export function ScopedKpiStrip({ profileId }: { readonly profileId: string }): R
                 basis === 'net' && scoreboard.feeBasis === 'unknown' ? (
                   <span className="text-sm text-muted-fg">Unavailable</span>
                 ) : (
-                  <PnlValue
-                    value={basis === 'net' ? scoreboard.netProfit : scoreboard.realizedProfit}
-                    unit={data.quoteAsset}
-                  />
+                  <>
+                    <PnlValue
+                      value={basis === 'net' ? scoreboard.netProfit : scoreboard.realizedProfit}
+                      unit={data.quoteAsset}
+                    />
+                    {/* Only under Net: the Recorded sum spans every cycle in the window, so it has no denominator to disclose. */}
+                    {basis === 'net' ? (
+                      <CoverageNote
+                        covered={scoreboard.netTradeCount}
+                        total={scoreboard.tradeCount}
+                        testId="scoped-realised-coverage"
+                      />
+                    ) : null}
+                  </>
                 )
               ) : (
                 '—'
@@ -223,18 +262,39 @@ export function ScopedKpiStrip({ profileId }: { readonly profileId: string }): R
               {basis === 'net' && data.scoreboard.feeBasis7d === 'unknown' ? (
                 <span className="text-sm text-muted-fg">Unavailable</span>
               ) : (
-                <PnlValue
-                  value={
-                    basis === 'net' ? data.scoreboard.netProfit7d : data.scoreboard.realizedProfit7d
-                  }
-                  unit={data.quoteAsset}
-                />
+                <>
+                  <PnlValue
+                    value={
+                      basis === 'net'
+                        ? data.scoreboard.netProfit7d
+                        : data.scoreboard.realizedProfit7d
+                    }
+                    unit={data.quoteAsset}
+                  />
+                  {basis === 'net' ? (
+                    <CoverageNote
+                      covered={data.scoreboard.netTradeCount7d}
+                      total={data.scoreboard.tradeCount7d}
+                      testId="scoped-realised-7d-coverage"
+                    />
+                  ) : null}
+                </>
               )}
             </KpiCell>
             <KpiCell label={t('home.scoped.win_rate')} testId="win-rate" dest={toArchive}>
-              {scoreboard && scoreboard.feeBasis !== 'unknown' && scoreboard.tradeCount > 0
-                ? formatWinRate(scoreboard.winRate)
-                : '—'}
+              {/* The fee-valued count, not the window's: a win is a cycle that finished ahead AFTER commission, so an unvalued cycle cannot be classified either way and the rate was never taken over it. The coverage line follows the same denominator, and holds on both bases, because the classification reads the fee-adjusted money whatever amount is shown above it. */}
+              {scoreboard && scoreboard.netTradeCount > 0 ? (
+                <>
+                  {formatWinRate(scoreboard.winRate)}
+                  <CoverageNote
+                    covered={scoreboard.netTradeCount}
+                    total={scoreboard.tradeCount}
+                    testId="scoped-win-rate-coverage"
+                  />
+                </>
+              ) : (
+                '—'
+              )}
             </KpiCell>
             <KpiCell label={t('home.scoped.trades')} testId="trades" dest={toArchive}>
               {scoreboard ? scoreboard.tradeCount : '—'}

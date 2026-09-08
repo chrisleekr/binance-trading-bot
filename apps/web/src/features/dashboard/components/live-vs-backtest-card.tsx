@@ -33,7 +33,8 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
   });
   const archive = useQuery({
     queryKey: ['trade-archive', profileId, 'a', timeZone, 'rollup', 'scorecard'],
-    queryFn: () => fetchProfileArchive(profileId, 'a', null, timeZone, 'rollup'),
+    queryFn: () =>
+      fetchProfileArchive(profileId, { period: 'a', cursor: null, tz: timeZone, view: 'rollup' }),
     refetchInterval: 60_000,
   });
   const equity = useQuery({
@@ -51,8 +52,11 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
   const quote = profile.data?.quoteAsset ?? equity.data?.quoteAsset ?? '';
   // Counted in the same currency the figures are labelled with, one line below. An all-time rollup spans every quote the profile has ever settled in.
   const bucket = mergeRollupBuckets(archive.data?.bySource ?? [], quote);
-  const liveWin = bucket.tradeCount > 0 ? winPct(bucket) : null;
-  const livePf = bucket.tradeCount > 0 ? profitFactor(bucket) : null;
+  // The fee-valued count, not the window's. Win rate and profit factor are both read off the fee-adjusted money, so they exist only over the cycles whose commission is known; gating them on the window's count printed a two-cycle "100%" from a forty-cycle window and then differenced it against the backtest's rate.
+  const liveWin = bucket.netTradeCount > 0 ? winPct(bucket) : null;
+  const livePf = bucket.netTradeCount > 0 ? profitFactor(bucket) : null;
+  // How many of the window's cycles the four live figures were actually taken over. Stated on the card whenever it is short of the whole, because `feeBasis` no longer says so: `unknown` now means NOTHING could be valued, so a window that valued two of forty reads `estimated` and looks complete.
+  const liveExcluded = bucket.tradeCount - bucket.netTradeCount;
   const liveExp = expectancy(bucket);
   const liveDd = maxDrawdownQuote(equity.data?.points);
   // `unknown` only. This card compares live results against a backtest, so a total with a charge missing would move the comparison in a known direction on evidence that is not there. An `estimated` total still supports the comparison and is marked below the figures; the edge-decay verdict is held to the stronger bar separately, inside `useEdgeVerdict`.
@@ -134,6 +138,13 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
           reported, so these figures are estimates.
         </p>
       ) : null}
+
+      {feesIncomplete || liveExcluded <= 0 ? null : (
+        <p className="text-[11px] text-muted-fg" data-testid="live-scorecard-coverage">
+          Win rate, profit factor and expectancy cover {bucket.netTradeCount} of {bucket.tradeCount}{' '}
+          cycles — the rest have no commission recorded, so they cannot be scored either way.
+        </p>
+      )}
 
       {feesIncomplete ? null : baselineId === null ? (
         <p className="text-xs text-muted-fg">

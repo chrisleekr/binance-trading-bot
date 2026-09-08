@@ -99,7 +99,7 @@ describeIfDb('trade-archive net-of-fee aggregation', () => {
     expect(out.feeBasis).toBe('exact');
   });
 
-  it('marks a numeric subtotal incomplete when any row is incomplete', async () => {
+  it('keeps an unvalued row in the whole-window net leg, and marks the window for it', async () => {
     const from = new Date('2029-01-01T00:00:00Z');
     const to = new Date('2029-01-02T00:00:00Z');
     await ap.tradeArchive.insert({
@@ -116,8 +116,50 @@ describeIfDb('trade-archive net-of-fee aggregation', () => {
       archivedAt: new Date('2029-01-01T12:00:00Z'),
     });
     const out = await ap.tradeArchive.sumProfitInRange('USDT', from, to);
+    // Its commission was paid in BNB, which this window cannot price. This reader's Net leg still carries the row, because the result is folded into a persisted curve point that stores one cumulative amount and one tier with no column for a denominator: dropping the cycle there removes a known realised gain from a running total instead of withholding an uncertain one. What keeps that honest is the tier, which reads `unknown` off the WINDOW rather than off the rows the sum was folded from — otherwise this same figure comes back marked `exact` the moment one valued cycle sits beside it.
+    expect(out.tradeCount).toBe(1);
+    expect(Number(out.totalProfit)).toBe(1);
+    expect(out.netTradeCount).toBe(0);
     expect(Number(out.netProfit)).toBe(1);
     expect(out.feeBasis).toBe('unknown');
+  });
+
+  it('marks the window unvalued even when valued cycles sit beside the unvalued one', async () => {
+    // The case a tier read off the folded rows gets exactly backwards, and the one a long-lived curve actually meets: nine good cycles and one old fill nobody could price. `weakestFeeBasisAgg` skips the unvalued row, so the source-split readers correctly report `exact` over the set they summed — but this reader sums every row, and a curve labelled `exact` while carrying an unpriced commission certifies what it cannot.
+    const from = new Date('2035-01-01T00:00:00Z');
+    const to = new Date('2035-01-02T00:00:00Z');
+    const at = new Date('2035-01-01T12:00:00Z');
+    const row = (symbol: string, profit: string, feesQuote: string, feeBasis: string) => ({
+      symbol,
+      baseAsset: symbol.replace('USDT', ''),
+      quoteAsset: 'USDT',
+      totalBuyQuote: '100',
+      totalSellQuote: '110',
+      breakdown: {},
+      profit,
+      orders: [{ side: 'BUY' as const }, { side: 'SELL' as const }],
+      feesQuote,
+      feeBasis,
+      source: 'manual' as const,
+      archivedAt: at,
+    });
+    for (const r of [row('WINAUSDT', '10', '1', 'exact'), row('WINBUSDT', '100', '0', 'unknown')]) {
+      await ap.tradeArchive.insert(r as Parameters<typeof ap.tradeArchive.insert>[0]);
+    }
+
+    const out = await ap.tradeArchive.sumProfitInRange('USDT', from, to);
+    expect(out.tradeCount).toBe(2);
+    expect(out.netTradeCount).toBe(1);
+    // (10 − 1) + (100 − 0). The unvalued cycle's 100 is a realised gain the curve has to step up by; what it does not know is the commission taken out of it.
+    expect(Number(out.netProfit)).toBe(109);
+    // And the whole point: not `exact`. This is the marker the dashboard renders as "fees not accounted".
+    expect(out.feeBasis).toBe('unknown');
+    // The source-split reader over the same rows reports the other tier, off the rows IT summed, and discloses the gap with its denominator instead.
+    const bySource = await ap.tradeArchive.sumProfitInRangeForSource('USDT', from, to, 'manual');
+    expect(bySource.feeBasis).toBe('exact');
+    expect(bySource.netTradeCount).toBe(1);
+    expect(bySource.tradeCount).toBe(2);
+    expect(Number(bySource.netProfit)).toBe(9);
   });
 
   it('reports the weakest fee tier present across a mixed window', async () => {
@@ -158,6 +200,48 @@ describeIfDb('trade-archive net-of-fee aggregation', () => {
     const manual = bySource.find((r) => r.source === 'manual');
     expect(manual?.tradeCount).toBe(2);
     expect(manual?.feeBasis).toBe('estimated');
+  });
+
+  it('counts every row, values only the evidenced ones, and wins only among those', async () => {
+    // Three denominators over one window, and they are three different numbers here. `tradeCount` is `count(*)`; `netTradeCount` and `wins` both count only the rows whose commission could be read. The sibling `...BySource` is pinned on this; `...ForSource` is not, so replacing its `netTradeCount` aggregate with a plain `count(*)` — or dropping the `valuedRow` filter off `wins` — currently changes nothing that any test can see, while reporting a 3-of-3 win rate for a window that could value two cycles.
+    const from = new Date('2033-01-01T00:00:00Z');
+    const to = new Date('2033-01-02T00:00:00Z');
+    const at = new Date('2033-01-01T12:00:00Z');
+    const row = (symbol: string, profit: string, feesQuote: string, feeBasis: string) => ({
+      symbol,
+      baseAsset: symbol.replace('USDT', ''),
+      quoteAsset: 'USDT',
+      totalBuyQuote: '100',
+      totalSellQuote: '110',
+      breakdown: {},
+      profit,
+      orders: [{ side: 'BUY' as const }, { side: 'SELL' as const }],
+      feesQuote,
+      feeBasis,
+      source: 'manual' as const,
+      archivedAt: at,
+    });
+    // Two valued rows, one a net win and one a net loss, plus a row whose commission was charged in a coin this window cannot price.
+    for (const r of [
+      row('DENAUSDT', '10', '1', 'exact'),
+      row('DENBUSDT', '1', '5', 'exact'),
+      row('DENCUSDT', '10', '0', 'unknown'),
+    ]) {
+      await ap.tradeArchive.insert(r as Parameters<typeof ap.tradeArchive.insert>[0]);
+    }
+
+    const out = await ap.tradeArchive.sumProfitInRangeForSource('USDT', from, to, 'manual');
+    // Every row in the window, evidenced or not: the Recorded leg spans all three.
+    expect(out.tradeCount).toBe(3);
+    // The two that could state a commission. Not `count(*)`, which would make the win rate below a share of a set its numerator never spanned.
+    expect(out.netTradeCount).toBe(2);
+    // One net win among those two. The unvalued row's gross +10 would look like a third win if the `valuedRow` filter came off, classified on a fee that was never read.
+    expect(out.wins).toBe(1);
+    // Net over the valued pair only: (10 − 1) + (1 − 5) = 5, and the unvalued row's gross 10 is not in it.
+    expect(Number(out.netProfit)).toBe(5);
+    expect(Number(out.totalProfit)).toBe(21);
+    // Still `exact`, and deliberately so: the tier describes the rows the Net figure was summed OVER, and an unvalued row is excluded from that fold rather than weakening it — the SQL rank maps `unknown` to NULL, which `min` skips, and the TS fold in `@app/contracts` `continue`s past the same row. What discloses the excluded row is `netTradeCount` beside `tradeCount`, which is why the two being separate numbers is the thing worth pinning. A window reads `unknown` only when it could value nothing at all.
+    expect(out.feeBasis).toBe('exact');
   });
 
   it("reports 'exact' for a window holding no trades at all", async () => {

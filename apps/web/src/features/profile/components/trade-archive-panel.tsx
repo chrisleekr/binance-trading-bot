@@ -13,10 +13,16 @@
 // Cursor pagination because new archive entries land continuously while the
 // operator pages through; an offset would re-show or skip rows.
 
-import { skipToken, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import {
+  keepPreviousData,
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 
-import { Trash2 } from 'lucide-react';
+import { Eye, Trash2 } from 'lucide-react';
 
 import { ActionBanner, type ActionBannerState } from '@/shared/components/action-banner';
 import { FormActions } from '@/shared/components/form-actions';
@@ -39,26 +45,37 @@ import {
   TableHeader,
   TableRow,
 } from '@/shared/components/ui/table';
-import { Tabs, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
 import { Badge } from '@/shared/components/ui/badge';
 import { PnlPercent, PnlValue, UnavailablePnl } from '@/shared/components/pnl-value';
 import { PnlBasisToggle } from '@/shared/components/pnl-basis-toggle';
-import { RollupStatsLine } from '@/shared/components/rollup-stats-line';
-import { usePnlBasis } from '@/shared/hooks/use-pnl-basis';
+import {
+  ArchivePeriodPicker,
+  EMPTY_RANGE,
+  rangeBounds,
+  type CustomRange,
+  type PeriodChoice,
+} from '@/features/profile/components/archive-period-picker';
+import { EdgeGrid } from '@/features/profile/components/edge-grid';
+import { HistoryEquityCard } from '@/features/profile/components/history-equity-card';
+import { HistoryVerdict } from '@/features/profile/components/history-verdict';
+import { useCursorPager } from '@/shared/hooks/use-cursor-pager';
+import { usePnlBasis, type PnlBasis } from '@/shared/hooks/use-pnl-basis';
 import { errorMessage } from '@/shared/lib/api';
-import { formatAmount } from '@/shared/lib/format';
+import { formatAmount, formatHoldDuration } from '@/shared/lib/format';
 import { formatInstant } from '@/shared/lib/format-time';
 import { exitIntentLabel, glossExitIntent } from '@/shared/lib/gloss-exit-intent';
 import { sourceLabel } from '@/shared/lib/rollup-stats';
 import { accountSettingsQueryOptions } from '@/features/account/api/account-settings';
 import {
+  archiveExportUrl,
   backfillTradeArchive,
   deleteArchiveEntry,
   dismissUnreconstructable,
   fetchProfileArchive,
+  type ArchiveFilter,
 } from '@/features/profile/api/archive';
 import {
-  bucketPnl,
+  holdMsOf,
   rowPnl,
   sharesOfPnl,
   unavailablePnlGlyph,
@@ -68,8 +85,16 @@ import {
   ArchiveCompactList,
   ArchiveCompactSkeleton,
 } from '@/features/profile/components/archive-compact-list';
+import { ArchiveDetailSheet } from '@/features/profile/components/archive-detail-sheet';
 
-import type { ArchivePeriod, TradeArchiveResponse, UnreconstructableReason } from '@app/contracts';
+import { SymbolSource } from '@app/contracts';
+
+import type {
+  ArchiveSort,
+  ArchiveSortDir,
+  TradeArchiveResponse,
+  UnreconstructableReason,
+} from '@app/contracts';
 import { TableSkeleton } from '@/shared/components/page-skeleton';
 
 /** Plain-language reason a coin's closed P/L can't be reconstructed from Binance history. */
@@ -87,56 +112,61 @@ function glossUnreconstructable(reason: UnreconstructableReason): string {
 }
 
 /**
- * One bucket's share of its quote coin's closing P/L, as both rollup bands render it.
+ * A ledger column header that orders the whole selection, not the page.
  *
- * A component rather than a string helper so the two bands share the className as well as the wording. They are read one under the other, and a share sized or coloured differently in one of them reads as a different kind of number. Module level, because a component declared inside another's render body remounts its subtree on every render.
+ * Module level because `react/no-unstable-nested-components` is armed: a component declared inside the panel's render body is a new type on every render, so React unmounts and remounts its subtree — which on WebKit clamps the ledger's scroll position on every poll.
  *
- * @param bucket - The decorated bucket: its whole-number share, null when the quote coin's Net fee evidence is incomplete; the coin that share is a portion of; and whether the list it came from spans more than one coin.
- * @param testId - The band's per-row testid, which is what keeps the two bands' share nodes individually addressable while their markup stays identical.
- * @returns The share line.
+ * @param label - Column heading.
+ * @param sortKey - The key this header orders by.
+ * @param sort - The key currently ordering the ledger.
+ * @param dir - Its direction, rendered as the arrow and announced through `aria-sort`.
+ * @param onSortBy - Applies this header's key.
+ * @returns The header cell.
  */
-function ShareLabel({
-  bucket,
-  testId,
+function SortHeader({
+  label,
+  sortKey,
+  sort,
+  dir,
+  onSortBy,
 }: {
-  readonly bucket: {
-    readonly share: number | null;
-    readonly quoteAsset: string;
-    readonly multiQuote: boolean;
-  };
-  readonly testId: string;
+  readonly label: string;
+  readonly sortKey: ArchiveSort;
+  readonly sort: ArchiveSort;
+  readonly dir: ArchiveSortDir;
+  readonly onSortBy: (key: ArchiveSort) => void;
 }): React.JSX.Element {
-  // The coin is named only when it is ambiguous. Shares are apportioned to 100 WITHIN each quote coin, so a period spanning two coins renders two pools in one flat list and the percentages add to 200 unless each one says which pool it belongs to. On a single-coin period that name is noise on the surface an operator reads most.
+  const active = sort === sortKey;
   return (
-    <span className="text-[11px] text-muted-fg tabular-nums" data-testid={testId}>
-      {bucket.share === null ? (
-        // A share is withheld only ever by incomplete fee evidence, and across the whole quote coin, so a line whose own evidence is complete can lose its share to an incomplete sibling. The coin is named unconditionally here, unlike the percentage above: on a withheld share the name is the only thing telling the reader whose evidence is missing, which is not a question a single-coin period makes obvious either.
-        <UnavailablePnl
-          glyph={unavailablePnlGlyph('fees')}
-          description={`Share of P/L unavailable, ${bucket.quoteAsset} fee evidence incomplete`}
-        />
-      ) : bucket.multiQuote ? (
-        `${bucket.share}% of ${bucket.quoteAsset} P/L`
-      ) : (
-        `${bucket.share}% of P/L`
-      )}
-    </span>
+    <TableHead
+      className="text-right"
+      aria-sort={active ? (dir === 'desc' ? 'descending' : 'ascending') : 'none'}
+    >
+      <button
+        type="button"
+        onClick={() => onSortBy(sortKey)}
+        data-testid={`archive-sort-${sortKey}`}
+        className="min-h-11 w-full text-right hover:text-fg focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+      >
+        {label}
+        {active ? (dir === 'desc' ? ' ▼' : ' ▲') : ''}
+      </button>
+    </TableHead>
   );
 }
 
-const PERIODS: readonly { value: ArchivePeriod; label: string }[] = [
-  { value: 'a', label: 'All time' },
-  { value: 'd', label: 'Today' },
-  { value: 'w', label: 'This week' },
-  { value: 'm', label: 'This month' },
-];
-
-interface PageState {
-  readonly cursor: string | null;
-  readonly history: readonly (string | null)[];
+/**
+ * What the active row filter narrowed the ledger to, in the operator's words.
+ *
+ * @param filter - The applied filter, at most one dimension of it set.
+ * @returns A sentence fragment naming the dimension and its value, or null when nothing is filtered.
+ */
+function filterLabel(filter: ArchiveFilter): string | null {
+  if (filter.exitIntent !== undefined) return `exit reason: ${glossExitIntent(filter.exitIntent)}`;
+  if (filter.source !== undefined) return `source: ${sourceLabel(filter.source)}`;
+  if (filter.symbol !== undefined) return `coin: ${filter.symbol}`;
+  return null;
 }
-
-const initialPage: PageState = { cursor: null, history: [] };
 
 export function TradeArchivePanel({ profileId }: { profileId: string }): React.JSX.Element {
   const queryClient = useQueryClient();
@@ -145,9 +175,19 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
   const timeZone = settings.isSuccess ? settings.data.timezone : undefined;
 
   const { basis, setBasis } = usePnlBasis();
-  const [period, setPeriod] = useState<ArchivePeriod>('a');
-  const [page, setPage] = useState<PageState>(initialPage);
+  const [period, setPeriod] = useState<PeriodChoice>('a');
+  // The custom window's two edges, kept while a preset is in force so switching back to `Custom` returns the operator to the range they built rather than to a blank pair.
+  const [range, setRange] = useState<CustomRange>(EMPTY_RANGE);
+  // Which rows the ledger shows, and in what order. Server-side, not a client filter over the page: the ledger is paged, so filtering what arrived would hide matching rows on every page but the current one and call the result "3 stop-loss exits".
+  const [filter, setFilter] = useState<ArchiveFilter>({});
+  const [sort, setSort] = useState<ArchiveSort>('archivedAt');
+  const [dir, setDir] = useState<ArchiveSortDir>('desc');
+  const pager = useCursorPager();
+  // A summary row that narrows the ledger brings the result into view. A ref avoids putting a second, competing piece of view state in the URL beside `?section=`.
+  const ledgerRef = useRef<HTMLDivElement | null>(null);
   const [confirming, setConfirming] = useState<TradeArchiveResponse | null>(null);
+  // Tracked by id and re-read from the current page, so the open sheet follows a basis toggle and a background refetch instead of freezing the row as it was when clicked.
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [banner, setBanner] = useState<ActionBannerState | null>(null);
   const [backfillSymbol, setBackfillSymbol] = useState('');
   // While a recover-all is in flight the worker reconstructs in the background,
@@ -158,17 +198,27 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
   // hidden state itself is server-side per profile).
   const [showHidden, setShowHidden] = useState(false);
 
-  // `'full'` is part of the key, not just of the request: a rollup response and a full one are different answers to the same URL, and this component renders a page. No collision exists today only because the rollup callers happen to use a different key root, which is not an invariant anything enforces.
-  const queryKey = ['profile', 'archive', profileId, period, page.cursor, timeZone, 'full'];
+  // Everything that scopes the read, in one object the key and the request are both built from — so a new filter cannot reach the server without also reaching the cache key. `'full'` is in it explicitly: a rollup response and a full one are different answers to the same URL, and this component renders a page. No collision exists today only because the rollup callers happen to use a different key root, which is not an invariant anything enforces.
+  const selection = {
+    // `'a'` under a custom window, not the last preset: the server falls back to `period`'s own start for an edge the range leaves open, so carrying a stale `'w'` here would silently floor an open-ended `from` at this week rather than at the beginning of the archive.
+    period: period === 'custom' ? ('a' as const) : period,
+    cursor: pager.cursor,
+    tz: timeZone ?? '',
+    view: 'full' as const,
+    sort,
+    dir,
+    ...rangeBounds(period, range),
+    ...filter,
+  };
+  const queryKey = ['profile', 'archive', profileId, { ...selection, tz: timeZone }];
 
   const list = useQuery({
     queryKey,
     // The full view, explicitly: every default below depends on it.
-    queryFn:
-      timeZone === undefined
-        ? skipToken
-        : () => fetchProfileArchive(profileId, period, page.cursor, timeZone, 'full'),
+    queryFn: timeZone === undefined ? skipToken : () => fetchProfileArchive(profileId, selection),
     refetchInterval: recovering ? 3000 : false,
+    // The key folds the cursor, the ordering and the row filters, so paging or sorting the ledger re-keys this read — and without a placeholder `list.data` is undefined for that render, which takes `windowFrom`/`windowTo` with it and unmounts the curve below on its own guard. A remount is not a re-render: the card's queries come back as fresh observers with no previous data of their own, so their placeholders cannot fire either, and a sort click costs a chart teardown plus two whole-window reads for a window that did not change. For a genuine period change the previous window is replaced one render later, which is the same trade the card itself already makes.
+    placeholderData: keepPreviousData,
   });
 
   // These two defaults are safe ONLY because the query above always asks for the full view, so a response reaching this component always carried a page. Under `rollup` they would be a lie of the kind the line below refuses: `[]` would claim the window holds no trades and `null` would claim end-of-stream, neither of which a rollup-only read checked. If this query ever takes its view from a prop, these have to branch on `undefined` too.
@@ -179,6 +229,11 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
   const unreconstructableSymbols = list.data?.unreconstructableSymbols ?? [];
   const unreconstructableVisible = unreconstructableSymbols.filter((u) => !u.dismissed);
   const unreconstructableHidden = unreconstructableSymbols.filter((u) => u.dismissed);
+  // The window the server resolved for this period, echoed back so the curve below plots exactly the range these rollups were taken over.
+  const windowFrom = list.data?.from;
+  const windowTo = list.data?.to;
+  // Read once, so the chip that says what is filtered and the export that carries the filter can never disagree.
+  const activeFilter = filterLabel(filter);
   const byIntent = list.data?.byIntent ?? [];
   const bySource = list.data?.bySource ?? [];
   // Basis resolved once per row, so the amount cell and the percent cell beside
@@ -229,22 +284,52 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
     await queryClient.invalidateQueries({ queryKey: ['profile', 'archive', profileId] });
   };
 
-  const onPeriodChange = (next: ArchivePeriod): void => {
+  // Show the rows selected from an edge summary. `scrollIntoView` is optional-called because the test DOM does not implement it.
+  const scrollToLedger = (): void => {
+    ledgerRef.current?.scrollIntoView?.({ block: 'start' });
+  };
+
+  const onPeriodChange = (next: PeriodChoice): void => {
     setPeriod(next);
-    setPage(initialPage);
+    pager.reset();
   };
 
-  const onNext = (): void => {
-    if (!nextCursor) return;
-    setPage((p) => ({ cursor: nextCursor, history: [...p.history, p.cursor] }));
+  // Both the keyset boundary and the derived-sort offset name a position in one particular set, so either one addresses nothing once the window moves. The server refuses a replayed offset with a 422 rather than mis-paging, which would surface here as the ledger's generic load failure; resetting is what keeps that from being reachable at all.
+  const onRangeChange = (next: CustomRange): void => {
+    setRange(next);
+    pager.reset();
   };
 
-  const onBack = (): void => {
-    setPage((p) => {
-      const last = p.history.at(-1);
-      if (last === undefined) return p;
-      return { cursor: last, history: p.history.slice(0, -1) };
-    });
+  // One filter at a time, replacing rather than intersecting: two dimensions ANDed together produce empty results the operator cannot explain, and the chip that says what is applied has room to say one thing honestly.
+  const applyFilter = (next: ArchiveFilter): void => {
+    setFilter(next);
+    pager.reset();
+    scrollToLedger();
+  };
+  const onFilterExit = (exitIntent: string): void => applyFilter({ exitIntent });
+  const onFilterSource = (source: string): void => {
+    // The rollup ships `source` as a free string because the column is text with a CHECK rather than an enum, while the filter the API accepts is one of three values. A value outside that set could only come from a row written by something that is not this bot, and sending it would fail validation and blank the page — so the tile stays inert rather than taking the ledger down.
+    const parsed = SymbolSource.safeParse(source);
+    if (parsed.success) applyFilter({ source: parsed.data });
+  };
+
+  // The P/L column's sort key follows the basis it is showing, so changing the basis has to move an active sort with it. Left alone, the header's arrow and `aria-sort` vanished while the rows kept the other key's order — a table sorted by a column that says it is not — and the pager's cursor addressed a sequence the request no longer asks for.
+  const onBasisChange = (next: PnlBasis): void => {
+    setBasis(next);
+    const moved = next === 'net' ? 'netProfit' : 'profit';
+    const from = next === 'net' ? 'profit' : 'netProfit';
+    if (sort === from) setSort(moved);
+    pager.reset();
+  };
+
+  // Descending first on every key: each one answers "which is biggest / newest", and an ascending first click would open on the least interesting row.
+  const onSortBy = (key: ArchiveSort): void => {
+    if (sort === key) setDir((d) => (d === 'desc' ? 'asc' : 'desc'));
+    else {
+      setSort(key);
+      setDir('desc');
+    }
+    pager.reset();
   };
 
   const remove = useMutation({
@@ -288,25 +373,24 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-fg">Period</span>
-          <Tabs value={period} onValueChange={(v) => onPeriodChange(v as ArchivePeriod)}>
-            <TabsList>
-              {PERIODS.map((p) => (
-                <TabsTrigger
-                  key={p.value}
-                  value={p.value}
-                  data-testid={`archive-period-${p.value}`}
-                >
-                  {p.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
-        <PnlBasisToggle basis={basis} onBasisChange={setBasis} />
+      <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+        <ArchivePeriodPicker
+          choice={period}
+          range={range}
+          onChoiceChange={onPeriodChange}
+          onRangeChange={onRangeChange}
+          from={windowFrom}
+          to={windowTo}
+          timeZone={timeZone ?? 'UTC'}
+        />
+        <PnlBasisToggle basis={basis} onBasisChange={onBasisChange} />
       </div>
+
+      <HistoryVerdict buckets={bySource} basis={basis} />
+
+      {windowFrom !== undefined && windowTo !== undefined ? (
+        <HistoryEquityCard profileId={profileId} from={windowFrom} to={windowTo} />
+      ) : null}
 
       {/* Actionable warning: only coins we haven't yet found unrecoverable. */}
       {recoverableSymbols !== undefined && recoverableSymbols.length > 0 ? (
@@ -478,95 +562,65 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
         </form>
       </details>
 
-      {byIntent.length > 0 ? (
-        <section
-          className="space-y-2 rounded-md border border-border p-3"
-          data-testid="archive-by-intent"
-          aria-label="Profit and loss by exit reason"
-        >
-          <p className="text-sm font-medium text-fg">P/L by exit reason</p>
-          <ul className="space-y-2">
-            {sharesOfPnl(byIntent, basis).map((b) => {
-              const pnl = bucketPnl(b, basis);
-              return (
-                <li
-                  key={`${b.quoteAsset}-${b.intent}`}
-                  className="space-y-0.5"
-                  data-testid={`archive-intent-${b.quoteAsset}-${b.intent}`}
-                >
-                  <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className="min-w-0 flex-1 truncate text-muted-fg">
-                      {glossExitIntent(b.intent)}
-                    </span>
-                    <span className="w-24 text-right font-mono tabular-nums">
-                      {pnl === null ? (
-                        <UnavailablePnl
-                          glyph={unavailablePnlGlyph('fees')}
-                          description={unavailablePnlLabel('fees')}
-                        />
-                      ) : (
-                        <PnlValue value={pnl} unit={b.quoteAsset} />
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <RollupStatsLine bucket={b} />
-                    <ShareLabel
-                      bucket={b}
-                      testId={`archive-intent-share-${b.quoteAsset}-${b.intent}`}
-                    />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
+      <EdgeGrid
+        dimension="intent"
+        title="P/L by exit reason"
+        rows={sharesOfPnl(byIntent, basis)}
+        basis={basis}
+        labelOf={(b) => glossExitIntent(b.intent)}
+        valueOf={(b) => b.intent}
+        onSelect={onFilterExit}
+      />
 
-      {bySource.length > 0 ? (
-        <section
-          className="space-y-2 rounded-md border border-border p-3"
-          data-testid="archive-by-source"
-          aria-label="Profit and loss by source"
-        >
-          <p className="text-sm font-medium text-fg">P/L by source</p>
-          <ul className="space-y-2">
-            {sharesOfPnl(bySource, basis).map((b) => {
-              const pnl = bucketPnl(b, basis);
-              return (
-                <li
-                  key={`${b.quoteAsset}-${b.source}`}
-                  className="space-y-0.5"
-                  data-testid={`archive-source-${b.quoteAsset}-${b.source}`}
-                >
-                  <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className="min-w-0 flex-1 truncate text-muted-fg">
-                      {sourceLabel(b.source)}
-                    </span>
-                    <span className="w-24 text-right font-mono tabular-nums">
-                      {pnl === null ? (
-                        <UnavailablePnl
-                          glyph={unavailablePnlGlyph('fees')}
-                          description={unavailablePnlLabel('fees')}
-                        />
-                      ) : (
-                        <PnlValue value={pnl} unit={b.quoteAsset} />
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <RollupStatsLine bucket={b} />
-                    <ShareLabel
-                      bucket={b}
-                      testId={`archive-source-share-${b.quoteAsset}-${b.source}`}
-                    />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
+      <EdgeGrid
+        dimension="source"
+        title="P/L by source"
+        rows={sharesOfPnl(bySource, basis)}
+        basis={basis}
+        labelOf={(b) => sourceLabel(b.source)}
+        valueOf={(b) => b.source}
+        onSelect={onFilterSource}
+      />
+
+      {/* Above the ledger, not inside it: a filter that matched nothing still has to be visible and clearable, and it is exactly then that the ledger renders nothing at all. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium text-fg">Trades</p>
+          {activeFilter === null ? null : (
+            <span
+              className="flex items-center gap-1 rounded-md bg-bg-elevated px-2 py-1 text-xs text-muted-fg"
+              data-testid="archive-filter-chip"
+            >
+              {activeFilter}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => applyFilter({})}
+                data-testid="archive-filter-clear"
+              >
+                Clear
+              </Button>
+            </span>
+          )}
+        </div>
+        {/* An anchor the browser navigates, not a fetch: the response is a streamed attachment, and buffering it through JS would hold the file in memory and lose the server's filename. `download` is advisory here — the server sends its own content-disposition. */}
+        {/* Withheld until the zone resolves, the same gate the list read is behind. `selection.tz` stands in an empty string meanwhile, which the export route refuses at its boundary, so a link rendered now is one that answers a 422 to the one click it invites. */}
+        {timeZone === undefined ? (
+          <span className="text-xs text-muted-fg" data-testid="archive-export-pending">
+            Export these trades
+          </span>
+        ) : (
+          <a
+            href={archiveExportUrl(profileId, selection)}
+            download
+            className="text-xs text-muted-fg underline underline-offset-2 hover:text-fg"
+            data-testid="archive-export"
+          >
+            Export these trades
+          </a>
+        )}
+      </div>
 
       {settings.isPending || list.isLoading ? (
         <>
@@ -599,26 +653,46 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
       ) : null}
 
       {list.isSuccess && items.length === 0 ? (
-        <p className="text-sm text-muted-fg">No archive entries for this period.</p>
+        <p className="text-sm text-muted-fg" data-testid="archive-empty">
+          {activeFilter === null
+            ? 'No archive entries for this period.'
+            : `No trades in this period with ${activeFilter}.`}
+        </p>
       ) : null}
 
       {items.length > 0 ? (
-        <>
+        <div className="space-y-4" ref={ledgerRef} data-testid="archive-ledger">
           {/* Below md the nine-column table is a horizontal scroll strip, so the same rows render compactly with the full figures one tap away. `rows` is passed through rather than re-derived so both renders read the same basis. */}
           <div className="md:hidden">
-            <ArchiveCompactList rows={rows} timeZone={timeZone} onDelete={setConfirming} />
+            <ArchiveCompactList
+              profileId={profileId}
+              rows={rows}
+              timeZone={timeZone}
+              onDelete={setConfirming}
+            />
           </div>
           <div className="hidden rounded-md border border-border md:block">
             <Table data-testid="archive-list" className="text-xs">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Symbol</TableHead>
+                  <SortHeader
+                    label="Symbol"
+                    sortKey="symbol"
+                    sort={sort}
+                    dir={dir}
+                    onSortBy={onSortBy}
+                  />
                   <TableHead>Exit</TableHead>
                   <TableHead className="text-right">Buy</TableHead>
                   <TableHead className="text-right">Sell</TableHead>
-                  <TableHead className="text-right">
-                    {basis === 'net' ? 'Net P/L' : 'Recorded P/L'}
-                  </TableHead>
+                  {/* The P/L header orders by whichever P/L it is showing, so the column and its ordering cannot disagree about which number is biggest. */}
+                  <SortHeader
+                    label={basis === 'net' ? 'Net P/L' : 'Recorded P/L'}
+                    sortKey={basis === 'net' ? 'netProfit' : 'profit'}
+                    sort={sort}
+                    dir={dir}
+                    onSortBy={onSortBy}
+                  />
                   <TableHead className="text-right">PnL%</TableHead>
                   <TableHead className="text-right" title="Commission paid to Binance, per asset">
                     <div className="leading-tight">
@@ -630,7 +704,20 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                       </span>
                     </div>
                   </TableHead>
-                  <TableHead className="text-right">Time</TableHead>
+                  <SortHeader
+                    label="Held"
+                    sortKey="holdMs"
+                    sort={sort}
+                    dir={dir}
+                    onSortBy={onSortBy}
+                  />
+                  <SortHeader
+                    label="Time"
+                    sortKey="archivedAt"
+                    sort={sort}
+                    dir={dir}
+                    onSortBy={onSortBy}
+                  />
                   <TableHead className="w-10 text-right" />
                 </TableRow>
               </TableHeader>
@@ -709,6 +796,17 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                             </div>
                           ))}
                     </TableCell>
+                    <TableCell
+                      className="text-right font-mono whitespace-nowrap text-muted-fg tabular-nums"
+                      data-testid={`archive-hold-${row.id}`}
+                      title={
+                        row.entryAt === null
+                          ? 'This cycle was rebuilt from Binance history, which carries no open time.'
+                          : undefined
+                      }
+                    >
+                      {formatHoldDuration(holdMsOf(row))}
+                    </TableCell>
                     <TableCell className="text-right font-mono whitespace-nowrap text-muted-fg tabular-nums">
                       {timeZone === undefined ? null : formatInstant(row.archivedAt, timeZone)}
                     </TableCell>
@@ -717,6 +815,13 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                         label={`Actions for ${row.symbol} archive entry`}
                         testId={`archive-row-actions-${row.id}`}
                         actions={[
+                          {
+                            key: 'details',
+                            label: 'View details',
+                            icon: <Eye className="h-4 w-4" aria-hidden="true" />,
+                            onSelect: () => setDetailId(row.id),
+                            testId: `archive-details-${row.id}`,
+                          },
                           {
                             key: 'delete',
                             label: 'Delete',
@@ -733,8 +838,16 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
               </TableBody>
             </Table>
           </div>
-        </>
+        </div>
       ) : null}
+
+      {/* The desktop table's counterpart to the compact list's sheet. Both render the same component; only one of the two lists is ever mounted, because the choice between them is a CSS one. */}
+      <ArchiveDetailSheet
+        profileId={profileId}
+        row={rows.find((r) => r.id === detailId) ?? null}
+        timeZone={timeZone}
+        onClose={() => setDetailId(null)}
+      />
 
       <ActionBanner banner={banner} />
 
@@ -744,19 +857,21 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
             type="button"
             variant="ghost"
             size="default"
-            onClick={onBack}
-            disabled={page.history.length === 0}
+            onClick={pager.back}
+            disabled={!pager.canGoBack}
           >
             ‹ Prev
           </Button>
           <span className="font-mono text-xs text-muted-fg tabular-nums">
-            Page {page.history.length + 1}
+            Page {pager.pageNumber}
           </span>
           <Button
             type="button"
             variant="ghost"
             size="default"
-            onClick={onNext}
+            onClick={() => {
+              if (nextCursor) pager.next(nextCursor);
+            }}
             disabled={nextCursor === null}
           >
             Next ›

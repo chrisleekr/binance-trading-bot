@@ -208,18 +208,22 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
       ...seedTrade('bs-auto-w1'),
       source: 'auto',
       profit: '2000',
+      // Fee-evidenced, because the win/loss split and the gross magnitudes below are net-leg figures: they span only the rows that can state their commission, and an unvalued row would sit in tradeCount alone.
+      feeBasis: 'exact' as const,
       archivedAt: at(0),
     });
     await ap.tradeArchive.insert({
       ...seedTrade('bs-auto-w2'),
       source: 'auto',
       profit: '1000',
+      feeBasis: 'exact' as const,
       archivedAt: at(1),
     });
     await ap.tradeArchive.insert({
       ...seedTrade('bs-auto-l1'),
       source: 'auto',
       profit: '-500',
+      feeBasis: 'exact' as const,
       archivedAt: at(2),
     });
     // manual: one breakeven — counts toward tradeCount only, never win/loss/gross.
@@ -227,6 +231,7 @@ describeIfDb('trade-archive account-scoped reads and writes', () => {
       ...seedTrade('bs-manual-be'),
       source: 'manual',
       profit: '0',
+      feeBasis: 'exact' as const,
       archivedAt: at(3),
     });
 
