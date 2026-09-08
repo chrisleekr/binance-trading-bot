@@ -52,7 +52,7 @@ workflow:
     - if: $CI_COMMIT_TAG
 
 default:
-  image: oven/bun:1.4.0-alpine
+  image: oven/bun:1.4.2-alpine
   # Every job is interruptible so `workflow.auto_cancel.on_new_commit` above can
   # cancel superseded runs. docker-build overrides this (see its job) so a push
   # image build is never left half-done.
@@ -267,10 +267,10 @@ db-isolation:
 browser-bootstrap:
   stage: test
   needs: []
-  image: mcr.microsoft.com/playwright:v1.62.1-noble
+  image: mcr.microsoft.com/playwright:v1.63.0-noble
   variables:
     BUN_INSTALL: /root/.bun
-    BUN_VERSION: '1.4.0'
+    BUN_VERSION: '1.4.2'
     # The MS Playwright image bundles browsers under /ms-playwright;
     # Playwright defaults to $HOME/.cache/ms-playwright which is empty
     # in this container. Pointing at the image's bundled set avoids
@@ -310,7 +310,7 @@ browser-bootstrap:
 app-e2e:
   stage: test
   needs: []
-  image: mcr.microsoft.com/playwright:v1.62.1-noble
+  image: mcr.microsoft.com/playwright:v1.63.0-noble
   services:
     - name: timescale/timescaledb:latest-pg17
       alias: postgres
@@ -318,7 +318,7 @@ app-e2e:
       alias: redis
   variables:
     BUN_INSTALL: /root/.bun
-    BUN_VERSION: '1.4.0'
+    BUN_VERSION: '1.4.2'
     PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     POSTGRES_DB: binance_trading_bot_test
     POSTGRES_USER: postgres

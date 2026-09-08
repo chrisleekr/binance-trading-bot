@@ -1,6 +1,6 @@
-// Audits the worker integration lane's own vitest json report, because a green lane is not evidence that the lane ran.
+// Audits the complete worker lane's own vitest json report, because a green lane is not evidence that the lane ran.
 //
-// Three ways it lied. A gated suite resolved to `describe.skip` with no reason recorded anywhere an artifact could carry, so three of twelve files silently stood down and the job still reported success. A broken include glob produced an empty run that `passWithNoTests: true` turned green. And a crash after the last assertion — a teardown that never settled, a connection that kept the process alive — exited nonzero with every test passed, which reads as a flaky infrastructure blip rather than the real defect it is.
+// Four ways it lied. A gated suite resolved to `describe.skip` with no reason recorded anywhere an artifact could carry. A report entry with no cases counted as a passing file. A narrowed include glob still reported success. And a crash after the last assertion exited nonzero with every test passed, which reads as an infrastructure blip rather than the real defect it is.
 //
 // Skips are report-only by DEFAULT. A leg without service containers is expected to stand suites down, and failing on that would only make the honest report unusable: the operator sees which files stood down and why, and that is what was missing. A caller that supplies Postgres and Redis itself passes `--forbid-skips` to make a skip fatal instead, because on that lane a stood-down suite is a misconfigured job. See the flag's own rationale at the foot of this file.
 
@@ -22,6 +22,9 @@ interface VitestReport {
 /** The lane owns every suite in this directory; a report carrying fewer of them collected less than the lane claims to cover. */
 const INTEGRATION_DIR = 'apps/worker/__tests__/integration/';
 
+/** Every reported file under this root is part of the complete worker lane, including the integration subset with its exact invariant. */
+const WORKER_TEST_DIR = 'apps/worker/__tests__/';
+
 const EXPECTED_INTEGRATION_FILES = 12;
 
 /** Written into the suite title by `apps/worker/__tests__/integration/_infra-gate.ts`, since no vitest reporter carries a skip reason of its own. */
@@ -36,6 +39,16 @@ if (statusArg === undefined || !/^-?\d+$/.test(statusArg)) {
   process.exit(2);
 }
 const vitestStatus = Number(statusArg);
+
+const nonIntegrationFloorArg = process.argv
+  .find((arg) => arg.startsWith('--min-non-integration-files='))
+  ?.slice('--min-non-integration-files='.length);
+if (nonIntegrationFloorArg !== undefined && !/^\d+$/.test(nonIntegrationFloorArg)) {
+  console.error('worker-integration: expected --min-non-integration-files=<count>');
+  process.exit(2);
+}
+const minNonIntegrationFiles =
+  nonIntegrationFloorArg === undefined ? null : Number(nonIntegrationFloorArg);
 
 const report = (await Bun.stdin.json()) as VitestReport;
 const numFailedTests = report.numFailedTests ?? 0;
@@ -53,7 +66,10 @@ if (vitestStatus !== 0) {
   process.exit(1);
 }
 
-const integrationFiles = (report.testResults ?? []).filter((file) =>
+const workerFiles = (report.testResults ?? []).filter((file) =>
+  (file.name ?? '').replaceAll('\\', '/').includes(WORKER_TEST_DIR),
+);
+const integrationFiles = workerFiles.filter((file) =>
   (file.name ?? '').replaceAll('\\', '/').includes(INTEGRATION_DIR),
 );
 
@@ -69,17 +85,44 @@ if (integrationFiles.length !== EXPECTED_INTEGRATION_FILES) {
   process.exit(1);
 }
 
+const nonIntegrationFiles = workerFiles.filter(
+  (file) => !(file.name ?? '').replaceAll('\\', '/').includes(INTEGRATION_DIR),
+);
+
+/**
+ * Renders a reported worker test path relative to the repository so every refusal names the file in the same stable form.
+ *
+ * @param file - One Vitest JSON file result known to be under the worker test root.
+ * @returns The repository-relative worker test path.
+ */
+const relativeWorkerPath = (file: FileResult): string => {
+  const path = (file.name ?? '').replaceAll('\\', '/');
+  return path.slice(path.indexOf(WORKER_TEST_DIR));
+};
+
+const emptyFiles = workerFiles.filter((file) => (file.assertionResults ?? []).length === 0);
+if (emptyFiles.length > 0) {
+  console.error('worker-integration: reported worker files collected no test cases:');
+  for (const file of emptyFiles.sort((a, b) =>
+    relativeWorkerPath(a).localeCompare(relativeWorkerPath(b)),
+  )) {
+    console.error(`  ${relativeWorkerPath(file)}: collected no test cases`);
+  }
+  process.exit(1);
+}
+
+if (minNonIntegrationFiles !== null && nonIntegrationFiles.length < minNonIntegrationFiles) {
+  console.error(
+    `worker-integration: report contained ${nonIntegrationFiles.length} non-integration worker files, below the ${minNonIntegrationFiles}-file floor`,
+  );
+  process.exit(1);
+}
+
 /** A file counts as skipped when any of its cases did not run, so a partially-gated suite is as visible as a wholly-gated one. */
 const skipped = new Map<string, string>();
-for (const file of integrationFiles) {
-  const path = (file.name ?? '').replaceAll('\\', '/');
-  const relative = path.slice(path.indexOf(INTEGRATION_DIR));
+for (const file of workerFiles) {
+  const relative = relativeWorkerPath(file);
   const cases = file.assertionResults ?? [];
-  // A file that reported no cases at all collected nothing. The file-count check above proves only that the file APPEARED in the report, so without this arm an empty suite is indistinguishable from a passing one and the lane counts it among the executed.
-  if (cases.length === 0) {
-    skipped.set(relative, 'collected no test cases');
-    continue;
-  }
   const skippedCases = cases.filter((assertion) => assertion.status === 'skipped');
   if (skippedCases.length === 0) continue;
 
@@ -92,17 +135,31 @@ for (const file of integrationFiles) {
   );
 }
 
-console.log(
-  `worker-integration: ${integrationFiles.length} integration files, ${skipped.size} skipped`,
-);
+const reportScope =
+  workerFiles.length === integrationFiles.length
+    ? `${integrationFiles.length} integration files`
+    : `${workerFiles.length} worker files`;
+console.log(`worker-integration: ${reportScope}, ${skipped.size} skipped`);
 for (const [path, reason] of [...skipped.entries()].sort(([a], [b]) => a.localeCompare(b))) {
   console.log(`  ${path}: ${reason}`);
 }
 
 // Skips stay report-only by DEFAULT, because the local lane legitimately stands suites down. They are a failure on a lane that supplies the stack itself, and only the caller knows which it is — hence a flag rather than an environment sniff. Without it the checker fails open on the exact condition it exists to catch: drop REDIS_TEST_URL from the CI job and nine of eleven suites gate off, vitest exits 0 because a skip is not a failure, and the lane is green having run two files.
+//
+// The two scopes get separate diagnoses. Only the gated suites under the integration directory read their admission off DATABASE_TEST_URL / REDIS_TEST_URL, so naming the infrastructure is the right first place to look for those and the wrong one for a unit file, which stands down because someone wrote it that way.
 if (process.argv.includes('--forbid-skips') && skipped.size > 0) {
-  console.error(
-    `worker-integration: ${skipped.size} of ${integrationFiles.length} integration files stood down in a lane that supplies Postgres and Redis itself — the infrastructure is misconfigured, not the tests`,
-  );
+  const gated = [...skipped.keys()].filter((path) => path.startsWith(INTEGRATION_DIR));
+  const ungated = [...skipped.keys()].filter((path) => !path.startsWith(INTEGRATION_DIR));
+  // Each refusal divides by its OWN scope, never `reportScope`: a numerator that can only come from the gated suites read against the whole-tree total turns a total infrastructure blackout into a 5% blip.
+  if (gated.length > 0) {
+    console.error(
+      `worker-integration: ${gated.length} of ${integrationFiles.length} integration files stood down in a lane that supplies Postgres and Redis itself — the infrastructure is misconfigured, not the tests`,
+    );
+  }
+  if (ungated.length > 0) {
+    console.error(
+      `worker-integration: ${ungated.length} of ${nonIntegrationFiles.length} non-integration worker files stood down outside ${INTEGRATION_DIR} in a lane that forbids skips — these files admit themselves without a service container, so the stand-down is in the test`,
+    );
+  }
   process.exit(1);
 }
