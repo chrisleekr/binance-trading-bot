@@ -139,6 +139,33 @@ describe('reconcileDetachedFill — terminal-status vocabulary', () => {
     expect(repoMocks.ordersCloseByBinanceOrderId).not.toHaveBeenCalled();
   });
 
+  // The terminal gate case-folds and the FILLED routing test does not, so an off-case spelling used to pass the first and fail the second, taking the plain close: terminal, but with the execution totals never merged. Binance sends these upper, so this pins the two comparisons to one reading rather than a bug anyone has seen.
+  it.each(['filled', 'Filled'])('routes %s the same way as FILLED, totals and all', async (raw) => {
+    await makeAdopter().reconcileDetachedFill({
+      ...eventWith(raw),
+      cumQty: '12',
+      cumQuoteQty: '340',
+    });
+
+    expect(repoMocks.ordersMarkFilledByBinanceOrderId).toHaveBeenCalledWith(
+      BigInt(ORDER_ID),
+      { executedQty: '12', cummulativeQuoteQty: '340' },
+      1_735_000_000_000,
+    );
+    expect(repoMocks.ordersCloseByBinanceOrderId).not.toHaveBeenCalled();
+  });
+
+  it('still writes the exchange’s own spelling to the row it plainly closes', async () => {
+    // The fold decides the ROUTE, never what is recorded: a row stamped `CANCELED` when Binance said `canceled` would misquote the exchange in the one place the operator goes to find out why the order left the book.
+    await makeAdopter().reconcileDetachedFill(eventWith('canceled'));
+
+    expect(repoMocks.ordersCloseByBinanceOrderId).toHaveBeenCalledWith(
+      BigInt(ORDER_ID),
+      'canceled',
+      1_735_000_000_000,
+    );
+  });
+
   it.each(['NEW', 'PARTIALLY_FILLED', 'PENDING_CANCEL', 'SOME_STATUS_BINANCE_ADDS_TOMORROW'])(
     'leaves the row open on %s — a still-live commitment SHOULD keep counting toward exposure',
     async (status) => {

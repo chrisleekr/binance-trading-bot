@@ -498,7 +498,10 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
 
   const reconcileDetachedFill = async (event: DetachedOrderEvent): Promise<void> => {
     // The shared `@app/contracts` predicate, never a local copy: this row's `closed_at` stamp, the open-orders cache eviction and the boot reaper all answer "has the order left the book?" and must answer it the same way. A four-member local set omitted `EXPIRED_IN_MATCH` — the status Binance stamps when self-trade prevention kills an order, which on a shared account wallet is what a sibling profile's BUY crossing our resting SELL produces — so an STP-terminated detached row was never closed: it held its live intent slot and counted toward the account's open exposure forever. A still-resting report (NEW / PARTIALLY_FILLED) passes through untouched, and an unrecognised status fails closed the same way.
-    if (!isTerminalOrderStatus(event.orderStatus)) return;
+    //
+    // Folded once, here, because the two decisions below have to agree: `isTerminalOrderStatus` case-folds and the `FILLED` routing test is a strict compare, so an off-case spelling would pass the gate and then take the plain close, which does not merge the execution totals into `raw` and would leave the row's executedQty wrong. Both producers pass Binance's own string through with `orderStatus` typed as `string`, and Binance has always sent these upper, so this is the asymmetry closed rather than a reachable defect. The exchange's original spelling is what still lands on the row.
+    const status = event.orderStatus.toUpperCase();
+    if (!isTerminalOrderStatus(status)) return;
     // Account scope, not profile scope: a detached row is reachable only by
     // account, and `scopeAccount` proves the operator owns it.
     const orders = accountRepoFromScope(
@@ -516,7 +519,7 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
     if (!row || row.profileId !== null) return;
 
     const closed =
-      event.orderStatus === 'FILLED'
+      status === 'FILLED'
         ? // FILLED gets the exchange's true totals merged into `raw` so the row's
           // executedQty is honest, exactly as an adopted fill would. Idempotent
           // (`status <> 'FILLED'`), so the N-active-profiles fan-out settles once.
