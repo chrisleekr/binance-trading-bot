@@ -29,7 +29,7 @@ import {
 import { createRoute } from '@hono/zod-openapi';
 
 import type { DI } from 'di.js';
-import { isEntryHalted } from 'lib/entry-halt.js';
+import { activeEntryHalts } from 'lib/entry-halt.js';
 import { requireUser } from 'middleware/require-user.js';
 import { accountScopeOf } from 'route-helpers.js';
 import { createApiHono, type ApiHono } from 'types.js';
@@ -124,10 +124,7 @@ export const accountHealthRouter = (di: DI): ApiHono => {
     const settled = await Promise.allSettled(
       profiles.map(async (profile) => {
         const profileId = asProfileId(profile.id);
-        const dailyHalted = await isEntryHalted(di, {
-          accountId: a.scope.accountId,
-          profileId,
-        });
+        const halts = await activeEntryHalts(di, { accountId: a.scope.accountId, profileId }, now);
         const today = realized.get(profileId);
         // The grouped read left-joins from `profiles` in the same transaction that listed them, so every profile here has a row. One missing means the two reads disagree about the account's membership, and reporting a zero would invent a figure — fail this profile into the skip path instead.
         if (!today) throw new Error('realised rollup omitted a profile of this account');
@@ -136,7 +133,7 @@ export const accountHealthRouter = (di: DI): ApiHono => {
           realized: today.totalProfit,
           // The quote the sum was actually taken in, echoed from the aggregate rather than re-read off the profile. The rollup below buckets by this key, so deriving it a second time would let the label and the figure drift apart.
           quoteAsset: today.quoteAsset,
-          dailyHalted,
+          halts,
         };
       }),
     );
@@ -158,9 +155,10 @@ export const accountHealthRouter = (di: DI): ApiHono => {
         );
         continue;
       }
-      const { profile, realized: realizedStr, quoteAsset, dailyHalted } = result.value;
-      if (dailyHalted)
-        halts.push({ profileId: profile.id, name: profile.name, kind: 'daily-loss' });
+      const { profile, realized: realizedStr, quoteAsset, halts: profileHalts } = result.value;
+      // One entry per active breaker: a profile can be paused by two at once, and collapsing them would tell the operator to go and look at only one of the limits holding it.
+      for (const h of profileHalts)
+        halts.push({ profileId: profile.id, name: profile.name, kind: h.kind });
 
       const realized = new Decimal(realizedStr || '0');
       const key = `${quoteAsset}|${binanceMode}`;
@@ -176,7 +174,8 @@ export const accountHealthRouter = (di: DI): ApiHono => {
       if (
         binanceMode === 'live' &&
         limit.gt(0) &&
-        !dailyHalted &&
+        // The warn band is about the DAILY limit specifically, so only a daily halt retires it; a guard pausing buys says nothing about how close today's loss is to today's limit.
+        !profileHalts.some((h) => h.kind === 'daily-loss') &&
         realized.lte(limit.times(-WARN_FRACTION))
       ) {
         approachingLimit.push({

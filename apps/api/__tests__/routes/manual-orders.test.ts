@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { asProfileId, TriggerResponse } from '@app/contracts';
-import { profileKey } from '@app/db';
+import { asProfileId, ENTRY_HALT_REASONS, TriggerResponse } from '@app/contracts';
+import { entryHaltKeys, profileKey } from '@app/db';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
@@ -99,7 +99,7 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
     expect(rows[0].n).toBe(0);
   });
 
-  describe('daily-loss breaker pre-flight', () => {
+  describe('entry breaker pre-flight', () => {
     // Built from the shared key helper, never hand-spelled: the route reads the
     // same builder, and a typo here would arm nothing and pass vacuously.
     const haltKey = (): string =>
@@ -116,8 +116,18 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
     const ttPath = (suffix: string): string =>
       `/api/accounts/${fx.alice.accountId}/profiles/${TT_PROFILE}/symbols/BTCUSDT${suffix}`;
 
+    const guardKeys = (): Readonly<Record<string, string>> =>
+      entryHaltKeys({ accountId: fx.alice.accountId, profileId: asProfileId(TT_PROFILE) });
+
     afterEach(async () => {
-      await fx.di.redis.raw().del(haltKey(), overrideKey());
+      await fx.di.redis
+        .raw()
+        .del(
+          haltKey(),
+          overrideKey(),
+          guardKeys()['loss-streak'] as string,
+          guardKeys()['drawdown'] as string,
+        );
       await fx.di.pool.query(`delete from override_actions where profile_id = $1`, [TT_PROFILE]);
     });
 
@@ -169,6 +179,22 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
       ]) {
         expect((await exit).status).toBe(202);
       }
+    });
+
+    it('refuses with the sentence of the breaker that is actually armed', async () => {
+      // Only the drawdown guard is set. Answering with the daily sentence would
+      // tell the operator buying resumes at UTC midnight and point them at a
+      // limit that is switched off.
+      await fx.di.redis.raw().set(guardKeys()['drawdown'] as string, '1', 'EX', 3600);
+
+      const res = await fx.app.request(ttPath('/trigger-buy'), {
+        method: 'POST',
+        headers: headers(fx.alice.userId),
+      });
+      expect(res.status).toBe(409);
+      const message = (await errorBody(res)).error.message;
+      expect(message).toBe(ENTRY_HALT_REASONS.drawdown);
+      expect(message).not.toBe(ENTRY_HALT_REASONS['daily-loss']);
     });
 
     it('does not refuse a force-buy when the breaker is not armed', async () => {

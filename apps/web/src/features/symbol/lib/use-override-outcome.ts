@@ -240,7 +240,7 @@ export interface OverrideOutcomeWatch {
  * Turn the API's optimistic 202 into the truth.
  *
  * The 202 only says "recorded" — the order it schedules can still be refused by
- * a filter, killed by the daily-loss breaker, or rejected by Binance a few
+ * a filter, killed by an entry breaker, or rejected by Binance a few
  * seconds later. Telling the operator "scheduled" and never correcting it is how
  * a force-sell that never happened reads as a success. So once an override is
  * accepted, poll its row until a tick settles it, then hand the caller the real

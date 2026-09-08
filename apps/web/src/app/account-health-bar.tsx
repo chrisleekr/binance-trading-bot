@@ -6,6 +6,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 
+import type { EntryHaltKind } from '@app/contracts';
+
 import { accountHealthQueryKey, fetchAccountHealth } from '@/app/account-health-api';
 import { PnlValue } from '@/shared/components/pnl-value';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/shared/components/ui/tooltip';
@@ -14,8 +16,12 @@ import { formatMoneyAmount } from '@/shared/lib/format';
 
 const POLL_MS = 15_000;
 
-const HALT_LABEL: Record<'daily-loss', string> = {
+// Keyed by the closed union so a new breaker cannot ship with the strip silently
+// rendering `undefined` beside a profile's name.
+const HALT_LABEL: Record<EntryHaltKind, string> = {
   'daily-loss': 'daily loss limit',
+  'loss-streak': 'loss-streak guard',
+  drawdown: 'drawdown guard',
 };
 
 /** Slim chip: a coloured dot + label, the shared status-chip look. */
@@ -60,6 +66,8 @@ export function AccountHealthBar(): React.JSX.Element | null {
   if (!q.data) return null;
   const { worker, halts, todayRealized, approachingLimit } = q.data;
   const liveToday = todayRealized.filter((t) => t.binanceMode === 'live');
+  // The server sends one row per (profile, breaker), so a profile held by two breakers arrives twice. The chip counts paused profiles; the tooltip below keeps the per-breaker detail.
+  const pausedProfileCount = new Set(halts.map((h) => h.profileId)).size;
 
   const workerChip =
     worker.status === 'live' ? (
@@ -79,7 +87,11 @@ export function AccountHealthBar(): React.JSX.Element | null {
         <Tooltip>
           <TooltipTrigger asChild>
             <span>
-              <Chip tone="warn" label={`${halts.length} paused`} testId="account-health-halts" />
+              <Chip
+                tone="warn"
+                label={`${pausedProfileCount} paused`}
+                testId="account-health-halts"
+              />
             </span>
           </TooltipTrigger>
           <TooltipContent>

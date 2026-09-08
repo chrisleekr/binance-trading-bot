@@ -12,7 +12,7 @@ The bar shows only what needs your attention. On a healthy account it is a singl
 | --- | --- | --- | --- |
 | **Bot live** | green | The worker has checked in recently. Trading decisions are being made. | Nothing. |
 | **Bot down — restart worker** | red | The worker has not checked in. **No coin is being traded**, and no strategy is watching your positions. | Restart the worker. See [Troubleshooting](../operations/troubleshooting.md). |
-| **_N_ paused** | amber | _N_ profiles have hit their **daily loss limit** and stopped opening new positions for the rest of the UTC day. | Hover for which ones. Either accept it or review the limit on the profile's Risk section. |
+| **_N_ paused** | amber | _N_ profiles have hit an **entry breaker** — the daily loss limit, the loss-streak guard, or the drawdown guard — and stopped opening new positions until it lifts. | Hover for which profiles and which breaker. Either accept it or review that limit on the profile's Risk section. |
 | **_N_ near limit** | amber | _N_ live profiles have lost **80% or more** of their daily loss limit but have not tripped yet. | Hover for the exact loss against the limit. This is your last warning before buying stops. |
 | **Today +12.40 USDT** | — | Realised profit or loss booked since **00:00 UTC**, one figure per quote asset. Counted in each profile's **current** quote asset only. | Nothing. This is the same number the daily loss limit is measured against. |
 
@@ -20,7 +20,7 @@ The bar shows only what needs your attention. On a healthy account it is a singl
 
 **"Bot down" means trading has stopped, not that money is at risk of moving.** The worker is what places and cancels orders. If it is down nothing new happens — but orders already resting on Binance stay live and can still fill.
 
-**"Paused" only ever means the daily loss limit.** It is the only breaker that stops buying. Two other automatic checks exist — config-proof and edge-decay — but they are advisory only: they raise a dashboard flag and a notifier message, and never appear here. A profile you stopped yourself with the [kill switch](../operations/kill-switch.md) does not appear here either; the dashboard shows that.
+**"Paused" means one of the three entry breakers.** The daily loss limit, the loss-streak guard, and the drawdown guard are the only things that stop buying, and the tooltip names which one it was. A profile held by two at once gets one line per breaker, because each points at a different setting. Two other automatic checks exist — config-proof and edge-decay — but they are advisory only: they raise a dashboard flag and a notifier message, and never appear here. A profile you stopped yourself with the [kill switch](../operations/kill-switch.md) does not appear here either; the dashboard shows that.
 
 **"Today" is live money only.** If your account is on the Binance testnet, this figure stays hidden — practice profit is never shown as though it were real. It is realised P/L, so it moves when a position closes, not when the price moves.
 
@@ -37,7 +37,7 @@ Operational alerts that need to reach you when you are not looking at the screen
 ```mermaid
 flowchart TD
     Heartbeat["Worker check-in"]:::io --> Endpoint["Account health<br/>sums the money server-side"]:::core
-    Profiles["Each profile:<br/>today's realised P/L, loss limit, halt flag"]:::io --> Endpoint
+    Profiles["Each profile:<br/>today's realised P/L, loss limit, halt flags"]:::io --> Endpoint
     Endpoint --> Header["Header bar<br/>refreshed every 15s"]:::act
     classDef io fill:#2c3e50,color:#ffffff;
     classDef core fill:#1f6f43,color:#ffffff;

@@ -1,4 +1,4 @@
-import { asAccountId, asProfileId, DiscoveryConfigSchema } from '@app/contracts';
+import { asAccountId, asProfileId, DiscoveryConfigSchema, EntryHaltKind } from '@app/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   accountPermissionsKey,
@@ -10,6 +10,7 @@ import {
   eventsChannelKey,
   eventsSeqKey,
   eventsStreamKey,
+  entryHaltKeys,
   GLOBAL_KEYS,
   openOrdersKey,
   PROFILE_KEYS,
@@ -57,11 +58,31 @@ describe('PROFILE_KEYS catalogue', () => {
     expect(PROFILE_KEYS.exchangeInfo()).toBe('exchange-info');
     expect(PROFILE_KEYS.exchangeSymbols()).toBe('exchange-symbols');
     expect(PROFILE_KEYS.killSwitch()).toBe('kill-switch');
+    expect(PROFILE_KEYS.entryHaltDaily()).toBe('entry-halt:daily');
+    expect(PROFILE_KEYS.entryHaltLossStreak()).toBe('entry-halt:loss-streak');
+    expect(PROFILE_KEYS.entryHaltDrawdown()).toBe('entry-halt:drawdown');
     expect(PROFILE_KEYS.orderRefusal('BTCUSDT')).toBe('order-refusal:BTCUSDT');
     expect(PROFILE_KEYS.dashboardCache()).toBe('dashboard:cache');
     expect(PROFILE_KEYS.dustEligible()).toBe('dust-eligible');
     expect(PROFILE_KEYS.userStreamEvent()).toBe('user-stream:last-event');
     expect(PROFILE_KEYS.binanceWeight(29_142_001)).toBe('binance:weight:29142001');
+  });
+});
+
+describe('entryHaltKeys', () => {
+  it('names one fully-prefixed key per breaker kind, so no reader can miss one', () => {
+    const scope: ProfileKeyParts = {
+      accountId: asAccountId('11111111-1111-4111-8111-111111111111'),
+      profileId: asProfileId('22222222-2222-4222-8222-222222222222'),
+    };
+    const keys = entryHaltKeys(scope);
+    // Keyed by the closed union rather than checked one kind at a time: a fourth breaker added to `EntryHaltKind` fails here instead of quietly going unread by a display surface. Unsorted on both sides, so insertion order is part of the assertion: this literal is what a reader sees when it enumerates the object, and `EntryHaltKind`'s declaration order is the one order every breaker-listing surface reports in.
+    expect(Object.keys(keys)).toEqual([...EntryHaltKind.options]);
+    expect(keys['daily-loss']).toBe(profileKey(scope, 'entryHaltDaily'));
+    expect(keys['loss-streak']).toBe(profileKey(scope, 'entryHaltLossStreak'));
+    expect(keys.drawdown).toBe(profileKey(scope, 'entryHaltDrawdown'));
+    // Distinct keys, or one breaker tripping would silently mask another's state.
+    expect(new Set(Object.values(keys)).size).toBe(3);
   });
 });
 

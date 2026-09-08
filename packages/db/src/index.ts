@@ -86,6 +86,7 @@ export {
   DISCOVERY_ASSET_POLICY_ABORT_TTL_S,
   profileKey,
   profilePrefix,
+  entryHaltKeys,
   dashboardAggregateCacheKey,
   openOrdersKey,
   accountPermissionsKey,

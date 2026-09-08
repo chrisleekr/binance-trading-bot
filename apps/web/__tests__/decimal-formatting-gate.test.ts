@@ -321,6 +321,8 @@ describe('decimal fields reach the DOM through a formatter', () => {
     expect(DECIMAL_FIELD_NAMES.has('estimatedBTC')).toBe(true);
     expect(DECIMAL_FIELD_NAMES.has('bnbReceived')).toBe(true);
     expect(DECIMAL_FIELD_NAMES.has('dailyLossLimitQuote')).toBe(true);
+    // One level down, inside a nested guard block: the walk descends into sub-schemas, and pinning it here is what keeps that true rather than incidental.
+    expect(DECIMAL_FIELD_NAMES.has('maxDrawdownQuote')).toBe(true);
     // A non-decimal field on the very same object must NOT be in the set, or the walk is tagging everything it sees.
     expect(DECIMAL_FIELD_NAMES.has('asset')).toBe(false);
     expect(DECIMAL_FIELD_NAMES.has('canDustTransfer')).toBe(false);

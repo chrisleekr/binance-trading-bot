@@ -12,6 +12,7 @@ import type { Logger } from 'pino';
 import {
   DiscoveryConfigSchema,
   DISCOVERY_HEALTH_WINDOW,
+  EntryHaltKind,
   unwrapId,
   type AssetPolicyAbortRecord,
   type OpenCondition,
@@ -21,8 +22,8 @@ import {
   type StoredDiscoveryConfig,
 } from '@app/contracts';
 import {
+  entryHaltKeys,
   PROFILE_SUBJECT,
-  profileKey,
   projections,
   type ProfileKeyParts,
   type profileRepo,
@@ -79,18 +80,35 @@ const readHeartbeat = async (redis: Pick<Redis, 'get'>, logger: Logger): Promise
   }
 };
 
+// One plain-language line per breaker, because "paused" alone tells the operator nothing about which limit to go and look at.
+const HALT_LABELS: Readonly<Record<EntryHaltKind, string>> = {
+  'daily-loss': "Today's loss limit was hit",
+  'loss-streak': 'The loss-streak guard is pausing buys',
+  drawdown: 'The drawdown guard is pausing buys',
+};
+
+/**
+ * Which entry breakers are pausing this profile's buys, as diagnosis conditions.
+ *
+ * Reads the same three Redis flags the api's risk card and the tick-path filter read, and reports each one as a plain-language label because "paused" alone does not tell the operator which limit to go and look at.
+ *
+ * @param deps - The gather's ports; the Redis client, the logger, and the key parts every surface composes the halt keys from.
+ * @returns One entry per active breaker in `EntryHaltKind` order, or null when the read failed. Null rather than an empty list, which is the positive claim "nothing is halted" and a failed read has not earned it.
+ */
 const readHalts = async (deps: DiagnosisGatherDeps): Promise<ProfileDiagnosisInput['halts']> => {
+  const keys = entryHaltKeys(deps.keyParts);
   try {
-    const halted = (await deps.redis.exists(profileKey(deps.keyParts, 'entryHaltDaily'))) > 0;
-    // No start time: the flag is a bare Redis key with a TTL to the next UTC
-    // day. Reporting a guessed start would be worse than reporting none.
-    return halted ? [{ label: "Today's loss limit was hit", sinceMs: null }] : [];
+    // All three reads sit inside ONE try: a partial list built from the keys that happened to answer before one threw is the same false "nothing is halted" claim as an empty list, only harder to spot.
+    const flags = await Promise.all(
+      EntryHaltKind.options.map((kind) => deps.redis.exists(keys[kind])),
+    );
+    // No start time: each flag is a bare Redis key with a TTL. Reporting a guessed
+    // start would be worse than reporting none.
+    return EntryHaltKind.options
+      .filter((_, i) => (flags[i] ?? 0) > 0)
+      .map((kind) => ({ label: HALT_LABELS[kind], sinceMs: null }));
   } catch (err) {
-    // null, not []: an empty list is the answer "nothing is halted", and a
-    // failed read has not earned it. The two reads run concurrently over one
-    // client, so this command can fail while the heartbeat GET succeeds, which
-    // would leave `worker-alive` reporting a live engine and this rung quietly
-    // clearing a halt it never saw.
+    // null, not []: an empty list is the answer "nothing is halted", and a failed read has not earned it. The heartbeat GET and these three EXISTS run concurrently over one client, so any of the halt commands can fail while the heartbeat succeeds, which would leave `worker-alive` reporting a live engine and this rung quietly clearing a halt it never saw.
     deps.logger.warn({ err }, 'diagnosis: halt flag read failed');
     return null;
   }

@@ -9,6 +9,7 @@ import { z } from 'zod';
  */
 export const ProfileNotifyEventCategory = z.enum([
   'daily-loss-halt',
+  'loss-guard-halt',
   'edge-decay-warning',
   'discovery',
   'discovery-health',
@@ -29,6 +30,8 @@ export type ProfileNotifyEventCategory = z.infer<typeof ProfileNotifyEventCatego
  */
 export const ProfileNotifyEvents = z.object({
   'daily-loss-halt': z.boolean().default(true),
+  // Default ON for the same reason as the daily limit: the bot has stopped buying and the operator has no other way to learn it.
+  'loss-guard-halt': z.boolean().default(true),
   'edge-decay-warning': z.boolean().default(true),
   discovery: z.boolean().default(true),
   // Default ON: a wedged or breadth-blocked discovery scan means the auto-set
@@ -72,6 +75,13 @@ export const PROFILE_NOTIFY_EVENT_CATALOG: readonly NotifyEventMeta[] = [
     label: 'Daily loss limit hit',
     description:
       "When the day's losses reach your limit and the bot pauses new buys until the next day.",
+    severity: 'warn',
+  },
+  {
+    category: 'loss-guard-halt',
+    label: 'Loss guard tripped',
+    description:
+      'When a run of losing exits or a realised drawdown reaches your guard and the bot pauses new buys for the configured pause.',
     severity: 'warn',
   },
   {

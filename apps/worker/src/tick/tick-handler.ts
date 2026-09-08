@@ -19,8 +19,14 @@
 import { randomUUID } from 'node:crypto';
 import type { Job } from 'bullmq';
 import type { Decision, TickOutput, TriggerEvent } from '@app/strategy-core';
-import { asAccountId, asProfileId, asUserId, type ManualOverridePayload } from '@app/contracts';
-import { profileKey } from '@app/db';
+import {
+  asAccountId,
+  asProfileId,
+  asUserId,
+  ENTRY_HALT_REASONS,
+  type ManualOverridePayload,
+} from '@app/contracts';
+import { entryHaltKeys } from '@app/db';
 import type { TickJobData } from 'queues/job-payloads.js';
 import { callAsync } from 'lib/call-async.js';
 import { raceDeadline } from 'lib/race-deadline.js';
@@ -37,7 +43,7 @@ import { tickInputDigest } from './tick-input-digest.js';
 import { buildTickInput, type BuiltTick, type WrittenCondition } from './build-tick-input.js';
 import { errorMessage } from '@app/core/error';
 import type { DecisionFailure, TickHandlerDeps, TickResult } from './tick-types.js';
-import { applyDailyHalt } from './halt-filter.js';
+import { applyEntryHalts } from './halt-filter.js';
 import { extractLivePrice, mapEventToTrigger, tickIntervals } from './tick-event.js';
 import {
   redisUnavailableSkip,
@@ -434,16 +440,11 @@ export const createTickHandler = (
           });
         }
 
-        // Daily-loss circuit breaker: when the portfolio-risk cron has flagged this
-        // profile (today's realised loss hit its limit), suppress new BUY orders for
-        // the rest of the UTC day. SELLs, cancels, and events still flow so exits and
-        // protective stops keep running. Fail-open (see applyDailyHalt). The flag
-        // self-clears at the next UTC day. This is the ONLY breaker that pauses buys —
-        // config-proof and edge-decay are advisory (dashboard + heads-up), never a halt.
+        // Entry breakers: when the portfolio-risk cron has flagged this profile on any of the three (the daily loss limit, the loss-streak guard, or the drawdown guard), suppress new BUY orders while that flag stands. SELLs, cancels, and events still flow so exits and protective stops keep running. Fail-open, see `applyEntryHalts`. Each flag self-clears on its own TTL: the daily one at the next UTC day, each guard after its configured pause. These three are the only things that pause buys — config-proof and edge-decay are advisory (dashboard + heads-up), never a halt.
         const decisions: readonly Decision[] = output.decisions;
-        const halt = await applyDailyHalt(
+        const halt = await applyEntryHalts(
           deps.redis,
-          profileKey({ accountId, profileId }, 'entryHaltDaily'),
+          entryHaltKeys({ accountId, profileId }),
           decisions,
           deps.logger,
           { profileId, symbol },
@@ -1093,6 +1094,8 @@ export const createTickHandler = (
               bundleOverride.overrideActionId,
               applied,
               halt.dropped,
+              // The first active kind names the breaker in the operator-facing reason; `kinds` is non-empty whenever `dropped` is.
+              ENTRY_HALT_REASONS[halt.kinds[0] ?? 'daily-loss'],
             ),
           });
         }

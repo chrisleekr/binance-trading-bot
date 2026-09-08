@@ -262,13 +262,49 @@ describe('gatherDiagnosisInput — the Redis reads report absence, never health'
     return { ...deps, redis: { ...deps.redis, ...redis } as never };
   };
 
-  it('reports the daily-loss halt, with no start time to invent', async () => {
-    // The flag is a bare key with a TTL to the next UTC day. It carries no start,
-    // and a guessed one would date a breaker the operator can act on.
+  it('reports one line per active breaker, with no start time to invent', async () => {
+    // Each flag is a bare key with a TTL. It carries no start, and a guessed one
+    // would date a breaker the operator can act on.
+    const deps = withRedis(
+      { exists: async (key: string) => (key.endsWith('entry-halt:drawdown') ? 1 : 0) },
+      makeLogger(),
+    );
+
+    const { input } = await gatherDiagnosisInput(deps);
+    // Only the guard that is actually set: naming the daily limit here would send
+    // the operator to a setting that is off.
+    expect(input.halts).toEqual([{ label: 'The drawdown guard is pausing buys', sinceMs: null }]);
+  });
+
+  it('reports every active breaker, in EntryHaltKind order', async () => {
     const deps = withRedis({ exists: async () => 1 }, makeLogger());
 
     const { input } = await gatherDiagnosisInput(deps);
-    expect(input.halts).toEqual([{ label: "Today's loss limit was hit", sinceMs: null }]);
+    expect(input.halts?.map((h) => h.label)).toEqual([
+      "Today's loss limit was hit",
+      'The loss-streak guard is pausing buys',
+      'The drawdown guard is pausing buys',
+    ]);
+  });
+
+  it('reports null, not a PARTIAL list, when one of the three key reads fails', async () => {
+    // The first key answers "set" and the second throws. A per-key try would
+    // return the one halt it managed to read and call that the whole answer,
+    // which is the same false claim as an empty list with a halt hidden inside it.
+    let call = 0;
+    const deps = withRedis(
+      {
+        exists: async () => {
+          call += 1;
+          if (call === 1) return 1;
+          throw new Error('redis down mid-read');
+        },
+      },
+      makeLogger(),
+    );
+
+    const { input } = await gatherDiagnosisInput(deps);
+    expect(input.halts).toBeNull();
   });
 
   it('reports the halt state as unreadable rather than as clear', async () => {

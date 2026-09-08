@@ -10,6 +10,19 @@ import {
 } from '../schema/trade-archive.js';
 import type { ProfileScope } from './_scoped.js';
 
+/**
+ * The first row of a raw `db.execute` result, whatever shape the driver handed back.
+ *
+ * drizzle returns a pg-style `{ rows }` object on node-pg and a bare array on postgres.js, and the declared generic does not discriminate them, so every raw query in this file normalises rather than trusting it. Doing that inline twice is how one of the two sites comes to read the wrong shape.
+ *
+ * @param result - Whatever `db.execute` resolved to, unnormalised.
+ * @returns The first row as a loose record, or undefined when the query returned no rows.
+ */
+const firstExecutedRow = (result: unknown): Record<string, unknown> | undefined => {
+  const rows = (result as { rows?: unknown[] }).rows ?? result;
+  return Array.isArray(rows) ? (rows[0] as Record<string, unknown> | undefined) : undefined;
+};
+
 export async function listForSymbol(
   scope: ProfileScope,
   symbol: string,
@@ -212,6 +225,76 @@ export async function sumProfitInRange(
     feeBasis: rows[0]?.feeBasis ?? 'exact',
     tradeCount: rows[0]?.tradeCount ?? 0,
   };
+}
+
+/**
+ * Losing closed cycles in a rolling window, for the loss-streak guard. Gross `profit < 0` on the same basis the daily-loss breaker sums, so the two breakers cannot disagree about whether a cycle lost.
+ *
+ * A COUNT over the whole window, deliberately, not the length of the trailing run of losses: a grid or a pyramid closes many small cycles, so one scratch win between two losses would reset a run-counter and leave the guard unarmable on the strategy shapes it is for. The window is what bounds recency; consecutiveness is not asked.
+ *
+ * @param scope - Ownership-proven profile scope; bounds every row read here to one profile.
+ * @param quoteAsset - The currency the guard is configured in; rows in any other quote are excluded, because a profile's quote can change and a count across two currencies is not a count of anything.
+ * @param from - Inclusive lower bound on `archived_at`, normally `now - lookbackHours`.
+ * @param to - Exclusive upper bound on `archived_at`, normally `now`.
+ * @returns How many archived cycles in the window closed at a gross loss. `0` when nothing matches.
+ */
+export async function countLosingCyclesInRange(
+  scope: ProfileScope,
+  quoteAsset: string,
+  from: Date,
+  to: Date,
+): Promise<number> {
+  const quote = canonicalQuote(quoteAsset);
+  const rows = await scope.db
+    .select({ losses: sql<number>`count(*) filter (where ${tradeArchive.profit} < 0)::int` })
+    .from(tradeArchive)
+    .where(
+      and(
+        eq(tradeArchive.profileId, scope.profileId),
+        eq(tradeArchive.quoteAsset, quote),
+        gte(tradeArchive.archivedAt, from),
+        lt(tradeArchive.archivedAt, to),
+      ),
+    );
+  return rows[0]?.losses ?? 0;
+}
+
+/**
+ * Realised peak-to-trough drawdown inside a rolling window, for the drawdown guard. The running sum of `profit` is taken in archive order over the window's rows only, and its running peak is floored at 0, so a window that opens with losses reports them as drawdown from a flat start rather than hiding them behind an earlier gain. Computed in SQL so money never becomes a JS number.
+ *
+ * @param scope - Ownership-proven profile scope; bounds every row read here to one profile.
+ * @param quoteAsset - The currency the guard is configured in; other quotes are excluded, for the same reason the count excludes them.
+ * @param from - Inclusive lower bound on `archived_at`, normally `now - lookbackHours`.
+ * @param to - Exclusive upper bound on `archived_at`, normally `now`.
+ * @returns The largest fall from a running peak, as a NON-NEGATIVE decimal string in `quoteAsset` (a guard limit is stated as a positive amount, so the fall is reported the same way). `'0'` when the window is empty or never fell below its peak.
+ */
+export async function maxRealisedDrawdownInRange(
+  scope: ProfileScope,
+  quoteAsset: string,
+  from: Date,
+  to: Date,
+): Promise<string> {
+  const quote = canonicalQuote(quoteAsset);
+  const result = await scope.db.execute<{ drawdown: string }>(sql`
+    with series as (
+      select
+        ${tradeArchive.archivedAt} as at,
+        ${tradeArchive.id} as id,
+        sum(${tradeArchive.profit}) over (order by ${tradeArchive.archivedAt}, ${tradeArchive.id}) as cum
+      from ${tradeArchive}
+      where ${tradeArchive.profileId} = ${scope.profileId}
+        and ${tradeArchive.quoteAsset} = ${quote}
+        and ${tradeArchive.archivedAt} >= ${from}::timestamptz
+        and ${tradeArchive.archivedAt} < ${to}::timestamptz
+    ),
+    peaks as (
+      select cum, greatest(0, max(cum) over (order by at, id rows between unbounded preceding and current row)) as peak
+      from series
+    )
+    select coalesce(-min(cum - peak), 0)::text as drawdown from peaks
+  `);
+  const row = firstExecutedRow(result);
+  return (row?.['drawdown'] as string | undefined) ?? '0';
 }
 
 /**
