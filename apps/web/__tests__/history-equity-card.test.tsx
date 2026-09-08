@@ -5,6 +5,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AUDIT_LOG_MAX_LIMIT } from '@/features/profile/api/audit-logs';
+
 const fetchEquitySnapshots = vi.fn();
 const fetchProfileAuditLogs = vi.fn();
 const patchProfile = vi.fn();
@@ -12,8 +14,9 @@ const patchProfile = vi.fn();
 vi.mock('@/features/dashboard/api/equity-snapshots', () => ({
   fetchEquitySnapshots: (...a: unknown[]) => fetchEquitySnapshots(...a),
 }));
-vi.mock('@/features/profile/api/audit-logs', () => ({
-  AUDIT_LOG_MAX_LIMIT: 200,
+// The real module spread in, so only the two functions this file drives are stubbed. `AUDIT_LOG_MAX_LIMIT` in particular has to be the REAL constant: a literal restated here is what the assertion below would then be comparing the card against, which passes at any value the route's cap is ever moved to.
+vi.mock('@/features/profile/api/audit-logs', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/profile/api/audit-logs')>()),
   fetchProfileAuditLogs: (...a: unknown[]) => fetchProfileAuditLogs(...a),
   auditLogsExportUrl: () => '/export',
 }));
@@ -115,7 +118,7 @@ describe('<HistoryEquityCard>', () => {
     ];
     expect(window).toEqual({ from: FROM, to: TO });
     // The route's maximum, not its UI-sized default: a marker layer that takes the default plots the newest 25 changes bunched against the right-hand edge of the axis and reports that number as the count of changes made.
-    expect(limit).toBe(200);
+    expect(limit).toBe(AUDIT_LOG_MAX_LIMIT);
     // Config-shaped events only: a mark per cancelled order buries the handful of changes that explain a bend in the curve.
     expect(events).toContain('set-discovery-config');
     expect(events).not.toContain('cancel-order');
@@ -277,5 +280,56 @@ describe('<HistoryEquityCard>', () => {
     renderCard();
     // Peak 10 down to 2 is the worst give-back in the window, whatever it recovered to afterwards.
     expect(await screen.findByTestId('history-equity-footnote')).toHaveTextContent('8');
+  });
+
+  it('measures the drawdown over the PLOTTED curve, not over the points before capital went in', async () => {
+    fetchEquitySnapshots.mockResolvedValue(
+      snapshots([
+        // Nothing deployed yet, and a 50-unit give-back across the pair. `toSeries` drops both, so the curve the operator is looking at never shows this fall.
+        point('2026-05-02T00:00:00.000Z', '60', '0'),
+        point('2026-05-03T00:00:00.000Z', '10', '0'),
+        // Capital in: the plotted curve starts here and gives back 4.
+        point('2026-05-10T00:00:00.000Z', '10', '100'),
+        point('2026-05-12T00:00:00.000Z', '6', '100'),
+        point('2026-05-20T00:00:00.000Z', '9', '100'),
+      ]),
+    );
+    renderCard();
+    const footnote = await screen.findByTestId('history-equity-footnote');
+    // 4, the fall on the line that is drawn. Reporting 54 names a drop the operator cannot find anywhere on the chart it sits under.
+    expect(footnote).toHaveTextContent('Worst drop from a high point in this window: 4.00 USDT');
+  });
+
+  it('keeps the previous window on screen while a re-resolved one loads', async () => {
+    // The archive response's `to` is the instant the SERVER answered, for every preset, so each refetch of the ledger above hands this card a window it has never seen and re-keys both reads. Without the placeholder the whole card falls back to its skeleton on every one of them, which during an archive recovery is every three seconds.
+    fetchEquitySnapshots.mockResolvedValue(
+      snapshots([point('2026-05-10T00:00:00.000Z', '10'), point('2026-05-20T00:00:00.000Z', '6')]),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(['account-settings'], { timezone: 'UTC' });
+    const { rerender } = render(
+      <QueryClientProvider client={qc}>
+        <HistoryEquityCard profileId={PID} from={FROM} to={TO} />
+      </QueryClientProvider>,
+    );
+    await screen.findByTestId('history-equity-footnote');
+
+    // The same window, one millisecond later — which is the only thing that changes between two consecutive ledger refetches.
+    let resolveNext: (v: unknown) => void = () => {};
+    fetchEquitySnapshots.mockReturnValue(
+      new Promise((resolve) => {
+        resolveNext = resolve;
+      }),
+    );
+    rerender(
+      <QueryClientProvider client={qc}>
+        <HistoryEquityCard profileId={PID} from={FROM} to={'2026-05-31T00:00:00.001Z'} />
+      </QueryClientProvider>,
+    );
+
+    // Still the curve, not the skeleton, while the new window is in flight.
+    expect(screen.getByTestId('history-equity-footnote')).toBeInTheDocument();
+    resolveNext(snapshots([point('2026-05-10T00:00:00.000Z', '10')]));
+    await waitFor(() => expect(fetchEquitySnapshots).toHaveBeenCalledTimes(2));
   });
 });

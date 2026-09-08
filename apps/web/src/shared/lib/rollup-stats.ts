@@ -53,12 +53,7 @@ export function avgLoss(b: RollupStatsBucket): number | null {
 }
 
 /**
- * Expectancy: the average NET-of-fee profit per trade over the fee-valued rows,
- * `(grossProfit - grossLoss) / netTradeCount`. The single number that says whether the edge is
- * positive after costs — negative means each trade loses money on average.
- * `null` when no trade was valued. Both magnitudes span the valued rows only, so dividing by every
- * row would shrink the average towards zero in proportion to how much evidence was missing.
- * A display ratio over verbatim decimal sums.
+ * Expectancy: the average NET-of-fee profit per trade over the fee-valued rows, `(grossProfit - grossLoss) / netTradeCount`. The single number that says whether the edge is positive after costs — negative means each trade loses money on average. `null` when no trade was valued. Both magnitudes span the valued rows only, so dividing by every row would shrink the average towards zero in proportion to how much evidence was missing. A display ratio over verbatim decimal sums.
  */
 export function expectancy(b: RollupStatsBucket): number | null {
   const denominator = netDenominator(b);

@@ -94,29 +94,35 @@ function VerdictTile({
 }
 
 /**
- * The caveats the headline amount carries, joined into one line.
+ * The caveat the headline amount carries.
  *
- * Composed rather than chosen between: coverage and estimation are independent facts about the same figure, and the common case is both — a window holding some unvalued cycles is usually one whose valued ones were priced off the rate card. A ternary chain silently dropped whichever came second.
- *
- * `estimated` is scoped to the Net basis alone, because the Recorded amount subtracts no fee at all, so no fee tier qualifies it.
+ * `estimated` is scoped to the Net basis alone, because the Recorded amount subtracts no fee at all, so no fee tier qualifies it. Coverage is NOT stated here: it qualifies the four fee-derived tiles as much as the amount, and on the Recorded basis it qualifies them and not the amount, so it is stated once under the whole block instead.
  *
  * @param basis - Which amount the tile is showing; only Net rests on a reconstructed commission.
- * @param netTradeCount - Cycles the Net amount was summed over.
- * @param tradeCount - Cycles the window holds, which is what the Trades tile beside it counts.
  * @param feeBasis - The bucket's weakest fee tier.
- * @returns The joined caveat line, or undefined when the amount carries none.
+ * @returns The caveat line, or undefined when the amount carries none.
  */
-function pnlCaveats(
-  basis: PnlBasis,
-  netTradeCount: number,
-  tradeCount: number,
-  feeBasis: string | undefined,
-): string | undefined {
-  if (basis !== 'net') return undefined;
-  const parts: string[] = [];
-  if (tradeCount > netTradeCount) parts.push(`${netTradeCount} of ${tradeCount} cycles`);
-  if (feeBasis === 'estimated') parts.push('estimated');
-  return parts.length === 0 ? undefined : parts.join(' · ');
+function pnlCaveats(basis: PnlBasis, feeBasis: string | undefined): string | undefined {
+  return basis === 'net' && feeBasis === 'estimated' ? 'estimated' : undefined;
+}
+
+/**
+ * What the block says about the rows its statistics were taken over, or null when they covered everything.
+ *
+ * Stated whatever the basis. Win rate, expectancy, profit factor and fee drag are read off the fee-adjusted money at every basis, so switching to Recorded changes the headline amount and changes nothing about the four tiles below it — while the old wording, scoped to Net, took the disclosure away with the amount and left four partial figures sitting beside an unqualified Trades count that contradicts them.
+ *
+ * @param basis - Which amount the headline tile is showing, since only Net is summed over the same partial set.
+ * @param netTradeCount - Cycles that carried fee evidence: the denominator every figure below the Trades tile shares.
+ * @param tradeCount - Cycles the window holds, which is what the Trades tile counts.
+ * @returns The sentence under the tiles, or null when every cycle was valued.
+ */
+function coverageNote(basis: PnlBasis, netTradeCount: number, tradeCount: number): string | null {
+  if (tradeCount <= netTradeCount) return null;
+  const stats =
+    basis === 'net'
+      ? 'The amount above, and win rate, expectancy, profit factor and fee drag, count'
+      : 'Win rate, expectancy, profit factor and fee drag count';
+  return `Fees were known for ${netTradeCount} of ${tradeCount} cycles. ${stats} those alone.`;
 }
 
 /**
@@ -161,6 +167,7 @@ export function HistoryVerdict({
         const exp = valued ? expectancy(merged) : null;
         const drag = valued ? feeDragPct(merged) : null;
         const amount = basis === 'net' ? merged.netProfit : merged.profitSum;
+        const coverage = coverageNote(basis, merged.netTradeCount, merged.tradeCount);
 
         return (
           <section
@@ -181,11 +188,7 @@ export function HistoryVerdict({
                     : 'What the closed cycles made as booked, before the commissions charged outside the coin you bought'
                 }
                 testId={`verdict-pnl-${quoteAsset}`}
-                sub={
-                  valued
-                    ? pnlCaveats(basis, merged.netTradeCount, merged.tradeCount, merged.feeBasis)
-                    : undefined
-                }
+                sub={valued ? pnlCaveats(basis, merged.feeBasis) : undefined}
               >
                 {basis === 'net' && !valued ? (
                   withheldTile()
@@ -235,6 +238,14 @@ export function HistoryVerdict({
                 {drag !== null ? formatPercent(drag) : withheldTile()}
               </VerdictTile>
             </dl>
+            {coverage !== null ? (
+              <p
+                className="text-[11px] text-muted-fg"
+                data-testid={`verdict-coverage-${quoteAsset}`}
+              >
+                {coverage}
+              </p>
+            ) : null}
           </section>
         );
       })}

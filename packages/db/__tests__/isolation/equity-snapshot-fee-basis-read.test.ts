@@ -110,6 +110,8 @@ describeIfDb('equity-snapshot fee-basis read', () => {
 
     const one = await ap.equitySnapshots.listForProfileInRange('USDT', oneFrom, oneTo, 1);
     expect(one).toHaveLength(1);
+    // And it is the window's LAST point. The rows arrive oldest bucket first, so trimming off the tail would hand back the older of the two and drop the newest bucket — the one value a single-point read of a cumulative curve can mean, and the one the reduction's own contract says it keeps.
+    expect(one[0]?.capturedAt.getTime()).toBe(oneTo.getTime());
     // Two is the budget that already worked, asserted beside it so a fix that clamped every read to a single row would not pass.
     const two = await ap.equitySnapshots.listForProfileInRange('USDT', oneFrom, oneTo, 2);
     expect(two).toHaveLength(2);

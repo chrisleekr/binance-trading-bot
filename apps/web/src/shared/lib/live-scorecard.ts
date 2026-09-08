@@ -3,21 +3,29 @@ import { decimalAdd, weakestFeeBasis, type EquitySnapshotPoint } from '@app/cont
 import type { RollupStatsBucket } from './rollup-stats';
 
 /**
- * Largest peak-to-trough decline of cumulative net P/L across the series, in
- * quote terms (>= 0). This is a P/L curve, not account NAV, so it is an absolute
- * drawdown (worst give-back from a running high-water mark), not a percentage.
+ * Largest peak-to-trough decline across a cumulative P/L curve, in quote terms (>= 0).
+ *
+ * Takes the values rather than the snapshots so a caller that plots a SUBSET of the read can measure the curve it actually drew: a figure folded over points the chart beside it dropped names a give-back the operator cannot find on the line. Invariant under rebasing, since every term is a difference between two values on the same curve.
+ *
+ * This is a P/L curve, not account NAV, so it is an absolute drawdown (worst give-back from a running high-water mark), not a percentage.
+ *
+ * @param values - Cumulative net P/L at each plotted instant, in order.
+ * @returns The worst give-back, or 0 for an empty series or one that never fell.
  */
-export function maxDrawdownQuote(points: readonly EquitySnapshotPoint[] | undefined): number {
-  if (!points || points.length === 0) return 0;
+export function maxDrawdown(values: readonly number[]): number {
   let peak = -Infinity;
   let maxDd = 0;
-  for (const p of points) {
-    const v = Number(p.netPnlQuote);
+  for (const v of values) {
     if (v > peak) peak = v;
     const dd = peak - v;
     if (dd > maxDd) maxDd = dd;
   }
   return maxDd;
+}
+
+/** {@link maxDrawdown} over a whole snapshot read, for the callers that plot every point they fetched. */
+export function maxDrawdownQuote(points: readonly EquitySnapshotPoint[] | undefined): number {
+  return maxDrawdown((points ?? []).map((p) => Number(p.netPnlQuote)));
 }
 
 /** The bucket fields the period rollups (by source / by intent) carry. */

@@ -63,7 +63,16 @@ export function deriveExitAt(
   return extremeAt(orders, 'SELL', 'latest');
 }
 
-/** The earliest or latest parseable `closedAt` among the orders on one side, returned verbatim so the caller keeps the stored spelling rather than a re-serialised one. */
+/**
+ * The stored stamp when it is the ISO-8601 instant the wire declares, else null.
+ *
+ * `Date.parse` is deliberately not the test. It accepts spellings this schema rejects, `'2026-05-09'` and `'Mon, 09 May 2026'` among them, and every value screened here is returned VERBATIM into a response field typed `z.iso.datetime()`. Nothing validates a response body at runtime, so a legacy or hand-repaired row written in one of those spellings ships a field the contract says is an ISO instant and is not, and the client parses it under whatever its own engine makes of it.
+ */
+const ISO_INSTANT = z.iso.datetime();
+const isoInstant = (value: string | null | undefined): string | null =>
+  value != null && ISO_INSTANT.safeParse(value).success ? value : null;
+
+/** The earliest or latest ISO `closedAt` among the orders on one side, returned verbatim so the caller keeps the stored spelling rather than a re-serialised one. */
 function extremeAt(
   orders: readonly { side: string; closedAt?: string | null }[],
   side: 'BUY' | 'SELL',
@@ -72,12 +81,13 @@ function extremeAt(
   let best: string | null = null;
   let bestAt = pick === 'earliest' ? Infinity : -Infinity;
   for (const order of orders) {
-    if (order.side !== side || order.closedAt == null) continue;
-    const at = Date.parse(order.closedAt);
-    // An unparseable stamp is not a time. Ordering by it would put a malformed row wherever `NaN` comparisons happen to leave it, which is nowhere in particular.
-    if (Number.isNaN(at)) continue;
+    if (order.side !== side) continue;
+    // Screened before it is ordered by, not after: a stamp that is not an instant is not a time, and one this function would emit is also a contract violation at the caller's response boundary.
+    const closedAt = isoInstant(order.closedAt);
+    if (closedAt === null) continue;
+    const at = Date.parse(closedAt);
     if (pick === 'earliest' ? at < bestAt : at > bestAt) {
-      best = order.closedAt;
+      best = closedAt;
       bestAt = at;
     }
   }
@@ -536,7 +546,8 @@ export function coerceArchivedOrderDetails(value: unknown): ArchivedOrderDetail[
       status: str('status') ?? 'UNKNOWN',
       executedQty: decimalOrNull('executedQty'),
       cummulativeQuoteQty: decimalOrNull('cummulativeQuoteQty'),
-      closedAt: str('closedAt'),
+      // Screened, not merely read as a string: this lands in a field the detail response types `z.iso.datetime()`, and the column holds whatever its producer wrote.
+      closedAt: isoInstant(str('closedAt')),
     });
   }
   return out;

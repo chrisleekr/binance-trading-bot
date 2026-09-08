@@ -209,7 +209,8 @@ export const getSymbolArchive = async (
       exitIntent: deriveExitIntent(coerceArchivedOrders(r.orders)),
       // Same derivation as the profile-level archive reader, off the same coerced orders, so a cycle's holding period does not depend on which surface asked for it.
       entryAt: deriveEntryAt(coerceArchivedOrders(r.orders)),
-      exitAt: r.cycleEnd?.toISOString() ?? deriveExitAt(coerceArchivedOrders(r.orders)),
+      // Derived, never `cycle_end`. The forward writer falls back to the archive cutoff when the cycle closed no readable sell, which is a sweep instant and not an exit, so preferring the column here fabricates a precise exit time on exactly the rows the profile-level ledger reports as unknown.
+      exitAt: deriveExitAt(coerceArchivedOrders(r.orders)),
       // Carried so the UI can say "P/L unavailable" instead of rendering an
       // under-counted `profit` of 0 as a measured break-even.
       missingCostBasis: r.missingCostBasis,

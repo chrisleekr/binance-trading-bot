@@ -6,7 +6,6 @@ import {
   asProfileId,
   coerceArchivedOrderDetails,
   coerceArchivedOrders,
-  decimalCompare,
   decimalSub,
   deriveEntryAt,
   deriveExitAt,
@@ -24,6 +23,7 @@ import {
   type UnreconstructableReason,
 } from '@app/contracts';
 import { profileRepo, withStatementTimeout, type TradeArchiveRow } from '@app/db';
+import { Decimal } from '@app/money';
 import { createHash } from 'node:crypto';
 import { HttpError } from 'middleware/error.js';
 import { createRoute, z } from '@hono/zod-openapi';
@@ -211,11 +211,51 @@ type ArchiveItem = ReturnType<typeof archiveItem>;
 /** How long the cycle was held, off the shared span rule so this route's sort and the rollup's average hold apply one definition of an unusable span. A row that cannot prove its hold is not a zero-length hold, so it sorts to the end of either direction rather than winning "shortest". */
 const holdMsOf = (item: ArchiveItem): number | null => holdMsBetween(item.entryAt, item.exitAt);
 
+/**
+ * The amount the requested key ranks on, or null where the ledger has no figure to rank.
+ *
+ * The withholding rule is the ledger's own, not a second one invented here: a cycle with an un-costed sell renders `n/a` on both bases, and a cycle whose commission is missing outright renders `n/a` on Net. Ranking those rows by the stored number orders the page on a figure the operator is looking at a dash in place of, which reads as an arbitrary shuffle of the unreadable rows through the middle of the ordering. The hold key beside this already sinks its own unprovable rows for the same reason.
+ *
+ * @param item - The wire item, read for the two P/L amounts and the two fields that say whether either is trustworthy.
+ * @param sort - Which of the two amounts is being ranked.
+ * @returns The amount as a `Decimal`, or null when the ledger withholds it.
+ */
+const pnlKeyOf = (item: ArchiveItem, sort: 'profit' | 'netProfit'): Decimal | null => {
+  if (item.missingCostBasis > 0) return null;
+  if (sort === 'netProfit' && item.feeBasis === 'unknown') return null;
+  return new Decimal(sort === 'profit' ? item.profit : item.netProfit);
+};
+
+/**
+ * One item beside the sort keys that cost more than a comparison to derive.
+ *
+ * Derived once per row rather than inside the comparator, which the engine calls O(n log n) times: this route sorts the WHOLE period in memory, capped at `EXPORT_MAX_ROWS`, so a per-comparison `Date.parse` and `new Decimal` is millions of parses on the api process's only thread. `symbol` and `archivedAt` are compared verbatim and need no key.
+ */
+interface KeyedItem {
+  readonly item: ArchiveItem;
+  readonly holdMs: number | null;
+  readonly pnl: Decimal | null;
+}
+
 /** Orders two values of one relationally-comparable type. Spelled out rather than subtracted, because the same rule has to serve the ISO timestamps, the row ids and the millisecond holds this page sorts on. */
 const compareBy = <T extends string | number>(a: T, b: T): number => {
   if (a < b) return -1;
   if (a > b) return 1;
   return 0;
+};
+
+/** Orders two keys of which either may be missing, sinking the missing ones to the end of BOTH directions. `flip` is applied by the caller to the present-pair result alone, so a row with no readable key never rises to the top by reversing the sort. */
+const compareNullableKey = <T>(
+  a: T | null,
+  b: T | null,
+  cmp: (x: T, y: T) => number,
+  flip: number,
+  tie: number,
+): number => {
+  if (a === null && b === null) return tie;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return cmp(a, b) * flip || tie;
 };
 
 /**
@@ -224,27 +264,22 @@ const compareBy = <T extends string | number>(a: T, b: T): number => {
  * Ends on the row id whatever the key, because offset paging over a partial order is not stable: two rows tied on net P/L can swap between the request for page 1 and the request for page 2, which shows one of them twice and the other never — and nothing in the response says so.
  *
  * @param sort - The requested key.
- * @param dir - The requested direction; it flips the key comparison only, never the unstamped-hold rule or the id tie-break.
- * @returns A total order over archive items.
+ * @param dir - The requested direction; it flips the key comparison only, never the missing-key rule or the id tie-break.
+ * @returns A total order over keyed archive items.
  */
 const compareItems =
   (sort: ArchiveSort, dir: ArchiveSortDir) =>
-  (a: ArchiveItem, b: ArchiveItem): number => {
+  (a: KeyedItem, b: KeyedItem): number => {
     const flip = dir === 'desc' ? -1 : 1;
-    const tie = compareBy(a.id, b.id);
-    if (sort === 'holdMs') {
-      const ha = holdMsOf(a);
-      const hb = holdMsOf(b);
-      if (ha === null && hb === null) return tie;
-      if (ha === null) return 1;
-      if (hb === null) return -1;
-      return compareBy(ha, hb) * flip || tie;
+    const tie = compareBy(a.item.id, b.item.id);
+    if (sort === 'holdMs') return compareNullableKey(a.holdMs, b.holdMs, compareBy, flip, tie);
+    if (sort === 'profit' || sort === 'netProfit') {
+      return compareNullableKey(a.pnl, b.pnl, (x, y) => x.comparedTo(y), flip, tie);
     }
-    let keyed: number;
-    if (sort === 'symbol') keyed = a.symbol.localeCompare(b.symbol);
-    else if (sort === 'archivedAt') keyed = compareBy(a.archivedAt, b.archivedAt);
-    else if (sort === 'profit') keyed = decimalCompare(a.profit, b.profit);
-    else keyed = decimalCompare(a.netProfit, b.netProfit);
+    const keyed =
+      sort === 'symbol'
+        ? a.item.symbol.localeCompare(b.item.symbol)
+        : compareBy(a.item.archivedAt, b.item.archivedAt);
     return keyed * flip || tie;
   };
 
@@ -269,6 +304,7 @@ const selectArchiveItems = (
 ): ArchiveItem[] => {
   // Upper-cased because `trade_archive.symbol` holds Binance's casing and the query string is operator-typed; a lower-case `btcusdt` filtering to zero rows reads as "this coin never traded".
   const symbol = q.symbol?.toUpperCase();
+  const pnlSort = q.sort === 'profit' || q.sort === 'netProfit' ? q.sort : null;
   return rows
     .filter((r) => q.source === undefined || r.source === q.source)
     .map(archiveItem)
@@ -277,7 +313,13 @@ const selectArchiveItems = (
         (symbol === undefined || item.symbol === symbol) &&
         (q.exitIntent === undefined || item.exitIntent === q.exitIntent),
     )
-    .sort(compareItems(q.sort, q.dir));
+    .map((item) => ({
+      item,
+      holdMs: q.sort === 'holdMs' ? holdMsOf(item) : null,
+      pnl: pnlSort === null ? null : pnlKeyOf(item, pnlSort),
+    }))
+    .sort(compareItems(q.sort, q.dir))
+    .map((keyed) => keyed.item);
 };
 
 /** Absolute cap on rows one archive export may emit, and the page it walks in. The archive is small per profile — the largest live one holds ~52 rows against the action log's millions — so the cap exists to bound a pathological profile, and is stated in a trailing line rather than applied silently. */

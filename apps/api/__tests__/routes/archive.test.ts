@@ -1034,3 +1034,109 @@ describeIfInfra('archive router — window, ordering, filters, export and detail
     expect(anonDetail.status).toBe(401);
   });
 });
+
+describeIfInfra('archive router — the P/L sort ranks only rows the ledger renders', () => {
+  let fx: ApiFixture;
+
+  // Its own window, so these rows cannot reach any other suite's ordering assertions in this file.
+  const WINDOW = 'from=2026-07-01T00:00:00.000Z&to=2026-07-31T00:00:00.000Z';
+
+  const seed = async (row: {
+    symbol: string;
+    profit: string;
+    feesQuote: string;
+    feeBasis: 'exact' | 'estimated' | 'unknown';
+    missingCostBasis: number;
+    archivedAt: string;
+  }): Promise<void> => {
+    await fx.di.pool.query(
+      `insert into trade_archive
+         (profile_id, symbol, base_asset, quote_asset, total_buy_quote, total_sell_quote,
+          profit, fees_quote, fee_basis, missing_cost_basis, breakdown, orders, fees, source, archived_at)
+       values ($1,$2,$3,'USDT','100','105',$4,$5,$6,$7,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'auto',$8::timestamptz)`,
+      [
+        fx.bob.profileId,
+        row.symbol,
+        row.symbol.replace('USDT', ''),
+        row.profit,
+        row.feesQuote,
+        row.feeBasis,
+        row.missingCostBasis,
+        row.archivedAt,
+      ],
+    );
+  };
+
+  const symbolsOf = async (query: string): Promise<string[]> => {
+    const res = await fx.app.request(
+      `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/trade-archive?${WINDOW}&${query}`,
+      { method: 'GET', headers: headers(fx.bob.userId) },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { items: { symbol: string }[] };
+    return body.items.map((i) => i.symbol);
+  };
+
+  beforeAll(async () => {
+    fx = await setupApp();
+    // The biggest stored net of the three, and the one the ledger renders as `net n/a`: its fee is missing outright, so the figure it would be ranked on is one the operator is looking at a dash in place of.
+    await seed({
+      symbol: 'NNNUSDT',
+      profit: '500',
+      feesQuote: '0',
+      feeBasis: 'unknown',
+      missingCostBasis: 0,
+      archivedAt: '2026-07-01T00:00:00Z',
+    });
+    // Withheld on BOTH bases: an un-costed sell leaves the cycle with no readable P/L at all.
+    await seed({
+      symbol: 'MMMUSDT',
+      profit: '400',
+      feesQuote: '1',
+      feeBasis: 'exact',
+      missingCostBasis: 2,
+      archivedAt: '2026-07-02T00:00:00Z',
+    });
+    await seed({
+      symbol: 'PPPUSDT',
+      profit: '30',
+      feesQuote: '1',
+      feeBasis: 'exact',
+      missingCostBasis: 0,
+      archivedAt: '2026-07-03T00:00:00Z',
+    });
+    await seed({
+      symbol: 'QQQUSDT',
+      profit: '10',
+      feesQuote: '1',
+      feeBasis: 'exact',
+      missingCostBasis: 0,
+      archivedAt: '2026-07-04T00:00:00Z',
+    });
+  });
+
+  afterAll(async () => {
+    await fx.cleanup();
+  });
+
+  it('sinks a row with no readable Net to the end of BOTH directions', async () => {
+    // Stored net puts NNN (500) and MMM (399) at the top of a descending sort. Neither renders an amount, so ranking on the stored number shuffles two dashes through the ordering the operator is reading. The pair's own order is the row-id tie-break, which these fixtures do not pin.
+    const desc = await symbolsOf('sort=netProfit&dir=desc');
+    expect(desc.slice(0, 2)).toEqual(['PPPUSDT', 'QQQUSDT']);
+    expect(desc.slice(2).sort()).toEqual(['MMMUSDT', 'NNNUSDT']);
+    // Ascending flips the readable pair and leaves the unreadable ones at the end, exactly as the hold sort does: reversing the direction must not float a row with no figure to the top.
+    const asc = await symbolsOf('sort=netProfit&dir=asc');
+    expect(asc.slice(0, 2)).toEqual(['QQQUSDT', 'PPPUSDT']);
+    expect(asc.slice(2).sort()).toEqual(['MMMUSDT', 'NNNUSDT']);
+  });
+
+  it('keeps the unknown-fee row in the Recorded ordering, where it does render an amount', async () => {
+    // The two withholdings have different scopes. A missing commission blanks Net alone, so NNN's 500 is a real Recorded figure and ranks first; MMM's un-costed sell blanks both and stays at the end.
+    expect(await symbolsOf('sort=profit&dir=desc')).toEqual([
+      'NNNUSDT',
+      'PPPUSDT',
+      'QQQUSDT',
+      'MMMUSDT',
+    ]);
+  });
+});

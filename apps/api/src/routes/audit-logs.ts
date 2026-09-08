@@ -2,6 +2,7 @@ import { asProfileId, AuditLogListResponse, ErrorEnvelope } from '@app/contracts
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
 import { compositeCursor, splitCompositeCursor } from 'lib/cursor.js';
+import { HttpError } from 'middleware/error.js';
 import { requireUser } from 'middleware/require-user.js';
 import { scopeOf } from 'route-helpers.js';
 import { createApiHono, type ApiHono } from 'types.js';
@@ -87,6 +88,10 @@ export const auditLogsRouter = (di: DI): ApiHono => {
   app.openapi(route, async (c) => {
     const profileId = asProfileId(c.req.valid('param').profileId);
     const { limit, cursor, event, from, to } = c.req.valid('query');
+    // Refused rather than answered, matching the archive export next door. An inverted pair matches nothing, so the read comes back as a legitimate-looking empty page with a null cursor: the caller cannot tell "this window holds no actions" from "these bounds are the wrong way round", and a marker layer plotted from it reports the window as quiet.
+    if (from !== undefined && to !== undefined && new Date(from) > new Date(to)) {
+      throw new HttpError('VALIDATION_FAILED', 'from must not be after to');
+    }
     const p = await scopeOf(c, di, profileId);
     // The query schema has already proven both halves and the separator, so the split cannot fail here.
     let cursorObj: { createdAt: string; id: string } | null = null;

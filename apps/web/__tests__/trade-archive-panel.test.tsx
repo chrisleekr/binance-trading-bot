@@ -74,6 +74,16 @@ function renderPanel(): void {
   );
 }
 
+/** The panel with the operator's zone still in flight, which is the state it mounts in on every load. */
+function renderPanelWithoutTimezone(): void {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <TradeArchivePanel profileId={PID} />
+    </QueryClientProvider>,
+  );
+}
+
 /** The share a cell states, or null where it states none. `Number` alone maps a withheld cell to NaN, which compares equal to nothing and would let a withheld share and a fabricated zero read the same way in a failure message. */
 const shareOf = (el: HTMLElement): number | null => {
   const matched = /^(-?\d+)%/.exec(el.textContent ?? '');
@@ -1367,6 +1377,17 @@ describe('<TradeArchivePanel> recovery nudge', () => {
       expect(last?.[1]).toMatchObject({ source: 'auto' });
     });
     expect(screen.getByTestId('archive-export')).toHaveAttribute('href', '/export.ndjson');
+  });
+
+  it('withholds the export link until the operator zone resolves', async () => {
+    // `tz` stands in an empty string while the settings read is in flight, and the export route requires a non-empty IANA zone, so a link rendered now answers a 422 to the one click it invites — indistinguishable, to the operator, from a broken download. The list read is already behind this same gate; the anchor beside it was not.
+    renderPanelWithoutTimezone();
+    expect(await screen.findByTestId('archive-export-pending')).toHaveTextContent(
+      'Export these trades',
+    );
+    expect(screen.queryByTestId('archive-export')).toBeNull();
+    // No URL is built at all, rather than one built and hidden.
+    expect(archiveExportUrl).not.toHaveBeenCalled();
   });
 
   it('re-reads the whole selection when a ledger column is sorted, rather than reordering the page', async () => {

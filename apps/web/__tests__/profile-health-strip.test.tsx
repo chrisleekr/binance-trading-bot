@@ -160,14 +160,28 @@ const stubEdgeFetch = (feeBasis: FeeBasis) => {
             quoteAsset: 'USDT',
             source: 'manual',
             tradeCount: 12,
-            netTradeCount: 12,
-            wins: 3,
-            losses: 9,
+            // The valued leg follows the tier rather than being set beside it. An `unknown` row drops out of every Net aggregate, so the rollup reports the tier as `unknown` only when NOTHING was valued — a bucket claiming twelve fee-valued cycles at that tier is a payload the server cannot emit, and a verdict read off it proves nothing about the one it can.
+            ...(feeBasis === 'unknown'
+              ? {
+                  netTradeCount: 0,
+                  wins: 0,
+                  losses: 0,
+                  netProfit: '0',
+                  grossProfit: '0',
+                  grossLoss: '0',
+                  totalFees: '0',
+                }
+              : {
+                  netTradeCount: 12,
+                  wins: 3,
+                  losses: 9,
+                  netProfit: '-40',
+                  grossProfit: '20',
+                  grossLoss: '60',
+                  totalFees: '1',
+                }),
+            // Recorded P/L spans every matched row whatever its fee evidence, so this one is the same at all three tiers.
             profitSum: '-40',
-            netProfit: '-40',
-            grossProfit: '20',
-            grossLoss: '60',
-            totalFees: '1',
             feeBasis,
           },
         ],

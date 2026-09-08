@@ -1,14 +1,6 @@
 // edge-decay-monitor cron.
 //
-// The enablement gate proves an edge once, at enable-time. Nothing re-checked a
-// profile AFTER it went live, so a config whose edge decayed kept deploying real
-// capital until an operator happened to read the scorecard. This cron closes that
-// hole with an ADVISORY heads-up: every 15 minutes it compares each live profile's
-// realized net profit factor against the profit factor of its pinned baseline
-// backtest (the same baseline the live-vs-backtest scorecard shows) and, on a
-// breach, sends the operator a one-time Slack heads-up. It NEVER pauses buys — the
-// bot's only auto-pauses are the three entry breakers (daily loss, loss streak,
-// drawdown), all of which live in the portfolio-risk cron.
+// The enablement gate proves an edge once, at enable-time. Nothing re-checked a profile AFTER it went live, so a config whose edge decayed kept deploying real capital until an operator happened to read the scorecard. This cron closes that hole with an ADVISORY heads-up: every 15 minutes it compares each live profile's realized net profit factor against the profit factor of its pinned baseline backtest (the same baseline the live-vs-backtest scorecard shows) and, on a breach, sends the operator a one-time Slack heads-up. It NEVER pauses buys — the bot's only auto-pauses are the three entry breakers (daily loss, loss streak, drawdown), all of which live in the portfolio-risk cron.
 //
 // De-dup via the per-profile `edgeDecayNotified` Redis latch: set when we alert on
 // a breach, cleared when the edge recovers, so a single decay episode alerts once

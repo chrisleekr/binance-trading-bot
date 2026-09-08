@@ -50,9 +50,11 @@ describe('<HistoryVerdict>', () => {
   it('states the covered count when the period left cycles out of its Net figure', () => {
     // The whole point of the second denominator: the figure stands, and says what it covers, where the old rule blanked it.
     renderVerdict([bucket({ tradeCount: 7, netTradeCount: 5 })]);
-    const pnl = screen.getByTestId('verdict-pnl-USDT');
-    expect(pnl).toHaveTextContent('+28.00');
-    expect(pnl).toHaveTextContent('5 of 7 cycles');
+    expect(screen.getByTestId('verdict-pnl-USDT')).toHaveTextContent('+28.00');
+    // Stated once under the block rather than inside the amount tile, because it qualifies the four fee-derived tiles as much as the amount.
+    const coverage = screen.getByTestId('verdict-coverage-USDT');
+    expect(coverage).toHaveTextContent('5 of 7 cycles');
+    expect(coverage).toHaveTextContent('The amount above');
     // The trade count is the whole period, and stays that way: excluding a cycle from the Net figure does not remove it from the archive.
     expect(screen.getByTestId('verdict-trades-USDT')).toHaveTextContent('7');
   });
@@ -60,9 +62,7 @@ describe('<HistoryVerdict>', () => {
   it('says nothing about coverage when every cycle was valued', () => {
     // Or the disclosure becomes noise the reader learns to skip past.
     renderVerdict([bucket()]);
-    expect(
-      within(screen.getByTestId('verdict-pnl-USDT')).queryByText(/\d+ of \d+ cycles/),
-    ).toBeNull();
+    expect(screen.queryByTestId('verdict-coverage-USDT')).toBeNull();
   });
 
   it('withholds every fee-derived figure when nothing in the period could be valued', () => {
@@ -96,20 +96,28 @@ describe('<HistoryVerdict>', () => {
   });
 
   it('states BOTH the coverage and the estimate, which is the common case', () => {
-    // A ternary chain made them mutually exclusive, so a window that left cycles out AND priced the rest off the rate card disclosed only the first — and a window whose fees were partly reconstructed is exactly the kind that also has cycles it could not value at all.
+    // A ternary chain made them mutually exclusive, so a window that left cycles out AND priced the rest off the rate card disclosed only the first — and a window whose fees were partly reconstructed is exactly the kind that also has cycles it could not value at all. They now sit in two places, which is what makes both survivable.
     renderVerdict([bucket({ tradeCount: 7, netTradeCount: 5, feeBasis: 'estimated' })]);
-    const pnl = screen.getByTestId('verdict-pnl-USDT');
-    expect(pnl).toHaveTextContent('5 of 7 cycles');
-    expect(pnl).toHaveTextContent('estimated');
+    expect(screen.getByTestId('verdict-pnl-USDT')).toHaveTextContent('estimated');
+    expect(screen.getByTestId('verdict-coverage-USDT')).toHaveTextContent('5 of 7 cycles');
   });
 
-  it('drops both caveats under Recorded, which subtracts no fee at all', () => {
-    // The Recorded amount is the same number at every tier and is summed over every cycle, so neither an estimate note nor a coverage note describes it.
+  it('drops the estimate note under Recorded, which subtracts no fee at all', () => {
+    // The Recorded amount is the same number at every tier and is summed over every cycle, so no fee tier qualifies it.
     renderVerdict([bucket({ tradeCount: 7, netTradeCount: 5, feeBasis: 'estimated' })], 'gross');
     const pnl = screen.getByTestId('verdict-pnl-USDT');
     expect(pnl).toHaveTextContent('+30.00');
     expect(pnl.textContent ?? '').not.toContain('estimated');
-    expect(within(pnl).queryByText(/\d+ of \d+ cycles/)).toBeNull();
+  });
+
+  it('keeps the coverage disclosure under Recorded, where it describes the four tiles below', () => {
+    // The defect this closes: switching basis took the only coverage statement on the block away with the amount, and left win rate, expectancy, profit factor and fee drag — all read off the fee-adjusted money at every basis — sitting beside an unqualified Trades count that contradicts them. The wording narrows to the tiles it still covers rather than disappearing.
+    renderVerdict([bucket({ tradeCount: 7, netTradeCount: 5, feeBasis: 'estimated' })], 'gross');
+    const coverage = screen.getByTestId('verdict-coverage-USDT');
+    expect(coverage).toHaveTextContent('5 of 7 cycles');
+    expect(coverage).toHaveTextContent('Win rate, expectancy, profit factor and fee drag');
+    // And it does NOT claim the Recorded amount above it, which spans all seven.
+    expect(coverage.textContent ?? '').not.toContain('The amount above');
   });
 
   it('keeps each quote coin on its own verdict rather than adding two currencies', () => {

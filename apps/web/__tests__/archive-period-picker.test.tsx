@@ -41,7 +41,7 @@ const { TradeArchivePanel } = await import('@/features/profile/components/trade-
 const PID = '00000000-0000-4000-8000-0000000000a1';
 
 /** One archived cycle, so the pager's buttons render at all — they are mounted only when the page holds rows. */
-const ROW: ProfileArchiveListResponse['items'][number] = {
+const ROW: NonNullable<ProfileArchiveListResponse['items']>[number] = {
   id: 'arch-1',
   symbol: 'BTCUSDT',
   baseAsset: 'BTC',

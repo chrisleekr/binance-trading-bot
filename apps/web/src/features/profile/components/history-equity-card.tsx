@@ -5,7 +5,7 @@
 // The fold is `toSeries`, shared verbatim with the Home card, so the two surfaces cannot disagree about what the window made.
 
 import { BenchmarkMode, type FeeBasis } from '@app/contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CartesianGrid,
   Legend,
@@ -25,7 +25,7 @@ import { LoadingRows } from '@/shared/components/page-skeleton';
 import { Select } from '@/shared/components/ui/select';
 import { useTimezone } from '@/shared/context/timezone-context';
 import { toSeries } from '@/shared/lib/equity-series';
-import { maxDrawdownQuote } from '@/shared/lib/live-scorecard';
+import { maxDrawdown } from '@/shared/lib/live-scorecard';
 import { formatMoneyAmount, formatPercent } from '@/shared/lib/format';
 import { formatDate, formatInstant } from '@/shared/lib/format-time';
 
@@ -63,7 +63,7 @@ interface Marker {
  *
  * @param profileId - The profile whose series to plot.
  * @param from - Inclusive ISO start of the window the rollups above were taken over, echoed by the archive response so both read the same period.
- * @param to - Exclusive ISO end of that same window.
+ * @param to - Inclusive ISO end of that same window; both the snapshot read and the action read bound on it inclusively.
  * @returns The card, or its loading / empty state.
  */
 export function HistoryEquityCard({
@@ -78,23 +78,27 @@ export function HistoryEquityCard({
   const timeZone = useTimezone();
   const queryClient = useQueryClient();
 
+  // Both reads keep the previous window's answer on screen while the next one loads. Not a polish: `to` is the archive response's own resolved end, and for every preset the server resolves that to the instant it answered, so each refetch of the ledger above hands this card a `to` it has never seen. Without this the whole chart falls back to its skeleton on every one of them, which during a recovery is every three seconds.
   const snapshots = useQuery({
     // The window is part of the key: two periods are two different series, and one cached under the other's key plots a window the operator did not ask for.
     queryKey: ['equity-snapshots', profileId, from, to],
     queryFn: () => fetchEquitySnapshots(profileId, { from, to }),
+    placeholderData: keepPreviousData,
   });
   const actions = useQuery({
     // The route's maximum, not its default: this is a marker layer over a whole window, and a default-sized page silently plots the newest 25 changes bunched against the right-hand edge while the footnote reports 25 as the number of changes made.
     queryKey: ['profile', 'audit-logs', profileId, 'config-markers', from, to],
     queryFn: () =>
       fetchProfileAuditLogs(profileId, null, CONFIG_EVENTS, { from, to }, AUDIT_LOG_MAX_LIMIT),
+    placeholderData: keepPreviousData,
   });
 
   const mode: BenchmarkMode = snapshots.data?.benchmarkMode ?? 'btc';
   const { series, holdWindowPct, feeBasis } = toSeries(snapshots.data?.points, mode);
   const quote = snapshots.data?.quoteAsset ?? '';
   const holdLabel = mode === 'basket' ? 'your basket' : 'BTC';
-  const drawdown = maxDrawdownQuote(snapshots.data?.points);
+  // Measured over the PLOTTED points, not the raw read. `toSeries` drops everything before capital was first deployed in this window, so a drawdown folded over the raw points reports a drop the operator cannot find on the curve beside it. A difference between two cumulative values, so the rebasing `toSeries` applies leaves it unchanged.
+  const drawdown = maxDrawdown(series.map((p) => p.netPnl));
 
   const setMode = useMutation({
     mutationFn: (benchmarkMode: BenchmarkMode) => patchProfile(profileId, { benchmarkMode }),

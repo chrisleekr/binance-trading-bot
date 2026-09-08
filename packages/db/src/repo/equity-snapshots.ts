@@ -79,7 +79,8 @@ export async function listForProfileInRange(
     .where(where)
     .orderBy(bucket, desc(equitySnapshots.capturedAt));
   // The bucket arithmetic above bounds the count for every limit but one. At `limit = 1` the divisor collapses to 1, the width becomes the whole span, and `time_bucket` aligns to the epoch rather than to the first row — so the two endpoints can fall either side of a boundary and come back as two rows against a cap of one. Trimming here rather than widening the bucket, because a wider bucket would move every OTHER limit's points to fix the one that is wrong.
-  return reduced.slice(0, limit);
+  // Trimmed off the FRONT: the rows arrive oldest bucket first, and dropping from the end would discard the newest point, which is the one the doc above promises the curve keeps and the only one a single-point read can mean.
+  return reduced.slice(Math.max(0, reduced.length - limit));
 }
 
 /**

@@ -161,6 +161,20 @@ describeIfInfra('GET /profiles/:profileId/audit-logs', () => {
     }
   });
 
+  it('refuses an inverted window with 422 rather than answering it as an empty log', async () => {
+    // An inverted pair matches nothing, so without this the route returns 200 with an empty page and a null cursor: the caller cannot tell "no actions in this window" from "these bounds are the wrong way round", and the P/L chart's marker layer reads the second as the first and reports the period as quiet. Equal bounds are a real one-instant window and must still be served, so the refusal is strictly greater-than.
+    const invert = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/audit-logs?from=${WINDOW_LATE}&to=${WINDOW_EARLY}`,
+      { headers: { 'x-test-user-id': fx.alice.userId } },
+    );
+    expect(invert.status).toBe(422);
+    const equal = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/audit-logs?from=${WINDOW_MID}&to=${WINDOW_MID}`,
+      { headers: { 'x-test-user-id': fx.alice.userId } },
+    );
+    expect(equal.status).toBe(200);
+  });
+
   it('returns 404 when the profile is not owned by the caller', async () => {
     const res = await fx.app.request(
       `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}/audit-logs`,

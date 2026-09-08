@@ -597,14 +597,21 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
           )}
         </div>
         {/* An anchor the browser navigates, not a fetch: the response is a streamed attachment, and buffering it through JS would hold the file in memory and lose the server's filename. `download` is advisory here — the server sends its own content-disposition. */}
-        <a
-          href={archiveExportUrl(profileId, selection)}
-          download
-          className="text-xs text-muted-fg underline underline-offset-2 hover:text-fg"
-          data-testid="archive-export"
-        >
-          Export these trades
-        </a>
+        {/* Withheld until the zone resolves, the same gate the list read is behind. `selection.tz` stands in an empty string meanwhile, which the export route refuses at its boundary, so a link rendered now is one that answers a 422 to the one click it invites. */}
+        {timeZone === undefined ? (
+          <span className="text-xs text-muted-fg" data-testid="archive-export-pending">
+            Export these trades
+          </span>
+        ) : (
+          <a
+            href={archiveExportUrl(profileId, selection)}
+            download
+            className="text-xs text-muted-fg underline underline-offset-2 hover:text-fg"
+            data-testid="archive-export"
+          >
+            Export these trades
+          </a>
+        )}
       </div>
 
       {settings.isPending || list.isLoading ? (

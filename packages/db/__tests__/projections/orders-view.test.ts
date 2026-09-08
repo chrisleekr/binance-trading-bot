@@ -201,6 +201,51 @@ describeIfDb('orders-view projections', () => {
     });
   });
 
+  it('getSymbolArchive derives the exit instant and never reports cycle_end as one', async () => {
+    // `cycle_end` is not an exit time. The forward writer falls back to the archive cutoff when the cycle closed no readable sell, so a row whose sells carry no stamp still has a stored `cycle_end` — the sweep's instant, not the trade's. Preferring the column here made the symbol page state a precise exit for exactly the cycles the profile-level ledger reports as unknown, and it also split the exit TIME from the exit REASON, which is derived off these same orders.
+    const ap = await profileRepo(fx.db, fx.alice.userId, fx.alice.accountId, fx.alice.profileId);
+    await ap.tradeArchive.insert({
+      symbol: 'CYCUSDT',
+      baseAsset: 'CYC',
+      quoteAsset: 'USDT',
+      totalBuyQuote: '100',
+      totalSellQuote: '110',
+      breakdown: {},
+      fees: {},
+      feesQuote: '1',
+      feeBasis: 'exact',
+      profit: '10',
+      orders: [{ side: 'BUY' as const }, { side: 'SELL' as const }],
+      cycleEnd: new Date('2026-06-01T00:00:00Z'),
+      archivedAt: new Date('2026-06-01T00:00:00Z'),
+    });
+    const unstamped = await getSymbolArchive(scope, 'CYCUSDT', 50);
+    expect(unstamped.items[0]?.exitAt).toBeNull();
+
+    // And a cycle whose sell IS stamped reports that sell's instant, not the stored column, so the assertion above is about the derivation and not about the field being dead.
+    await ap.tradeArchive.insert({
+      symbol: 'CYC2USDT',
+      baseAsset: 'CYC2',
+      quoteAsset: 'USDT',
+      totalBuyQuote: '100',
+      totalSellQuote: '110',
+      breakdown: {},
+      fees: {},
+      feesQuote: '1',
+      feeBasis: 'exact',
+      profit: '10',
+      orders: [
+        { side: 'BUY' as const, closedAt: '2026-06-01T00:00:00.000Z' },
+        { side: 'SELL' as const, closedAt: '2026-06-02T00:00:00.000Z' },
+      ],
+      cycleEnd: new Date('2026-06-09T00:00:00Z'),
+      archivedAt: new Date('2026-06-09T00:00:00Z'),
+    });
+    const stamped = await getSymbolArchive(scope, 'CYC2USDT', 50);
+    expect(stamped.items[0]?.exitAt).toBe('2026-06-02T00:00:00.000Z');
+    expect(stamped.items[0]?.entryAt).toBe('2026-06-01T00:00:00.000Z');
+  });
+
   it('rejects a non-finite constrained numeric instead of branding it for the wire', async () => {
     const ap = await profileRepo(fx.db, fx.alice.userId, fx.alice.accountId, fx.alice.profileId);
     await ap.avgEntryPrices.upsert('NANUSDT', { avgEntryPrice: 'NaN', quantity: '1' });

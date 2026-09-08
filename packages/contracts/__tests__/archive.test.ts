@@ -164,6 +164,26 @@ describe('deriveEntryAt / deriveExitAt', () => {
       ]),
     ).toBe('2026-08-20T02:00:00.000Z');
   });
+
+  it('ignores a stamp that is a real instant to Date.parse and not the ISO one the wire declares', () => {
+    // These four are the gap between the two tests. `Date.parse` reads every one of them as a moment, so a NaN guard passes them through, and the value is returned VERBATIM into `entryAt`/`exitAt`, which the response schema types `z.iso.datetime()` and nothing validates at runtime. A row written by an older producer, or repaired by hand, then ships a field the contract says is an ISO instant and is not.
+    for (const spelling of [
+      '2026-08-20',
+      '2026-08-20T02:00:00',
+      '2026-08-20T02:00:00+09:00',
+      'Thu, 20 Aug 2026 02:00:00 GMT',
+    ]) {
+      expect(Number.isNaN(Date.parse(spelling))).toBe(false);
+      expect(deriveEntryAt([{ side: 'BUY', closedAt: spelling }])).toBeNull();
+      expect(
+        deriveEntryAt([
+          { side: 'BUY', closedAt: spelling },
+          { side: 'BUY', closedAt: '2026-08-20T02:00:00.000Z' },
+        ]),
+      ).toBe('2026-08-20T02:00:00.000Z');
+    }
+    expect(deriveExitAt([{ side: 'SELL', closedAt: '2026-08-20' }])).toBeNull();
+  });
 });
 
 describe('rollup average hold', () => {
@@ -767,6 +787,16 @@ describe('coerceArchivedOrderDetails', () => {
     // Neither BUY nor SELL: null rather than a fabricated side.
     expect(orders[0]?.side).toBeNull();
     expect(orders[0]?.status).toBe('UNKNOWN');
+  });
+
+  it('nulls a closedAt that is not the ISO instant the detail response declares', () => {
+    // Same boundary as the derived stamps above, one field over: `closedAt` here lands in `ArchivedOrderDetail.closedAt`, typed `z.iso.datetime().nullable()`. A date-only or offset-bearing spelling is a real moment and is not that type, and null is the honest answer for a fill whose close this row cannot state in the contract's terms.
+    const orders = coerceArchivedOrderDetails([
+      { orderId: 'o-1', side: 'BUY', closedAt: '2026-05-10' },
+      { orderId: 'o-2', side: 'SELL', closedAt: '2026-05-10T00:00:00.000Z' },
+    ]);
+    expect(orders[0]?.closedAt).toBeNull();
+    expect(orders[1]?.closedAt).toBe('2026-05-10T00:00:00.000Z');
   });
 
   it('answers an empty list for a column that holds no array at all', () => {
