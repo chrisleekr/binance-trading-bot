@@ -92,7 +92,9 @@ const profileBody = {
   updatedAt: '2026-06-19T00:00:00.000Z',
 };
 
-const emptyArchive = { items: [], byIntent: [], bySource: [], nextCursor: null };
+// `from`/`to` are required on the response: the window is what the rollups were taken over, so a producer that does not state it fails validation loudly rather than being plotted against an assumed period.
+const ARCHIVE_WINDOW = { from: '1970-01-01T00:00:00.000Z', to: '2026-06-20T00:00:00.000Z' };
+const emptyArchive = { items: [], byIntent: [], bySource: [], nextCursor: null, ...ARCHIVE_WINDOW };
 const emptyEquity = { profileId: PROFILE_ID, quoteAsset: 'USDT', benchmarkMode: 'btc', points: [] };
 const EDGE_RUN_ID = '8a1b2c3d-4e5f-4a1b-9c2d-3e4f5a6b7c8d';
 const edgeMetrics = {
@@ -158,17 +160,33 @@ const stubEdgeFetch = (feeBasis: FeeBasis) => {
             quoteAsset: 'USDT',
             source: 'manual',
             tradeCount: 12,
-            wins: 3,
-            losses: 9,
+            // The valued leg follows the tier rather than being set beside it. An `unknown` row drops out of every Net aggregate, so the rollup reports the tier as `unknown` only when NOTHING was valued — a bucket claiming twelve fee-valued cycles at that tier is a payload the server cannot emit, and a verdict read off it proves nothing about the one it can.
+            ...(feeBasis === 'unknown'
+              ? {
+                  netTradeCount: 0,
+                  wins: 0,
+                  losses: 0,
+                  netProfit: '0',
+                  grossProfit: '0',
+                  grossLoss: '0',
+                  totalFees: '0',
+                }
+              : {
+                  netTradeCount: 12,
+                  wins: 3,
+                  losses: 9,
+                  netProfit: '-40',
+                  grossProfit: '20',
+                  grossLoss: '60',
+                  totalFees: '1',
+                }),
+            // Recorded P/L spans every matched row whatever its fee evidence, so this one is the same at all three tiers.
             profitSum: '-40',
-            netProfit: '-40',
-            grossProfit: '20',
-            grossLoss: '60',
-            totalFees: '1',
             feeBasis,
           },
         ],
         nextCursor: null,
+        ...ARCHIVE_WINDOW,
       });
     if (url.includes('/equity-snapshots')) return jsonOf(emptyEquity);
     if (url.includes('/backtests/'))

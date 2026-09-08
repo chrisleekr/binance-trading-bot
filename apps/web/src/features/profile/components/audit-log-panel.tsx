@@ -23,6 +23,7 @@ import {
   TableRow,
 } from '@/shared/components/ui/table';
 import { cn } from '@/shared/lib/cn';
+import type { CursorPager } from '@/shared/hooks/use-cursor-pager';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
 import { formatInstant } from '@/shared/lib/format-time';
 import { useTimezone } from '@/shared/context/timezone-context';
@@ -117,15 +118,6 @@ const EVENT_CATEGORIES: readonly {
 /** Flat list of every event the popover catalogue knows about. Anything not
  * in here is rendered as an "extra" pill so URL-driven filters stay visible. */
 const QUICK_FILTER_EVENTS: readonly string[] = EVENT_CATEGORIES.flatMap((c) => c.events);
-
-export interface AuditPageState {
-  readonly cursor: string | null;
-  // Stack of cursors so Previous retraces the operator's path. The current
-  // page's cursor isn't on the stack, it's `cursor`.
-  readonly history: readonly (string | null)[];
-}
-
-export const initialAuditPage: AuditPageState = { cursor: null, history: [] };
 
 /**
  * Specialised Technicals block. Renders a compact line summarising why
@@ -270,17 +262,14 @@ export function AuditLogPanel({
   events,
   onToggleEvent,
   onClearEvents,
-  page,
-  onNext,
-  onBack,
+  pager,
 }: {
   readonly profileId: string;
   readonly events: readonly string[];
   readonly onToggleEvent: (kind: string) => void;
   readonly onClearEvents: () => void;
-  readonly page: AuditPageState;
-  readonly onNext: (nextCursor: string) => void;
-  readonly onBack: () => void;
+  /** Paging position and moves, owned by the tab so a filter change can reset it before this panel re-reads `cursor`. */
+  readonly pager: CursorPager;
 }): React.JSX.Element {
   const timeZone = useTimezone();
   const accountId = useActiveAccountId() ?? '';
@@ -289,8 +278,8 @@ export function AuditLogPanel({
   const eventsKey = events.slice().sort().join(',');
 
   const list = useQuery({
-    queryKey: ['profile', 'audit-logs', profileId, page.cursor, eventsKey],
-    queryFn: () => fetchProfileAuditLogs(profileId, page.cursor, events),
+    queryKey: ['profile', 'audit-logs', profileId, pager.cursor, eventsKey],
+    queryFn: () => fetchProfileAuditLogs(profileId, pager.cursor, events),
   });
 
   const items = list.data?.items ?? [];
@@ -395,20 +384,20 @@ export function AuditLogPanel({
             type="button"
             variant="ghost"
             size="default"
-            onClick={onBack}
-            disabled={page.history.length === 0}
+            onClick={pager.back}
+            disabled={!pager.canGoBack}
           >
             ‹ Prev
           </Button>
           <span className="font-mono text-xs text-muted-fg tabular-nums">
-            Page {page.history.length + 1}
+            Page {pager.pageNumber}
           </span>
           <Button
             type="button"
             variant="ghost"
             size="default"
             onClick={() => {
-              if (nextCursor) onNext(nextCursor);
+              if (nextCursor) pager.next(nextCursor);
             }}
             disabled={nextCursor === null}
           >

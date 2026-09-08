@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  coerceArchivedOrderDetails,
   type ArchiveRollupItem,
   coerceArchivedOrders,
+  deriveEntryAt,
+  deriveExitAt,
   deriveExitIntent,
+  holdMsBetween,
   ProfileArchiveListResponse,
   rollupByExitIntent,
   rollupBySource,
@@ -131,6 +135,148 @@ describe('deriveExitIntent', () => {
   });
 });
 
+describe('deriveEntryAt / deriveExitAt', () => {
+  it('takes the earliest BUY and the latest SELL, never the array ends', () => {
+    // The forward archive writes `desc(closedAt)` and the backfill writes Map-insertion order, so first-and-last would read the window backwards in one writer and at random in the other.
+    const orders = [
+      { side: 'SELL', closedAt: '2026-08-20T05:00:00.000Z' },
+      { side: 'BUY', closedAt: '2026-08-20T02:00:00.000Z' },
+      { side: 'SELL', closedAt: '2026-08-20T09:00:00.000Z' },
+      { side: 'BUY', closedAt: '2026-08-20T01:00:00.000Z' },
+    ];
+    expect(deriveEntryAt(orders)).toBe('2026-08-20T01:00:00.000Z');
+    expect(deriveExitAt(orders)).toBe('2026-08-20T09:00:00.000Z');
+  });
+
+  it('returns null rather than a zero-length window when a side carries no stamp', () => {
+    // The backfilled rows: a cycle whose reconstructed orders have no BUY stamp has no entry time, and reporting one would put a fabricated instant on screen as a measured hold of nothing.
+    expect(deriveEntryAt([{ side: 'SELL', closedAt: '2026-08-20T09:00:00.000Z' }])).toBeNull();
+    expect(deriveExitAt([{ side: 'BUY', closedAt: '2026-08-20T01:00:00.000Z' }])).toBeNull();
+    expect(deriveEntryAt([{ side: 'BUY', closedAt: null }])).toBeNull();
+    expect(deriveEntryAt([])).toBeNull();
+  });
+
+  it('ignores an unparseable stamp instead of ordering by it', () => {
+    expect(
+      deriveEntryAt([
+        { side: 'BUY', closedAt: 'not-a-date' },
+        { side: 'BUY', closedAt: '2026-08-20T02:00:00.000Z' },
+      ]),
+    ).toBe('2026-08-20T02:00:00.000Z');
+  });
+
+  it('picks the closing SELL on the same readable-stamp rule the exit time uses', () => {
+    // The two derivations have to name ONE order: the ledger prints the exit reason and the hold beside each other, and both readers document them as coming off the same SELL. A bare `Date.parse` here against an ISO screen there splits them on exactly the spellings the screen was added for — the badge would read `grid-stop-loss` while the Held column measured to a different, earlier fill.
+    const orders = [
+      { side: 'SELL', intent: 'grid-sell', closedAt: '2026-05-09T00:00:00.000Z' },
+      { side: 'SELL', intent: 'grid-stop-loss', closedAt: '2026-05-10' },
+    ];
+    // The later stamp by `Date.parse`, and not an instant the wire contract can carry.
+    expect(Date.parse('2026-05-10')).toBeGreaterThan(Date.parse('2026-05-09T00:00:00.000Z'));
+    expect(deriveExitAt(orders)).toBe('2026-05-09T00:00:00.000Z');
+    expect(deriveExitIntent(orders)).toBe('grid-sell');
+  });
+
+  it('ignores a stamp that is a real instant to Date.parse and not the ISO one the wire declares', () => {
+    // These four are the gap between the two tests. `Date.parse` reads every one of them as a moment, so a NaN guard passes them through, and the value is returned VERBATIM into `entryAt`/`exitAt`, which the response schema types `z.iso.datetime()` and nothing validates at runtime. A row written by an older producer, or repaired by hand, then ships a field the contract says is an ISO instant and is not.
+    for (const spelling of [
+      '2026-08-20',
+      '2026-08-20T02:00:00',
+      '2026-08-20T02:00:00+09:00',
+      'Thu, 20 Aug 2026 02:00:00 GMT',
+    ]) {
+      expect(Number.isNaN(Date.parse(spelling))).toBe(false);
+      expect(deriveEntryAt([{ side: 'BUY', closedAt: spelling }])).toBeNull();
+      expect(
+        deriveEntryAt([
+          { side: 'BUY', closedAt: spelling },
+          { side: 'BUY', closedAt: '2026-08-20T02:00:00.000Z' },
+        ]),
+      ).toBe('2026-08-20T02:00:00.000Z');
+    }
+    expect(deriveExitAt([{ side: 'SELL', closedAt: '2026-08-20' }])).toBeNull();
+  });
+});
+
+describe('rollup average hold', () => {
+  it('averages over the cycles it could time, and reports null when it could time none', () => {
+    const timed = rollupByExitIntent([
+      item({
+        profit: '1',
+        orders: [
+          { side: 'BUY', intent: 'entry', closedAt: '2026-08-20T00:00:00.000Z' },
+          { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T02:00:00.000Z' },
+        ],
+      }),
+      item({
+        profit: '1',
+        orders: [
+          { side: 'BUY', intent: 'entry', closedAt: '2026-08-20T00:00:00.000Z' },
+          { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T04:00:00.000Z' },
+        ],
+      }),
+      // Untimeable, and therefore not a zero in the average: it is counted as a trade and left out of the mean.
+      item({ profit: '1', orders: [{ side: 'SELL', intent: 'grid-sell' }] }),
+    ])[0];
+    expect(timed?.tradeCount).toBe(3);
+    expect(timed?.avgHoldMs).toBe(3 * 60 * 60 * 1000);
+
+    expect(rollupByExitIntent([item({ profit: '1' })])[0]?.avgHoldMs).toBeNull();
+  });
+});
+
+describe('holdMsBetween', () => {
+  const T0 = '2026-08-20T00:00:00.000Z';
+  const T2 = '2026-08-20T02:00:00.000Z';
+
+  it('measures the span between two stamps', () => {
+    expect(holdMsBetween(T0, T2)).toBe(2 * 60 * 60 * 1000);
+  });
+
+  it('is null when either end is unstamped, which is not a hold of zero', () => {
+    expect(holdMsBetween(null, T2)).toBeNull();
+    expect(holdMsBetween(T0, null)).toBeNull();
+  });
+
+  it('drops a NEGATIVE span rather than reporting it as a duration', () => {
+    // The one rule all three surfaces now share. A negative span means the two stamps came from orders that cannot both belong to this cycle. Reported as a number it sorts FIRST under an ascending hold sort and renders as `1m`, the shortest hold the formatter can express — the archive's fastest trade, fabricated.
+    expect(holdMsBetween(T2, T0)).toBeNull();
+  });
+
+  it('drops an unparseable stamp rather than yielding NaN', () => {
+    expect(holdMsBetween('not-a-time', T2)).toBeNull();
+    expect(holdMsBetween(T0, 'not-a-time')).toBeNull();
+  });
+
+  it('keeps a zero-length span, which is a measurement and not a missing one', () => {
+    expect(holdMsBetween(T0, T0)).toBe(0);
+  });
+});
+
+describe('rollupByExitIntent hold averaging', () => {
+  it('leaves a cycle whose stamps run backwards out of the average entirely', () => {
+    // Fed through the rollup rather than the helper alone, so the delegation is what is pinned: a copy of the span rule inside the fold could still drop the guard.
+    const rolled = rollupByExitIntent([
+      item({
+        profit: '1',
+        orders: [
+          { side: 'BUY', intent: 'entry', closedAt: '2026-08-20T04:00:00.000Z' },
+          { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T00:00:00.000Z' },
+        ],
+      }),
+      item({
+        profit: '1',
+        orders: [
+          { side: 'BUY', intent: 'entry', closedAt: '2026-08-20T00:00:00.000Z' },
+          { side: 'SELL', intent: 'grid-sell', closedAt: '2026-08-20T02:00:00.000Z' },
+        ],
+      }),
+    ])[0];
+    expect(rolled?.tradeCount).toBe(2);
+    expect(rolled?.avgHoldMs).toBe(2 * 60 * 60 * 1000);
+  });
+});
+
 describe('coerceArchivedOrders', () => {
   it('returns [] for any non-array value', () => {
     expect(coerceArchivedOrders(null)).toEqual([]);
@@ -227,6 +373,7 @@ describe('rollupByExitIntent', () => {
       quoteAsset: 'USDT',
       intent: 'grid-stop-loss',
       tradeCount: 1,
+      netTradeCount: 1,
       wins: 0,
       losses: 1,
       profitSum: '-5',
@@ -235,11 +382,13 @@ describe('rollupByExitIntent', () => {
       grossLoss: '5',
       totalFees: '0',
       feeBasis: 'exact',
+      avgHoldMs: null,
     });
     expect(rollup).toContainEqual({
       quoteAsset: 'USDT',
       intent: 'technicals-force-sell',
       tradeCount: 1,
+      netTradeCount: 1,
       wins: 1,
       losses: 0,
       profitSum: '0.4',
@@ -248,6 +397,7 @@ describe('rollupByExitIntent', () => {
       grossLoss: '0',
       totalFees: '0',
       feeBasis: 'exact',
+      avgHoldMs: null,
     });
   });
 
@@ -263,6 +413,7 @@ describe('rollupByExitIntent', () => {
         quoteAsset: 'USDT',
         intent: 'grid-sell',
         tradeCount: 3,
+        netTradeCount: 3,
         wins: 2,
         losses: 1,
         profitSum: '2.5',
@@ -271,6 +422,7 @@ describe('rollupByExitIntent', () => {
         grossLoss: '0.5',
         totalFees: '0',
         feeBasis: 'exact',
+        avgHoldMs: null,
       },
     ]);
   });
@@ -282,6 +434,7 @@ describe('rollupByExitIntent', () => {
         quoteAsset: 'USDT',
         intent: 'grid-sell',
         tradeCount: 1,
+        netTradeCount: 1,
         wins: 0,
         losses: 0,
         profitSum: '0',
@@ -290,6 +443,7 @@ describe('rollupByExitIntent', () => {
         grossLoss: '0',
         totalFees: '0',
         feeBasis: 'exact',
+        avgHoldMs: null,
       },
     ]);
   });
@@ -334,6 +488,7 @@ describe('rollupBySource', () => {
         quoteAsset: 'USDT',
         source: 'auto',
         tradeCount: 2,
+        netTradeCount: 2,
         wins: 1,
         losses: 1,
         profitSum: '2',
@@ -342,11 +497,13 @@ describe('rollupBySource', () => {
         grossLoss: '1',
         totalFees: '0',
         feeBasis: 'exact',
+        avgHoldMs: null,
       },
       {
         quoteAsset: 'USDT',
         source: 'manual',
         tradeCount: 1,
+        netTradeCount: 1,
         wins: 1,
         losses: 0,
         profitSum: '0.5',
@@ -355,6 +512,7 @@ describe('rollupBySource', () => {
         grossLoss: '0',
         totalFees: '0',
         feeBasis: 'exact',
+        avgHoldMs: null,
       },
     ]);
   });
@@ -373,6 +531,7 @@ describe('rollupByExitIntent net-of-fee classification', () => {
         quoteAsset: 'USDT',
         intent: 'grid-sell',
         tradeCount: 1,
+        netTradeCount: 1,
         wins: 0,
         losses: 1,
         profitSum: '1',
@@ -381,6 +540,7 @@ describe('rollupByExitIntent net-of-fee classification', () => {
         grossLoss: '0.5',
         totalFees: '1.5',
         feeBasis: 'exact',
+        avgHoldMs: null,
       },
     ]);
   });
@@ -408,13 +568,38 @@ describe('rollupByExitIntent net-of-fee classification', () => {
     ])[0];
     expect(completeZero?.feeBasis).toBe('exact');
     expect(incompleteZero?.feeBasis).toBe('unknown');
-    expect(completeZero?.netProfit).toBe(incompleteZero?.netProfit);
+    // Both buckets hold one row at a zero fee, so neither Net subtotal can be told from a bucket that summed nothing by its amount. The tier and the covered count are what carry that fact: the valued bucket sums its one row, the unvalued bucket sums none.
+    expect(completeZero?.netTradeCount).toBe(1);
+    expect(incompleteZero?.netTradeCount).toBe(0);
+  });
+
+  it('sums Net over only the rows carrying fee evidence', () => {
+    // Net is one subtraction over the whole bucket, so a row with no fee evidence donates its gross profit to the subtraction and absorbs a fee it never proved: the valued row's 1 is charged against the unvalued row's 5, and the bucket reports a Net nothing in it supports. Net must span the valued rows alone, with its own count, while Recorded keeps spanning every row.
+    const rollup = rollupByExitIntent([
+      item({ profit: '10', feesQuote: '1', feeBasis: 'exact' }),
+      item({ profit: '5', feeBasis: 'unknown' }),
+    ]);
+    const b = rollup[0];
+
+    expect(b?.netProfit).toBe('9');
+    // A bucket whose Net excludes the unvalued rows is exactly as proven as the rows it kept, so the weakest tier present no longer speaks for it.
+    expect(b?.feeBasis).toBe('exact');
+    // Widened for this one read only: the field is what the fix adds, and asserting it through a whole-bucket `any` would erase the compile error that says so.
+    expect((b as unknown as { netTradeCount?: number } | undefined)?.netTradeCount).toBe(1);
+    // The Recorded leg still spans the bucket: excluding the unvalued row from Net must not drop it from the archive.
+    expect(b?.tradeCount).toBe(2);
+    expect(b?.profitSum).toBe('15');
   });
 });
 
 describe('ProfileArchiveListResponse', () => {
   /** The minimum a producer must send. The optional-with-default fields are omitted so each assertion below decides what their absence means. */
-  const minimal = { items: [], nextCursor: null };
+  const minimal = {
+    items: [],
+    nextCursor: null,
+    from: '2026-05-01T00:00:00.000Z',
+    to: '2026-06-01T00:00:00.000Z',
+  };
 
   it('leaves recoverableSymbols undefined when the producer omitted it', () => {
     // `[]` and "absent" are different facts and the recovery UX acts on both: an empty list is the archive telling the operator every coin is accounted for, and it is what stops a running recover-all and reports "Recovery finished.". A default that manufactures `[]` out of silence lets a response that never computed the set close out a recovery that has not happened. Absent must stay absent so the consumer can tell them apart.
@@ -495,15 +680,24 @@ describe('rollup fee-basis fold', () => {
       orders: [{ side: 'SELL', intent: 'grid-sell' }],
     }) as ArchiveRollupItem;
 
-  it('reports the WEAKEST tier present when a bucket mixes tiers', () => {
-    // A bucket is only as trustworthy as its worst row: one estimated cycle makes the bucket's profit factor an estimate, whatever the other rows proved.
+  it('reports the WEAKEST tier among the rows the Net figure actually covers', () => {
+    // A bucket is only as trustworthy as the worst row its Net figure sums: one estimated cycle makes the bucket's profit factor an estimate, whatever the other rows proved. An unvalued row is not in that sum at all, so it no longer drags the tier down with it; that it was left out is reported by the covered count instead.
     expect(rollupByExitIntent([tiered('exact'), tiered('estimated')])[0]?.feeBasis).toBe(
       'estimated',
     );
     expect(rollupByExitIntent([tiered('estimated'), tiered('unknown')])[0]?.feeBasis).toBe(
-      'unknown',
+      'estimated',
     );
-    expect(rollupByExitIntent([tiered('exact'), tiered('unknown')])[0]?.feeBasis).toBe('unknown');
+    expect(rollupByExitIntent([tiered('exact'), tiered('unknown')])[0]?.feeBasis).toBe('exact');
+  });
+
+  it('reports unknown for a bucket whose every row is unvalued, never the exact seed', () => {
+    // The seed is the strongest tier and only valued rows weaken it, so a bucket that valued nothing would otherwise certify a Net of zero it never summed. Reported through the count, not the amount: a real bucket can sum to zero.
+    const b = rollupByExitIntent([tiered('unknown'), tiered('unknown')])[0];
+    expect(b?.feeBasis).toBe('unknown');
+    expect(b?.netTradeCount).toBe(0);
+    // The Recorded leg still spans both rows, which is what stops the exclusion reading as a deletion.
+    expect(b?.tradeCount).toBe(2);
   });
 
   it('reports exact for a bucket whose rows are all exact', () => {
@@ -513,8 +707,9 @@ describe('rollup fee-basis fold', () => {
   });
 
   it('reports exact for an empty rollup summary', () => {
-    // Nothing to distrust. This is the arm that preserves today's `coalesce(..., true)` reading, and it is where a rank-minimum over an empty set silently flips the meaning.
+    // Nothing to distrust. This is the arm that preserves today's `coalesce(..., true)` reading, and it is where a rank-minimum over an empty set silently flips the meaning. It is also the one path that must NOT read as "nothing could be valued": no bucket is built at all, so the empty summary is returned whole rather than projected through the zero-valued-rows branch, which reports `unknown` for the opposite situation.
     expect(summarizeClosedTrades([]).feeBasis).toBe('exact');
+    expect(summarizeClosedTrades([]).netTradeCount).toBe(0);
   });
 });
 
@@ -555,5 +750,69 @@ describe('TradeArchiveResponse fee basis', () => {
       archivedAt: '2026-08-25T00:00:00.000Z',
     });
     expect(parsed.feeBasis).toBe('estimated');
+  });
+});
+
+describe('coerceArchivedOrderDetails', () => {
+  it('projects a stored order to the wire shape and leaves the raw payload behind', () => {
+    const [order] = coerceArchivedOrderDetails([
+      {
+        orderId: 'o-1',
+        binanceOrderId: '77',
+        clientOrderId: 'c-1',
+        intent: 'grid-sell',
+        side: 'SELL',
+        status: 'FILLED',
+        executedQty: '1',
+        cummulativeQuoteQty: '105',
+        closedAt: '2026-05-10T00:00:00.000Z',
+        meta: { gridTradeIndex: 2 },
+        raw: { fills: [{ price: '105' }] },
+      },
+    ]);
+    expect(order).toEqual({
+      orderId: 'o-1',
+      binanceOrderId: '77',
+      clientOrderId: 'c-1',
+      intent: 'grid-sell',
+      side: 'SELL',
+      status: 'FILLED',
+      executedQty: '1',
+      cummulativeQuoteQty: '105',
+      closedAt: '2026-05-10T00:00:00.000Z',
+    });
+  });
+
+  it('drops an element that carries no order id, and nulls a quantity that is not a decimal', () => {
+    // The column is jsonb written by two producers across the archive's history, so an element this shape cannot describe is real. A fill the sheet cannot state is better absent than shown with blank facts that read as proven zeros.
+    const orders = coerceArchivedOrderDetails([
+      null,
+      'not an object',
+      { side: 'BUY' },
+      { orderId: 'o-2', executedQty: 'n/a', cummulativeQuoteQty: '1e2', side: 'sideways' },
+    ]);
+    expect(orders).toHaveLength(1);
+    expect(orders[0]?.orderId).toBe('o-2');
+    expect(orders[0]?.executedQty).toBeNull();
+    // A decimal in exponent form is still a decimal; it is normalised, not refused.
+    expect(orders[0]?.cummulativeQuoteQty).toBe('100');
+    // Neither BUY nor SELL: null rather than a fabricated side.
+    expect(orders[0]?.side).toBeNull();
+    expect(orders[0]?.status).toBe('UNKNOWN');
+  });
+
+  it('nulls a closedAt that is not the ISO instant the detail response declares', () => {
+    // Same boundary as the derived stamps above, one field over: `closedAt` here lands in `ArchivedOrderDetail.closedAt`, typed `z.iso.datetime().nullable()`. A date-only or offset-bearing spelling is a real moment and is not that type, and null is the honest answer for a fill whose close this row cannot state in the contract's terms.
+    const orders = coerceArchivedOrderDetails([
+      { orderId: 'o-1', side: 'BUY', closedAt: '2026-05-10' },
+      { orderId: 'o-2', side: 'SELL', closedAt: '2026-05-10T00:00:00.000Z' },
+    ]);
+    expect(orders[0]?.closedAt).toBeNull();
+    expect(orders[1]?.closedAt).toBe('2026-05-10T00:00:00.000Z');
+  });
+
+  it('answers an empty list for a column that holds no array at all', () => {
+    expect(coerceArchivedOrderDetails(null)).toEqual([]);
+    expect(coerceArchivedOrderDetails({ orders: [] })).toEqual([]);
   });
 });

@@ -73,8 +73,8 @@ describe('summarizeClosedTrades', () => {
     expect(s.feeBasis).toBe('exact');
   });
 
-  it('marks the summary incomplete when any row has incomplete fee accounting', () => {
-    const summary = summarizeClosedTrades([
+  it('marks the summary unknown only when NO row carries fee evidence', () => {
+    const none = summarizeClosedTrades([
       {
         quoteAsset: 'USDT',
         source: 'manual',
@@ -84,12 +84,37 @@ describe('summarizeClosedTrades', () => {
         orders: [],
       },
     ]);
-    expect(summary.feeBasis).toBe('unknown');
+    expect(none.feeBasis).toBe('unknown');
+    expect(none.netTradeCount).toBe(0);
+    // One unvalued row among valued ones is excluded from the net leg rather than dragging the whole summary down to unknown, and the count is what says so: the summary still spans both rows, its net figure spans one.
+    const mixed = summarizeClosedTrades([
+      {
+        quoteAsset: 'USDT',
+        source: 'manual',
+        profit: '4',
+        feesQuote: '1',
+        feeBasis: 'exact',
+        orders: [],
+      },
+      {
+        quoteAsset: 'USDT',
+        source: 'manual',
+        profit: '1',
+        feesQuote: '0',
+        feeBasis: 'unknown',
+        orders: [],
+      },
+    ]);
+    expect(mixed.feeBasis).toBe('exact');
+    expect(mixed.tradeCount).toBe(2);
+    expect(mixed.netTradeCount).toBe(1);
+    expect(mixed.netProfit).toBe('3');
   });
 
   it('returns an all-zero summary for no trades', () => {
     expect(summarizeClosedTrades([])).toMatchObject({
       tradeCount: 0,
+      netTradeCount: 0,
       grossProfit: '0',
       grossLoss: '0',
     });

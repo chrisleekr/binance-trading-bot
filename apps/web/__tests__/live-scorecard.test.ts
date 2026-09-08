@@ -33,21 +33,30 @@ describe('maxDrawdownQuote', () => {
 });
 
 describe('mergeRollupBuckets', () => {
-  const b = (over: Partial<Parameters<typeof mergeRollupBuckets>[0][number]>) => ({
-    quoteAsset: 'USDT',
-    tradeCount: 0,
-    wins: 0,
-    losses: 0,
-    grossProfit: '0',
-    grossLoss: '0',
-    totalFees: '0',
-    feeBasis: 'exact' as const,
-    ...over,
-  });
+  const b = (over: Partial<Parameters<typeof mergeRollupBuckets>[0][number]>) => {
+    const merged = {
+      quoteAsset: 'USDT',
+      tradeCount: 1,
+      profitSum: '0',
+      netProfit: '0',
+      wins: 0,
+      losses: 0,
+      grossProfit: '0',
+      grossLoss: '0',
+      totalFees: '0',
+      feeBasis: 'exact' as const,
+      ...over,
+    };
+    // Every row valued unless a case says otherwise, which is what the server produces: it reports `unknown` exactly when it could value none, so a bucket carrying statistics carries the count they were folded over.
+    return { netTradeCount: merged.tradeCount, ...merged };
+  };
 
   it('returns a zero bucket for no buckets', () => {
     expect(mergeRollupBuckets([], 'USDT')).toEqual({
       tradeCount: 0,
+      netTradeCount: 0,
+      profitSum: '0',
+      netProfit: '0',
       wins: 0,
       losses: 0,
       grossProfit: '0',
@@ -62,6 +71,7 @@ describe('mergeRollupBuckets', () => {
       [
         b({
           tradeCount: 3,
+          netTradeCount: 3,
           wins: 2,
           losses: 1,
           grossProfit: '50',
@@ -70,6 +80,7 @@ describe('mergeRollupBuckets', () => {
         }),
         b({
           tradeCount: 2,
+          netTradeCount: 2,
           wins: 1,
           losses: 1,
           grossProfit: '10',
@@ -93,6 +104,7 @@ describe('mergeRollupBuckets', () => {
       [
         b({
           tradeCount: 4,
+          netTradeCount: 4,
           wins: 3,
           losses: 1,
           grossProfit: '500',
@@ -102,6 +114,7 @@ describe('mergeRollupBuckets', () => {
         b({
           quoteAsset: 'BTC',
           tradeCount: 7,
+          netTradeCount: 7,
           wins: 5,
           losses: 2,
           grossProfit: '0.004',
@@ -171,6 +184,32 @@ describe('mergeRollupBuckets', () => {
     for (const value of [out.grossProfit, out.grossLoss, out.totalFees]) {
       expect(value).not.toMatch(/[eE]/);
     }
+  });
+
+  it('drops a bucket that valued nothing from every figure but the trade count', () => {
+    // The merge re-folds buckets the server already folded, so an unvalued one arrives at the weakest tier with zeroed money. Folding it in would blank the statistics of the sibling that did prove its fees, which is the same defect one layer up.
+    const out = mergeRollupBuckets(
+      [
+        b({ tradeCount: 3, wins: 2, losses: 1, grossProfit: '50', grossLoss: '20' }),
+        b({ tradeCount: 2, netTradeCount: 0, feeBasis: 'unknown' }),
+      ],
+      'USDT',
+    );
+    expect(out.tradeCount).toBe(5);
+    expect(out.netTradeCount).toBe(3);
+    expect(out.wins).toBe(2);
+    expect(out.feeBasis).toBe('exact');
+  });
+
+  it('reports unknown when buckets matched but none of them valued a row', () => {
+    // The distinction the empty case above must not collapse into: nothing to distrust reads `exact`, nothing to trust reads `unknown`, and only the count tells them apart.
+    const out = mergeRollupBuckets(
+      [b({ tradeCount: 2, netTradeCount: 0, feeBasis: 'unknown' })],
+      'USDT',
+    );
+    expect(out.tradeCount).toBe(2);
+    expect(out.netTradeCount).toBe(0);
+    expect(out.feeBasis).toBe('unknown');
   });
 
   it('sums money fields without IEEE-754 drift', () => {

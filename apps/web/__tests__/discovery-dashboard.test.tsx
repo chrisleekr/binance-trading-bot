@@ -45,11 +45,13 @@ const dashboard = {
     realizedProfitPercent: '2.5',
     netProfit: '123.45',
     tradeCount: 8,
+    netTradeCount: 8,
     winRate: 0.75,
     feeBasis: 'exact',
     realizedProfit7d: '40.00',
     netProfit7d: '40.00',
     tradeCount7d: 3,
+    netTradeCount7d: 3,
     feeBasis7d: 'exact',
   },
   gauge: { deployedQuote: '5000.00', maxAccountExposureQuote: '10000', autoSymbolCount: 3 },
@@ -744,14 +746,32 @@ describe('DiscoveryDashboard money precision on a sub-unit quote asset', () => {
     expect(winRate).toHaveTextContent('8');
   });
 
-  it('renders no win-rate percentage at all when the trade count is zero', async () => {
+  it('renders no win-rate percentage at all when nothing could be counted either way', async () => {
     const noTrades = {
       ...btcDashboard,
-      scoreboard: { ...btcDashboard.scoreboard, tradeCount: 0, winRate: 0 },
+      // The rate's own denominator is the fee-valued count; a period with none of those has no win rate whatever its trade count says.
+      scoreboard: { ...btcDashboard.scoreboard, tradeCount: 0, netTradeCount: 0, winRate: 0 },
     };
     setUp((url) => (url.endsWith('/profiles/p1/discovery') ? json(noTrades) : json({}, 404)));
     const board = await screen.findByTestId('discovery-scoreboard');
-    // 0 of 0 is not a 0% win rate; it is no win rate. The scoped KPI strip already guards this (`tradeCount > 0`), this surface did not.
+    // 0 of 0 is not a 0% win rate; it is no win rate. The scoped KPI strip already guards this, this surface did not.
     expect(tileFor(board, 'Win rate')).not.toHaveTextContent('%');
+  });
+
+  it('names the fee-valued denominator beside the rate, not the period trade count', async () => {
+    const partlyValued = {
+      ...btcDashboard,
+      // Four closed cycles, three of which proved their commission. The rate was taken over those three, so three is what the tile may name.
+      scoreboard: {
+        ...btcDashboard.scoreboard,
+        tradeCount: 4,
+        netTradeCount: 3,
+        winRate: 2 / 3,
+        feeBasis: 'exact',
+      },
+    };
+    setUp((url) => (url.endsWith('/profiles/p1/discovery') ? json(partlyValued) : json({}, 404)));
+    const board = await screen.findByTestId('discovery-scoreboard');
+    expect(tileFor(board, 'Win rate')).toHaveTextContent('of 3 trades');
   });
 });

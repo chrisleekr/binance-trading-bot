@@ -20,8 +20,21 @@ const backfillTradeArchive = vi.fn();
 const deleteArchiveEntry = vi.fn();
 const dismissUnreconstructable = vi.fn();
 
+// The equity curve mounts inside the panel and issues its own reads. Stubbed to an empty series so these cases stay about the archive, and so the card renders its empty state rather than reaching the network.
+vi.mock('@/features/dashboard/api/equity-snapshots', () => ({
+  fetchEquitySnapshots: () =>
+    Promise.resolve({ profileId: 'p', quoteAsset: 'USDT', benchmarkMode: 'btc', points: [] }),
+}));
+vi.mock('@/features/profile/api/audit-logs', () => ({
+  fetchProfileAuditLogs: () => Promise.resolve({ items: [], nextCursor: null }),
+  auditLogsExportUrl: () => '/export',
+}));
+
 vi.mock('@/features/profile/api/archive', () => ({
   fetchProfileArchive: (...a: unknown[]) => fetchProfileArchive(...a),
+  // The detail sheet reads the fills when it opens; these cases are about the responsive treatment, so it answers with a cycle that recorded none.
+  fetchArchiveDetail: (_p: string, id: string) => Promise.resolve({ id, orders: [] }),
+  archiveExportUrl: () => '/export.ndjson',
   backfillTradeArchive: (...a: unknown[]) => backfillTradeArchive(...a),
   deleteArchiveEntry: (...a: unknown[]) => deleteArchiveEntry(...a),
   dismissUnreconstructable: (...a: unknown[]) => dismissUnreconstructable(...a),
@@ -108,6 +121,8 @@ const listResponse = {
   unreconstructableSymbols: [],
   byIntent: [],
   bySource: [],
+  from: '2026-05-01T00:00:00.000Z',
+  to: '2026-06-01T00:00:00.000Z',
 };
 
 /**
@@ -178,7 +193,7 @@ describe('<TradeArchivePanel> below the md breakpoint', () => {
     expect(screen.queryByTestId('archive-card-profit-arch-uncosted')).toBeNull();
   });
 
-  it('keeps the existing 9-column table for md and up, hidden below it', async () => {
+  it('keeps the existing table for md and up, hidden below it', async () => {
     renderPanel();
 
     const table = await screen.findByTestId('archive-list');
@@ -188,7 +203,8 @@ describe('<TradeArchivePanel> below the md breakpoint', () => {
     expect(screen.getByTestId('archive-card-list')).toBeInTheDocument();
 
     // Every existing column and per-row cell still renders the same values.
-    expect(within(table).getAllByRole('columnheader')).toHaveLength(9);
+    // Ten: the original nine plus the hold column the History page added.
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(10);
     expect(screen.getByTestId('archive-buy-arch-win')).toHaveTextContent('100');
     expect(screen.getByTestId('archive-sell-arch-win')).toHaveTextContent('110');
     expect(screen.getByTestId('archive-profit-arch-win')).toHaveTextContent('9.00');
@@ -325,12 +341,27 @@ describe('<TradeArchivePanel> below the md breakpoint', () => {
 
     // Control first, so the assertions below cannot pass merely because nothing rendered.
     const known = render(
-      <ArchiveCompactList rows={rows} timeZone="UTC" onDelete={() => undefined} />,
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <ArchiveCompactList profileId={PID} rows={rows} timeZone="UTC" onDelete={() => undefined} />
+      </QueryClientProvider>,
     );
     expect(screen.getByTestId('archive-card-arch-win')).toHaveTextContent('2026-05-10 05:00 UTC');
     known.unmount();
 
-    render(<ArchiveCompactList rows={rows} timeZone={undefined} onDelete={() => undefined} />);
+    render(
+      <QueryClientProvider
+        client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+      >
+        <ArchiveCompactList
+          profileId={PID}
+          rows={rows}
+          timeZone={undefined}
+          onDelete={() => undefined}
+        />
+      </QueryClientProvider>,
+    );
     expect(screen.getByTestId('archive-card-arch-win').textContent ?? '').not.toMatch(
       /\d{4}-\d{2}-\d{2}/,
     );
@@ -350,6 +381,7 @@ describe('<TradeArchivePanel> below the md breakpoint', () => {
           quoteAsset: 'USDT',
           intent: 'grid-sell',
           tradeCount: 2,
+          netTradeCount: 2,
           wins: 1,
           losses: 1,
           profitSum: '10',
@@ -365,6 +397,7 @@ describe('<TradeArchivePanel> below the md breakpoint', () => {
           quoteAsset: 'USDT',
           source: 'auto',
           tradeCount: 2,
+          netTradeCount: 2,
           wins: 1,
           losses: 1,
           profitSum: '10',

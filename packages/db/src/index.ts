@@ -17,6 +17,7 @@ export type {
   DiscoveryUniverseSnapshotRow,
 } from './schema/discovery-universe-snapshots.js';
 export type { EquitySnapshotPayload, EquitySnapshotRow } from './schema/equity-snapshots.js';
+export type { TradeArchiveRow } from './schema/trade-archive.js';
 export type { BackupConfigRow } from './schema/backup-config.js';
 export type { AiProviderConfigRow } from './schema/ai-provider-config.js';
 export { toAiProviderConfig } from './ai-provider-config.js';

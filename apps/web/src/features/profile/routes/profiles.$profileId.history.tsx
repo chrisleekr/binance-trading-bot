@@ -16,16 +16,13 @@ import { useState } from 'react';
 import { Page } from '@/shared/components/page';
 import { ProfilePageHeader } from '@/features/profile/components/profile-page-header';
 import { Tabs, TabsList, TabsTrigger } from '@/shared/components/ui/tabs';
+import { useCursorPager } from '@/shared/hooks/use-cursor-pager';
 import { t } from '@/shared/lib/i18n';
 import { isOneOf, oneOf } from '@/shared/lib/search-param';
 import { dashboardAggregateQueryOptions } from '@/features/dashboard/api/dashboard';
 import { ActivityFeed } from '@/features/dashboard/components/activity-feed';
 import { TradeArchivePanel } from '@/features/profile/components/trade-archive-panel';
-import {
-  AuditLogPanel,
-  initialAuditPage,
-  type AuditPageState,
-} from '@/features/profile/components/audit-log-panel';
+import { AuditLogPanel } from '@/features/profile/components/audit-log-panel';
 import { LogViewerPanel } from '@/features/profile/components/log-viewer-panel';
 import { TickTracePanel } from '@/features/profile/components/tick-trace-panel';
 import { profileDetailRoute } from '@/features/profile/routes/profiles.$profileId';
@@ -107,25 +104,15 @@ function HistoryPage(): React.JSX.Element {
 /** Audit tab: owns the filter + pagination state the AuditLogPanel needs. */
 function HistoryAuditTab({ profileId }: { profileId: string }): React.JSX.Element {
   const [events, setEvents] = useState<readonly string[]>([]);
-  const [page, setPage] = useState<AuditPageState>(initialAuditPage);
+  const pager = useCursorPager();
 
   const toggleEvent = (kind: string): void => {
     setEvents((prev) => (prev.includes(kind) ? prev.filter((e) => e !== kind) : [...prev, kind]));
-    setPage(initialAuditPage);
+    pager.reset();
   };
   const clearEvents = (): void => {
     setEvents([]);
-    setPage(initialAuditPage);
-  };
-  const onNext = (nextCursor: string): void => {
-    setPage((p) => ({ cursor: nextCursor, history: [...p.history, p.cursor] }));
-  };
-  const onBack = (): void => {
-    setPage((p) => {
-      const last = p.history.at(-1);
-      if (last === undefined) return p;
-      return { cursor: last, history: p.history.slice(0, -1) };
-    });
+    pager.reset();
   };
 
   return (
@@ -134,9 +121,7 @@ function HistoryAuditTab({ profileId }: { profileId: string }): React.JSX.Elemen
       events={events}
       onToggleEvent={toggleEvent}
       onClearEvents={clearEvents}
-      page={page}
-      onNext={onNext}
-      onBack={onBack}
+      pager={pager}
     />
   );
 }
