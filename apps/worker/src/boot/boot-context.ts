@@ -273,6 +273,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     orderFailedThrottle,
     orderRefusalLoopThrottle,
     protectiveStopBlockedThrottle,
+    protectiveStopUnplacedThrottle,
     notifyEvent,
   } = buildNotifiers({ db, redis, logger, liveDemo, queueSet });
 
@@ -389,6 +390,7 @@ export const buildBootContext = async (env: BootEnv): Promise<BootContext> => {
     orderFailedThrottle,
     orderRefusalLoopThrottle,
     protectiveStopBlockedThrottle,
+    protectiveStopUnplacedThrottle,
     auditShipper,
   });
 

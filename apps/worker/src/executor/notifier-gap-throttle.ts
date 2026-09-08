@@ -241,6 +241,28 @@ export const createProtectiveStopBlockedThrottle = (
   });
 
 /**
+ * Suppression window for the `protective-stop-unplaced` alert. The position is held, nothing is resting on the exchange to sell it, and the strategy re-reports that on every tick, so the repeat shape is the same one the windows above exist for. Keyed `(profile, symbol)` with no escalation dimension: unlike the band refusal there is only one thing to say here — nothing is guarding this coin — and only one remedy path, so a second level would split one message in half.
+ *
+ * The key carries no identity for the SPAN either, and that is accepted rather than overlooked: if a stop lands and the coin goes naked again inside the hour, the second span stays silent for the rest of the window. Per-coin hourly is exactly what that means. The second alert would say the same sentence about the same coin and ask for the same check, differing only in a smaller "unprotected for" number, so keying on the span would page the operator a second time about something they were told within the hour.
+ *
+ * Deliberately NOT {@link PROTECTIVE_STOP_BLOCKED_KEY_PREFIX}. Both windows are keyed `(profile, symbol)`, so sharing a prefix would make them one Redis key, and the two causes overlap in exactly the situation that matters most: a band refusal on a coin that has nothing resting is also a coin with nothing resting. Whichever fired first would mute the other for the whole hour, and the one that gets muted is unpredictable. The tick suppresses the second alert on the tick where both fire; that is a decision taken with both facts in hand, which a shared key cannot be.
+ */
+export const DEFAULT_PROTECTIVE_STOP_UNPLACED_WINDOW_MS = 3_600_000;
+
+export const PROTECTIVE_STOP_UNPLACED_KEY_PREFIX = 'protective-stop-unplaced-throttle:';
+
+export const createProtectiveStopUnplacedThrottle = (
+  deps: NotifierGapThrottleDeps,
+): NotifierGapThrottle =>
+  createRedisWindowThrottle({
+    redis: deps.redis,
+    logger: deps.logger,
+    prefix: PROTECTIVE_STOP_UNPLACED_KEY_PREFIX,
+    windowMs: deps.windowMs ?? DEFAULT_PROTECTIVE_STOP_UNPLACED_WINDOW_MS,
+    ...(deps.setTimeoutMs === undefined ? {} : { setTimeoutMs: deps.setTimeoutMs }),
+  });
+
+/**
  * The two tick-boundary self-heal records. Named here, beside the executor's
  * prefixes, because that adjacency is what makes a collision visible: these
  * windows are all keyed `(profile, symbol)`, so two sharing a prefix would share

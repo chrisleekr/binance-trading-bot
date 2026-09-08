@@ -552,6 +552,22 @@ describe('buildTickInput', () => {
       },
     });
 
+    const baseMinimumBlocker = (resting: string | null) => ({
+      protectiveStopBlocker: {
+        reason: 'base-below-exchange-minimum',
+        detail: {
+          symbol: 'ETHUSDT',
+          required: '1',
+          free: '0.5',
+          available: '0.5',
+          held: '2',
+          stop: '100',
+          skip: 'min-notional',
+          resting,
+        },
+      },
+    });
+
     it('records the condition ONCE when the entry-blocker reason changes', async () => {
       recordSpy.mockClear();
       const stubs = makeStubs();
@@ -853,6 +869,39 @@ describe('buildTickInput', () => {
         bandBlocker({ price: '11.386' }),
         bandBlocker({ price: '11.401' }),
       );
+
+      const keys = callsFor('protective-stop-blocked').map(
+        (c) => (c as { changeKey?: string }).changeKey,
+      );
+      expect(keys).toHaveLength(2);
+      expect(keys[1]).toBe(keys[0]);
+    });
+
+    it('C1: moves the changeKey when a base-minimum blocker loses its resting stop', async () => {
+      // A resting stop covers the position even when the next arm is below Binance's minimum, so its cancellation must reach the activity feed.
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      await builtCommit(stubs, 'RESTINGFLIPUSDT', baseMinimumBlocker('2'), baseMinimumBlocker('2'));
+      await builtCommit(
+        stubs,
+        'RESTINGFLIPUSDT',
+        baseMinimumBlocker('2'),
+        baseMinimumBlocker(null),
+      );
+
+      const keys = callsFor('protective-stop-blocked').map(
+        (c) => (c as { changeKey?: string }).changeKey,
+      );
+      expect(keys).toHaveLength(2);
+      expect(keys[1]).not.toBe(keys[0]);
+    });
+
+    it('C1: holds the changeKey steady while a resting stop partially fills', async () => {
+      // The quantity changes as the stop fills, but presence is unchanged, so keying on quantity would create write amplification on every fill.
+      recordSpy.mockClear();
+      const stubs = makeStubs();
+      await builtCommit(stubs, 'PARTIALFILLUSDT', baseMinimumBlocker('2'), baseMinimumBlocker('2'));
+      await builtCommit(stubs, 'PARTIALFILLUSDT', baseMinimumBlocker('2'), baseMinimumBlocker('1'));
 
       const keys = callsFor('protective-stop-blocked').map(
         (c) => (c as { changeKey?: string }).changeKey,

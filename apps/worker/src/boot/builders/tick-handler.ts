@@ -10,7 +10,7 @@ import type { Redis } from 'ioredis';
 
 import { humanizeDuration } from '@app/contracts';
 import { GLOBAL_KEYS, profileRepoFromScope, type Database } from '@app/db';
-import { explainProtectiveStopBandRefusal } from '@app/strategy-core';
+import { asPercent, explainProtectiveStopBandRefusal } from '@app/strategy-core';
 
 import { strategies as strategiesRegistry } from 'strategies.js';
 import {
@@ -39,6 +39,13 @@ import type { MetricsSink } from 'metrics/catalog.js';
 import type { Notifiers } from './notifiers.js';
 import type { Audit } from './audit.js';
 
+/** Operator-facing name of the order decision an `order-failed` alert is about. */
+const ORDER_ACTION_LABEL: Record<'place-order' | 'cancel-order' | 'replace-order', string> = {
+  'place-order': 'Place order',
+  'cancel-order': 'Cancel order',
+  'replace-order': 'Replace order',
+};
+
 export interface TickHandlerDeps {
   readonly env: BootEnv;
   readonly db: Database;
@@ -56,6 +63,7 @@ export interface TickHandlerDeps {
   readonly orderFailedThrottle: Notifiers['orderFailedThrottle'];
   readonly orderRefusalLoopThrottle: Notifiers['orderRefusalLoopThrottle'];
   readonly protectiveStopBlockedThrottle: Notifiers['protectiveStopBlockedThrottle'];
+  readonly protectiveStopUnplacedThrottle: Notifiers['protectiveStopUnplacedThrottle'];
   readonly auditShipper: Audit['auditShipper'];
 }
 
@@ -81,6 +89,7 @@ export const buildTickHandler = ({
   orderFailedThrottle,
   orderRefusalLoopThrottle,
   protectiveStopBlockedThrottle,
+  protectiveStopUnplacedThrottle,
   auditShipper,
 }: TickHandlerDeps): TickHandlerSlice => {
   const bundleProvider = createTickBundleProvider({ redis, logger });
@@ -196,15 +205,7 @@ export const buildTickHandler = ({
         // A repeated structural refusal moves to the dedicated once-per-minute probe.
         body,
         fields: [
-          {
-            label: 'Action',
-            value:
-              input.decisionType === 'place-order'
-                ? 'Place order'
-                : input.decisionType === 'replace-order'
-                  ? 'Replace order'
-                  : 'Cancel order',
-          },
+          { label: 'Action', value: ORDER_ACTION_LABEL[input.decisionType] },
           { label: 'Reason', value: input.result.reason },
         ],
       });
@@ -237,6 +238,13 @@ export const buildTickHandler = ({
     // burning every tick on an order it knows will be refused. The position can
     // therefore sit with nothing under it while every screen looks normal.
     notifyProtectiveStopBlocked: async (input) => {
+      // The words come from the strategy package that owns the refusal, and the
+      // symbol screen reads the same ones. An operator who checks the phone alert
+      // and then the app must not find two explanations of one block, and copy
+      // maintained in two files is how that happened.
+      //
+      // Built BEFORE the window is opened: a `detail` this builder cannot read would otherwise throw after the throttle key is already set, losing the alert AND suppressing every later one for the rest of the hour. Consume the window only once there is a message to consume it for.
+      const copy = explainProtectiveStopBandRefusal(input.detail);
       // The escalation level is part of the key, same split as the order-failed
       // retry/final levels: "wait for the price to come back" and "no price ever
       // arms this stop" are different instructions, and the recoverable one
@@ -245,11 +253,6 @@ export const buildTickHandler = ({
         `${input.profileId}:${input.symbol}:${input.terminal ? 'terminal' : 'persistent'}`,
       );
       if (!allowed) return;
-      // The words come from the strategy package that owns the refusal, and the
-      // symbol screen reads the same ones. An operator who checks the phone alert
-      // and then the app must not find two explanations of one block, and copy
-      // maintained in two files is how that happened.
-      const copy = explainProtectiveStopBandRefusal(input.detail);
       await notifyEvent({
         category: 'order-failed',
         operatorId: input.operatorId,
@@ -284,6 +287,45 @@ export const buildTickHandler = ({
           ...(input.sinceMs === null
             ? []
             : [{ label: 'Blocked for', value: humanizeDuration(Date.now() - input.sinceMs) }]),
+        ],
+      });
+    },
+    // The outcome rather than a cause: whatever has been stopping the stop from landing, this position has had nothing on the exchange under it for long enough that it cannot be the moment after an entry any more. `order-failed` already describes exactly this — a protective stop that never reached the exchange, leaving the position unguarded — is severity `error`, and is on by default, so the alert the operator most needs is not behind a switch they have to find first.
+    notifyProtectiveStopUnplaced: async (input) => {
+      // The bag crossed a JSON round-trip to get here, so its declared shape is a claim rather than a guarantee; substituting once keeps every read below total, including the ones inside the send.
+      const detail = input.detail ?? {};
+      // Whether the trail distance can be quoted is decided BEFORE the window opens, because parsing it is the one step in this alert that reads a value it did not compute. Nothing between the throttle and the send may throw: a throw under an already-consumed key loses this alert and mutes the next hour of them too.
+      const refusedTrail =
+        detail['nativeUnavailable'] === true ? asPercent(detail['distancePct']) : null;
+      // No escalation dimension in the key, unlike the band alert: there is one thing to say here and one hour to say it in, per coin.
+      const allowed = await protectiveStopUnplacedThrottle.allow(
+        `${input.profileId}:${input.symbol}`,
+      );
+      if (!allowed) return;
+      const unprotectedFor = humanizeDuration(Date.now() - input.sinceMs);
+      await notifyEvent({
+        category: 'order-failed',
+        operatorId: input.operatorId,
+        accountId: input.accountId,
+        profileId: input.profileId,
+        symbol: input.symbol,
+        // Says what is true right now before it says what to do: an operator reading this on a phone has to know within one line whether money is exposed.
+        body: `This position has had no protective stop on Binance for ${unprotectedFor}. Nothing on the exchange will sell it if the price falls. Check whether another order is holding the coins, and whether Binance will accept a stop at the price your settings ask for.`,
+        fields: [
+          { label: 'Unprotected for', value: unprotectedFor },
+          // The stop the strategy wanted this tick, quoted from its own live record: it is the number the operator compares against the symbol's price band when working out why nothing lands.
+          ...(typeof detail['stop'] === 'string'
+            ? [{ label: 'Wanted stop', value: detail['stop'] }]
+            : []),
+          // The one cause the body cannot guess at. A profile trailing its stop on Binance itself is refused outright when the symbol's own filter has no step matching the distance asked for, and no price move ever clears that — so the generic "check whether Binance will accept a stop at your price" sends this operator hunting in the wrong place. Named here with both levers, because either one alone resolves it.
+          ...(detail['nativeUnavailable'] === true
+            ? [
+                {
+                  label: 'Why',
+                  value: `Binance will not accept a trailing stop — one that follows the price up and sells when it drops back — ${refusedTrail === null ? 'at the distance your settings ask for' : `${refusedTrail} below the high`} on this coin. Switch this profile's protective stop mode to priced, or change the distance.`,
+                },
+              ]
+            : []),
         ],
       });
     },

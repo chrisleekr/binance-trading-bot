@@ -7,16 +7,19 @@ import {
   createOrderFailedThrottle,
   createOrderRefusalLoopThrottle,
   createProtectiveStopBlockedThrottle,
+  createProtectiveStopUnplacedThrottle,
   DEFAULT_NOTIFIER_GAP_WINDOW_MS,
   createSymbolNotPermittedThrottle,
   DEFAULT_ORDER_FAILED_WINDOW_MS,
   DEFAULT_ORDER_REFUSAL_LOOP_WINDOW_MS,
   DEFAULT_PROTECTIVE_STOP_BLOCKED_WINDOW_MS,
+  DEFAULT_PROTECTIVE_STOP_UNPLACED_WINDOW_MS,
   DEFAULT_SYMBOL_NOT_PERMITTED_WINDOW_MS,
   ORDER_FAILED_KEY_PREFIX,
   ORDER_REFUSAL_LOOP_KEY_PREFIX,
   ORDER_UNFUNDABLE_KEY_PREFIX,
   PROTECTIVE_STOP_BLOCKED_KEY_PREFIX,
+  PROTECTIVE_STOP_UNPLACED_KEY_PREFIX,
   SYMBOL_NOT_PERMITTED_KEY_PREFIX,
 } from '../../src/executor/notifier-gap-throttle.js';
 import * as throttles from '../../src/executor/notifier-gap-throttle.js';
@@ -267,6 +270,31 @@ describe('createProtectiveStopBlockedThrottle', () => {
   });
 });
 
+describe('createProtectiveStopUnplacedThrottle', () => {
+  it('raises under its own key namespace on a one-hour window', async () => {
+    const set = vi.fn<Redis['set']>().mockResolvedValue('OK');
+    const redis = { set } as unknown as Redis;
+    const t = createProtectiveStopUnplacedThrottle({ redis, logger: fakeLogger() });
+
+    expect(await t.allow('p-1:LINKUSDT')).toBe(true);
+
+    expect(set).toHaveBeenCalledWith(
+      `${PROTECTIVE_STOP_UNPLACED_KEY_PREFIX}p-1:LINKUSDT`,
+      '1',
+      'PX',
+      DEFAULT_PROTECTIVE_STOP_UNPLACED_WINDOW_MS,
+      'NX',
+    );
+    expect(DEFAULT_PROTECTIVE_STOP_UNPLACED_WINDOW_MS).toBe(3_600_000);
+    expect(PROTECTIVE_STOP_UNPLACED_KEY_PREFIX).toBe('protective-stop-unplaced-throttle:');
+  });
+
+  it('does not share the band refusal namespace', () => {
+    // The two overlap exactly where it matters most: a coin whose stop the band refuses is also a coin with nothing resting. One shared key would let whichever fired first mute the other for the whole hour, and which one that is depends on tick order.
+    expect(PROTECTIVE_STOP_UNPLACED_KEY_PREFIX).not.toBe(PROTECTIVE_STOP_BLOCKED_KEY_PREFIX);
+  });
+});
+
 describe('per-(profile, symbol) throttle namespaces', () => {
   it('gives every (profile, symbol) window its own prefix', () => {
     // Every window here is keyed on `${profileId}:${symbol}`, some with a further
@@ -286,7 +314,7 @@ describe('per-(profile, symbol) throttle namespaces', () => {
       .flatMap((m) => Object.values(m))
       .filter((v): v is string => typeof v === 'string' && /^[a-z0-9-]+-throttle:$/.test(v));
     // A walk that finds nothing would pass the set-size assertion vacuously.
-    expect(prefixes.length).toBeGreaterThanOrEqual(8);
+    expect(prefixes.length).toBeGreaterThanOrEqual(10);
     expect(new Set(prefixes).size).toBe(prefixes.length);
   });
 });

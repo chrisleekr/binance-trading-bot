@@ -17,6 +17,7 @@ import {
   createOrderFailedThrottle,
   createOrderRefusalLoopThrottle,
   createProtectiveStopBlockedThrottle,
+  createProtectiveStopUnplacedThrottle,
   type NotifierGapThrottle,
 } from 'executor/notifier-gap-throttle.js';
 import {
@@ -42,6 +43,7 @@ export interface Notifiers {
   readonly orderFailedThrottle: ReturnType<typeof createOrderFailedThrottle>;
   readonly orderRefusalLoopThrottle: ReturnType<typeof createOrderRefusalLoopThrottle>;
   readonly protectiveStopBlockedThrottle: ReturnType<typeof createProtectiveStopBlockedThrottle>;
+  readonly protectiveStopUnplacedThrottle: ReturnType<typeof createProtectiveStopUnplacedThrottle>;
   readonly notifyEvent: NotifyEvent;
 }
 
@@ -78,6 +80,8 @@ export const buildNotifiers = ({
   // so it raises no placement failure, and sharing that key would let one cause
   // mute the other for the whole window.
   const protectiveStopBlockedThrottle = createProtectiveStopBlockedThrottle({ redis, logger });
+  // A fourth namespace, and specifically not the one above: the two alerts are keyed identically, so one shared key would let a band refusal mute the naked-position alert for the whole hour, or the reverse.
+  const protectiveStopUnplacedThrottle = createProtectiveStopUnplacedThrottle({ redis, logger });
   const notifyEvent = createNotifyEvent({
     db,
     notifyProviders: notifyProvidersRegistry,
@@ -147,6 +151,7 @@ export const buildNotifiers = ({
     orderFailedThrottle,
     orderRefusalLoopThrottle,
     protectiveStopBlockedThrottle,
+    protectiveStopUnplacedThrottle,
     notifyEvent,
   };
 };

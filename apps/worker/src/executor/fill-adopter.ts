@@ -69,6 +69,7 @@ import {
 } from '@app/db';
 import {
   asDecimalString,
+  isTerminalOrderStatus,
   unwrapId,
   type AccountId,
   type ProfileId,
@@ -86,6 +87,7 @@ import type { ChainByKey } from 'lib/chain-by-key.js';
 import type { StatePort } from 'state/state-port.js';
 import type { SymbolInfoCache } from 'tick/symbol-info-cache.js';
 import type { NotifyEvent } from 'notifiers/notify-event.js';
+import { executedSomething } from './decisions/cancel-order.js';
 
 /**
  * Minimal registry view: resolves the position-mutation capability for a
@@ -198,10 +200,6 @@ export interface DetachedOrderEvent {
   readonly cumQuoteQty: string;
   readonly eventTimeMs: number;
 }
-
-// Binance states that mean the order has left the book for good. Only these close
-// the row: a PARTIALLY_FILLED / NEW report says the order is still live.
-const TERMINAL_STATUSES = new Set(['FILLED', 'CANCELED', 'EXPIRED', 'REJECTED']);
 
 export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
   const adopt = async (event: FillEvent): Promise<void> => {
@@ -500,7 +498,11 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
   };
 
   const reconcileDetachedFill = async (event: DetachedOrderEvent): Promise<void> => {
-    if (!TERMINAL_STATUSES.has(event.orderStatus)) return;
+    // The shared `@app/contracts` predicate, never a local copy: this row's `closed_at` stamp, the open-orders cache eviction and the boot reaper all answer "has the order left the book?" and must answer it the same way. A four-member local set omitted `EXPIRED_IN_MATCH` — the status Binance stamps when self-trade prevention kills an order, which on a shared account wallet is what a sibling profile's BUY crossing our resting SELL produces — so an STP-terminated detached row was never closed: it held its live intent slot and counted toward the account's open exposure forever. A still-resting report (NEW / PARTIALLY_FILLED) passes through untouched, and an unrecognised status fails closed the same way.
+    //
+    // Folded once, here, because the two decisions below have to agree: `isTerminalOrderStatus` case-folds and the `FILLED` routing test is a strict compare, so an off-case spelling would pass the gate and then take the plain close, which does not merge the execution totals into `raw` and would leave the row's executedQty wrong. Both producers pass Binance's own string through with `orderStatus` typed as `string`, and Binance has always sent these upper, so this is the asymmetry closed rather than a reachable defect. The exchange's original spelling is what still lands on the row.
+    const status = event.orderStatus.toUpperCase();
+    if (!isTerminalOrderStatus(status)) return;
     // Account scope, not profile scope: a detached row is reachable only by
     // account, and `scopeAccount` proves the operator owns it.
     const orders = accountRepoFromScope(
@@ -518,7 +520,7 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
     if (!row || row.profileId !== null) return;
 
     const closed =
-      event.orderStatus === 'FILLED'
+      status === 'FILLED'
         ? // FILLED gets the exchange's true totals merged into `raw` so the row's
           // executedQty is honest, exactly as an adopted fill would. Idempotent
           // (`status <> 'FILLED'`), so the N-active-profiles fan-out settles once.
@@ -527,10 +529,21 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
             { executedQty: event.cumQty, cummulativeQuoteQty: event.cumQuoteQty },
             event.eventTimeMs,
           )
-        : await orders.closeByBinanceOrderId(
+        : // A terminal status other than FILLED is not proof nothing executed. Under self-trade prevention Binance can match part of an order against unrelated makers and expire the remainder as `EXPIRED_IN_MATCH`, and a cancel can land on a partly-filled order the same way, so `cumQty` may be above zero here. The plain close writes only `status` and `closed_at`, and the detached path never sees the `PARTIALLY_FILLED` reports that would have refreshed `raw` (they return at the terminal gate above), so the row would keep whatever placement wrote, `executedQty: '0'` for a resting stop. That records no coins moving on an order that moved coins.
+          //
+          // Merged here rather than in the repo: `closeByBinanceOrderId` OVERWRITES `raw`, which is what its only other caller wants (it supplies a full fresh snapshot from `getOrder`), and this event carries two fields rather than a snapshot. Reading the row we already fetched and spreading over it keeps `clientOrderId` / `transactTime` / `fills`. The read-modify-write is safe because the write is guarded by `closed_at IS NULL`, so exactly one of the N-active-profiles fan-out lands, and every one of them carries the same totals.
+          await orders.closeByBinanceOrderId(
             BigInt(event.orderId),
             event.orderStatus,
             event.eventTimeMs,
+            executedSomething(event.cumQty)
+              ? {
+                  ...(typeof row.raw === 'object' && row.raw !== null ? row.raw : {}),
+                  status: event.orderStatus,
+                  executedQty: event.cumQty,
+                  cummulativeQuoteQty: event.cumQuoteQty,
+                }
+              : undefined,
           );
 
     // No realised-P/L stamp: the cost basis lived on the deleted profile's ledger,

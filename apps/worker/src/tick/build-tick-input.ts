@@ -239,6 +239,7 @@ const readStateBlocker = (state: unknown, field: string): BlockerShape | null =>
  * amplification and feed spam, not a lost span: `recordCondition` restarts
  * `since` only when the CODE changes, so a moving key under one unchanged reason
  * always carries the span over.
+ * For the resting stop, the key carries presence rather than its quantity, because partial fills would otherwise create write amplification on every tick.
  *
  * The key is still load-bearing. Without it the writer compares codes alone, so
  * a `guarded` → naked flip under the same reason is dropped as a no-op: `detail`
@@ -257,7 +258,8 @@ const protectiveStopChangeKey = (blocker: BlockerShape): string => {
   const detail: Readonly<Record<string, unknown>> = blocker.detail ?? {};
   const flag = (name: string) => (detail[name] === true ? name : `not-${name}`);
   const bound = typeof detail['bound'] === 'string' ? detail['bound'] : 'unknown';
-  return [blocker.reason, bound, flag('guarded'), flag('terminal')].join('|');
+  const resting = typeof detail['resting'] === 'string' ? 'resting' : 'naked';
+  return [blocker.reason, bound, flag('guarded'), flag('terminal'), resting].join('|');
 };
 
 /**
