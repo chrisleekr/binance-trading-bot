@@ -10,14 +10,15 @@ const CHECKER = join(REPO_ROOT, 'scripts/ci/check-worker-integration-honesty.ts'
 const COMPLETE_CALLER = join(REPO_ROOT, 'scripts/ci/test-worker-integration.sh');
 const LOCAL_CALLER = join(REPO_ROOT, 'scripts/ci/test-worker-integration-local.sh');
 const CONFIG_TURBO = join(REPO_ROOT, 'packages/config/turbo.json');
+const WORKER_TEST_DIR = join(REPO_ROOT, 'apps/worker/__tests__');
 const INTEGRATION_DIR = join(REPO_ROOT, 'apps/worker/__tests__/integration');
 const INTEGRATION_REL = 'apps/worker/__tests__/integration';
 
 /** The whole point of the lane is that all twelve suites execute; a report carrying fewer is a broken include glob, which `passWithNoTests: true` would otherwise render green. */
 const EXPECTED_INTEGRATION_FILES = 12;
 
-/** The complete worker lane currently owns 233 files, so its non-integration floor is the remainder after the exact integration invariant. */
-const MIN_NON_INTEGRATION_FILES = 221;
+/** Report size for the cases that exercise the checker's floor arithmetic. Deliberately NOT the real count: a synthetic report only has to straddle the floor passed on the same command line, and reusing the real number here is what let the wiring assertion compare a literal against itself. The real floor is checked against the tree in its own case. */
+const SYNTHETIC_NON_INTEGRATION_FILES = 4;
 
 /** Collection-time marker the gated `describe` title carries when its suite is skipped. No vitest API puts a skip reason into an artifact — the junit reporter emits a bare `<skipped/>` keyed on `task.mode`, and `ctx.skip(note)`'s note reaches only the default reporter — so the reason has to ride the suite title, where the json reporter's `assertionResults[].ancestorTitles` preserves it. */
 const SKIP_MARKER = ' — skipped: ';
@@ -106,6 +107,27 @@ const integrationFiles = (): string[] =>
         .filter((entry) => entry.endsWith('.test.ts'))
         .sort()
     : [];
+
+/**
+ * Lists the lane's non-integration worker test files off disk, recursively, because a floor is evidence of nothing until something compares it against the tree it claims to measure.
+ *
+ * @returns Repo-relative paths of every `*.test.ts` under the worker test root outside `integration/`, sorted.
+ */
+const nonIntegrationTestFiles = (): string[] => {
+  const found: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (full !== INTEGRATION_DIR) walk(full);
+      } else if (entry.name.endsWith('.test.ts')) {
+        found.push(full.slice(REPO_ROOT.length));
+      }
+    }
+  };
+  if (existsSync(WORKER_TEST_DIR)) walk(WORKER_TEST_DIR);
+  return found.sort();
+};
 
 /**
  * Builds a report covering every suite the lane currently owns, so a case states only the entry it cares about.
@@ -208,7 +230,7 @@ describe('worker integration lane honesty', () => {
   });
 
   it('reports every skipped worker file with its available reason and rejects it in strict mode', () => {
-    const report = completeReport(MIN_NON_INTEGRATION_FILES, {
+    const report = completeReport(SYNTHETIC_NON_INTEGRATION_FILES, {
       'unit-001.test.ts': { skipReason: 'fixture dependency unavailable' },
       'unit-002.test.ts': { skipReason: null },
     });
@@ -222,32 +244,67 @@ describe('worker integration lane honesty', () => {
 
     const strict = check(report, 0, [
       '--forbid-skips',
-      `--min-non-integration-files=${MIN_NON_INTEGRATION_FILES}`,
+      `--min-non-integration-files=${SYNTHETIC_NON_INTEGRATION_FILES}`,
     ]);
     expect(strict.status).not.toBe(0);
-    expect(strict.stderr).toContain('2 of 233 worker files stood down');
+    expect(strict.stderr).toContain(
+      `2 of ${SYNTHETIC_NON_INTEGRATION_FILES + EXPECTED_INTEGRATION_FILES} worker files stood down`,
+    );
+  });
+
+  // The skip scan covers the whole worker tree, but only the integration suites read their admission off DATABASE_TEST_URL / REDIS_TEST_URL. One message for both scopes sends a maintainer holding a quarantined unit test to look at service containers.
+  it('diagnoses a stood-down file by scope rather than blaming the infrastructure for all of them', () => {
+    const gatedFile = integrationFiles()[0] ?? '';
+    const report = reportFor([
+      ...integrationFiles().map((file) =>
+        fileResult(
+          `${INTEGRATION_REL}/${file}`,
+          file === gatedFile ? { skipReason: 'REDIS_TEST_URL unset' } : {},
+        ),
+      ),
+      ...Array.from({ length: SYNTHETIC_NON_INTEGRATION_FILES }, (_, index) =>
+        fileResult(
+          `apps/worker/__tests__/unit-${String(index + 1).padStart(3, '0')}.test.ts`,
+          index === 0 ? { skipReason: 'quarantined' } : {},
+        ),
+      ),
+    ]);
+
+    const result = check(report, 0, [
+      '--forbid-skips',
+      `--min-non-integration-files=${SYNTHETIC_NON_INTEGRATION_FILES}`,
+    ]);
+
+    const total = SYNTHETIC_NON_INTEGRATION_FILES + EXPECTED_INTEGRATION_FILES;
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      `1 of ${total} worker files stood down in a lane that supplies Postgres and Redis itself`,
+    );
+    expect(result.stderr).toContain(
+      `1 of ${total} worker files stood down outside ${INTEGRATION_REL}/ in a lane that forbids skips`,
+    );
   });
 
   it('rejects a complete report below the non-integration file floor', () => {
-    const result = check(completeReport(MIN_NON_INTEGRATION_FILES - 1), 0, [
-      `--min-non-integration-files=${MIN_NON_INTEGRATION_FILES}`,
+    const result = check(completeReport(SYNTHETIC_NON_INTEGRATION_FILES - 1), 0, [
+      `--min-non-integration-files=${SYNTHETIC_NON_INTEGRATION_FILES}`,
     ]);
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain(
-      `report contained ${MIN_NON_INTEGRATION_FILES - 1} non-integration worker files, below the ${MIN_NON_INTEGRATION_FILES}-file floor`,
+      `report contained ${SYNTHETIC_NON_INTEGRATION_FILES - 1} non-integration worker files, below the ${SYNTHETIC_NON_INTEGRATION_FILES}-file floor`,
     );
   });
 
   it('rejects an empty non-integration file in both complete-checker modes', () => {
-    const report = completeReport(MIN_NON_INTEGRATION_FILES, {
+    const report = completeReport(SYNTHETIC_NON_INTEGRATION_FILES, {
       'unit-001.test.ts': { emptyCases: true },
     });
 
     for (const strictArgs of [[], ['--forbid-skips']] as const) {
       const result = check(report, 0, [
         ...strictArgs,
-        `--min-non-integration-files=${MIN_NON_INTEGRATION_FILES}`,
+        `--min-non-integration-files=${SYNTHETIC_NON_INTEGRATION_FILES}`,
       ]);
       expect(result.status).not.toBe(0);
       expect(result.stderr).toContain(
@@ -269,7 +326,8 @@ describe('worker integration lane honesty', () => {
       localLogicalSource
         .split(/\r?\n/)
         .find((line) => line.includes('check-worker-integration-honesty')) ?? '';
-    const floorArg = `--min-non-integration-files=${MIN_NON_INTEGRATION_FILES}`;
+    // Read off disk, not from a constant this file also feeds the caller: a floor asserted against its own literal proves the wiring and can never catch the number going stale, which is the only way this gate actually rots.
+    const floorArg = `--min-non-integration-files=${nonIntegrationTestFiles().length}`;
 
     expect(completeInvocation).toContain(floorArg);
     expect(completeInvocation).toContain('--forbid-skips');
@@ -277,7 +335,7 @@ describe('worker integration lane honesty', () => {
     expect(localInvocation).not.toContain('--forbid-skips');
   });
 
-  // These tests execute and read files outside their workspace, so the package task must hash those exact surfaces or Turbo can replay an obsolete verdict after the checker changes.
+  // These tests execute and read files outside their workspace, so the package task must hash those surfaces or Turbo replays an obsolete verdict: a stale checker, a stale caller, or a floor that no longer matches the worker tree. Containment rather than exact equality, because the same task input list serves every other test in this package and freezing it here would make an unrelated addition fail as this file's problem.
   it('invalidates the cached checker tests when their audited worker surfaces change', () => {
     const turbo = existsSync(CONFIG_TURBO)
       ? (JSON.parse(readFileSync(CONFIG_TURBO, 'utf8')) as {
@@ -285,13 +343,12 @@ describe('worker integration lane honesty', () => {
         })
       : {};
 
-    expect(turbo.tasks?.test?.inputs).toEqual([
-      '$TURBO_EXTENDS$',
-      '$TURBO_ROOT$/scripts/ci/check-worker-integration-honesty.ts',
-      '$TURBO_ROOT$/scripts/ci/test-worker-integration.sh',
-      '$TURBO_ROOT$/scripts/ci/test-worker-integration-local.sh',
-      '$TURBO_ROOT$/apps/worker/__tests__/integration/**',
-    ]);
+    expect(turbo.tasks?.test?.inputs).toEqual(
+      expect.arrayContaining([
+        '$TURBO_ROOT$/scripts/ci/**',
+        '$TURBO_ROOT$/apps/worker/__tests__/**',
+      ]),
+    );
   });
 
   // The lane died in teardown: every assertion passed and the process still exited nonzero, which a report that only counts failures reads as a clean run.

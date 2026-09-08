@@ -145,9 +145,20 @@ for (const [path, reason] of [...skipped.entries()].sort(([a], [b]) => a.localeC
 }
 
 // Skips stay report-only by DEFAULT, because the local lane legitimately stands suites down. They are a failure on a lane that supplies the stack itself, and only the caller knows which it is — hence a flag rather than an environment sniff. Without it the checker fails open on the exact condition it exists to catch: drop REDIS_TEST_URL from the CI job and nine of eleven suites gate off, vitest exits 0 because a skip is not a failure, and the lane is green having run two files.
+//
+// The two scopes get separate diagnoses. Only the gated suites under the integration directory read their admission off DATABASE_TEST_URL / REDIS_TEST_URL, so naming the infrastructure is the right first place to look for those and the wrong one for a unit file, which stands down because someone wrote it that way.
 if (process.argv.includes('--forbid-skips') && skipped.size > 0) {
-  console.error(
-    `worker-integration: ${skipped.size} of ${reportScope} stood down in a lane that supplies Postgres and Redis itself — the infrastructure is misconfigured, not the tests`,
-  );
+  const gated = [...skipped.keys()].filter((path) => path.startsWith(INTEGRATION_DIR));
+  const ungated = [...skipped.keys()].filter((path) => !path.startsWith(INTEGRATION_DIR));
+  if (gated.length > 0) {
+    console.error(
+      `worker-integration: ${gated.length} of ${reportScope} stood down in a lane that supplies Postgres and Redis itself — the infrastructure is misconfigured, not the tests`,
+    );
+  }
+  if (ungated.length > 0) {
+    console.error(
+      `worker-integration: ${ungated.length} of ${reportScope} stood down outside ${INTEGRATION_DIR} in a lane that forbids skips — these files admit themselves without a service container, so the stand-down is in the test`,
+    );
+  }
   process.exit(1);
 }
