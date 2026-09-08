@@ -10,8 +10,7 @@ import type { Redis } from 'ioredis';
 
 import { humanizeDuration } from '@app/contracts';
 import { GLOBAL_KEYS, profileRepoFromScope, type Database } from '@app/db';
-import { Decimal } from '@app/money';
-import { explainProtectiveStopBandRefusal } from '@app/strategy-core';
+import { asPercent, explainProtectiveStopBandRefusal } from '@app/strategy-core';
 
 import { strategies as strategiesRegistry } from 'strategies.js';
 import {
@@ -45,24 +44,6 @@ const ORDER_ACTION_LABEL: Record<'place-order' | 'cancel-order' | 'replace-order
   'place-order': 'Place order',
   'cancel-order': 'Cancel order',
   'replace-order': 'Replace order',
-};
-
-/**
- * Render a strategy's fractional distance as the percent the operator's own settings screen shows, or null when it is not a usable number.
- *
- * The strategies store these as fractions and the settings form displays percent, so quoting the stored value verbatim would name a number the operator cannot find on any screen. Total by construction: the bag it reads survives a JSON round-trip, and this feeds operator copy, where a throw is worse than a missing clause and the string `undefined` is worse than both.
- *
- * @param raw - A fraction of 1 as the strategy recorded it, typically a decimal string, but untrusted.
- * @returns The same distance in percent, two places and never exponential, or null when the input is absent, not a string, or unparseable.
- */
-const asPercent = (raw: unknown): string | null => {
-  if (typeof raw !== 'string') return null;
-  try {
-    const value = new Decimal(raw);
-    return value.isFinite() ? `${value.mul(100).toDecimalPlaces(2).toFixed()}%` : null;
-  } catch {
-    return null;
-  }
 };
 
 export interface TickHandlerDeps {

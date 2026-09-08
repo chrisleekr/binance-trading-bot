@@ -459,9 +459,6 @@ describe('buildTickHandler — the protective-stop-unplaced notifier', () => {
 
     await notify(unplaced({ detail: { stop: '11.5511', nativeUnavailable: true } }));
     await notify(
-      unplaced({ detail: { stop: '11.5511', nativeUnavailable: true, distancePct: 0.037 } }),
-    );
-    await notify(
       unplaced({ detail: { stop: '11.5511', nativeUnavailable: true, distancePct: 'soon' } }),
     );
 
@@ -472,6 +469,20 @@ describe('buildTickHandler — the protective-stop-unplaced notifier', () => {
       expect(JSON.stringify(event)).not.toContain('undefined');
       expect(JSON.stringify(event)).not.toContain('%');
     }
+  });
+
+  it('quotes a distance the bag carried as a JSON number, the same as the screen would', async () => {
+    // The formatter is the one `@app/strategy-core` owns, so the push alert and the symbol screen cannot accept or reject the same value differently. A number is exact at the two-decimal percent this rounds to, and dropping the clause would tell the operator less for no safety gained.
+    const { deps, events } = build();
+    const notify = deps.notifyProtectiveStopUnplaced;
+    if (!notify) throw new Error('the builder did not wire notifyProtectiveStopUnplaced');
+
+    await notify(
+      unplaced({ detail: { stop: '11.5511', nativeUnavailable: true, distancePct: 0.037 } }),
+    );
+
+    const event = events[0] as { fields: { label: string; value: string }[] };
+    expect(event.fields.find((f) => f.label === 'Why')?.value).toContain('3.7% below the high');
   });
 
   it('still reports the exposure when the detail bag did not survive the round-trip', async () => {

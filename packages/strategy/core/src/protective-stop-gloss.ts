@@ -12,12 +12,21 @@ import { decOrNull } from './balances.js';
 // SPA reads it back off a JSON projection, so every field is untrusted and a
 // missing one must drop its clause rather than leak `undefined` into a sentence.
 
-/** Percent for an operator: two places, never exponential, or null when the input is not a usable number. */
-const asPercent = (raw: unknown): string | null => {
+/**
+ * Render a stored fraction as the percent the operator's own settings screen shows, or null when it is not a usable number.
+ *
+ * The strategies store these as fractions and the settings form displays percent, so quoting the stored value verbatim would name a number the operator cannot find on any screen. Exported because the push alert and the screen both format one, and a private copy on either side is how the two came to disagree about the same value before.
+ *
+ * Total by construction: every caller reads a sparse bag that has crossed a JSON round-trip, and this feeds operator copy, where a throw is worse than a missing clause and the string `undefined` is worse than both. `toFixed` rather than `toString` because decimal.js switches `toString` to exponential past its `toExpPos` decade, and `1e+23%` in a settings-shaped field reads as corruption.
+ *
+ * @param raw - A fraction of 1 as the strategy recorded it, normally a decimal string, but untrusted; a JSON number is accepted because the rounding below makes it exact at this scale and dropping the clause would tell the operator less for no safety gained.
+ * @returns The same value in percent, two places and never exponential, or null when the input is absent, not a number or string, or unparseable.
+ */
+export const asPercent = (raw: unknown): string | null => {
   if (typeof raw !== 'string' && typeof raw !== 'number') return null;
   try {
     const value = new Decimal(raw);
-    return value.isFinite() ? `${value.mul(100).toDecimalPlaces(2).toString()}%` : null;
+    return value.isFinite() ? `${value.mul(100).toDecimalPlaces(2).toFixed()}%` : null;
   } catch {
     return null;
   }

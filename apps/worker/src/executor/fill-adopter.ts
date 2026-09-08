@@ -87,6 +87,7 @@ import type { ChainByKey } from 'lib/chain-by-key.js';
 import type { StatePort } from 'state/state-port.js';
 import type { SymbolInfoCache } from 'tick/symbol-info-cache.js';
 import type { NotifyEvent } from 'notifiers/notify-event.js';
+import { executedSomething } from './decisions/cancel-order.js';
 
 /**
  * Minimal registry view: resolves the position-mutation capability for a
@@ -528,10 +529,21 @@ export const createFillAdopter = (deps: FillAdopterDeps): FillAdopter => {
             { executedQty: event.cumQty, cummulativeQuoteQty: event.cumQuoteQty },
             event.eventTimeMs,
           )
-        : await orders.closeByBinanceOrderId(
+        : // A terminal status other than FILLED is not proof nothing executed. Under self-trade prevention Binance can match part of an order against unrelated makers and expire the remainder as `EXPIRED_IN_MATCH`, and a cancel can land on a partly-filled order the same way, so `cumQty` may be above zero here. The plain close writes only `status` and `closed_at`, and the detached path never sees the `PARTIALLY_FILLED` reports that would have refreshed `raw` (they return at the terminal gate above), so the row would keep whatever placement wrote, `executedQty: '0'` for a resting stop. That records no coins moving on an order that moved coins.
+          //
+          // Merged here rather than in the repo: `closeByBinanceOrderId` OVERWRITES `raw`, which is what its only other caller wants (it supplies a full fresh snapshot from `getOrder`), and this event carries two fields rather than a snapshot. Reading the row we already fetched and spreading over it keeps `clientOrderId` / `transactTime` / `fills`. The read-modify-write is safe because the write is guarded by `closed_at IS NULL`, so exactly one of the N-active-profiles fan-out lands, and every one of them carries the same totals.
+          await orders.closeByBinanceOrderId(
             BigInt(event.orderId),
             event.orderStatus,
             event.eventTimeMs,
+            executedSomething(event.cumQty)
+              ? {
+                  ...(typeof row.raw === 'object' && row.raw !== null ? row.raw : {}),
+                  status: event.orderStatus,
+                  executedQty: event.cumQty,
+                  cummulativeQuoteQty: event.cumQuoteQty,
+                }
+              : undefined,
           );
 
     // No realised-P/L stamp: the cost basis lived on the deleted profile's ledger,

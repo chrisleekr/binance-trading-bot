@@ -107,9 +107,55 @@ describe('reconcileDetachedFill — terminal-status vocabulary', () => {
       BigInt(ORDER_ID),
       'EXPIRED_IN_MATCH',
       1_735_000_000_000,
+      undefined,
     );
     // The exchange's own status is what lands on the row, so the ledger records WHY the order left the book.
     expect(repoMocks.ordersMarkFilledByBinanceOrderId).not.toHaveBeenCalled();
+  });
+
+  // `EXPIRED_IN_MATCH` is the mid-match status, so it is the one most likely to carry a partial fill: under STP a taker can match unrelated makers before meeting its own order and having the remainder expired. The plain close writes only status and closed_at, and the detached path never sees the PARTIALLY_FILLED reports that would have refreshed `raw`, so without this the row records nothing moving on an order that moved coins.
+  it.each(['EXPIRED_IN_MATCH', 'CANCELED'])(
+    'carries the observed totals onto a %s that had partly filled',
+    async (status) => {
+      repoMocks.ordersFindByBinanceOrderId.mockResolvedValue({
+        profileId: null,
+        raw: { clientOrderId: 'x-1', transactTime: 1, executedQty: '0' },
+      });
+
+      await makeAdopter().reconcileDetachedFill({
+        ...eventWith(status),
+        cumQty: '3',
+        cumQuoteQty: '90',
+      });
+
+      expect(repoMocks.ordersCloseByBinanceOrderId).toHaveBeenCalledWith(
+        BigInt(ORDER_ID),
+        status,
+        1_735_000_000_000,
+        // Spread over the placement-time bag rather than replacing it: `clientOrderId` and `transactTime` are what tie the row back to the request, and the repo's `raw` parameter overwrites.
+        {
+          clientOrderId: 'x-1',
+          transactTime: 1,
+          status,
+          executedQty: '3',
+          cummulativeQuoteQty: '90',
+        },
+      );
+      // The row is NOT forced to FILLED: the order expired, and claiming it filled would be a worse lie than the stale totals were.
+      expect(repoMocks.ordersMarkFilledByBinanceOrderId).not.toHaveBeenCalled();
+    },
+  );
+
+  it('leaves `raw` alone on a zero-fill terminator', async () => {
+    // Nothing executed, so there is nothing to correct, and rewriting the bag would churn a row for no change.
+    await makeAdopter().reconcileDetachedFill(eventWith('CANCELED'));
+
+    expect(repoMocks.ordersCloseByBinanceOrderId).toHaveBeenCalledWith(
+      BigInt(ORDER_ID),
+      'CANCELED',
+      1_735_000_000_000,
+      undefined,
+    );
   });
 
   it.each(['CANCELED', 'EXPIRED', 'REJECTED'])('closes the row on %s', async (status) => {
@@ -120,6 +166,7 @@ describe('reconcileDetachedFill — terminal-status vocabulary', () => {
       BigInt(ORDER_ID),
       status,
       1_735_000_000_000,
+      undefined,
     );
   });
 
@@ -163,6 +210,7 @@ describe('reconcileDetachedFill — terminal-status vocabulary', () => {
       BigInt(ORDER_ID),
       'canceled',
       1_735_000_000_000,
+      undefined,
     );
   });
 

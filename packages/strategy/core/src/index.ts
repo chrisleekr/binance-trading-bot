@@ -101,7 +101,7 @@ export {
 export type { EntryStopFloor, SizeFilters } from './sizing.js';
 export { log, metric } from './emit.js';
 export { MAX_CANDLE_WINDOW, resolveCandleWindow } from './window.js';
-export { explainProtectiveStopBandRefusal } from './protective-stop-gloss.js';
+export { asPercent, explainProtectiveStopBandRefusal } from './protective-stop-gloss.js';
 export type { ProtectiveStopBandExplanation } from './protective-stop-gloss.js';
 export {
   PROTECTIVE_STOP_BLOCKER_REASONS,
