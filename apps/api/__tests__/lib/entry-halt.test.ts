@@ -34,7 +34,8 @@ describe('activeEntryHalts', () => {
 
     expect(halts).toHaveLength(1);
     expect(halts[0]?.kind).toBe('drawdown');
-    expect(halts[0]?.liftsAtMs).toBeGreaterThanOrEqual(NOW);
+    // Exactly NOW, not merely at-or-after it: `Math.max(0, -1)` is what makes "lifts now" true, and a lower bound would still pass if that clamp grew a floor or the -1 started meaning "never lifts".
+    expect(halts[0]?.liftsAtMs).toBe(NOW);
   });
 
   it('returns the active breakers in EntryHaltKind order regardless of which are armed', async () => {

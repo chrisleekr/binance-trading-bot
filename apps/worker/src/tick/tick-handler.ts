@@ -440,12 +440,7 @@ export const createTickHandler = (
           });
         }
 
-        // Daily-loss circuit breaker: when the portfolio-risk cron has flagged this
-        // profile (today's realised loss hit its limit), suppress new BUY orders for
-        // the rest of the UTC day. SELLs, cancels, and events still flow so exits and
-        // protective stops keep running. Fail-open (see applyDailyHalt). The flag
-        // self-clears at the next UTC day. This is the ONLY breaker that pauses buys —
-        // config-proof and edge-decay are advisory (dashboard + heads-up), never a halt.
+        // Entry breakers: when the portfolio-risk cron has flagged this profile on any of the three (the daily loss limit, the loss-streak guard, or the drawdown guard), suppress new BUY orders while that flag stands. SELLs, cancels, and events still flow so exits and protective stops keep running. Fail-open, see `applyEntryHalts`. Each flag self-clears on its own TTL: the daily one at the next UTC day, each guard after its configured pause. These three are the only things that pause buys — config-proof and edge-decay are advisory (dashboard + heads-up), never a halt.
         const decisions: readonly Decision[] = output.decisions;
         const halt = await applyEntryHalts(
           deps.redis,

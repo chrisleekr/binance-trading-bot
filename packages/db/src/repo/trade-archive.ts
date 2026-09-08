@@ -230,6 +230,8 @@ export async function sumProfitInRange(
 /**
  * Losing closed cycles in a rolling window, for the loss-streak guard. Gross `profit < 0` on the same basis the daily-loss breaker sums, so the two breakers cannot disagree about whether a cycle lost.
  *
+ * A COUNT over the whole window, deliberately, not the length of the trailing run of losses: a grid or a pyramid closes many small cycles, so one scratch win between two losses would reset a run-counter and leave the guard unarmable on the strategy shapes it is for. The window is what bounds recency; consecutiveness is not asked.
+ *
  * @param scope - Ownership-proven profile scope; bounds every row read here to one profile.
  * @param quoteAsset - The currency the guard is configured in; rows in any other quote are excluded, because a profile's quote can change and a count across two currencies is not a count of anything.
  * @param from - Inclusive lower bound on `archived_at`, normally `now - lookbackHours`.

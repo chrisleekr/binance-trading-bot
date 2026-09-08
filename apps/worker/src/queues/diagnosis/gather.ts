@@ -87,6 +87,14 @@ const HALT_LABELS: Readonly<Record<EntryHaltKind, string>> = {
   drawdown: 'The drawdown guard is pausing buys',
 };
 
+/**
+ * Which entry breakers are pausing this profile's buys, as diagnosis conditions.
+ *
+ * Reads the same three Redis flags the api's risk card and the tick-path filter read, and reports each one as a plain-language label because "paused" alone does not tell the operator which limit to go and look at.
+ *
+ * @param deps - The gather's ports; the Redis client, the logger, and the key parts every surface composes the halt keys from.
+ * @returns One entry per active breaker in `EntryHaltKind` order, or null when the read failed. Null rather than an empty list, which is the positive claim "nothing is halted" and a failed read has not earned it.
+ */
 const readHalts = async (deps: DiagnosisGatherDeps): Promise<ProfileDiagnosisInput['halts']> => {
   const keys = entryHaltKeys(deps.keyParts);
   try {

@@ -21,17 +21,19 @@ export const activeEntryHalts = async (
 ): Promise<ReadonlyArray<{ kind: EntryHaltKind; liftsAtMs: number }>> => {
   const redis = di.redis.raw();
   const keys = entryHaltKeys(scope);
+  // Issued together rather than awaited one at a time: the account-health bar calls this once per profile on a 15-second poll, and three serial round trips per profile is three waves of latency for an answer that needs one. Nothing here depends on an earlier reply.
+  const ttls = await Promise.all(EntryHaltKind.options.map((kind) => redis.pttl(keys[kind])));
   const out: Array<{ kind: EntryHaltKind; liftsAtMs: number }> = [];
-  for (const kind of EntryHaltKind.options) {
-    const pttl = await redis.pttl(keys[kind]);
+  EntryHaltKind.options.forEach((kind, i) => {
+    const pttl = ttls[i] ?? -2;
     // PTTL is -2 when the key is absent and -1 when it is present without an expiry. Every halt key is written with a TTL, so a -1 is a flag that has lost its expiry and is treated as "lifts now" rather than "never lifts": telling the operator buying resumes at the epoch is the worse lie.
-    if (pttl === -2) continue;
+    if (pttl === -2) return;
     out.push({
       kind,
       // The daily flag's TTL only approximates the day boundary; the boundary itself is the truth about when it lifts.
       liftsAtMs: kind === 'daily-loss' ? nextUtcMidnightMs(nowMs) : nowMs + Math.max(0, pttl),
     });
-  }
+  });
   return out;
 };
 
@@ -56,7 +58,7 @@ export const firstEntryHaltFailOpen = async (
   } catch (err) {
     di.logger.warn(
       { profileId: scope.profileId, err: err },
-      'entry breaker flag read failed — allowing the action; the tick still enforces the halt',
+      'entry breaker flag read failed — allowing the action; the worker tick fails open on the same read, so no breaker is holding anywhere while Redis is down',
     );
     return null;
   }

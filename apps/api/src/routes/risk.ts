@@ -22,6 +22,11 @@ const ProfileIdParam = z.object({ profileId: z.uuid() });
 
 /**
  * Risk dashboard payload: the stored risk config (safe defaults + `configInvalid` when a stored value fails validation, mirroring discovery) plus the live circuit-breaker status. `halted` is true while ANY of the three worker-set Redis entry-halt flags is set, and `haltKinds` names those active breakers in `EntryHaltKind` order so every surface listing them agrees on the order; `todayRealizedPnl` is the profile's realised P/L since 00:00 UTC; `limitQuote` is the configured daily loss limit (null when that breaker is off); `resetsAtMs` is when the LAST active halt lifts, because that is when buying actually resumes — the daily flag lifts at the next UTC midnight, each guard at its key's remaining TTL.
+ *
+ * @param di - Request DI, for the Redis handle the halt flags are read through and the warn sink the invalid-config line goes to.
+ * @param p - The profile repo, already scoped: it carries the ownership-proven `scope` this reads the archive and the halt keys under, so no id is threaded separately.
+ * @param profile - The profile row, narrowed to the two columns this needs: the unvalidated stored `riskConfig` and the `quoteAsset` both the day's P/L and the configured limit are stated in.
+ * @returns The card's whole payload. Throws rather than degrading when the halt read fails, because a card that renders "not halted" on an unknown state misstates the operator's risk.
  */
 const buildRisk = async (
   di: DI,

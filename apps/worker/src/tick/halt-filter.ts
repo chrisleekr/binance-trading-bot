@@ -31,6 +31,9 @@ export interface HaltFilterResult extends SuppressResult {
  * more than what was resting. Suppressing it leaves that resting BUY live, which
  * matches what the breaker already does with every other resting order, since it
  * pauses new risk and never cancels what the profile committed before the breach.
+ *
+ * @param decisions - This tick's strategy output, unfiltered.
+ * @returns The split: `kept` is everything that is not a BUY placement or BUY replacement, `dropped` is the rest. Both are fresh arrays, so a caller may report `dropped` without aliasing the input.
  */
 export const suppressBuyEntries = (decisions: readonly Decision[]): SuppressResult => {
   const kept: Decision[] = [];

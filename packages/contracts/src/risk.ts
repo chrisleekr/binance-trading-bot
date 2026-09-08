@@ -58,7 +58,7 @@ export const nextUtcMidnightMs = (nowMs: number): number => {
 const hours = (description: string, defaultHours: number) =>
   z.number().int().min(1).max(168).default(defaultHours).describe(description);
 
-/** A run of losing closed cycles inside a rolling window pauses new buys for a fixed time. Rolling, not calendar-day, so a cluster that straddles UTC midnight is still seen as one cluster. */
+/** Enough losing closed cycles inside a rolling window pauses new buys for a fixed time. A COUNT over the window, not a consecutive run: a grid or a pyramid closes many small cycles, so one scratch win between two losses would reset a run-counter and leave the guard unarmable on exactly the strategy shapes it is for. Rolling, not calendar-day, so a cluster that straddles UTC midnight is still seen as one cluster. */
 const LossStreakGuardSchema = z.object({
   maxLosingExits: z
     .number()

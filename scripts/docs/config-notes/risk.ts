@@ -10,7 +10,7 @@ export const riskNotes: FieldNotes = {
       'Once the day\'s realised loss reaches the limit the profile stops opening or adding to positions until 00:00 UTC. Positions you already hold keep running with their stops, so you are never left unhedged. The account health bar shows "paused", and warns at 80% of the limit. `0` disables the limit entirely.',
   },
   'lossStreak.maxLosingExits': {
-    when: 'Turn it on when you have watched a bad hour turn into three losing exits in a row and wished the bot had stopped. 3 is a sensible first setting; 2 will pause you often on a choppy day.',
+    when: 'Turn it on when you have watched a bad hour produce three losing exits and wished the bot had stopped. 3 is a sensible first setting; 2 will pause you often on a choppy day. Every losing exit in the window counts, whether or not there were winners between them.',
     expect:
       'Once that many exits inside the lookback window have closed at a loss, new buys pause for the pause you set below. Positions you already hold keep running with their stops. Unlike the daily limit, the count does not reset at UTC midnight, so a run of losses spanning two days is still seen as one run. `0` turns this guard off.',
   },

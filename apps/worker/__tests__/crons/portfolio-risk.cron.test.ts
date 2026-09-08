@@ -473,6 +473,24 @@ describe('portfolioRiskHandler loss guards', () => {
     expect(await lossField('1e-309')).toBe('1e-309');
   });
 
+  it('does not expand a long-MANTISSA limit either, which the exponent gate cannot see', async () => {
+    // The other axis of the same expansion. `'1.' + '9'.repeat(...)` has an exponent of 0, so an exponent-only gate spells it out in full, and a bare `toExponential()` fallback writes every significant digit too: the digit count is what has to be capped, by rounding. The stored value is untouched, exactly as on the exponent path, so the comparison that tripped the breaker and the flag payload both still used it exact.
+    const notify = vi.fn<PortfolioRiskDeps['notify']>(async () => undefined);
+    const long = `1.${'9'.repeat(2_000)}`;
+    await portfolioRiskHandler(deps({ assess: async () => dailyOnly(long, `-${long}`), notify }))(
+      job,
+    );
+
+    const fields = (
+      notify.mock.calls[0]?.[0] as unknown as { fields: { label: string; value: string }[] }
+    ).fields;
+    expect(fields).toHaveLength(2);
+    for (const f of fields) {
+      expect(f.value.length).toBeLessThan(400);
+      expect(f.value).toMatch(/e[+-]/i);
+    }
+  });
+
   it('counts the daily breaker under the same metric, so no kind is structurally dead', async () => {
     const metrics = { record: vi.fn() };
     await portfolioRiskHandler(

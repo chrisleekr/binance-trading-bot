@@ -85,6 +85,25 @@ describeIfDb('trade-archive loss-guard window aggregates', () => {
       expect(await bob.tradeArchive.countLosingCyclesInRange('USDT', at(FROM), at(TO))).toBe(1);
     });
 
+    // A COUNT over the window, not the length of the trailing run of losses. Pinned because the breaker's name reads as consecutive and the two answers differ here: a grid or a pyramid closes many small cycles, so one scratch win between two losses would reset a run-counter and leave the guard unarmable on exactly the strategy shapes it is for. Its own June window, so the March figures above cannot move.
+    it('counts every loss in the window, not only the trailing consecutive run', async () => {
+      const ALT_FROM = '2026-06-01T00:00:00.000Z';
+      const ALT_TO = '2026-06-02T00:00:00.000Z';
+      for (const [tag, hour, profit] of [
+        ['ALTA', '01', '-1'],
+        ['ALTB', '02', '2'],
+        ['ALTC', '03', '-1'],
+        ['ALTD', '04', '2'],
+        ['ALTE', '05', '-1'],
+      ] as const) {
+        await bob.tradeArchive.insert(cycle(tag, `2026-06-01T${hour}:00:00.000Z`, profit));
+      }
+
+      expect(
+        await bob.tradeArchive.countLosingCyclesInRange('USDT', at(ALT_FROM), at(ALT_TO)),
+      ).toBe(3);
+    });
+
     it('returns the drawdown as a decimal STRING, never a JS number', async () => {
       const dd = await alice.tradeArchive.maxRealisedDrawdownInRange('USDT', at(FROM), at(TO));
       // Money crosses this boundary as text: a numeric(38,18) that became a JS
@@ -119,7 +138,7 @@ describeIfDb('trade-archive loss-guard window aggregates', () => {
   });
 
   describe('replay of the live Momentum sequence that motivated the guards', () => {
-    // Hand-written from the issue's two evidence tables (the five losing cycles
+    // Hand-written from two tables of observed evidence (the five losing cycles
     // with their prior-loss counts, and the cumulative/peak/drawdown table), NOT
     // copied out of the live archive. The five losses and their timestamps are
     // verbatim; the two gain rows are the figures the cumulative table implies:

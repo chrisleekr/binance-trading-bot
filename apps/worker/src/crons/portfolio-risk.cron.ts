@@ -52,6 +52,9 @@ const MS_PER_HOUR = 3_600_000;
 // Read off `Decimal#e`, which needs no expansion, and checked BEFORE anything formats the value. Deliberately not a max-length cap on the input: `toFixed()` output can be far longer than its input (`1e-308` is 6 characters in, 310 out), so a cap sized on what arrived would reject amounts this module itself produced.
 const MAX_ALERT_EXPONENT = 308;
 
+// The other axis of the same expansion, and the exponent gate does not cover it: `'1.' + '9'.repeat(2_000_000)` has an exponent of 0, so it passes the check above and `toFixed()` still writes two million characters. `decimalString` bounds neither the digit count nor the length, and the value lands in an unconstrained `jsonb` column, so an operator-typed limit reaches here with as many digits as it was saved with. Same decade as the exponent for the same reason: 308 significant digits is already far past any exchange's precision.
+const MAX_ALERT_DIGITS = 308;
+
 /**
  * A quote amount as the operator should read it in an alert.
  *
@@ -60,11 +63,13 @@ const MAX_ALERT_EXPONENT = 308;
  * Every money field on both halt alerts goes through here. Normalising one branch and not its neighbour is how two figures on one surface come to be formatted two different ways.
  *
  * @param quote - A finite amount in the profile's quote asset, as a decimal string or an already-built Decimal; parseability is proven by the trip predicate that gated the call.
- * @returns The same amount without the column's trailing scale and never in exponential form, except past {@link MAX_ALERT_EXPONENT} where it is returned in exponential form precisely so that writing it cannot expand into a multi-megabyte string.
+ * @returns The same amount without the column's trailing scale and never in exponential form, except past {@link MAX_ALERT_EXPONENT} or {@link MAX_ALERT_DIGITS} where it is ROUNDED into exponential form precisely so that writing it cannot expand into a multi-megabyte string.
  */
 const asAlertAmount = (quote: string | Decimal): string => {
   const d = new Decimal(quote);
-  return Math.abs(d.e) <= MAX_ALERT_EXPONENT ? d.toFixed() : d.toExponential();
+  if (Math.abs(d.e) <= MAX_ALERT_EXPONENT && d.sd() <= MAX_ALERT_DIGITS) return d.toFixed();
+  // Rounded, not merely re-spelled. A bare `toExponential()` writes every significant digit, so the long-mantissa case expands there too; the digit count is what has to be capped. Kept at the value's own precision when that is already short, so an extreme exponent with one digit still reads as `1e-10000000` rather than as that digit followed by 307 zeroes.
+  return d.toExponential(Math.min(d.sd(), MAX_ALERT_DIGITS) - 1);
 };
 
 /**
