@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@app/contracts": "workspace:*",
-    "zod": "~4.4.3"
+    "zod": "~4.5.4"
   },
   "devDependencies": {
     "bullmq": "5.58.6"
