@@ -53,6 +53,12 @@
       "description": "@hono/zod-openapi 1.5.2 omits the zodModule import from its published declarations, which collapses schema inference to any.",
       "matchPackageNames": ["@hono/zod-openapi"],
       "allowedVersions": "!/^1\\.5\\.2$/"
+    },
+    {
+      "description": "engines.bun is a compatibility floor, not a pin. Renovate reads it as a dependency on the npm datasource and rangeStrategy 'bump' rewrites the floor to the newest patch, which no-bun-version-skew.sh rejects: the floor is the major.minor of the pinned runtime and stays put across patch releases. The runtime itself still moves, through packageManager, @types/bun, .tool-versions, the CI images and the Dockerfile ARG. Deliberately not scoped by matchManagers: the bun manager owns package.json while bun.lock exists and supersedes npm, so naming either one would silently stop matching if the lockfile changed shape.",
+      "matchDepTypes": ["engines"],
+      "matchPackageNames": ["bun"],
+      "enabled": false
     }
   ],
 
