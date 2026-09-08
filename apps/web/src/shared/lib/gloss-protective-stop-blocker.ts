@@ -63,6 +63,14 @@ export function glossProtectiveStopBlocker(blocker: ProtectiveStopBlocker): stri
         : ' None of the coins are free to sell.';
       return `The bot thinks it holds this position, but the coins are not free in your Binance wallet — they were moved, withdrawn, or are locked in another order — so it cannot place its protective stop (the automatic sell that caps a loss).${detail} Move the coins back (or cancel whatever is holding them) and the stop arms itself on the next check. Until then this position has no safety net.`;
     }
+    case 'resting-stop-short-of-position': {
+      const resting = str(d, 'resting');
+      const held = str(d, 'held');
+      // Named as a partial safety net rather than none, because that is what it is, and the badge derived from `guarded` says the same thing. Telling this operator the position is unprotected would send them to cancel a stop that is protecting most of it.
+      const cover =
+        resting && held ? ` It sells ${resting} coins, and the position now holds ${held}.` : '';
+      return `The protective stop (the automatic sell that caps a loss) resting on Binance covers only part of this position, because the position grew after that stop was placed.${cover} Binance trails the stop from the highest price it has seen since the order went on, and replacing the order restarts that from today's price, which would hand back a worse trigger on the coins already covered. So the bot keeps the stop it has until the price sets a new high, at which point it re-arms for the full amount. Until then the extra coins have no safety net; selling them by hand also clears it.`;
+    }
     case 'price-outside-exchange-band': {
       const price = str(d, 'price');
       // Which end of the range was breached. A stop priced ABOVE the ceiling is

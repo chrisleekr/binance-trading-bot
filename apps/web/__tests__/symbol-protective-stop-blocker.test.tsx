@@ -396,6 +396,25 @@ describe('glossProtectiveStopBlocker', () => {
     expect(line).not.toMatch(/null|undefined|NaN/);
   });
 
+  it('says which part of the position the resting native trail covers, and why it is not replaced', () => {
+    // The operator's obvious move here is to cancel the stop and let the bot re-arm, which is the one action that makes it worse: it hands back the trigger the resting order has already trailed up to. The copy has to name the high-water mark for that reason, not just the shortfall.
+    const line = glossProtectiveStopBlocker({
+      reason: 'resting-stop-short-of-position',
+      detail: { resting: '0.5', held: '1.2' },
+    });
+    expect(line).toContain('0.5');
+    expect(line).toContain('1.2');
+    expect(line).toMatch(/highest price|high-water/i);
+    expect(line).toMatch(/new high/i);
+    expect(line).not.toMatch(/null|undefined|NaN/);
+  });
+
+  it('still reads as a sentence when the coverage numbers are missing', () => {
+    const line = glossProtectiveStopBlocker({ reason: 'resting-stop-short-of-position' });
+    expect(line).toMatch(/covers only part/i);
+    expect(line).not.toMatch(/null|undefined|NaN/);
+  });
+
   it('never renders blank for a reason code it does not know', () => {
     // A future strategy's code must degrade to a sentence, not an empty panel.
     const line = glossProtectiveStopBlocker({ reason: 'some-future-strategy-reason' });

@@ -28,7 +28,7 @@ export const hasPositionScopedFieldSet = (state: object): boolean =>
 /**
  * Null every position-scoped field a body actually carries.
  *
- * Absent fields are skipped rather than written as null: momentum has no `exitBlocker`, and materialising one would put a key on its body that neither its schema nor its replay fixtures have ever seen. The skip is an own-property test for that reason — under a polluted prototype `in` would report the key as present and materialise exactly the key this guard exists to withhold.
+ * Absent fields are skipped rather than written as null: a plugin body that declares neither field would otherwise gain a key its schema and its replay fixtures have never seen. Both shipped bodies happen to declare both fields today, so the skip is dormant for them and the guard holds for the next plugin. The test is an own-property one rather than `in` because `in` walks the prototype chain, so a polluted `Object.prototype` would report every absent field as present and materialise exactly the key this withholds.
  *
  * Returns the SAME reference when there was nothing to clear, so a steady flat tick allocates nothing and a caller may use identity to tell whether anything changed.
  *

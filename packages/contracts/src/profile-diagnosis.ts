@@ -1229,7 +1229,9 @@ export const PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS = 900_000;
 /**
  * The strategy reason meaning "this position is held and no protective stop is resting on the exchange".
  *
- * Shared because two packages gate on it independently: this rung decides whether to raise a finding, and the worker's tick decides whether to alert. The strategy owns the string, so neither consumer can validate it, and a bare literal at each site is one rename away from both gates silently matching nothing — no type error, no failing test, and a symptom that IS the absence of the alert this exists to send. One constant makes that rename a single edit with two visible consumers.
+ * Shared because two packages name it independently: the persistence rung below reads it as a `Map` key to decide how long the state must last before it becomes a finding, and momentum lists it in `MOMENTUM_EXIT_BLOCKER_REASONS`, the tuple its state schema and its emitting tick are both typed off. Two bare literals would be one rename away from the rung matching nothing, with no type error and no failing test, and the symptom is the absence of a headline rather than a wrong one. Importing the constant into the strategy's tuple turns that rename into a compile error at the tick that emits the reason.
+ *
+ * The worker is NOT a consumer: its tick audits `exitBlocker` generically by field name, never by code, so nothing there has to move when this string does.
  *
  * Naming a strategy's reason here is not a plugin import; it is the same standard {@link EXIT_FAULT_CODES} already meets by naming `native-trail-unavailable`.
  */

@@ -53,6 +53,7 @@ describe('trailingTrade.reasonAttribution', () => {
         'price-outside-exchange-band',
         'base-locked-by-foreign-order',
         'base-short-of-tracked-position',
+        'resting-stop-short-of-position',
         'base-below-exchange-minimum',
       ].sort(),
     );

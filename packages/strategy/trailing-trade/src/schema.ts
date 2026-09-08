@@ -1609,6 +1609,7 @@ export const TTStateSchema = z.object({
         'base-below-exchange-minimum',
         'base-short-of-tracked-position',
         'price-outside-exchange-band',
+        'resting-stop-short-of-position',
       ]),
       detail: z.record(z.string(), z.unknown()).optional(),
     })

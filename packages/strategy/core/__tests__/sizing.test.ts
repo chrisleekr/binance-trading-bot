@@ -104,20 +104,21 @@ describe('applyEntryStopFloor', () => {
     ).toEqual({ skip: 'entry-below-stop-notional' });
   });
 
-  it('refuses when the derived stop price is zero or negative', () => {
+  // The refusal has to name the unreadable input, not the floor: no floor was ever derived, so there is no quantity the entry is under, and `entry-below-stop-notional` glosses to "the position would be too small to sell" and sends the operator to raise a budget that cannot clear it.
+  it('refuses as invalid-filters when the derived stop price is zero or negative', () => {
     const quantity = new Decimal('0.010');
     expect(
       applyEntryStopFloor(quantity, new Decimal('0.0118'), FILTERS, {
         ...STOP_FLOOR,
         limitOffset: new Decimal('0'),
       }),
-    ).toEqual({ skip: 'entry-below-stop-notional' });
+    ).toEqual({ skip: 'invalid-filters' });
     expect(
       applyEntryStopFloor(quantity, new Decimal('0.0118'), FILTERS, {
         ...STOP_FLOOR,
         limitOffset: new Decimal('-0.98'),
       }),
-    ).toEqual({ skip: 'entry-below-stop-notional' });
+    ).toEqual({ skip: 'invalid-filters' });
   });
 
   it('is the identity for a null stop', () => {
@@ -132,7 +133,7 @@ describe('applyEntryStopFloor', () => {
     const gridless: SizeFilters = { ...FILTERS, tick: undefined };
     expect(
       applyEntryStopFloor(new Decimal('0.011'), new Decimal('0.0118'), gridless, STOP_FLOOR),
-    ).toEqual({ skip: 'entry-below-stop-notional' });
+    ).toEqual({ skip: 'invalid-filters' });
     expect(
       applyEntryStopFloor(
         new Decimal('0.011'),
@@ -140,7 +141,11 @@ describe('applyEntryStopFloor', () => {
         { ...FILTERS, tick: new Decimal('0') },
         STOP_FLOOR,
       ),
-    ).toEqual({ skip: 'entry-below-stop-notional' });
+    ).toEqual({ skip: 'invalid-filters' });
+    // The quantity handed in clears the floor on the same filters with a grid, so the refusals above are the missing grid and not the size.
+    expect(
+      applyEntryStopFloor(new Decimal('0.011'), new Decimal('0.0118'), FILTERS, STOP_FLOOR),
+    ).toEqual({ quantity: new Decimal('0.011') });
   });
 });
 

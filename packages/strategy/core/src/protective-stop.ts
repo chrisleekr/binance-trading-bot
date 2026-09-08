@@ -119,6 +119,7 @@ export const PROTECTIVE_STOP_BLOCKER_REASONS = [
   'base-below-exchange-minimum',
   'base-short-of-tracked-position',
   'price-outside-exchange-band',
+  'resting-stop-short-of-position',
 ] as const;
 
 export type ProtectiveStopBlockerReason = (typeof PROTECTIVE_STOP_BLOCKER_REASONS)[number];
@@ -1071,7 +1072,23 @@ export const evaluateProtectiveStopArm = <C, S, B extends Readonly<Record<string
           blocker: null,
         };
       }
-      return { decisions: [], blocker: null };
+      // A re-arm refused over DISTANCE alone needs no explanation: the guard just proved the resting order's trigger is the higher of the two, so keeping it is strictly better protection. A re-arm refused over COVERAGE is the opposite. The resting order sells less base than the position now holds, and the guard reduces to `markPrice >= high` for it, which holds only at the running maximum. So the shortfall persists for the whole of any drawdown, which is exactly what the stop is for, and returning a null blocker here reports that as a healthy tick.
+      return {
+        decisions: [],
+        blocker: underQty
+          ? {
+              reason: 'resting-stop-short-of-position',
+              detail: {
+                symbol,
+                required: sized.quantity,
+                resting: restingQuantity?.toFixed() ?? null,
+                held: held.toFixed(),
+                trailingDelta: resting.trailingDelta,
+                desiredTrailingDelta: primaryNativeDelta,
+              },
+            }
+          : null,
+      };
     }
   }
 

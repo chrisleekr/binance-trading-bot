@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { decimalString, ManualOverridePayload } from '@app/contracts';
+import {
+  decimalString,
+  ManualOverridePayload,
+  PROTECTIVE_STOP_UNPLACED_CODE,
+} from '@app/contracts';
 import { Decimal } from '@app/money';
 import { MAX_CANDLE_WINDOW } from '@app/strategy-core';
 import { ENTRY_SIZING_SKIPS } from './sizing.js';
@@ -20,7 +24,8 @@ export const MOMENTUM_EXIT_BLOCKER_REASONS = [
   'native-trail-resting',
   'profit-leg-armed',
   'native-trail-unavailable',
-  'protective-stop-unplaced',
+  // The one member the diagnosis rung in `@app/contracts` also gates on, by string, to decide how long it must persist before it becomes a finding. Named through the shared constant rather than repeated as a literal so a rename is one edit: with two independent literals the rung would go on matching nothing, which is the absence of a headline and shows up as silence rather than as a failure.
+  PROTECTIVE_STOP_UNPLACED_CODE,
   'priced-stop-resting',
 ] as const;
 
@@ -596,6 +601,7 @@ export const MomentumStateSchema = z.object({
         'base-below-exchange-minimum',
         'base-short-of-tracked-position',
         'price-outside-exchange-band',
+        'resting-stop-short-of-position',
       ]),
       detail: z.record(z.string(), z.unknown()).optional(),
     })

@@ -295,6 +295,65 @@ describe('momentum native-trail protective stop', () => {
     });
   });
 
+  // Guard: a coverage shortfall the high-water guard refuses must be reported. For an under-sized re-arm at an unchanged distance the guard reduces to `mark >= high`, and the tracked high never sits below the mark, so the refusal holds for the whole of any pullback. Returning a clean tick there tells the operator a partly naked position is fully protected.
+  it('reports a resting native trail that covers less than the position', () => {
+    const shortOrder = nativeOrder({ trailingDelta: 1000, origQty: '0.5', transactTimeMs: 0 });
+    const out = momentum.tick(
+      input({
+        config: config('native-trail', {
+          trailingStopPct: '0.1',
+          profitTrail: { enabled: false },
+        }),
+        currentPrice: '100',
+        state: held({ highSinceEntry: '100' }),
+        openOrders: [shortOrder],
+        oneMinute: [candle({ high: '110', close: '100' })],
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker).toMatchObject({
+      reason: 'resting-stop-short-of-position',
+      detail: { required: '1.000', resting: '0.5', held: '1', trailingDelta: 1000 },
+    });
+
+    // Same refusal at a new high re-arms for the full quantity, which is what makes the blocker above a report of a real gap rather than of the guard existing.
+    const atHigh = momentum.tick(
+      input({
+        config: config('native-trail', {
+          trailingStopPct: '0.1',
+          profitTrail: { enabled: false },
+        }),
+        currentPrice: '100',
+        state: held({ highSinceEntry: '100' }),
+        openOrders: [shortOrder],
+        oneMinute: [candle({ high: '100', close: '100' })],
+      }),
+    );
+    expect(atHigh.nextState.protectiveStopBlocker).toBeNull();
+    expect(atHigh.decisions[0]).toMatchObject({
+      type: 'replace-order',
+      params: { trailingDelta: 1000, quantity: '1.000' },
+    });
+  });
+
+  // Guard: the distance-only refusal must stay silent. The guard has just proved the resting order's trigger is the higher of the two, so the position is better protected than the replacement would leave it, and a blocker there would train the operator to ignore the coverage one above.
+  it('reports nothing when only the distance, not the coverage, was refused', () => {
+    const out = momentum.tick(
+      input({
+        config: config('native-trail', {
+          trailingStopPct: '0.05',
+          profitTrail: { enabled: false },
+        }),
+        currentPrice: '100',
+        state: held({ highSinceEntry: '100' }),
+        openOrders: [nativeOrder({ trailingDelta: 1000, transactTimeMs: 0 })],
+        oneMinute: [candle({ high: '110', close: '100' })],
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.protectiveStopBlocker).toBeNull();
+  });
+
   // Guard: an unavailable native delta must fall back to priced protection and remain attributable once that fallback rests.
   it('falls back to a priced stop when TRAILING_DELTA rejects the wanted distance', () => {
     const filters = {

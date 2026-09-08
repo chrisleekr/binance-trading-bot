@@ -110,6 +110,13 @@ export const momentumReasonAttribution: ReasonAttribution = {
     gloss: 'No coins are free to place the protective stop against',
     kind: 'sizing',
   },
+  // No `paths` lever, and deliberately so: every setting that would force the re-arm sooner does it by widening the trail, which buys coverage of the extra coins by giving up the trigger level on the coins already covered. The refusal clears on its own at the next new high.
+  'resting-stop-short-of-position': {
+    setting: 'Protective stop',
+    note: 'the trailing stop already resting on Binance sells fewer coins than the position now holds, because the position grew after it was placed; replacing it would restart the high-water mark Binance trails from and hand back a worse trigger, so the bot keeps the one it has until the price sets a new high and the re-arm covers the full amount',
+    gloss: 'The protective stop on Binance covers only part of the position',
+    kind: 'sizing',
+  },
   // The note names the limit offset because the refusal threshold moves with it, but no `paths` lever is offered: the offset shifts the measured price by a couple of percent, which clears only a position sitting just under the minimum. On the common shape, a position genuinely too small, pointing the operator at that setting would spend their one obvious action on a change that cannot work.
   'base-below-exchange-minimum': {
     setting: 'Protective stop',

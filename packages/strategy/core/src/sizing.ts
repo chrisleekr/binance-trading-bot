@@ -37,6 +37,9 @@ export interface EntryStopFloor {
 /** Typed skip reason for an entry whose budget cannot fund a sellable stop quantity. */
 const ENTRY_BELOW_STOP_NOTIONAL = 'entry-below-stop-notional' as const;
 
+/** Typed skip reason for an entry whose stop floor could not be computed at all, as opposed to one that was computed and not met. Both refuse the entry; only this one is unfixable by the operator, and telling the two apart is the whole point of carrying it. */
+const ENTRY_INVALID_FILTERS = 'invalid-filters' as const;
+
 /** Binance VIP0 spot taker fee assumed when BNB does not pay the fee and the fill deducts base asset. */
 const ENTRY_FEE_MARGIN: Decimal = new Decimal('0.001');
 
@@ -135,22 +138,25 @@ export const sellableAtStop = (
  * @param price - The entry price used to derive the protective-stop limit price.
  * @param filters - The validated symbol quantity and notional filters, including the price grid the stop will be quantised onto.
  * @param stop - The configured stop distance and limit offset, or null when no stop is active.
- * @returns The original quantity, or a typed skip when it is below the stop-safe floor.
+ * @returns The original quantity, an `entry-below-stop-notional` skip when the quantity is under the stop-safe floor, or an `invalid-filters` skip when no floor could be derived at all.
  */
 export const applyEntryStopFloor = (
   quantity: Decimal,
   price: Decimal,
   filters: SizeFilters,
   stop: EntryStopFloor | null,
-): { quantity: Decimal } | { skip: typeof ENTRY_BELOW_STOP_NOTIONAL } => {
+):
+  | { quantity: Decimal }
+  | { skip: typeof ENTRY_BELOW_STOP_NOTIONAL | typeof ENTRY_INVALID_FILTERS } => {
   if (stop === null) return { quantity };
   const tick = filters.tick;
-  // Without the grid there is no way to ask the arm's question, and the arm itself rests nothing on a symbol whose tick does not parse. Admitting the entry anyway would create exactly the unguardable position this gate exists to prevent.
-  if (tick === undefined || tick.lte(0)) return { skip: ENTRY_BELOW_STOP_NOTIONAL };
+  // Without the grid there is no way to ask the arm's question, and the arm itself rests nothing on a symbol whose tick does not parse. Admitting the entry anyway would create exactly the unguardable position this gate exists to prevent. Reported as unreadable filters and not as the notional floor, because the floor was never computed: the operator who reads "too small to sell" raises the budget, and no budget clears an unparseable price grid.
+  if (tick === undefined || tick.lte(0)) return { skip: ENTRY_INVALID_FILTERS };
   const trigger = roundToTick(price.mul(ONE.minus(stop.distanceFraction)), tick);
   const stopPrice = roundToTick(trigger.mul(stop.limitOffset), tick);
   const floor = minSellableQuantityAtStop(filters, stopPrice);
-  if (floor === null) return { skip: ENTRY_BELOW_STOP_NOTIONAL };
+  // Same distinction: a stop price that quantises to zero or below yields no floor to compare against, so there is no quantity this could be reported as being under.
+  if (floor === null) return { skip: ENTRY_INVALID_FILTERS };
   if (quantity.gte(floor)) return { quantity };
   return { skip: ENTRY_BELOW_STOP_NOTIONAL };
 };
