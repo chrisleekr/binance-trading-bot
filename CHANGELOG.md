@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.4.0...v1.5.0) (2026-09-08)
+
+
+### Features
+
+* **risk:** add loss-streak and drawdown entry breakers beside daily loss ([#777](https://github.com/chrisleekr/binance-trading-bot/issues/777)) ([147f6db](https://github.com/chrisleekr/binance-trading-bot/commit/147f6dbb438d4f6785712da1abc04191e1069515))
+* **web:** rebuild trade history around fee-valued statistics ([#779](https://github.com/chrisleekr/binance-trading-bot/issues/779)) ([8f0b10a](https://github.com/chrisleekr/binance-trading-bot/commit/8f0b10afcef9b3ea7e67de0a51440157df373ac0))
+* **worker:** add a replace-order decision backed by Binance cancelReplace ([#775](https://github.com/chrisleekr/binance-trading-bot/issues/775)) ([6724972](https://github.com/chrisleekr/binance-trading-bot/commit/6724972c4a6572c55a6487087699a006b093276d))
+* **worker:** alert when a held position has no protective stop resting ([#778](https://github.com/chrisleekr/binance-trading-bot/issues/778)) ([1df9d8d](https://github.com/chrisleekr/binance-trading-bot/commit/1df9d8d9c9620546cbcdb138ae4e144174420fe7))
+
+
+### Bug Fixes
+
+* **strategy:** judge the exchange minimum at the stop's own price ([#776](https://github.com/chrisleekr/binance-trading-bot/issues/776)) ([13ba264](https://github.com/chrisleekr/binance-trading-bot/commit/13ba2642a8af448c78b235b0441c6ec0afe60e99))
+* **worker:** prove who placed an order before adopting its fill ([#774](https://github.com/chrisleekr/binance-trading-bot/issues/774)) ([d9d85d5](https://github.com/chrisleekr/binance-trading-bot/commit/d9d85d580a037933a1286a865ae07757fa16d925))
+
 ## [1.4.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.3.0...v1.4.0) (2026-08-30)
 
 
