@@ -12,10 +12,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "~0.124.0",
+    "@anthropic-ai/sdk": "~0.126.0",
     "@app/contracts": "workspace:*",
     "@app/strategy-core": "workspace:*",
     "@toon-format/toon": "~4.1.1",
-    "zod": "~4.5.4"
+    "zod": "~4.6.5"
   }
 }

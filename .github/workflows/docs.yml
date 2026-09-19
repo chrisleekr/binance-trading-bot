@@ -34,7 +34,7 @@ jobs:
 
       # Pinned to a full version: astral-sh/setup-uv stopped publishing the
       # moving `vN` major tag after v7, so no `@vN` major tag resolves.
-      - uses: astral-sh/setup-uv@v10.0.1
+      - uses: astral-sh/setup-uv@v10.1.0
         with:
           enable-cache: true
 
