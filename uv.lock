@@ -59,7 +59,7 @@ docs = [
 docs = [
     { name = "mkdocs", specifier = ">=1.6.1,<2" },
     { name = "mkdocs-awesome-pages-plugin", specifier = ">=2.10.1,<3" },
-    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.5.4,<2" },
+    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.6.0,<2" },
     { name = "mkdocs-glightbox", specifier = ">=0.5.2,<1" },
     { name = "mkdocs-material", specifier = ">=9.7.7,<10" },
     { name = "mkdocs-mermaid2-plugin", specifier = ">=1.2.3,<2" },
@@ -376,17 +376,18 @@ wheels = [
 
 [[package]]
 name = "mkdocs-git-revision-date-localized-plugin"
-version = "1.5.4"
+version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "babel" },
     { name = "gitpython" },
     { name = "mkdocs" },
+    { name = "packaging" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/06/43/7c2f67a2ab0f9d2627d52a5a0a12b4206e4468a109ae7a091eeeb45f6825/mkdocs_git_revision_date_localized_plugin-1.5.4.tar.gz", hash = "sha256:07a785522008e881ff4c307e3259ad3ce00931b2d2147a22cdfbb532ff25e4ab", size = 452896, upload-time = "2026-08-21T06:54:47.302Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f1/a7/ded2f0e2321213862225f9f657a51493af8f92626e3dd0a02ce9ef9b1131/mkdocs_git_revision_date_localized_plugin-1.6.0.tar.gz", hash = "sha256:469af4b344a4d493a6402aa92eec87a6138e1dac444e9551c1af06991453954b", size = 36957, upload-time = "2026-09-14T12:57:04.84Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0c/7c/a19cdb6e1c6f033cd35df847688f99c4f9b80b626fad87483f2069a6dc5a/mkdocs_git_revision_date_localized_plugin-1.5.4-py3-none-any.whl", hash = "sha256:b5e6b4b9e7d169750b6eb078fd91151bc855e65c019a065accce537ec6e69e05", size = 26155, upload-time = "2026-08-21T06:54:45.673Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/f7/d4aeef9f48150900634e7f864b076038e69014fb3ae4e515035803bca561/mkdocs_git_revision_date_localized_plugin-1.6.0-py3-none-any.whl", hash = "sha256:88b2d524d24c49a05cd6c9b1456f7dc0c8fa5e233b09ecf8a1dd12aebc127990", size = 27966, upload-time = "2026-09-14T12:57:03.607Z" },
 ]
 
 [[package]]
