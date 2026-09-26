@@ -42,19 +42,19 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@commitlint/cli": "~21.2.2",
-    "@commitlint/config-conventional": "~21.2.2",
+    "@commitlint/cli": "~21.2.3",
+    "@commitlint/config-conventional": "~21.2.3",
     "@types/bun": "1.4.2",
-    "@vitest/coverage-v8": "~5.0.0",
+    "@vitest/coverage-v8": "~5.0.1",
     "branch-name-lint": "~3.0.1",
     "husky": "~9.1.7",
-    "lint-staged": "~17.5.0",
-    "oxlint": "1.81.0",
-    "prettier": "~3.9.6",
+    "lint-staged": "~17.5.1",
+    "oxlint": "1.85.0",
+    "prettier": "~3.9.9",
     "prettier-plugin-tailwindcss": "~0.8.1",
-    "turbo": "^2.10.12",
+    "turbo": "^2.11.3",
     "typescript": "~7.0.2",
-    "vitest": "~5.0.0"
+    "vitest": "~5.0.1"
   },
   "dependencies": {
     "@app/api": "workspace:*",
@@ -67,6 +67,6 @@
     "@app/strategy-core": "workspace:*",
     "@app/strategy-registry": "workspace:*",
     "@app/strategy-trailing-trade": "workspace:*",
-    "drizzle-orm": "~0.45.2"
+    "drizzle-orm": "~0.45.3"
   }
 }
