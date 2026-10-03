@@ -706,6 +706,96 @@ groups:
           summary: 'Binance user-data stream reconnecting repeatedly on account {{ $labels.accountId }}'
           description: "More than five unrequested Binance websocket closes in fifteen minutes on account {{ $labels.accountId }}. The pool reconnects each time, but balance and order updates are stale for the gap and the worker falls back on REST reconciliation. Check that account's network egress and the worker logs for the close reason and code."
 
+  # Sign-in and security. The api emits every series here except auth_alert_undelivered_total, which the worker emits. These rules reach the operator out of band, so they still fire when an intruder has removed every notifier or the notifier transport is down.
+  - name: binance-trading-bot.auth
+    interval: 30s
+    rules:
+      - alert: AuthSignInFailureSpike
+        # Failed password and single sign-on attempts across every address. The rate limits refuse most of a guessing attack before the password is even checked, so a sustained count here means attempts are getting through to the check at volume, from many addresses.
+        expr: sum(increase(auth_events_total{event="sign-in-failed"}[15m])) > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'More than 20 failed sign-ins in 15 minutes'
+          description: 'Someone is repeatedly failing to sign in. Open Settings > Security to see the addresses and reasons. If you do not recognise them, turn password sign-in off (PASSWORD_SIGN_IN_ENABLED=0) and use single sign-on, or restrict /api/auth/ by address at your proxy.'
+
+      - alert: AuthAccountLocked
+        # Unlabelled counter, present at zero from process start, so the first lockout is an observable rise.
+        expr: increase(auth_lockouts_total[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Password sign-in was locked after repeated failures'
+          description: 'Too many wrong passwords were tried for one email address, so password sign-in for it is locked for the configured period. A device that signed in successfully before is exempt. If the operator is locked out, run `docker compose run --rm app bun /app/dist/reset-password.js --email <email> --clear-lockout` on the server.'
+
+      - alert: AuthRateLimitBackendDown
+        # Every limit decision that could not reach Redis. The api falls back to a stricter per-process limiter rather than refusing everyone, so sign-in keeps working, but limits are no longer shared between api replicas.
+        expr: increase(auth_rate_limit_backend_errors_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Sign-in rate limits cannot reach Redis'
+          description: 'Rate limit decisions are falling back to an in-process limiter because Redis is unreachable from the api. Limits still apply, stricter than normal: each replica enforces half of every allowance on its own. Check Redis health; the trading queue shares it.'
+
+      - alert: SingleSignOnUnavailable
+        # Present only when single sign-on is configured. 0 means the identity provider failed the check the api runs when it starts, so the sign-in button is disabled; the api re-checks every five minutes and exits once the provider answers, relying on the container restart policy to start it again. A provider that fails after a healthy start is not re-checked here: its sign-ins fail at the provider, and AuthSignInFailureSpike or the Security page shows them.
+        expr: auth_single_sign_on_available == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Single sign-on is unavailable'
+          description: 'The identity provider could not be reached or its discovery document did not match SINGLE_SIGN_ON_ISSUER_URL, so single sign-on is disabled. If password sign-in is off, the api switched it back on for this run so the operator is not locked out. Check the api logs for single_sign_on_unavailable_at_boot, which carries the reason. The api process (with the worker, under ROLE=all) exits once the provider answers again and comes back only if its container has a restart policy such as restart: unless-stopped.'
+
+      - alert: AuthEventSinkFailing
+        # A security event that could not be written to the audit trail or queued for notification. Seeded at zero per sink, so the first failure counts.
+        expr: sum by (sink) (increase(auth_event_sink_failures_total[15m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Security events are not being recorded ({{ $labels.sink }})'
+          description: 'The api could not write security events to {{ $labels.sink }}. Sign-ins, lockouts and credential changes are still logged, but may be missing from Settings > Security or from notifications. Check the api logs for security_event_sink_failed.'
+
+      - alert: AuthAlertUndelivered
+        # Emitted by the worker, which delivers security notifications. Seeded at zero for every category and outcome when the pipeline worker starts.
+        expr: sum by (category, outcome) (increase(auth_alert_undelivered_total[15m])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: 'A security notification reached nobody ({{ $labels.category }}, {{ $labels.outcome }})'
+          description: 'The worker could not deliver a security notification: no-notifier means none is configured or enabled, failed means every notifier errored. An intruder removing notifiers looks exactly like this. Open Settings > Security to see the event, and check the notifier configuration.'
+
+      - alert: AgentTokenRejectedSpike
+        # Presented agent tokens that failed verification or were issued before an access revocation. Routine expiry produces a few of these per hour as agents refresh, so only a sustained volume is alerted.
+        expr: sum(increase(auth_events_total{event="agent-authentication-failed"}[15m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'AI agent endpoint is rejecting many tokens'
+          description: 'More than 30 refused agent tokens in 15 minutes. An agent retrying a revoked token looks like this, and so does someone trying forged tokens. Check Settings > Security for the addresses, and revoke agent access if you do not recognise them.'
+
+      - alert: ApiRequestFlood
+        # Requests refused by the pre-session flood limit, before any database work.
+        expr: sum(rate(auth_rate_limited_total{limit=~"anonymous_api|signed_in_api"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'The api is refusing more than one request per second as a flood'
+          description: 'One or more addresses are sending more api requests than the configured per-minute allowance. The api is refusing them cheaply, but a volumetric attack must be stopped at the proxy; see docs/operations/sign-in-and-security.md, "Protecting against floods".'
+
+      - alert: PasswordCheckSaturated
+        # Password checks refused because every hashing slot and the short wait queue were full. Seeded at zero per limit.
+        expr: sum(increase(auth_rate_limited_total{limit="password_check_capacity"}[10m])) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Password checks are being refused for lack of capacity'
+          description: 'More password checks arrived at once than the configured concurrent limit and wait queue allow, which a distributed sign-in flood causes. Legitimate sign-ins may be refused with a retry time. Consider turning password sign-in off behind single sign-on, or blocking the sources at your proxy.'
+
 # NO ALERT COVERAGE TODAY.
 #
 # Two gaps, both for want of a series rather than for want of a threshold.

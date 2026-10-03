@@ -120,7 +120,7 @@ docker compose exec app bun /app/dist/migrate.js
 
 ### 7. Open the URL — first-run onboarding
 
-Browse to `WEB_ORIGIN`. The first-run UI prompts you to create the master account (Better Auth, argon2id, no email). Once an account exists, subsequent visits to `/onboarding` redirect to the login page; password recovery requires the operator-side `bun run reset-password` CLI documented below.
+Browse to `WEB_ORIGIN`. The first-run UI prompts you to create the master account, with a password or through single sign-on if it is configured (see Sign-in and security in the docs). Once an account exists, subsequent visits to `/onboarding` redirect to the login page; password recovery requires the operator-side reset command documented below.
 
 ### 8. IP-allowlist your Binance API key
 
@@ -171,6 +171,11 @@ If the operator already runs an nginx or Traefik on the host:
 **nginx fragment:**
 
 ```nginx
+# These three lines belong in the `http { }` block; nginx refuses zone definitions inside `server`.
+limit_conn_zone $binary_remote_addr zone=per_address_connections:10m;
+limit_req_zone  $binary_remote_addr zone=per_address_requests:10m rate=20r/s;
+limit_req_zone  $binary_remote_addr zone=per_address_sign_in:10m  rate=10r/m;
+
 server {
   listen 443 ssl http2;
   server_name binance-trading-bot.example.com;
@@ -178,6 +183,37 @@ server {
   ssl_certificate_key /etc/letsencrypt/live/binance-trading-bot.example.com/privkey.pem;
 
   add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+  # Cheapest refusal first: a flood stopped here never reaches the app. The app keeps its own per-address limits behind these.
+  limit_conn           per_address_connections 30;
+  limit_req            zone=per_address_requests burst=40 nodelay;
+  limit_conn_status    429;
+  limit_req_status     429;
+  client_header_timeout 10s;
+  client_body_timeout   10s;
+  send_timeout          30s;
+  client_max_body_size  1m;
+
+  # Backup restore uploads a whole database dump; the app caps it at 2 GiB behind sign-in.
+  location = /api/restore {
+    client_max_body_size 2g;
+    proxy_pass         http://127.0.0.1:80;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto https;
+    proxy_read_timeout 300s;
+  }
+
+  # Password sign-in, the single sign-on round trip and agent authorization get a much smaller budget. Other `/api/auth/` routes (the session check every page load makes) stay on the general budget.
+  location ~ ^/api/auth/(sign-in/|sign-up$|single-sign-on/start$|callback/|oauth2/) {
+    limit_req          zone=per_address_sign_in burst=5 nodelay;
+    proxy_pass         http://127.0.0.1:80;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto https;
+  }
 
   location / {
     # The `app` service, published on the host at APP_HTTP_PORT (prod default 80).
@@ -342,8 +378,11 @@ docker compose logs -f app
 # Run a one-shot backup
 docker compose run --rm backup
 
-# Reset the master password (offline)
-docker compose run --rm app bun run reset-password
+# Reset the master password (prints a new one, signs out every browser and AI agent)
+docker compose run --rm app bun /app/dist/reset-password.js --email <email>
+
+# Lift a sign-in lockout without changing the password
+docker compose run --rm app bun /app/dist/reset-password.js --email <email> --clear-lockout
 
 # Re-run DB migrations manually (they also run on boot via the entrypoint)
 docker compose exec app bun /app/dist/migrate.js

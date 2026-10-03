@@ -59,11 +59,12 @@ describe('OnboardingPage', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders the lost-password warning referencing `bun run reset-password`', async () => {
+  it('renders the lost-password warning with the command the production image can actually run', async () => {
     setUp(() => json({}, 200));
     const warning = await screen.findByTestId('onboarding-warning');
-    expect(warning.textContent ?? '').toContain('bun run reset-password');
-    expect(warning.textContent ?? '').toContain('host');
+    // The production image ships no package.json, so a `bun run` script name cannot resolve there; only the bundled file path works.
+    expect(warning.textContent ?? '').toContain('/app/dist/reset-password.js');
+    expect(warning.textContent ?? '').not.toContain('bun run reset-password');
   });
 
   it('shows the 12-character password requirement inline before any submit', async () => {

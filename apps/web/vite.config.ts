@@ -90,6 +90,8 @@ export default defineConfig({
         target: process.env['API_PROXY_TARGET'] ?? 'http://localhost:3000',
         changeOrigin: true,
         ws: true,
+        // The API trusts the rightmost X-Forwarded-For hop, as it would behind the production proxy. Without this every dev request is keyed as `unknown`, so all local browsers share one sign-in limit and the Security page shows no addresses.
+        xfwd: true,
         // A slow upstream response (http-proxy's shorter default drops the
         // socket mid-call, so the browser 500s while the API still returns 200)
         // gets generous headroom on both the upstream response (proxyTimeout)
@@ -98,6 +100,12 @@ export default defineConfig({
         // Dev-only; production fronts the API with its own edge.
         timeout: 180_000,
         proxyTimeout: 180_000,
+      },
+      // MCP clients look up the OAuth discovery documents at the origin root (RFC 9728, RFC 8414), not under /api. PUBLIC_BASE_URL is this origin in dev, so without this they receive the SPA's index.html and never find the authorization server.
+      '/.well-known': {
+        target: process.env['API_PROXY_TARGET'] ?? 'http://localhost:3000',
+        changeOrigin: true,
+        xfwd: true,
       },
     },
   },

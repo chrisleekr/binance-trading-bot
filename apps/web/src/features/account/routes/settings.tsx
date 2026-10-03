@@ -9,7 +9,7 @@
 // wrong guess there is a link into the void.
 
 import type { ChangePasswordRequest } from '@app/contracts';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createRoute, Outlet, useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 import { z } from 'zod';
@@ -29,6 +29,8 @@ import { AiProviderCard } from '@/features/account/components/ai-provider-card';
 import { OpsHealthPanel } from '@/features/account/components/ops-health-panel';
 import { RetentionSettingsCard } from '@/features/account/components/retention-settings-card';
 import { rootRoute } from '@/app/__root';
+import { fetchSession, securityQueryKeys } from '@/features/account/api/security';
+import { onboardingStatusQueryOptions } from '@/features/auth/api/auth';
 import { Select } from '@/shared/components/ui/select';
 
 const EmptyResponse = z.unknown();
@@ -59,6 +61,13 @@ function SettingsPage(): React.JSX.Element {
   const queryClient = useQueryClient();
 
   const timezone = useTimezone();
+  // Changing a password only makes sense when there is one and password sign-in is on; an operator who signs in only with single sign-on adds one from the Security page instead.
+  const { data: session } = useQuery({
+    queryKey: securityQueryKeys.session,
+    queryFn: fetchSession,
+  });
+  const { data: status } = useQuery(onboardingStatusQueryOptions);
+  const canChangePassword = session?.hasPassword !== false && status?.passwordSignIn !== false;
   const [tzBanner, setTzBanner] = useState<ActionBannerState | null>(null);
   const [tzSubmitting, setTzSubmitting] = useState(false);
 
@@ -181,6 +190,11 @@ function SettingsPage(): React.JSX.Element {
       <Panel title="Shortcuts">
         <nav className="grid gap-2">
           <NavCard
+            to="/settings/security"
+            title="Security"
+            description="Sign-in methods, signed-in browsers, AI agent access, sign-in limits and security activity."
+          />
+          <NavCard
             to="/settings/backup-restore"
             title="Backup & restore"
             description="Export the whole configuration or restore it from a backup."
@@ -188,56 +202,58 @@ function SettingsPage(): React.JSX.Element {
         </nav>
       </Panel>
 
-      <Panel title="Change password">
-        <form onSubmit={onChangePassword} className="space-y-3">
-          <div className="space-y-1">
-            <Label htmlFor="account-old-password">Current password</Label>
-            <Input
-              id="account-old-password"
-              type="password"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-              autoComplete="current-password"
-            />
-            {errors.oldPassword ? (
-              <p className="text-sm text-danger">{errors.oldPassword}</p>
-            ) : null}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="account-new-password">New password</Label>
-            <Input
-              id="account-new-password"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-            {errors.newPassword ? (
-              <p className="text-sm text-danger">{errors.newPassword}</p>
-            ) : null}
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="account-confirm-password">Confirm new password</Label>
-            <Input
-              id="account-confirm-password"
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              autoComplete="new-password"
-            />
-            {errors.confirm ? <p className="text-sm text-danger">{errors.confirm}</p> : null}
-          </div>
-          <ActionBanner banner={pwBanner} />
-          <Button
-            type="submit"
-            variant="default"
-            disabled={pwSubmitting}
-            className="w-full sm:w-56"
-          >
-            {pwSubmitting ? 'Updating…' : 'Update password'}
-          </Button>
-        </form>
-      </Panel>
+      {canChangePassword && (
+        <Panel title="Change password">
+          <form onSubmit={onChangePassword} className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="account-old-password">Current password</Label>
+              <Input
+                id="account-old-password"
+                type="password"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+              {errors.oldPassword ? (
+                <p className="text-sm text-danger">{errors.oldPassword}</p>
+              ) : null}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="account-new-password">New password</Label>
+              <Input
+                id="account-new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                autoComplete="new-password"
+              />
+              {errors.newPassword ? (
+                <p className="text-sm text-danger">{errors.newPassword}</p>
+              ) : null}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="account-confirm-password">Confirm new password</Label>
+              <Input
+                id="account-confirm-password"
+                type="password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                autoComplete="new-password"
+              />
+              {errors.confirm ? <p className="text-sm text-danger">{errors.confirm}</p> : null}
+            </div>
+            <ActionBanner banner={pwBanner} />
+            <Button
+              type="submit"
+              variant="default"
+              disabled={pwSubmitting}
+              className="w-full sm:w-56"
+            >
+              {pwSubmitting ? 'Updating…' : 'Update password'}
+            </Button>
+          </form>
+        </Panel>
+      )}
 
       <Panel title="Session">
         <div className="space-y-3">

@@ -33,5 +33,5 @@ Account-level surfaces shared by every profile on the account — see [Account](
 
 Operator-login settings that apply no matter which account is in view:
 
-- **[Settings](system/settings.md)** — timezone, password, and operator-global panels.
+- **[Settings](system/settings.md)** — timezone, password, sign-in security, and operator-global panels.
 - **[Backup & restore](system/backup-restore.md)** — export or restore the whole configuration.

@@ -188,6 +188,17 @@ describe('useProfileSocket — lifecycle', () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
+  it('stays closed on 4409 instead of reconnecting and evicting another tab', () => {
+    const { result } = renderHook(() =>
+      useProfileSocket({ profileId: 'p1', url: () => 'ws://x', socketFactory: factory, clock }),
+    );
+    act(() => firstSocket().open());
+    act(() => firstSocket().closeServer(4409));
+    expect(result.current.status).toBe('closed');
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
   it('fires onResyncRequired on the resync-required topic', () => {
     const onResyncRequired = vi.fn();
     renderHook(() =>

@@ -348,3 +348,178 @@ tests:
       - eval_time: 240m
         alertname: ReconcileValueBoundDisarmed
         exp_alerts: []
+    # Auth: one lockout on an unlabelled counter that exists at zero from process start; fires, then clears once the window has passed it.
+  - interval: 1m
+    input_series:
+      - series: auth_lockouts_total
+        values: 0x10 1+0x60
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: AuthAccountLocked
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: 'Password sign-in was locked after repeated failures'
+              description: 'Too many wrong passwords were tried for one email address, so password sign-in for it is locked for the configured period. A device that signed in successfully before is exempt. If the operator is locked out, run `docker compose run --rm app bun /app/dist/reset-password.js --email <email> --clear-lockout` on the server.'
+      - eval_time: 40m
+        alertname: AuthAccountLocked
+        exp_alerts: []
+    # Auth: the worker seeds the undelivered counter at zero, so a single missed security notification is a rise increase() can see. Clears after the window.
+  - interval: 1m
+    input_series:
+      - series: auth_alert_undelivered_total{category="auth-alert",outcome="no-notifier"}
+        values: 0x10 1+0x60
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: AuthAlertUndelivered
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: auth-alert
+              outcome: no-notifier
+            exp_annotations:
+              summary: 'A security notification reached nobody (auth-alert, no-notifier)'
+              description: 'The worker could not deliver a security notification: no-notifier means none is configured or enabled, failed means every notifier errored. An intruder removing notifiers looks exactly like this. Open Settings > Security to see the event, and check the notifier configuration.'
+      - eval_time: 45m
+        alertname: AuthAlertUndelivered
+        exp_alerts: []
+    # Auth: a failed audit write, seeded at zero per sink.
+  - interval: 1m
+    input_series:
+      - series: auth_event_sink_failures_total{sink="audit"}
+        values: 0x10 1+0x60
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: AuthEventSinkFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              sink: audit
+            exp_annotations:
+              summary: 'Security events are not being recorded (audit)'
+              description: 'The api could not write security events to audit. Sign-ins, lockouts and credential changes are still logged, but may be missing from Settings > Security or from notifications. Check the api logs for security_event_sink_failed.'
+      - eval_time: 45m
+        alertname: AuthEventSinkFailing
+        exp_alerts: []
+    # Auth: Redis unreachable from the limiter for longer than the 2m hold.
+  - interval: 1m
+    input_series:
+      - series: auth_rate_limit_backend_errors_total
+        values: 0x5 1+1x20 21+0x60
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: AuthRateLimitBackendDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: 'Sign-in rate limits cannot reach Redis'
+              description: 'Rate limit decisions are falling back to an in-process limiter because Redis is unreachable from the api. Limits still apply, stricter than normal: each replica enforces half of every allowance on its own. Check Redis health; the trading queue shares it.'
+      - eval_time: 45m
+        alertname: AuthRateLimitBackendDown
+        exp_alerts: []
+    # Auth: identity provider unavailable for longer than 10m; recovery clears it.
+  - interval: 1m
+    input_series:
+      - series: auth_single_sign_on_available
+        values: 0x20 1x20
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SingleSignOnUnavailable
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: 'Single sign-on is unavailable'
+              description: 'The identity provider could not be reached or its discovery document did not match SINGLE_SIGN_ON_ISSUER_URL, so single sign-on is disabled. If password sign-in is off, the api switched it back on for this run so the operator is not locked out. Check the api logs for single_sign_on_unavailable_at_boot, which carries the reason. The api exits once the provider answers again and comes back only if its container has a restart policy such as restart: unless-stopped.'
+      - eval_time: 30m
+        alertname: SingleSignOnUnavailable
+        exp_alerts: []
+    # Auth: 3 failed sign-ins a minute, spread over two reasons, is above 20 in 15 minutes once sustained for 5m.
+  - interval: 1m
+    input_series:
+      - series: auth_events_total{event="sign-in-failed",method="password",outcome="failure",reason="invalid_credentials"}
+        values: 0+2x40
+      - series: auth_events_total{event="sign-in-failed",method="singleSignOn",outcome="failure",reason="access_denied"}
+        values: 0+1x40
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: AuthSignInFailureSpike
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: 'More than 20 failed sign-ins in 15 minutes'
+              description: 'Someone is repeatedly failing to sign in. Open Settings > Security to see the addresses and reasons. If you do not recognise them, turn password sign-in off (PASSWORD_SIGN_IN_ENABLED=0) and use single sign-on, or restrict /api/auth/ by address at your proxy.'
+    # Auth: sustained refused agent tokens.
+  - interval: 1m
+    input_series:
+      - series: auth_events_total{event="agent-authentication-failed",method="agent",outcome="failure",reason="invalid_credentials"}
+        values: 0+3x40
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: AgentTokenRejectedSpike
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: 'AI agent endpoint is rejecting many tokens'
+              description: 'More than 30 refused agent tokens in 15 minutes. An agent retrying a revoked token looks like this, and so does someone trying forged tokens. Check Settings > Security for the addresses, and revoke agent access if you do not recognise them.'
+    # Auth: 120 refusals a minute from the flood limit is 2 per second, held for 5m.
+  - interval: 1m
+    input_series:
+      - series: auth_rate_limited_total{limit="anonymous_api"}
+        values: 0+120x30
+      - series: auth_rate_limited_total{limit="signed_in_api"}
+        values: 0x30
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ApiRequestFlood
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: 'The api is refusing more than one request per second as a flood'
+              description: 'An address is sending more api requests than the configured per-minute allowance. The api is refusing them cheaply, but a volumetric attack must be stopped at the proxy; see docs/operations/sign-in-and-security.md, "Protecting against floods".'
+    # Auth: password checks refused for capacity, seeded at zero per limit.
+  - interval: 1m
+    input_series:
+      - series: auth_rate_limited_total{limit="password_check_capacity"}
+        values: 0x10 1+0x60
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PasswordCheckSaturated
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: 'Password checks are being refused for lack of capacity'
+              description: 'More password checks arrived at once than the configured concurrent limit and wait queue allow, which a distributed sign-in flood causes. Legitimate sign-ins may be refused with a retry time. Consider turning password sign-in off behind single sign-on, or blocking the sources at your proxy.'
+      - eval_time: 40m
+        alertname: PasswordCheckSaturated
+        exp_alerts: []
+    # Auth negatives. Routine volume stays quiet: a handful of failed sign-ins and occasional refused agent tokens (expiry looks the same), and a flood limit tripping briefly.
+  - interval: 1m
+    input_series:
+      - series: auth_events_total{event="sign-in-failed",method="password",outcome="failure",reason="invalid_credentials"}
+        values: 0+1x60
+      - series: auth_events_total{event="agent-authentication-failed",method="agent",outcome="failure",reason="invalid_credentials"}
+        values: 0+1x60
+      - series: auth_rate_limited_total{limit="anonymous_api"}
+        values: 0x10 0+30x60
+      - series: auth_single_sign_on_available
+        values: 1x60
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: AuthSignInFailureSpike
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: AgentTokenRejectedSpike
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: ApiRequestFlood
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: SingleSignOnUnavailable
+        exp_alerts: []

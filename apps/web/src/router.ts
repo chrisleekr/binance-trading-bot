@@ -6,6 +6,7 @@ import { accountNewRoute } from '@/features/account/routes/account.new';
 import { accountScopeRoute } from '@/features/account/routes/account-scope';
 import { apiKeyRoute } from '@/features/account/routes/account.api-key';
 import { backupRestoreRoute } from '@/features/account/routes/settings.backup-restore';
+import { securityRoute } from '@/features/account/routes/settings.security';
 import { dustTransferRoute } from '@/features/account/routes/account.dust-transfer';
 import { orphanOrdersRoute } from '@/features/account/routes/account.orphan-orders';
 import { accountSettingsRoute } from '@/features/account/routes/account.settings';
@@ -71,7 +72,7 @@ const routeTree = rootRoute.addChildren([
     ]),
   ]),
   accountRoute,
-  settingsRoute.addChildren([settingsIndexRoute, backupRestoreRoute]),
+  settingsRoute.addChildren([settingsIndexRoute, backupRestoreRoute, securityRoute]),
 ]);
 
 // Context's queryClient is wired in main.tsx via router.update; the placeholder

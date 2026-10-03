@@ -754,12 +754,17 @@ const mountedOperations = async (definitions: readonly ApiOperation[]): Promise<
   const { mountApiRouters } = await import(
     pathToFileURL(join(repoRoot, 'apps/api/src/routes/mount.ts')).href
   );
+  // Mounted beside mountApiRouters in app.ts rather than through it, so it is added here explicitly; without it every web call to /api/auth reads as unresolved.
+  const { authRouter } = await import(
+    pathToFileURL(join(repoRoot, 'apps/api/src/routes/auth.ts')).href
+  );
   const { OPENAPI_DOC } = await import(
     pathToFileURL(join(repoRoot, 'apps/api/src/routes/docs.ts')).href
   );
   const app = createApiHono();
   // Router factories capture DI in handlers but do not read it while registering routes, so Reflect.apply supplies an inert runtime value without weakening the production signature.
   Reflect.apply(mountApiRouters, undefined, [app, Object.freeze({})]);
+  app.route('/api/auth', Reflect.apply(authRouter, undefined, [Object.freeze({})]));
   const document = app.getOpenAPI31Document(OPENAPI_DOC);
   const operations: ApiOperation[] = [];
   for (const [path, item] of Object.entries(document.paths ?? {})) {
@@ -809,7 +814,11 @@ const apiFiles = collectOrExit({
   roots: [
     {
       name: 'apps/api/src/routes',
-      anchors: ['apps/api/src/routes/mount.ts', 'apps/api/src/routes/docs.ts'],
+      anchors: [
+        'apps/api/src/routes/mount.ts',
+        'apps/api/src/routes/docs.ts',
+        'apps/api/src/routes/auth.ts',
+      ],
     },
   ],
 }).sort();

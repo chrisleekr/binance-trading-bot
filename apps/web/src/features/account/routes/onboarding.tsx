@@ -1,5 +1,5 @@
-import { SignUpRequest } from '@app/contracts';
-import { useQueryClient } from '@tanstack/react-query';
+import { SignUpRequest, type OnboardingStatus } from '@app/contracts';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createRoute, useRouter } from '@tanstack/react-router';
 import { useState } from 'react';
 
@@ -9,8 +9,11 @@ import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { ApiError, RateLimitedError, ValidationFailedError } from '@/shared/lib/api';
 import { t } from '@/shared/lib/i18n';
-import { signUp } from '@/features/auth/api/auth-mutations';
-import { ONBOARDING_STATUS_QUERY_KEY } from '@/features/auth/api/auth';
+import { signUp, startSingleSignOn } from '@/features/auth/api/auth-mutations';
+import {
+  ONBOARDING_STATUS_QUERY_KEY,
+  onboardingStatusQueryOptions,
+} from '@/features/auth/api/auth';
 import { rootRoute } from '@/app/__root';
 
 interface FieldErrors {
@@ -22,10 +25,36 @@ interface FieldErrors {
 function OnboardingPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { data: status } = useQuery(onboardingStatusQueryOptions);
+  const passwordSignIn = status?.passwordSignIn !== false;
+  const singleSignOn = status?.singleSignOn ?? null;
+  // Marks onboarding done without discarding the sign-in methods the page and the login screen read from the same entry.
+  const markOnboarded = (): void => {
+    queryClient.setQueryData<OnboardingStatus>(ONBOARDING_STATUS_QUERY_KEY, (current) =>
+      current === undefined ? current : { ...current, masterExists: true },
+    );
+    void queryClient.invalidateQueries({ queryKey: ONBOARDING_STATUS_QUERY_KEY });
+  };
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const onSingleSignOn = async (): Promise<void> => {
+    setErrors({});
+    setSubmitting(true);
+    try {
+      const { url } = await startSingleSignOn({ returnTo: '/' });
+      window.location.href = url;
+    } catch (cause) {
+      setSubmitting(false);
+      setErrors({
+        form:
+          cause instanceof RateLimitedError
+            ? t('login.error.rate_limited.no_retry')
+            : t('login.error.single_sign_on_failed'),
+      });
+    }
+  };
 
   const onSubmit = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -47,14 +76,14 @@ function OnboardingPage() {
     setSubmitting(true);
     try {
       await signUp(parsed.data);
-      queryClient.setQueryData(ONBOARDING_STATUS_QUERY_KEY, { masterExists: true });
+      markOnboarded();
       // Sign-up already established a session (Better Auth autoSignIn), so land
       // on the app directly instead of forcing a re-login with the same
       // credentials. `/` redirects to the auto-seeded account dashboard.
       await router.navigate({ to: '/' });
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === 'ONBOARDING_CLOSED') {
-        queryClient.setQueryData(ONBOARDING_STATUS_QUERY_KEY, { masterExists: true });
+        markOnboarded();
         setErrors({ form: t('onboarding.error.closed') });
         await router.navigate({ to: '/login' });
         return;
@@ -86,68 +115,96 @@ function OnboardingPage() {
         <AlertDescription>{t('onboarding.warning.body')}</AlertDescription>
       </Alert>
 
-      <form noValidate className="space-y-4" onSubmit={onSubmit}>
+      {singleSignOn !== null && (
         <div className="space-y-2">
-          <Label htmlFor="onboarding-email">{t('auth.field.email')}</Label>
-          <Input
-            id="onboarding-email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            placeholder={t('auth.field.email.placeholder')}
-            disabled={submitting}
-            onChange={(e) => setEmail(e.target.value)}
-            aria-invalid={!!errors.email}
-            aria-describedby={errors.email ? 'onboarding-email-error' : undefined}
-          />
-          {errors.email && (
-            <p id="onboarding-email-error" className="text-sm text-danger">
-              {errors.email}
-            </p>
-          )}
+          <Button
+            type="button"
+            variant={passwordSignIn ? 'outline' : 'primary'}
+            className="w-full"
+            disabled={submitting || !singleSignOn.available}
+            onClick={() => void onSingleSignOn()}
+            data-testid="onboarding-single-sign-on"
+          >
+            {singleSignOn.buttonLabel}
+          </Button>
+          <p className="text-sm text-muted-fg">
+            {singleSignOn.available
+              ? t('onboarding.single_sign_on.help')
+              : t('login.single_sign_on.unavailable')}
+          </p>
         </div>
+      )}
 
-        <div className="space-y-2">
-          <Label htmlFor="onboarding-password">{t('auth.field.password')}</Label>
-          <Input
-            id="onboarding-password"
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={12}
-            value={password}
-            placeholder={t('auth.field.password.placeholder')}
-            disabled={submitting}
-            onChange={(e) => setPassword(e.target.value)}
-            aria-invalid={!!errors.password}
-            aria-describedby={
-              errors.password ? 'onboarding-password-error' : 'onboarding-password-help'
-            }
-          />
-          {errors.password ? (
-            <p id="onboarding-password-error" className="text-sm text-danger">
-              {errors.password}
-            </p>
-          ) : (
-            <p id="onboarding-password-help" className="text-sm text-muted-fg">
-              {t('auth.field.password.help')}
-            </p>
+      {!passwordSignIn && errors.form && (
+        <Alert variant="danger" data-testid="onboarding-form-error">
+          <AlertDescription>{errors.form}</AlertDescription>
+        </Alert>
+      )}
+
+      {passwordSignIn && (
+        <form noValidate className="space-y-4" onSubmit={onSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="onboarding-email">{t('auth.field.email')}</Label>
+            <Input
+              id="onboarding-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              placeholder={t('auth.field.email.placeholder')}
+              disabled={submitting}
+              onChange={(e) => setEmail(e.target.value)}
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? 'onboarding-email-error' : undefined}
+            />
+            {errors.email && (
+              <p id="onboarding-email-error" className="text-sm text-danger">
+                {errors.email}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="onboarding-password">{t('auth.field.password')}</Label>
+            <Input
+              id="onboarding-password"
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={12}
+              value={password}
+              placeholder={t('auth.field.password.placeholder')}
+              disabled={submitting}
+              onChange={(e) => setPassword(e.target.value)}
+              aria-invalid={!!errors.password}
+              aria-describedby={
+                errors.password ? 'onboarding-password-error' : 'onboarding-password-help'
+              }
+            />
+            {errors.password ? (
+              <p id="onboarding-password-error" className="text-sm text-danger">
+                {errors.password}
+              </p>
+            ) : (
+              <p id="onboarding-password-help" className="text-sm text-muted-fg">
+                {t('auth.field.password.help')}
+              </p>
+            )}
+          </div>
+
+          {errors.form && (
+            <Alert variant="danger" data-testid="onboarding-form-error">
+              <AlertDescription>{errors.form}</AlertDescription>
+            </Alert>
           )}
-        </div>
 
-        {errors.form && (
-          <Alert variant="danger" data-testid="onboarding-form-error">
-            <AlertDescription>{errors.form}</AlertDescription>
-          </Alert>
-        )}
-
-        <Button type="submit" variant="primary" className="w-full" disabled={submitting}>
-          {submitting ? t('onboarding.submitting') : t('onboarding.submit')}
-        </Button>
-      </form>
+          <Button type="submit" variant="primary" className="w-full" disabled={submitting}>
+            {submitting ? t('onboarding.submitting') : t('onboarding.submit')}
+          </Button>
+        </form>
+      )}
     </section>
   );
 }

@@ -29,9 +29,7 @@ RUN --mount=type=cache,target=/root/.bun/install/cache,sharing=locked \
 
 FROM deps AS build
 WORKDIR /app
-# tsc typecheck/emit for the composed entry (its api/worker/core project refs
-# build too), then bundle the runtime entry + the migration CLI, and build the
-# SPA the api role serves.
+# tsc typecheck/emit for the composed entry (its api/worker/core project refs build too), then bundle the runtime entry + the migration CLI, and build the SPA the api role serves. The password-reset CLI is bundled too: the runtime image carries no package.json or sources, so it is the only way to recover a locked-out operator in production.
 RUN bun run --filter '@app/server' build \
   && bun build apps/server/src/index.ts \
   --target=bun \
@@ -41,6 +39,10 @@ RUN bun run --filter '@app/server' build \
   --target=bun \
   --minify \
   --outfile /app/dist/migrate.js \
+  && bun build apps/api/scripts/reset-password.ts \
+  --target=bun \
+  --minify \
+  --outfile /app/dist/reset-password.js \
   && bun run --filter '@app/web' build
 
 FROM ${BUN_IMAGE}:${BUN_VERSION}-alpine AS runtime
@@ -66,10 +68,7 @@ USER 1000:1000
 # no-arg dev build working (boot falls back to local git, then 'unknown').
 ARG GIT_SHA
 ENV GIT_SHA=${GIT_SHA:-}
-# The env-var reference tells operators the image sets this, and several
-# framework defaults key off it — Better Auth derives its sign-in rate limit
-# from NODE_ENV, so an image without it served `docker run` with the login
-# throttle silently off. Compose still overrides it.
+# The env-var reference tells operators the image sets this, and several framework defaults key off it. Compose still overrides it.
 ENV NODE_ENV=production
 # ROLE=all runs api + live worker + study in one process (single-box default).
 # Override to api|worker|study to split across services from this same image.

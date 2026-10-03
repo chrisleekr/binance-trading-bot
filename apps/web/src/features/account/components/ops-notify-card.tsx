@@ -70,11 +70,12 @@ export function OpsNotifyCard(): React.JSX.Element {
                 </div>
                 <Switch
                   id={`ops-event-${meta.category}`}
-                  checked={events[meta.category]}
-                  disabled={update.isPending}
+                  checked={meta.category === 'auth-alert' ? true : events[meta.category]}
+                  // Security alerts cannot be muted: the server refuses it, because someone who broke in would switch them off first.
+                  disabled={update.isPending || meta.category === 'auth-alert'}
                   data-testid={`ops-event-${meta.category}`}
                   onCheckedChange={(checked) =>
-                    update.mutate({ ...events, [meta.category]: checked })
+                    update.mutate({ ...events, [meta.category]: checked } as OpsNotifyConfig)
                   }
                 />
               </li>
