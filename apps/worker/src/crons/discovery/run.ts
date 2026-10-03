@@ -200,6 +200,13 @@ export interface DiscoveryProfilePort {
    * @returns True when at least one order exists, false when none does, null when the question could not be answered.
    */
   everPlacedOrder(symbol: string): Promise<boolean | null>;
+  /**
+   * Whether this ACCOUNT has ever filled a trade on the symbol, read from Binance itself. The order ledger is not complete: a placement whose response was lost and whose probe could not resolve it returns `ambiguous` with no `orders` row, as does an accepted order whose two bookkeeping writes both failed, and the fill adopter refuses such a fill for want of a row, so the binding is then the only handle left on the position. Exchange history has no such gap. Account-wide rather than per profile, so a coin the account ever traded keeps the refusal, which is the cautious direction.
+   *
+   * @param symbol - The trading pair whose fills to look for on this account.
+   * @returns True when at least one fill exists, false when none does, null when the question could not be answered.
+   */
+  everTradedOnExchange(symbol: string): Promise<boolean | null>;
   /** Reap if unpinned + flat. Returns the repo's verdict verbatim: `removed` is the only success, and the other three name why the row stayed. */
   reapSymbol(symbol: string, nowMs: number): Promise<ReapOutcome>;
   /**
@@ -458,21 +465,24 @@ export const runDiscoveryForProfile = async (
     // symbol the wallet still holds must never be unsubscribed — that orphans a
     // live, unmanaged position. `null` (balance unreadable) is treated as held:
     // refuse to abandon when we cannot prove the symbol is flat.
-    // A balance alone is not that missed fill, though, and reading it as one pins the slot for the life of the account. Two questions narrow it to the fill this guard is actually about, and each disarms only itself: the guard's own value bound drops a balance the exchange would refuse to sell at all, and the never-traded check below drops one belonging to a symbol this profile never ordered.
+    // A balance alone is not that missed fill, though, and reading it as one pins the slot for the life of the account. Two questions narrow it to the fill this guard is actually about, and each disarms only itself: the guard's own value bound drops a balance the exchange would refuse to sell at all, and the never-traded check below drops one belonging to a symbol this profile never ordered and the account never filled on Binance.
     const held = await port.heldOnExchange(symbol, priceBySymbol[symbol] ?? null);
     if (held !== false) {
       // The wallet says something, but the wallet is the ACCOUNT's and the guard's premise is about this PROFILE: only an unadopted fill of ours justifies keeping a symbol we have been told to drop. Asked only on the refusing path, so the ordinary reap still costs one query, and asked of the same profile scope the reap itself runs under.
       //
-      // Asked ONLY of a `true` verdict, never of a `null` one. This arm may overrule a wallet verdict; it may not substitute for one that was never reached. `everPlacedOrder` is an order-ledger read, and an empty ledger proves the balance is not ours only if the ledger is complete — which it is not across a Postgres outage that defeated BOTH tiers of the placement write (`persistOrder`, then the `insertTracking` recovery), an outage that would then have to end before this cycle for the read to answer `false` at all. That is narrow, and it is the exact shape of an orphaned live position. Deferring instead costs one cycle: an unreadable wallet is transient by nature, and the next cycle reaps on a real verdict.
+      // Asked ONLY of a `true` verdict, never of a `null` one. This arm may overrule a wallet verdict; it may not substitute for one that was never reached. Deferring instead costs one cycle: an unreadable wallet is transient by nature, and the next cycle reaps on a real verdict.
+      //
+      // An empty ledger alone is not proof the balance is foreign: a placement left `ambiguous` writes no `orders` row and its fill is never adopted (see `everTradedOnExchange`). So the override also needs Binance to report no fill on the symbol, asked only after the ledger says no so the signed call is spent on this rare arm alone.
       const everTraded = held === true ? await port.everPlacedOrder(symbol) : null;
-      if (everTraded !== false) {
+      const exchangeTraded = everTraded === false ? await port.everTradedOnExchange(symbol) : null;
+      if (everTraded !== false || exchangeTraded !== false) {
         // Counted, not silently skipped. This guard refuses more rotations than the repo's does, and its two cases are opposite facts: `true` is a position held on evidence, `null` is a position nothing could establish either way. Left as a bare `continue`, a profile whose credentials had stopped working simply stopped rotating, indistinguishably from one with nothing to rotate.
         const walletOutcome = held === true ? 'wallet-held' : 'hold-unproven';
         reapOutcomes[walletOutcome] += 1;
         port.recordReapOutcome(walletOutcome);
         continue;
       }
-      // Never traded here, so the balance is not ours to protect. Logged rather than counted: the attempt's verdict is still whatever `reapSymbol` returns below, and a second tally entry for one attempt would make the outcome counts stop summing to the attempts. `removeUnpinnedIfFlat` remains the backstop — it refuses atomically on an open order or a positive tracked quantity, neither of which a profile with no order history can have.
+      // Never traded here, so the balance is not ours to protect. Logged rather than counted: the attempt's verdict is still whatever `reapSymbol` returns below, and a second tally entry for one attempt would make the outcome counts stop summing to the attempts. `removeUnpinnedIfFlat` remains the backstop: it refuses atomically on an open order or a positive tracked quantity.
       port.logger.info(
         { symbol },
         'cron discovery: wallet holds this coin but the profile never ordered it; reaping',

@@ -150,6 +150,7 @@ const fakePort = (over: Partial<DiscoveryProfilePort> = {}): DiscoveryProfilePor
   heldOnExchange: vi.fn(async () => false), // default: wallet flat, reap allowed
   // Default true — "this profile has traded here" — so the wallet guard's verdict is the whole answer, exactly as it was before the never-traded arm existed. A false default would silently convert every existing wallet-held refusal into a reap and the suite would stop testing the guard it was written for.
   everPlacedOrder: vi.fn(async () => true),
+  everTradedOnExchange: vi.fn(async () => true),
   reapSymbol: vi.fn(async () => 'removed' as const),
   recordReapOutcome: vi.fn(),
   emit: vi.fn(async () => undefined),
@@ -663,9 +664,11 @@ describe('runDiscoveryForProfile', () => {
       listRotatableSymbols: async () => ['OLDUSDT'],
       heldOnExchange: vi.fn(async () => true),
       everPlacedOrder: vi.fn(async () => false),
+      everTradedOnExchange: vi.fn(async () => false),
     });
     const r = await runCycle(port, permissiveConfig(), 'USDT');
     expect(r.removed).toBe(1);
+    expect(port.everTradedOnExchange).toHaveBeenCalledWith('OLDUSDT');
     expect(port.reapSymbol).toHaveBeenCalledWith('OLDUSDT', NOW);
     expect(port.emit).toHaveBeenCalledWith('OLDUSDT', 'remove');
     // The attempt's verdict is the repo's, not a second entry of its own: one attempt, one outcome, so the tally still sums to the attempts made.
@@ -679,7 +682,7 @@ describe('runDiscoveryForProfile', () => {
   });
 
   it('keeps refusing when the wallet is unreadable, even though the profile never ordered it', async () => {
-    // The never-traded arm may overrule a wallet VERDICT; it may not substitute for one that was never reached. An empty order ledger proves the balance is not ours only if the ledger is complete, and the one way it is not is a Postgres outage that defeated both tiers of the placement write — which is also the shape of an orphaned live position. Deferring costs one cycle; an unreadable wallet is transient.
+    // The never-traded arm may overrule a wallet VERDICT; it may not substitute for one that was never reached. Deferring costs one cycle; an unreadable wallet is transient.
     const port = fakePort({
       listRotatableSymbols: async () => ['OLDUSDT'],
       heldOnExchange: vi.fn(async () => null),
@@ -691,6 +694,47 @@ describe('runDiscoveryForProfile', () => {
     expect(r.reapOutcomes).toEqual(reapTally({ 'hold-unproven': 1 }));
     // Not even asked: a question whose answer cannot be acted on is a query spent for nothing, and asking it invites the next reader to wire it back into the decision.
     expect(port.everPlacedOrder).not.toHaveBeenCalled();
+    expect(port.everTradedOnExchange).not.toHaveBeenCalled();
+  });
+
+  it('keeps refusing when the ledger is empty but Binance reports a fill on the symbol', async () => {
+    // The ledger is not complete: a placement whose response was lost and whose probe could not resolve it is `ambiguous` with no `orders` row, and the fill adopter refuses its fill for want of one. The binding is then the only handle on a live position, so an empty ledger alone must not release it.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => true),
+      everPlacedOrder: vi.fn(async () => false),
+      everTradedOnExchange: vi.fn(async () => true),
+    });
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
+    expect(r.removed).toBe(0);
+    expect(port.reapSymbol).not.toHaveBeenCalled();
+    expect(r.reapOutcomes).toEqual(reapTally({ 'wallet-held': 1 }));
+    expect(recorded(port)).toEqual(['wallet-held']);
+  });
+
+  it('keeps the refusal when Binance trade history cannot be read', async () => {
+    // An exchange fault must not become the reason a coin is abandoned: `null` keeps the wallet guard's verdict.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => true),
+      everPlacedOrder: vi.fn(async () => false),
+      everTradedOnExchange: vi.fn(async () => null),
+    });
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
+    expect(r.removed).toBe(0);
+    expect(port.reapSymbol).not.toHaveBeenCalled();
+    expect(r.reapOutcomes).toEqual(reapTally({ 'wallet-held': 1 }));
+  });
+
+  it('does not ask Binance when the ledger already shows an order', async () => {
+    // The signed call is spent only on the rare never-ordered arm; a ledger row already settles the refusal.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => true),
+      everPlacedOrder: vi.fn(async () => true),
+    });
+    await runCycle(port, permissiveConfig(), 'USDT');
+    expect(port.everTradedOnExchange).not.toHaveBeenCalled();
   });
 
   it('keeps the refusal when the order history itself cannot be read', async () => {

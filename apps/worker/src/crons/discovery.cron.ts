@@ -322,6 +322,20 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
           return null;
         }
       },
+      everTradedOnExchange: async (symbol) => {
+        const client = await ctx.resolveBinanceClient(p.operatorId, p.accountId);
+        if (!client) return null;
+        try {
+          return (await client.getMyTrades({ symbol, limit: 1 })).length > 0;
+        } catch (err) {
+          // Unreadable history keeps the wallet guard's refusal: an exchange fault must never be the reason a coin is abandoned.
+          ctx.logger.warn(
+            { profileId: pid, symbol, err: err },
+            'cron discovery: trade history unreadable for held-guard; not reaping',
+          );
+          return null;
+        }
+      },
       reapSymbol: (symbol, at) =>
         applyDiscoveryReap(repo.profileSymbols, ctx.redis, storageKeys, symbol, at),
       // Written per decision rather than once per cycle: the loop that produces these can reject partway through (a DB error inside the reap transaction, a Binance client that fails to resolve), and the handler's per-profile catch would take the whole tally down with it — losing the count of rows this cycle had already deleted and committed.

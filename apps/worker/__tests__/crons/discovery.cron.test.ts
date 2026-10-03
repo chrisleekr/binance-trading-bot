@@ -322,7 +322,11 @@ describe('buildDiscoveryCron adapter', () => {
       canTrade: true,
       permissions: ['SPOT'],
     }));
-    const binanceClient = { getAccount } satisfies Pick<BinanceRestClient, 'getAccount'>;
+    const getMyTrades = vi.fn<BinanceRestClient['getMyTrades']>(async () => []);
+    const binanceClient = { getAccount, getMyTrades } satisfies Pick<
+      BinanceRestClient,
+      'getAccount' | 'getMyTrades'
+    >;
     const resolveBinanceClient = vi.fn<BootContext['resolveBinanceClient']>(
       async () => binanceClient as unknown as BinanceRestClient,
     );
@@ -496,6 +500,7 @@ describe('buildDiscoveryCron adapter', () => {
       'emitReadd',
       'enqueueResync',
       'everPlacedOrder',
+      'everTradedOnExchange',
       'getAllTickers',
       'getKlines',
       'heldOnExchange',
@@ -581,6 +586,22 @@ describe('buildDiscoveryCron adapter', () => {
       'cron discovery: order history unreadable for held-guard; not reaping',
     );
     warn.mockRestore();
+
+    // Existence again, so `limit: 1`. Read on the profile's own account credentials, the same client the wallet read uses.
+    expect(await port.everTradedOnExchange('ETHUSDT')).toBe(false);
+    expect(getMyTrades).toHaveBeenCalledWith({ symbol: 'ETHUSDT', limit: 1 });
+    // Unreadable history defers instead of throwing out of the reap loop.
+    const tradeWarn = vi.spyOn(logger, 'warn');
+    getMyTrades.mockRejectedValueOnce(new Error('-1003 too many requests'));
+    expect(await port.everTradedOnExchange('ETHUSDT')).toBeNull();
+    expect(tradeWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ profileId: PROFILE_ID, symbol: 'ETHUSDT' }),
+      'cron discovery: trade history unreadable for held-guard; not reaping',
+    );
+    tradeWarn.mockRestore();
+    // No credentials: nothing can answer, so the refusal stands.
+    resolveBinanceClient.mockResolvedValueOnce(null);
+    expect(await port.everTradedOnExchange('ETHUSDT')).toBeNull();
 
     expect(await port.reapSymbol('ETHUSDT', NOW)).toBe('removed');
     expect(vi.mocked(applyDiscoveryReap)).toHaveBeenCalledWith(
