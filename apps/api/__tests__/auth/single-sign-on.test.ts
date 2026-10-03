@@ -516,7 +516,14 @@ describeIfInfra('single sign-on against a mock provider', () => {
 
     expect((await post('/single-sign-on/unlink', passwordCookie, withPassword)).status).toBe(204);
     expect(await providers()).toEqual(['credential']);
-    expect(await events('single-sign-on-unlinked')).toHaveLength(1);
+    // The session the identity created ends with it; the password session that unlinked stays.
+    expect(await events('single-sign-on-unlinked')).toEqual([
+      expect.objectContaining({ detail: { sessions: 1 } }),
+    ]);
+    const methods = await fx.di.pool.query<{ m: string }>(
+      `select "signInMethod" as m from session`,
+    );
+    expect(methods.rows.map((r) => r.m)).toEqual(['password']);
     // Unlinked means the provider identity no longer signs anyone in.
     expect((await login()).cookie).toBe('');
 

@@ -817,14 +817,27 @@ export const authRouter = (di: DI): ApiHono => {
     }
     const refused = await reauthenticate(c, body.reauthentication, attempt);
     if (refused !== null) return refused as never;
-    const removed = await repo.authIdentity.deleteSingleSignOnIdentities(di.db, userId);
-    if (removed === 0) throw new HttpError('NOT_FOUND', 'no single sign-on identity is linked');
+    const current = await currentSession(di, c);
+    // Unlinking is the response to a lost or compromised identity, so the sessions that identity created end with it, as the recovery command's unlink does; this one stays because it just re-authenticated.
+    const ended = await di.db.transaction(async (raw) => {
+      const tx = raw as unknown as DI['db'];
+      if ((await repo.authIdentity.deleteSingleSignOnIdentities(tx, userId)) === 0) {
+        throw new HttpError('NOT_FOUND', 'no single sign-on identity is linked');
+      }
+      const doomed = (await repo.authIdentity.listSessions(tx, userId))
+        .filter((s) => s.signInMethod === 'singleSignOn' && s.id !== current?.id)
+        .map((s) => s.id);
+      for (const id of doomed) await repo.authIdentity.deleteSession(tx, userId, id);
+      return doomed;
+    });
+    if (ended.length > 0) await publishSessionRevocation(di, { sessionIds: ended });
     await security.events.record({
       event: 'single-sign-on-unlinked',
       actor: 'user',
       method: body.reauthentication.method,
       ipAddress: attempt.ipAddress,
       userAgent: attempt.userAgent,
+      detail: { sessions: ended.length },
     });
     return c.body(null, 204);
   });
