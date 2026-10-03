@@ -25,11 +25,12 @@ One day is a short horizon on purpose. The action log is a record of **changes**
 
 ## Shortcuts
 
+- **Security** — sign-in methods, signed-in browsers, AI agent access, sign-in limits and security activity. See [Sign-in and security](../../operations/sign-in-and-security.md).
 - **[Backup & restore](backup-restore.md)** — export the whole configuration or restore it from a backup.
 
 ## Change password
 
-Fields **Current password**, **New password** (at least 12 characters), and **Confirm new password**; press **Update password**.
+Shown only when you have a password and password sign-in is on. Fields **Current password**, **New password** (at least 12 characters), and **Confirm new password**; press **Update password**. Every other browser and every AI agent is signed out.
 
 ## Session
 

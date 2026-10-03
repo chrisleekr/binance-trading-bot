@@ -3,7 +3,10 @@
 // Restore is irreversible. The reminder banner stays visible so the operator
 // does not forget the dump contains plaintext API keys (the v1.0 threat model
 // assumes the operator IP-allowlists the keys at Binance).
+//
+// A restore replaces the password, the single sign-on link and the security settings, so the server asks for the same "Confirm it's you" proof as the Security page.
 
+import type { ErrorCode, Reauthentication } from '@app/contracts';
 import { createRoute } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 
@@ -14,8 +17,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/aler
 import { Button } from '@/shared/components/ui/button';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
-import { getApiBaseUrl } from '@/shared/lib/api';
+import { ApiError, getApiBaseUrl } from '@/shared/lib/api';
 import { BackupSettingsCard } from '@/features/account/components/backup-settings-card';
+import { ConfirmPanel, useConfirmIdentity } from '@/features/account/components/confirm-identity';
 import { settingsRoute } from '@/features/account/routes/settings';
 
 const downloadBackup = (): void => {
@@ -25,15 +29,34 @@ const downloadBackup = (): void => {
   window.location.href = `${getApiBaseUrl()}/backup`;
 };
 
-const restoreBackup = async (file: File): Promise<unknown> => {
+/** Refusals of the confirmation itself. Their messages are fixed server text, so unlike any other restore failure they are safe to show. */
+const PROOF_REFUSALS: ReadonlySet<ErrorCode> = new Set([
+  'INVALID_PASSWORD',
+  'REAUTHENTICATION_REQUIRED',
+]);
+
+const restoreBackup = async (file: File, reauthentication: Reauthentication): Promise<unknown> => {
   const body = new FormData();
   body.set('archive', file);
+  body.set('reauthentication', JSON.stringify(reauthentication));
   const response = await fetch(`${getApiBaseUrl()}/restore`, {
     method: 'POST',
     body,
     credentials: 'include',
   });
   if (!response.ok) {
+    const envelope = (await response
+      .clone()
+      .json()
+      .catch(() => null)) as { error?: { code?: ErrorCode; message?: string } } | null;
+    const code = envelope?.error?.code;
+    if (code !== undefined && PROOF_REFUSALS.has(code)) {
+      throw new ApiError(
+        response.status,
+        code,
+        envelope?.error?.message ?? 'Confirm it is you first.',
+      );
+    }
     // Discard the upstream body. /restore can echo a pg_restore stderr stream
     // that contains schema names, dump file paths, and other operator-side
     // detail that an unprivileged onlooker should not see if the laptop is
@@ -50,6 +73,7 @@ function BackupRestorePage(): React.JSX.Element {
   const [confirmText, setConfirmText] = useState('');
   const [banner, setBanner] = useState<ActionBannerState | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { proof, panel } = useConfirmIdentity();
 
   const onRestore = async (event: React.FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
@@ -62,15 +86,24 @@ function BackupRestorePage(): React.JSX.Element {
       setBanner({ kind: 'err', message: 'Type RESTORE in the confirmation box first.' });
       return;
     }
+    const reauthentication = proof.get();
+    if (reauthentication === null) {
+      const message = 'Confirm it is you first, above.';
+      setBanner({ kind: 'err', message });
+      proof.ask(message);
+      return;
+    }
     setSubmitting(true);
     try {
-      await restoreBackup(file);
+      await restoreBackup(file, reauthentication);
       setBanner({ kind: 'ok', message: 'Restore complete. Reload the app to pick up new state.' });
       setFile(null);
       setConfirmText('');
       if (fileRef.current) fileRef.current.value = '';
     } catch (err) {
       setBanner({ kind: 'err', message: err instanceof Error ? err.message : 'restore failed' });
+      if (err instanceof ApiError && PROOF_REFUSALS.has(err.code as ErrorCode))
+        proof.ask(err.message);
     } finally {
       setSubmitting(false);
     }
@@ -102,6 +135,11 @@ function BackupRestorePage(): React.JSX.Element {
         </div>
       </Panel>
 
+      <ConfirmPanel
+        {...panel}
+        returnTo="/settings/backup-restore"
+        description="A restore replaces your password and sign-in settings with the ones in the archive, so it asks for proof that you are at the keyboard."
+      />
       <Panel title="Restore">
         <div className="space-y-3">
           <p className="text-sm text-muted-fg">

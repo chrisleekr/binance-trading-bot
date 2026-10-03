@@ -56,7 +56,9 @@ Migrations run **automatically on boot** — the container entrypoint (`apps/ser
 After this upgrade, refresh any already-open browser tab before relying on Net P/L. Older cached SPA code ignores the additive completeness marker, although the page remains functional.
 
 ```bash
-docker compose exec app bun /app/dist/migrate.js
+docker compose -f deploy/compose/docker-compose.yml \
+               -f deploy/compose/docker-compose.prod.yml \
+               --env-file .env exec app bun /app/dist/migrate.js
 ```
 
 ```mermaid
@@ -82,11 +84,11 @@ flowchart TD
 
 ## Alert rules
 
-`deploy/observability/alerts.yml` ships sixteen Prometheus alerting rules, in two groups: `binance-trading-bot.workers` for the trading and audit paths, `binance-trading-bot.infra` for the process pressures underneath them. Load the file into your Prometheus stack; the Alertmanager, PagerDuty and Slack receiver wiring is yours to own.
+`deploy/observability/alerts.yml` ships twenty-five Prometheus alerting rules, in three groups: `binance-trading-bot.workers` for the trading and audit paths, `binance-trading-bot.infra` for the process pressures underneath them, and `binance-trading-bot.auth` for sign-in and security. The auth rules read series the **api** exports, so they need the api scrape job as well as the worker's. Load the file into your Prometheus stack; the Alertmanager, PagerDuty and Slack receiver wiring is yours to own.
 
 `deploy/observability/tests/alerts.test.yml` replays synthetic series through these rules with `promtool test rules`, and `scripts/ci/promtool-lint.sh` runs it on every push. That is not decoration: `promtool check rules` validates syntax only, so a rule whose expression can never evaluate true parses clean and then stays silent forever, which looks exactly like a rule that has not tripped. Four of the cases there exist because a labelled prom-client counter's child does not exist until its first write and is born holding that value — the first sample Prometheus ever sees is a level, not a rise, so `increase()` reads it as zero. Rules over an event whose first increment may be its only one therefore compare the counter against its own value one window ago (`offset`) or read it raw, and the tests fail if anyone converts them back.
 
-Every series these rules read is listed on the [Metrics reference](metrics.md), generated from the worker's own metric catalogue.
+Every worker series these rules read is listed on the [Metrics reference](metrics.md), generated from the worker's own metric catalogue. The other `auth_*` series in the `binance-trading-bot.auth` group come from the api and are not in that table.
 
 ### Scrape config the rules assume
 
@@ -136,6 +138,15 @@ Run Prometheus on the `internal` network so those hostnames resolve. In the defa
 | `MomentumExitBlockedByFilters` | warning | A momentum profile tried more than once to close a position and the exchange refused the order because the remaining amount is below `LOT_SIZE.minQty` or `NOTIONAL.minNotional` (`strategy_metric_total{name="momentum.skip", side="exit"}`). **Not bot-recoverable**: the residual is unsellable at any price, so the position and its cost basis stay on the books until the operator dust-converts the coins on Binance or buys enough to clear the minimum. `side="exit"` is load-bearing — the same counter records entry-side sizing skips, which are routine. The rule subtracts the aggregate's own value an hour ago (`X - (X offset 1h or X * 0) > 1`) rather than using `increase()`, so it resolves an hour after the operator clears the residual instead of latching. A series that did not exist an hour ago contributes 0 through the `or` arm, which is what lets a newly born child count without the zero-seed the strategy-agnostic drain cannot give it. Aggregating before the subtraction is load-bearing: a residual can trip `minQty` at one price and `minNotional` at another, and per-series `increase()` would read that split as 0 + 0. A second arm covers worker restarts: prom-client children die with the process while the series identity survives, so the plain subtraction would otherwise go negative and silence the rule for the whole offset window. `ReconcileValueBoundDisarmed` and `DiscoveryAssetPolicyAborting` carry the same counter-value arm. `PipelineApplySeedGateStoodDown` instead joins the counter to the worker process-start series because an equal-value restart is otherwise invisible; `promtool` cases pin all four. |
 | `DiscoveryAssetPolicyAborting` | warning | Discovery could not establish its stablecoin/fiat classification and abandoned a profile's cycle (`discovery_asset_policy_abort_total`), leaving that profile's symbol set untouched. Nothing unsafe is admitted — the cycle aborts before any add or remove — but the profile stops rotating silently. The 25-hour range covers the slowest legal `refreshPeriodMs` (86400000): an abort consumes the profile's whole refresh window, so at long periods a shorter range would hold at most one increment and never fire. `cause` routes the fix — the three `*-route-empty` / `no-product-rows` causes mean the Binance product feed changed shape and the projection needs updating, `cross-check-gap` is a stale feed that often clears itself, `empty-admission-map` is a cold exchange-info cache the refresh cron repairs, `product-feed-unreadable` is a reply that is not this catalogue at all. `product-feed-unreachable` is the one cause that can be a transient the bot already recovered from: it stays on this rule because `shouldRun` caps a profile at one abort per refresh period, so a count threshold could never fire on a slow refresh — confirm against the profile page's asset-policy finding before chasing it. |
 | `WSDisconnectsHigh` | warning | More than five Binance websocket closes in 15 minutes (`binance_ws_disconnects_total`, counted per account at close, and only for closes the worker did not ask for — disabling a profile or shutting the worker down is not counted, or a deploy would page by itself). One reconnect is routine — Binance cycles a connection every 24 hours, and so does any network blip — while five in a quarter of an hour is a stream that cannot stay up. Warning, not critical: the pool reconnects on its own, so account and order updates are stale for the gap rather than trading being halted. |
+| `AuthSignInFailureSpike` | warning | More than 20 failed sign-ins in 15 minutes, held for 5 minutes (`auth_events_total{event="sign-in-failed"}`), password and single sign-on failures together. The per-address limits refuse most password guesses before the check, so volume here means failures are reaching the password check or the identity provider from many addresses. Settings > Security lists each failure's method, address and reason. |
+| `AuthAccountLocked` | warning | Password sign-in for an email was locked after repeated wrong passwords (`auth_lockouts_total`). A browser that signed in successfully before is exempt. If the operator is locked out, the reset command with `--clear-lockout` lifts it; see [Locked out?](sign-in-and-security.md#locked-out). |
+| `AuthRateLimitBackendDown` | warning | At least one rate limit decision could not reach Redis in the last 5 minutes, held for 2 minutes (`auth_rate_limit_backend_errors_total`). The api falls back to a stricter per-process limiter rather than refusing everyone, so limits still apply, but no longer shared across api replicas. |
+| `SingleSignOnUnavailable` | warning | Single sign-on is configured but the identity provider failed the check the api runs at start (`auth_single_sign_on_available == 0`) for 10 minutes. The button is disabled, password sign-in is switched on for that run if nothing else could reach the operator, and the api process exits when the provider answers again so it restarts with the provider registered; in the default `ROLE=all` container that restarts the worker too. That restart depends on the container's restart policy, which `docker-compose.prod.yml` and `docker-compose.scale.yml` set to `unless-stopped`; without one the process stays down. A provider that fails after a healthy start is not re-checked; its failures appear as failed sign-ins. |
+| `AuthEventSinkFailing` | warning | Security events could not be written to the audit trail or queued for notification (`auth_event_sink_failures_total`, by `sink`). They are still in the api log, but may be missing from Settings > Security or from notifications. |
+| `AuthAlertUndelivered` | critical | The worker could not deliver a security notification (`auth_alert_undelivered_total`, by `category` and `outcome`): `no-notifier` means none is configured or enabled, `failed` means every notifier errored. An intruder deleting notifiers looks exactly like this, which is why it pages. |
+| `AgentTokenRejectedSpike` | warning | More than 30 refused AI agent tokens in 15 minutes, held for 5 minutes (`auth_events_total{event="agent-authentication-failed"}`). Refused tokens are not notified one by one, because routine token expiry looks the same; a sustained volume means an agent is stuck on a revoked token or someone is presenting forged ones. |
+| `ApiRequestFlood` | warning | The pre-session flood limit refused more than one request a second for 5 minutes (`auth_rate_limited_total{limit=~"anonymous_api\|signed_in_api"}`). The api refuses these before any database work, but a volumetric attack has to be stopped at the proxy. |
+| `PasswordCheckSaturated` | warning | Password checks were refused because every hashing slot and the short wait queue were full (`auth_rate_limited_total{limit="password_check_capacity"}`). A distributed sign-in flood causes this, and legitimate sign-ins may be refused with a retry time until it passes. |
 
 `BinanceWeightExhausted` is deliberately unaggregated. The weight header covers the whole API key, so every profile on an account samples the same account-wide number: summing would multiply it by the count of actively trading profiles. Each profile over the ceiling raises its own instance labelled with its `profileId` — group them in Alertmanager if the duplicates are noisy.
 
@@ -178,11 +189,13 @@ Both are named with their missing series in the comments at the bottom of `alert
 
 ## Common operator commands
 
+Run from the repo root. Each command names the same compose files and `.env` as step 4, because there is no compose file at the root. Backups are taken from Settings > Backup & restore, not from a compose service:
+
 ```bash
-docker compose logs -f app                          # tail the app
-docker compose run --rm backup                      # one-shot backup
-docker compose run --rm app bun run reset-password  # reset the master password
-docker compose down                                 # stop (volumes preserved)
+dc() { docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env "$@"; }
+dc logs -f app                                       # tail the app
+dc run --rm app bun /app/dist/reset-password.js --email <email>  # reset the master password
+dc down                                              # stop (volumes preserved)
 ```
 
 ## Changing configuration

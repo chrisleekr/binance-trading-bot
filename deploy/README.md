@@ -115,12 +115,13 @@ Migrations run automatically on boot: the container entrypoint (`apps/server/doc
 To run migrations manually (offline path), invoke the same binary:
 
 ```bash
-docker compose exec app bun /app/dist/migrate.js
+docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env \
+  exec app bun /app/dist/migrate.js
 ```
 
 ### 7. Open the URL — first-run onboarding
 
-Browse to `WEB_ORIGIN`. The first-run UI prompts you to create the master account (Better Auth, argon2id, no email). Once an account exists, subsequent visits to `/onboarding` redirect to the login page; password recovery requires the operator-side `bun run reset-password` CLI documented below.
+Browse to `WEB_ORIGIN`. The first-run UI prompts you to create the master account, with a password or through single sign-on if it is configured (see Sign-in and security in the docs). Once an account exists, subsequent visits to `/onboarding` redirect to the login page; password recovery requires the operator-side reset command documented below.
 
 ### 8. IP-allowlist your Binance API key
 
@@ -171,6 +172,11 @@ If the operator already runs an nginx or Traefik on the host:
 **nginx fragment:**
 
 ```nginx
+# These three lines belong in the `http { }` block; nginx refuses zone definitions inside `server`.
+limit_conn_zone $binary_remote_addr zone=per_address_connections:10m;
+limit_req_zone  $binary_remote_addr zone=per_address_requests:10m rate=20r/s;
+limit_req_zone  $binary_remote_addr zone=per_address_sign_in:10m  rate=10r/m;
+
 server {
   listen 443 ssl http2;
   server_name binance-trading-bot.example.com;
@@ -178,6 +184,37 @@ server {
   ssl_certificate_key /etc/letsencrypt/live/binance-trading-bot.example.com/privkey.pem;
 
   add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+  # Cheapest refusal first: a flood stopped here never reaches the app. The app keeps its own per-address limits behind these.
+  limit_conn           per_address_connections 30;
+  limit_req            zone=per_address_requests burst=40 nodelay;
+  limit_conn_status    429;
+  limit_req_status     429;
+  client_header_timeout 10s;
+  client_body_timeout   10s;
+  send_timeout          30s;
+  client_max_body_size  1m;
+
+  # Backup restore uploads a whole database dump; the app caps it at 2 GiB behind sign-in.
+  location = /api/restore {
+    client_max_body_size 2g;
+    proxy_pass         http://127.0.0.1:80;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto https;
+    proxy_read_timeout 300s;
+  }
+
+  # Password sign-in, the single sign-on round trip and agent authorization get a much smaller budget. Other `/api/auth/` routes (the session check every page load makes) stay on the general budget.
+  location ~ ^/api/auth/(sign-in/|sign-up$|single-sign-on/start$|callback/|oauth2/) {
+    limit_req          zone=per_address_sign_in burst=5 nodelay;
+    proxy_pass         http://127.0.0.1:80;
+    proxy_set_header   Host              $host;
+    proxy_set_header   X-Real-IP         $remote_addr;
+    proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header   X-Forwarded-Proto https;
+  }
 
   location / {
     # The `app` service, published on the host at APP_HTTP_PORT (prod default 80).
@@ -300,7 +337,8 @@ ls /tmp/restore/backups/
 # Run from the repo root, or anchor explicitly with $(git rev-parse --show-toplevel).
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cp "/tmp/restore/backups/<dump>.dump" "$REPO_ROOT/backups/restore.dump"
-docker compose exec -T postgres pg_restore \
+docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env \
+  exec -T postgres pg_restore \
   -U postgres -d binance_trading_bot /backups/restore.dump
 ```
 
@@ -322,35 +360,38 @@ docker compose exec -T postgres pg_restore \
 
 | Symptom | Cause | Resolution |
 | --- | --- | --- |
-| `/readyz` 503 with `redis ping failed` | Redis container not yet healthy | `docker compose logs redis` — typically a port collision on host |
-| `/readyz` 503 with `db ping failed` | Postgres healthcheck still pending | `docker compose logs postgres` — extension setup can take ≥10 s on first run |
+| `/readyz` 503 with `redis ping failed` | Redis container not yet healthy | `dc logs redis` (the helper under Operator commands) — typically a port collision on host |
+| `/readyz` 503 with `db ping failed` | Postgres healthcheck still pending | `dc logs postgres` — extension setup can take ≥10 s on first run |
 | Browser blocks API requests with CORS error | `WEB_ORIGIN` does not match the URL bar | Update `WEB_ORIGIN` in `.env`, `docker compose up -d` to roll the api |
 | Binance returns `-2014` (API key format) | Whitespace or pasted prefix | Re-paste the key without surrounding quotes |
 | Binance returns `-2015` (rejected by config) | IP allowlist missing the VM's egress IP, or key lacks Spot permission | See step 8 |
 | Worker REST calls to Binance run slow under heavy cron load | Per-IP weight governor blocking callers to stay under Binance's 6000/min limit, by design | No tunable knob — the governor auto-throttles. If pathologically slow, check worker logs for a runaway fetch loop repeating one REST call. A `weight governor: Redis unavailable` warning instead points to Redis, not weight |
 | `docker compose pull` rate-limited by Docker Hub | Anonymous pull quota exceeded | `docker login` with any Docker Hub account before retrying |
-| `backup` service logs `dump failed (exit 1)` | Postgres password mismatch | Confirm `POSTGRES_PASSWORD` in `.env` matches the container's value |
 
 ---
 
 ## Operator commands
 
+Run from the repo root. Each command names the same compose files and `.env` the stack was started with, because there is no compose file at the root. Backups are taken from Settings > Backup & restore, not from a compose service.
+
 ```bash
+dc() { docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env "$@"; }
+
 # Tail the app (api + live worker + study in one process)
-docker compose logs -f app
+dc logs -f app
 
-# Run a one-shot backup
-docker compose run --rm backup
+# Reset the master password (prints a new one, signs out every browser and AI agent)
+dc run --rm app bun /app/dist/reset-password.js --email <email>
 
-# Reset the master password (offline)
-docker compose run --rm app bun run reset-password
+# Lift a sign-in lockout without changing the password
+dc run --rm app bun /app/dist/reset-password.js --email <email> --clear-lockout
 
 # Re-run DB migrations manually (they also run on boot via the entrypoint)
-docker compose exec app bun /app/dist/migrate.js
+dc exec app bun /app/dist/migrate.js
 
 # Stop everything (volumes preserved)
-docker compose down
+dc down
 
 # Stop and wipe everything (DESTRUCTIVE)
-docker compose down -v
+dc down -v
 ```

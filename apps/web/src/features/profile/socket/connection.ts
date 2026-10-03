@@ -94,7 +94,8 @@ export const connect = (profileId: string, entry: SocketEntry, clock: () => numb
       for (const handler of [...entry.unauthHandlers]) handler();
       return;
     }
-    if (entry.refCount === 0) {
+    // 4409: the server closed this socket because the same sign-in opened too many at once, oldest first. Reconnecting would close another tab's socket in turn, so this one stays closed until the page is reloaded.
+    if (entry.refCount === 0 || event.code === 4409) {
       updateSnapshot(entry, { status: 'closed' });
       return;
     }

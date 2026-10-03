@@ -15,6 +15,9 @@ import { rootRoute } from '@/app/__root';
 
 type Json = Record<string, unknown>;
 
+// Captured before any test replaces `window.location`: a replaced getter survives `restoreAllMocks` here, and a later mock spread from it has no `origin`, which would make the same-origin check refuse every value and pass the open-redirect cases vacuously.
+const REAL_ORIGIN = window.location.origin;
+
 const json = (body: Json, status = 200, headers: Record<string, string> = {}): Response =>
   new Response(JSON.stringify(body), {
     status,
@@ -145,6 +148,19 @@ describe('LoginPage', () => {
     });
   });
 
+  it('falls back to / when ?from hides a second slash behind a tab the browser strips', async () => {
+    const { router } = setUp('/login?from=%2F%09%2Fevil.example', () => json({}, 200));
+    const user = userEvent.setup();
+    const emailInput = await screen.findByLabelText(/email/i);
+    await user.type(emailInput, 'op@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'whatever');
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/');
+    });
+  });
+
   it('surfaces 429 with Retry-After in a non-dismissable alert and disables the form', async () => {
     const { fetchMock } = setUp('/login', () =>
       json({ error: { code: 'RATE_LIMITED', message: 'slow down' } }, 429, {
@@ -213,5 +229,129 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: /sign in/i }));
 
     expect(await screen.findByTestId('login-generic-error')).toHaveTextContent(/incorrect/i);
+  });
+
+  describe('sign-in methods', () => {
+    const withStatus = (
+      queryClient: ReturnType<typeof setUp>['queryClient'],
+      status: Json,
+    ): void => {
+      queryClient.setQueryData(['auth', 'onboarding-status'], {
+        masterExists: true,
+        demoMode: false,
+        ...status,
+      });
+    };
+
+    it('hides the password form when password sign-in is off and offers single sign-on alone', async () => {
+      const { queryClient } = setUp('/login', () => json({}, 200));
+      withStatus(queryClient, {
+        passwordSignIn: false,
+        singleSignOn: { buttonLabel: 'Sign in with Auth0', available: true },
+        passwordSignInForced: false,
+      });
+      expect(await screen.findByTestId('login-single-sign-on')).toHaveTextContent(
+        'Sign in with Auth0',
+      );
+      expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument();
+    });
+
+    it('disables single sign-on with a reason while the provider is unreachable', async () => {
+      const { queryClient } = setUp('/login', () => json({}, 200));
+      withStatus(queryClient, {
+        passwordSignIn: true,
+        singleSignOn: { buttonLabel: 'Sign in with Auth0', available: false },
+        passwordSignInForced: true,
+      });
+      expect(await screen.findByTestId('login-single-sign-on')).toBeDisabled();
+      expect(screen.getByTestId('login-single-sign-on-unavailable')).toBeInTheDocument();
+      expect(screen.getByTestId('login-password-forced')).toBeInTheDocument();
+    });
+
+    it('starts single sign-on on the server, carrying a waiting agent authorization, and follows the address it returns', async () => {
+      const pending =
+        '?response_type=code&client_id=https%3A%2F%2Fagent.example%2Fclient.json&exp=1&sig=abc';
+      let sent: unknown = null;
+      const { queryClient } = setUp(`/login${pending}`, (url, init) => {
+        if (url.includes('/api/auth/single-sign-on/start')) {
+          sent = JSON.parse(String(init?.body));
+          return json({ url: 'https://idp.example/authorize?state=s' });
+        }
+        return json({}, 200);
+      });
+      withStatus(queryClient, {
+        passwordSignIn: true,
+        singleSignOn: { buttonLabel: 'Sign in with Auth0', available: true },
+        passwordSignInForced: false,
+      });
+      const assign = vi.fn();
+      vi.spyOn(window, 'location', 'get').mockReturnValue({
+        ...window.location,
+        origin: REAL_ORIGIN,
+        search: pending,
+        set href(value: string) {
+          assign(value);
+        },
+      } as Location);
+      const user = userEvent.setup();
+      await user.click(await screen.findByTestId('login-single-sign-on'));
+      await waitFor(() =>
+        expect(assign).toHaveBeenCalledWith('https://idp.example/authorize?state=s'),
+      );
+      expect(sent).toEqual({ returnTo: '/', pendingAuthorization: pending });
+    });
+
+    // The browser strips tab and newline and reads a backslash as a slash, so each of these passes a "starts with one slash" check yet resolves to another site. The value is sent as the single sign-on `returnTo`, so the body is where an open redirect would show.
+    it.each([
+      ['/\t/evil.example', '/'],
+      ['/\n/evil.example', '/'],
+      ['/\\evil.example', '/'],
+      ['//evil.example', '/'],
+      ['/\t/evil.example/account', '/'],
+      ['/account?tab=keys#top', '/account?tab=keys#top'],
+      // Same origin, but sent in the form the browser resolved rather than the raw string, so the server and the router never have to agree with the browser on how to read a stray tab.
+      ['/\taccount', '/account'],
+    ])('sends ?from=%j as single sign-on returnTo %j', async (from, expected) => {
+      let sent: { returnTo?: string } | null = null;
+      const { queryClient } = setUp(`/login?from=${encodeURIComponent(from)}`, (url, init) => {
+        if (url.includes('/api/auth/single-sign-on/start')) {
+          sent = JSON.parse(String(init?.body)) as { returnTo?: string };
+          return json({ url: 'https://idp.example/authorize?state=s' });
+        }
+        return json({}, 200);
+      });
+      withStatus(queryClient, {
+        passwordSignIn: true,
+        singleSignOn: { buttonLabel: 'Sign in with Auth0', available: true },
+        passwordSignInForced: false,
+      });
+      const assign = vi.fn();
+      vi.spyOn(window, 'location', 'get').mockReturnValue({
+        ...window.location,
+        origin: REAL_ORIGIN,
+        search: '',
+        set href(value: string) {
+          assign(value);
+        },
+      } as Location);
+      const user = userEvent.setup();
+      await user.click(await screen.findByTestId('login-single-sign-on'));
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+      expect(sent).toEqual({ returnTo: expected });
+    });
+
+    it('explains a known refusal code and never renders an unknown one', async () => {
+      setUp('/login?error=email_not_verified', () => json({}, 200));
+      expect(await screen.findByTestId('login-server-error')).toHaveTextContent(
+        /verify your email address/i,
+      );
+    });
+
+    it('shows the generic message for a code it does not know, not the code itself', async () => {
+      setUp('/login?error=%3Cscript%3Eevil', () => json({}, 200));
+      const alert = await screen.findByTestId('login-server-error');
+      expect(alert).toHaveTextContent(/did not complete/i);
+      expect(alert.textContent).not.toContain('evil');
+    });
   });
 });

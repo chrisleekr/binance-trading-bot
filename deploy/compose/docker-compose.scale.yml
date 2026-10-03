@@ -26,6 +26,8 @@ x-app-image: &app-image
   read_only: true
   tmpfs:
     - /tmp
+  # Compose's default restart policy is `no`. The api exits on purpose to pick up a recovered single sign-on provider and relies on this policy to come back; it also brings every role back after a crash or host reboot, matching the prod file's `app`.
+  restart: unless-stopped
   depends_on:
     postgres:
       condition: service_healthy
@@ -64,6 +66,14 @@ services:
       PORT: 3000
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       AUTH_SECRET: ${AUTH_SECRET}
+      # Sign-in methods; see docker-compose.yml. Only the api reads them.
+      PASSWORD_SIGN_IN_ENABLED: ${PASSWORD_SIGN_IN_ENABLED:-1}
+      SINGLE_SIGN_ON_ENABLED: ${SINGLE_SIGN_ON_ENABLED:-0}
+      SINGLE_SIGN_ON_ISSUER_URL: ${SINGLE_SIGN_ON_ISSUER_URL:-}
+      SINGLE_SIGN_ON_CLIENT_ID: ${SINGLE_SIGN_ON_CLIENT_ID:-}
+      SINGLE_SIGN_ON_CLIENT_SECRET: ${SINGLE_SIGN_ON_CLIENT_SECRET:-}
+      SINGLE_SIGN_ON_BUTTON_LABEL: ${SINGLE_SIGN_ON_BUTTON_LABEL:-Single sign-on}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       BACKUP_DIR: ${BACKUP_DIR:-/backups}
     volumes:
       - ./../../backups:/backups

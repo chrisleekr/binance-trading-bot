@@ -137,6 +137,7 @@ describe('BackupRestorePage', () => {
     const user = userEvent.setup();
     const file = new File(['dump-bytes'], 'app.dump', { type: 'application/octet-stream' });
     await user.upload(screen.getByLabelText('Backup archive file') as HTMLInputElement, file);
+    await user.type(screen.getByLabelText(/current password/i), 'operator-password');
     await user.type(screen.getByLabelText(/type restore to confirm/i), 'restore');
     await user.click(screen.getByRole('button', { name: /^restore$/i }));
     await waitFor(() => {
@@ -144,6 +145,50 @@ describe('BackupRestorePage', () => {
     });
     expect(captured.method).toBe('POST');
     expect(captured.body).toBeInstanceOf(FormData);
+    // A restore replaces the password and sign-in settings, so the server requires the same proof as the Security page.
+    expect(JSON.parse((captured.body as FormData).get('reauthentication') as string)).toEqual({
+      method: 'password',
+      password: 'operator-password',
+    });
     expect(await screen.findByText(/restore complete/i)).toBeInTheDocument();
+  });
+
+  it('asks for confirmation instead of posting when no password was entered', async () => {
+    const posted = vi.fn();
+    setUp(liveOnly, async (url, init) => {
+      if (url.endsWith('/api/restore') && init?.method === 'POST') posted();
+      return json({}, 404);
+    });
+    await screen.findByRole('heading', { name: /backup & restore/i });
+    const user = userEvent.setup();
+    const file = new File(['dump-bytes'], 'app.dump', { type: 'application/octet-stream' });
+    await user.upload(screen.getByLabelText('Backup archive file') as HTMLInputElement, file);
+    await user.type(screen.getByLabelText(/type restore to confirm/i), 'restore');
+    await user.click(screen.getByRole('button', { name: /^restore$/i }));
+    expect(await screen.findByTestId('security-confirm-prompt')).toHaveTextContent(
+      /confirm it is you/i,
+    );
+    expect(posted).not.toHaveBeenCalled();
+  });
+
+  it('shows the server refusal of a wrong password beside the confirmation', async () => {
+    setUp(liveOnly, async (url, init) => {
+      if (url.endsWith('/api/restore') && init?.method === 'POST')
+        return json(
+          { error: { code: 'INVALID_PASSWORD', message: 'The password is not correct.' } },
+          403,
+        );
+      return json({}, 404);
+    });
+    await screen.findByRole('heading', { name: /backup & restore/i });
+    const user = userEvent.setup();
+    const file = new File(['dump-bytes'], 'app.dump', { type: 'application/octet-stream' });
+    await user.upload(screen.getByLabelText('Backup archive file') as HTMLInputElement, file);
+    await user.type(screen.getByLabelText(/current password/i), 'wrong-password');
+    await user.type(screen.getByLabelText(/type restore to confirm/i), 'restore');
+    await user.click(screen.getByRole('button', { name: /^restore$/i }));
+    expect(await screen.findByTestId('security-confirm-prompt')).toHaveTextContent(
+      'The password is not correct.',
+    );
   });
 });

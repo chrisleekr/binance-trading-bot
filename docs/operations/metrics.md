@@ -1,6 +1,6 @@
 # Metrics reference
 
-Every catalogue-backed series the worker exports, and what each one measures. This is the vocabulary the [alert rules](deploy.md#alert-rules) are written in. Prometheus synthesises a few series of its own that no catalogue entry can cover — see [Process and runtime metrics](#process-and-runtime-metrics) below.
+Every catalogue-backed series the worker exports, and what each one measures. Most [alert rules](deploy.md#alert-rules) read these series; the sign-in and security rules also read `auth_*` series the api exports, which this table does not list. Prometheus synthesises a few series of its own that no catalogue entry can cover — see [Process and runtime metrics](#process-and-runtime-metrics) below.
 
 **Where to scrape it.** The worker exposes `/metrics` on its own admin listener (`WORKER_ADMIN_PORT`, default `9101`), the api on `ADMIN_PORT` (default `9100`). Both bind to `127.0.0.1` by default and are unauthenticated — see [Alert rules](deploy.md#scrape-config-the-rules-assume) for the bind and scrape config Prometheus needs, and why neither port belongs in `ports:`.
 

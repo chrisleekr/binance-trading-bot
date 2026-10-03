@@ -69,6 +69,14 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
       AUTH_SECRET: ${AUTH_SECRET}
+      # Sign-in methods. Unset optional values arrive as empty strings, which the api treats as unset.
+      PASSWORD_SIGN_IN_ENABLED: ${PASSWORD_SIGN_IN_ENABLED:-1}
+      SINGLE_SIGN_ON_ENABLED: ${SINGLE_SIGN_ON_ENABLED:-0}
+      SINGLE_SIGN_ON_ISSUER_URL: ${SINGLE_SIGN_ON_ISSUER_URL:-}
+      SINGLE_SIGN_ON_CLIENT_ID: ${SINGLE_SIGN_ON_CLIENT_ID:-}
+      SINGLE_SIGN_ON_CLIENT_SECRET: ${SINGLE_SIGN_ON_CLIENT_SECRET:-}
+      SINGLE_SIGN_ON_BUTTON_LABEL: ${SINGLE_SIGN_ON_BUTTON_LABEL:-Single sign-on}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       # AI assist (the backtest advisor) is DB-configured via Account → AI
       # assistant, not env. No ANTHROPIC_* here.
       PGSSLMODE: ${PGSSLMODE:-prefer}

@@ -62,8 +62,13 @@ const en: Readonly<Record<string, string>> = {
   'onboarding.subtitle': 'First-run setup. This screen is shown once.',
   'onboarding.warning.title': 'Lost-password recovery requires host shell access',
   'onboarding.warning.body':
-    'There is no in-app password recovery. If this password is lost, the operator must run `bun run reset-password` on the host. Store this password in a password manager now.',
+    'There is no in-app password recovery. If this password is lost, run `docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env run --rm app bun /app/dist/reset-password.js --email <email>` on the server from the repo root. Store this password in a password manager now.',
+  'onboarding.warning.single_sign_on.title': 'Lost-access recovery requires host shell access',
+  'onboarding.warning.single_sign_on.body':
+    'There is no in-app recovery. If you lose access to your identity provider account, run `docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env run --rm app bun /app/dist/reset-password.js --email <email> --unlink-single-sign-on` on the server from the repo root, then set PASSWORD_SIGN_IN_ENABLED=1 and restart so the password it prints can sign in.',
   'onboarding.submit': 'Create account',
+  'onboarding.single_sign_on.help':
+    'The identity you sign in with becomes the only one that can sign in here. You can add a password later from Settings > Security.',
   'onboarding.submitting': 'Creating account…',
   'onboarding.error.password_too_short': 'Password must be at least 12 characters.',
   'onboarding.error.invalid_email': 'Enter a valid email address.',
@@ -78,6 +83,22 @@ const en: Readonly<Record<string, string>> = {
   'login.error.rate_limited.no_retry': 'Too many attempts. Try again later.',
   'login.error.invalid_email': 'Enter a valid email address.',
   'login.error.password_required': 'Password is required.',
+  'login.or': 'or',
+  'login.single_sign_on.redirecting': 'Opening your identity provider…',
+  'login.single_sign_on.unavailable':
+    'Your identity provider cannot be reached right now. The server checks again every few minutes.',
+  'login.password_forced':
+    'Single sign-on is unavailable, so password sign-in is switched on until it is back.',
+  'login.error.account_not_linked':
+    'That identity provider account is not the one linked to this app. Sign in with the linked account, or link a new one from Settings > Security after signing in another way.',
+  'login.error.provider_refused':
+    'Your identity provider answered in a way this app does not trust, so the sign-in was refused. Check the provider settings in the server configuration.',
+  'login.error.email_not_verified':
+    'Verify your email address with your identity provider, then try again.',
+  'login.error.state_mismatch':
+    'The sign-in took too long or was started in another tab. Start it again from this page.',
+  'login.error.access_denied': 'The identity provider sign-in was cancelled.',
+  'login.error.single_sign_on_failed': 'Single sign-on did not complete. Try again.',
   'consent.title': 'Authorize this AI agent',
   'consent.subtitle':
     'It is asking for access to your bot. Approve only a client you started yourself.',
