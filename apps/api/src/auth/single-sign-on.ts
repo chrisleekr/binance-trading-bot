@@ -21,8 +21,12 @@ export const DISCOVERY_TIMEOUT_MS = 5000;
  * @param issuer - The configured issuer.
  * @returns The discovery URL.
  */
-export const discoveryUrlFor = (issuer: string): string =>
-  `${issuer.replace(/\/+$/, '')}/.well-known/openid-configuration`;
+export const discoveryUrlFor = (issuer: string): string => {
+  // A scan rather than `/\/+$/`, which backtracks quadratically on a string holding many slashes that are not at the end.
+  let end = issuer.length;
+  while (end > 0 && issuer[end - 1] === '/') end -= 1;
+  return `${issuer.slice(0, end)}/.well-known/openid-configuration`;
+};
 
 /**
  * Fetches and checks the identity provider's discovery document with a hard timeout.

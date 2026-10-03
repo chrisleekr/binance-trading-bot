@@ -150,6 +150,20 @@ const startProvider = async (): Promise<MockProvider> => {
 };
 
 describe('provider discovery check', () => {
+  it('builds the discovery URL with every trailing slash removed, and in linear time on a long run of slashes', () => {
+    expect(discoveryUrlFor('https://id.example.test/realm//')).toBe(
+      'https://id.example.test/realm/.well-known/openid-configuration',
+    );
+    expect(discoveryUrlFor('https://id.example.test')).toBe(
+      'https://id.example.test/.well-known/openid-configuration',
+    );
+    // Many slashes followed by a non-slash: the shape that made `/\/+$/` backtrack quadratically.
+    const hostile = `https://x${'/'.repeat(100_000)}a`;
+    const started = performance.now();
+    expect(discoveryUrlFor(hostile)).toBe(`${hostile}/.well-known/openid-configuration`);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
   it('gives up on a provider that never answers within the bound, instead of hanging boot', async () => {
     const server = createServer(() => undefined);
     const port = await listen(server);
