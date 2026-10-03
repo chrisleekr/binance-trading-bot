@@ -33,14 +33,14 @@
     "ioredis": "~6.0.0",
     "pg": "~8.23.0",
     "pino": "~10.3.1",
-    "ws": "~8.21.3",
-    "zod": "~4.5.4",
+    "ws": "~8.22.0",
+    "zod": "~4.6.5",
     "@app/observability": "workspace:*"
   },
   "devDependencies": {
     "@app/testcontainers": "workspace:*",
     "@types/pg": "~8.23.1",
-    "@types/ws": "~8.18.1",
+    "@types/ws": "~8.18.2",
     "nock": "~14.0.17"
   }
 }

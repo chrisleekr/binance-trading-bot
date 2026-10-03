@@ -9,7 +9,7 @@ import { RedisContainer, type StartedRedisContainer } from '@testcontainers/redi
  * The runtime pin matches `deploy/compose/docker-compose.prod.yml` so ordinary integration tests exercise the deployed Postgres extension surface. Floating tags would silently change that surface between runs.
  */
 const POSTGRES_IMAGE =
-  'timescale/timescaledb:2.29.2-pg17@sha256:bc8527e62f70f0766b29515077965025872fabb5349db421565f69ee273baf2d';
+  'timescale/timescaledb:2.30.2-pg17@sha256:b346edcdb51a1fd6020e3965e0bd1c9f3406fa6d5fbce1e28f4852587ef934e2';
 const REDIS_IMAGE = 'redis@sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2';
 
 /**

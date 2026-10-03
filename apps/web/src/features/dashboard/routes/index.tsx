@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { createRoute, Link, useRouter } from '@tanstack/react-router';
+import { createRoute, type ErrorComponentProps, Link, useRouter } from '@tanstack/react-router';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
 import { cn } from '@/shared/lib/cn';
@@ -509,7 +509,7 @@ function ProfileRow({ row }: { row: DashboardAggregateRow }) {
   );
 }
 
-function IndexErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function IndexErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   return (
     <RouteErrorCard

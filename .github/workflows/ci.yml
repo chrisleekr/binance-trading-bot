@@ -248,7 +248,7 @@ jobs:
     services:
       postgres:
         # The DEPLOYED server, identical to deploy/compose/docker-compose.prod.yml and the Testcontainers runtime pin; the pin test enforces all three. This lane replays every migration in packages/db, so it has to run the version that actually ships — a migration suite pointed anywhere else validates a database nobody runs.
-        image: timescale/timescaledb:2.29.2-pg17@sha256:bc8527e62f70f0766b29515077965025872fabb5349db421565f69ee273baf2d
+        image: timescale/timescaledb:2.30.2-pg17@sha256:b346edcdb51a1fd6020e3965e0bd1c9f3406fa6d5fbce1e28f4852587ef934e2
         env:
           POSTGRES_DB: binance_trading_bot_test
           POSTGRES_USER: postgres
