@@ -97,109 +97,108 @@ const CorrelationSchema = withParsedDefault(
   }),
 );
 
+/**
+ * The discovery settings as fields, without the cross-field check. It is the PATCH body: a partial patch is merged over the stored config, and only the merged config can be held to the rank-band check, since a patch of one rank field would otherwise be judged against the other's default.
+ */
+export const DiscoveryConfigPatch = z.object({
+  enabled: z
+    .boolean()
+    .default(false)
+    .describe('Master switch. When off, discovery never touches the symbol set.'),
+  refreshPeriodMs: z
+    .number()
+    .int()
+    .min(60_000)
+    .max(86_400_000)
+    .default(900_000)
+    .describe('How often the discovery scan runs, in ms. 900000 is 15 minutes.'),
+  blacklist: z.array(z.string()).default([]).describe('Symbols discovery must never auto-add.'),
+  min24hPairVolumeUsd: decimalString('min24hPairVolumeUsd must be a positive decimal', {
+    gt: 0,
+  })
+    .default('500000')
+    .describe(
+      '@ui:price Can the bot get in and out? The 24h trading volume of the exact market it would buy on, in US dollars. Set this low: a coin can be hugely popular overall while its market against your quote asset is quiet. Slippage costs dollars no matter which coin you settle in, so this floor is always in dollars.',
+    ),
+  min24hAssetVolumeUsd: decimalString('min24hAssetVolumeUsd must be a positive decimal', {
+    gt: 0,
+  })
+    .default('50000000')
+    .describe(
+      '@ui:price Is the coin actually alive? The coin\'s total 24h trading volume on its main US-dollar market, whatever quote asset you happen to trade it against. This is the "no dead microcaps" floor, so set it high.',
+    ),
+  maxSpreadRatio: decimalString('maxSpreadRatio must be a positive decimal', { gt: 0 })
+    .default('0.003')
+    .describe('@ui:percent-of Max bid/ask spread as a fraction of mid. 0.003 is 0.3 percent.'),
+  changeMinPercent: decimalString('changeMinPercent must be a decimal')
+    .default('0')
+    .describe(
+      '@ui:decimal Minimum 24h gain against your quote asset, in percent. 0 means "the coin must simply beat the asset you hold when you are not in a trade" — the one setting here that means the same thing no matter which quote asset you pick. A higher number is a deliberate hurdle, and how hard it is to clear depends on the quote asset.',
+    ),
+  rankTopPercent: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(30)
+    .describe(
+      'Only consider coins in the top slice of all coins on your quote asset, ranked by 24h gain. 30 means the top 30 percent. Using a rank instead of a fixed percentage is what keeps discovery working when you switch quote asset.',
+    ),
+  rankExcludeTopPercent: z
+    .number()
+    .int()
+    .min(0)
+    .max(99)
+    .default(5)
+    .describe(
+      'Skip the very hottest coins, which have usually already run. 5 means ignore the top 5 percent of gainers. Must be smaller than the top-percent setting. 0 skips nothing.',
+    ),
+  minAgeDays: z
+    .number()
+    .int()
+    .min(1)
+    // Capped at 40: the cron approximates age from the oldest candle of the
+    // same 1h kline window it fetches for trend-confirm, and Binance caps a
+    // klines request at 1000 candles (~41.6 days of 1h bars). A higher floor
+    // could never be satisfied by that window and would silently reject every
+    // symbol. A coarser daily age-probe would lift this; not needed for v1.
+    .max(40)
+    .default(30)
+    .describe('Minimum kline-history age before a symbol is eligible (max 40, see schema note).'),
+  maxAutoSymbols: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .default(5)
+    .describe('Cap on concurrently auto-held symbols.'),
+  minHoldMinutes: z
+    .number()
+    .int()
+    .min(1)
+    .max(43_200)
+    .default(120)
+    .describe('Min hold before reap AND re-add cooldown, in minutes.'),
+  marketBreadthMinPercent: decimalString('marketBreadthMinPercent must be a non-negative decimal', {
+    gte: 0,
+  })
+    .default('0')
+    .describe(
+      '@ui:decimal Risk-off guard. Before discovery adds any NEW coin this cycle, at least this percent of all coins in your quote asset must be up over the last 24h. If fewer are up the broad market is bleeding, so no new coins are added (coins you already hold are not touched). 0 turns the guard off.',
+    ),
+  enterOnAdd: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Enter on a discovery add. Off (default): a freshly added coin still waits for the strategy buy gate, so a confirmed up-move can sit unbought if the short-interval signal disagrees. On: the first entry skips short-interval confirmation and buys on the 1h momentum discovery already confirmed; the only downside guard left is a Strong-Sell reading. Higher risk, so leave off until a net-of-cost backtest justifies it.',
+    ),
+  entryGuard: EntryGuardSchema,
+  trendConfirm: TrendConfirmSchema,
+  correlation: CorrelationSchema,
+});
+
 export const DiscoveryConfigSchema = withParsedDefault(
-  z
-    .object({
-      enabled: z
-        .boolean()
-        .default(false)
-        .describe('Master switch. When off, discovery never touches the symbol set.'),
-      refreshPeriodMs: z
-        .number()
-        .int()
-        .min(60_000)
-        .max(86_400_000)
-        .default(900_000)
-        .describe('How often the discovery scan runs, in ms. 900000 is 15 minutes.'),
-      blacklist: z.array(z.string()).default([]).describe('Symbols discovery must never auto-add.'),
-      min24hPairVolumeUsd: decimalString('min24hPairVolumeUsd must be a positive decimal', {
-        gt: 0,
-      })
-        .default('500000')
-        .describe(
-          '@ui:price Can the bot get in and out? The 24h trading volume of the exact market it would buy on, in US dollars. Set this low: a coin can be hugely popular overall while its market against your quote asset is quiet. Slippage costs dollars no matter which coin you settle in, so this floor is always in dollars.',
-        ),
-      min24hAssetVolumeUsd: decimalString('min24hAssetVolumeUsd must be a positive decimal', {
-        gt: 0,
-      })
-        .default('50000000')
-        .describe(
-          '@ui:price Is the coin actually alive? The coin\'s total 24h trading volume on its main US-dollar market, whatever quote asset you happen to trade it against. This is the "no dead microcaps" floor, so set it high.',
-        ),
-      maxSpreadRatio: decimalString('maxSpreadRatio must be a positive decimal', { gt: 0 })
-        .default('0.003')
-        .describe('@ui:percent-of Max bid/ask spread as a fraction of mid. 0.003 is 0.3 percent.'),
-      changeMinPercent: decimalString('changeMinPercent must be a decimal')
-        .default('0')
-        .describe(
-          '@ui:decimal Minimum 24h gain against your quote asset, in percent. 0 means "the coin must simply beat the asset you hold when you are not in a trade" — the one setting here that means the same thing no matter which quote asset you pick. A higher number is a deliberate hurdle, and how hard it is to clear depends on the quote asset.',
-        ),
-      rankTopPercent: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .default(30)
-        .describe(
-          'Only consider coins in the top slice of all coins on your quote asset, ranked by 24h gain. 30 means the top 30 percent. Using a rank instead of a fixed percentage is what keeps discovery working when you switch quote asset.',
-        ),
-      rankExcludeTopPercent: z
-        .number()
-        .int()
-        .min(0)
-        .max(99)
-        .default(5)
-        .describe(
-          'Skip the very hottest coins, which have usually already run. 5 means ignore the top 5 percent of gainers. Must be smaller than the top-percent setting. 0 skips nothing.',
-        ),
-      minAgeDays: z
-        .number()
-        .int()
-        .min(1)
-        // Capped at 40: the cron approximates age from the oldest candle of the
-        // same 1h kline window it fetches for trend-confirm, and Binance caps a
-        // klines request at 1000 candles (~41.6 days of 1h bars). A higher floor
-        // could never be satisfied by that window and would silently reject every
-        // symbol. A coarser daily age-probe would lift this; not needed for v1.
-        .max(40)
-        .default(30)
-        .describe(
-          'Minimum kline-history age before a symbol is eligible (max 40, see schema note).',
-        ),
-      maxAutoSymbols: z
-        .number()
-        .int()
-        .min(1)
-        .max(50)
-        .default(5)
-        .describe('Cap on concurrently auto-held symbols.'),
-      minHoldMinutes: z
-        .number()
-        .int()
-        .min(1)
-        .max(43_200)
-        .default(120)
-        .describe('Min hold before reap AND re-add cooldown, in minutes.'),
-      marketBreadthMinPercent: decimalString(
-        'marketBreadthMinPercent must be a non-negative decimal',
-        {
-          gte: 0,
-        },
-      )
-        .default('0')
-        .describe(
-          '@ui:decimal Risk-off guard. Before discovery adds any NEW coin this cycle, at least this percent of all coins in your quote asset must be up over the last 24h. If fewer are up the broad market is bleeding, so no new coins are added (coins you already hold are not touched). 0 turns the guard off.',
-        ),
-      enterOnAdd: z
-        .boolean()
-        .default(false)
-        .describe(
-          'Enter on a discovery add. Off (default): a freshly added coin still waits for the strategy buy gate, so a confirmed up-move can sit unbought if the short-interval signal disagrees. On: the first entry skips short-interval confirmation and buys on the 1h momentum discovery already confirmed; the only downside guard left is a Strong-Sell reading. Higher risk, so leave off until a net-of-cost backtest justifies it.',
-        ),
-      entryGuard: EntryGuardSchema,
-      trendConfirm: TrendConfirmSchema,
-      correlation: CorrelationSchema,
-    })
+  DiscoveryConfigPatch
     // An inverted rank band would reject every candidate and read as "discovery
     // is broken" rather than "your band is empty". `z.toJSONSchema` drops checks,
     // so AutoForm cannot enforce this client-side; the PATCH route rejects it.

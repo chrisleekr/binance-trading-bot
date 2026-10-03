@@ -549,6 +549,27 @@ describeIfInfra('discovery router', () => {
     expect(body.entryModeSupported).toBe(true);
   });
 
+  it('PATCH judges the rank band on the merged config, not on the default of the field it omits', async () => {
+    const url = `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/discovery-config`;
+    const patch = (body: Record<string, unknown>) =>
+      fx.app.request(url, {
+        method: 'PATCH',
+        headers: headers(fx.alice.userId),
+        body: JSON.stringify(body),
+      });
+    expect((await patch(fullConfig({ rankTopPercent: 60, rankExcludeTopPercent: 0 }))).status).toBe(
+      200,
+    );
+    // 40 is above the default rankTopPercent of 30, but below the stored 60. Checking the band on the body alone refused this valid one-field edit.
+    const widened = await patch({ rankExcludeTopPercent: 40 });
+    expect(widened.status).toBe(200);
+    expect(
+      ((await widened.json()) as { config: { rankExcludeTopPercent: number } }).config,
+    ).toMatchObject({ rankExcludeTopPercent: 40 });
+    // The band is still enforced, on the merged config: 70 against the stored 60 is inverted.
+    expect((await patch({ rankExcludeTopPercent: 70 })).status).toBe(422);
+  });
+
   it('PATCH rejects a malformed config (422 from the body validator)', async () => {
     const res = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/discovery-config`,

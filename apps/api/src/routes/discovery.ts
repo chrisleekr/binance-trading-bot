@@ -7,6 +7,7 @@ import {
   type DiscoveryActivityEntry,
   asDecimalString,
   type BundleProvider,
+  DiscoveryConfigPatch,
   DiscoveryConfigSchema,
   DiscoveryDashboardResponse,
   type DiscoveryHolding,
@@ -410,7 +411,8 @@ const patchRoute = createRoute({
   tags: ['discovery'],
   request: {
     params: ProfileIdParam,
-    body: { content: { 'application/json': { schema: DiscoveryConfigSchema } } },
+    // The fields without the rank-band check: a one-field patch would be judged against the other field's default. The merged config is checked under the row lock.
+    body: { content: { 'application/json': { schema: DiscoveryConfigPatch } } },
   },
   responses: {
     200: {
@@ -519,7 +521,8 @@ export const discoveryRouter = (di: DI): ApiHono => {
         ...(stored.success ? stored.data : {}),
         ...patch,
       });
-      assertEntryModeAllowed(di, profile, merged);
+      // Judged against the config read under the lock: the pre-lock snapshot could still hold a value a concurrent PATCH just switched off, and re-sending it would pass as an unchanged re-save.
+      assertEntryModeAllowed(di, { ...profile, discoveryConfig: current }, merged);
       return merged;
     });
     if (!updated) throw new HttpError('NOT_FOUND', 'profile');
