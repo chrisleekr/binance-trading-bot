@@ -76,7 +76,11 @@ describe('OpsNotifyConfig', () => {
       'dust-transfer': true,
       'orphan-order': true,
       'agent-action': true,
+      'auth-activity': true,
+      'auth-alert': true,
     });
+    // Security alerts are the out-of-band signal of a compromised session, so the session must not be able to switch them off.
+    expect(OpsNotifyConfig.safeParse({ 'auth-alert': false }).success).toBe(false);
     expect(DEFAULT_OPS_NOTIFY_CONFIG).toEqual(OpsNotifyConfig.parse({}));
     for (const category of AccountNotifyEventCategory.options) {
       expect(accountNotifyEventMeta(category)?.category).toBe(category);

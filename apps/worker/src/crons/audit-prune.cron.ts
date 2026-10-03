@@ -16,6 +16,7 @@
 import type { Job } from 'bullmq';
 import type { Logger } from 'pino';
 import type { Redis } from 'ioredis';
+import { AuthSecuritySettings, DEFAULT_AUTH_SECURITY_SETTINGS } from '@app/contracts';
 import { repo } from '@app/db';
 import type { BootContext } from 'boot/boot-context.js';
 import { defineCron, type CronDef } from './define.js';
@@ -93,7 +94,28 @@ export const buildAuditPruneCron = (ctx: BootContext): CronDef =>
       logger: ctx.logger,
       redis: ctx.redis,
       resolveRetentionDays: async () => (await repo.retentionConfig.get(ctx.db)).auditLogDays,
-      pruneOlderThan: (days) =>
-        repo.auditLogs.pruneAllOlderThan(ctx.db, new Date(Date.now() - days * MS_PER_DAY)),
+      pruneOlderThan: async (days) => {
+        const general = await repo.auditLogs.pruneAllOlderThan(
+          ctx.db,
+          new Date(Date.now() - days * MS_PER_DAY),
+        );
+        // Security events keep their own, longer horizon (never under a year), read from the sign-in settings and validated like every other read of them, so the general horizon above can never erase evidence of a compromise.
+        const stored = AuthSecuritySettings.safeParse(
+          (await repo.authSecuritySettings.get(ctx.db)).settings ?? {},
+        );
+        const securityDays = (stored.success ? stored.data : DEFAULT_AUTH_SECURITY_SETTINGS)
+          .securityEventRetentionDays;
+        const security = await repo.auditLogs.pruneSecurityOlderThan(
+          ctx.db,
+          new Date(Date.now() - securityDays * MS_PER_DAY),
+        );
+        // Each single sign-on start leaves one short-lived row behind and nothing else removes it; a flood of starts would otherwise grow the table without bound.
+        const verifications = await repo.authIdentity.pruneExpiredVerifications(ctx.db, new Date());
+        ctx.logger.info(
+          { general, security, securityDays, verifications },
+          'cron audit-prune: security events and expired sign-in state swept',
+        );
+        return general + security;
+      },
     }),
   });

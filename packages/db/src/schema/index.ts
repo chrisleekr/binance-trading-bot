@@ -9,6 +9,7 @@ export * from './backup-config.js';
 export * from './backtest-advisor-result.js';
 export * from './backtest-result-ledger.js';
 export * from './backtest-runs.js';
+export * from './auth-security-settings.js';
 export * from './better-auth.js';
 export * from './better-auth-oauth.js';
 export * from './candles.js';

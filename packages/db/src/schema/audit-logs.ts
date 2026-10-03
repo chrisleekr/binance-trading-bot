@@ -25,6 +25,8 @@ export const auditLogs = pgTable(
     ip: text('ip'),
     userAgent: text('user_agent'),
     payload: jsonb('payload'),
+    // 'security' rows are sign-in and credential events: kept on their own retention and read by the Security page. See migration 0098.
+    category: text('category').$type<'general' | 'security'>().notNull().default('general'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -38,6 +40,9 @@ export const auditLogs = pgTable(
       table.createdAt.desc(),
       table.id.desc(),
     ),
+    index('audit_logs_security_recent')
+      .on(table.operatorId, table.createdAt.desc())
+      .where(sql`${table.category} = 'security'`),
   ],
 );
 

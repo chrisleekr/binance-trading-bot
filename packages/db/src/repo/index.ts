@@ -9,6 +9,8 @@ import * as aiProviderConfig from './ai-provider-config.js';
 import * as apiKeys from './api-keys.js';
 import * as appliedFills from './applied-fills.js';
 import * as auditLogs from './audit-logs.js';
+import * as authIdentity from './auth-identity.js';
+import * as authSecuritySettings from './auth-security-settings.js';
 import * as backtestAdvisorResults from './backtest-advisor-results.js';
 import * as backtestRuns from './backtest-runs.js';
 import * as backupConfig from './backup-config.js';
@@ -40,6 +42,8 @@ export {
   apiKeys,
   appliedFills,
   auditLogs,
+  authIdentity,
+  authSecuritySettings,
   backtestAdvisorResults,
   backtestRuns,
   backupConfig,

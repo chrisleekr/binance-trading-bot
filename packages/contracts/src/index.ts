@@ -15,6 +15,8 @@ export * from './account-exposure.js';
 export * from './account-info.js';
 export * from './pagination.js';
 export * from './auth.js';
+export * from './auth-security-settings.js';
+export * from './security-events.js';
 export * from './strategies.js';
 export * from './reason-attribution.js';
 export * from './profile-diagnosis.js';
