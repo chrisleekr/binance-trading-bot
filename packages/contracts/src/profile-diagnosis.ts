@@ -1146,7 +1146,7 @@ const MIN_ENTRY_SIGNAL_CLOSES = 2;
 /**
  * Whether a discovery-bound coin can still produce an entry signal before the rotation takes it away.
  *
- * The gap this closes: every other "why is it not buying" rung reads `condition_states`, and a strategy that simply sees no signal writes no row there — correctly, since declining to open a position is the strategy working. So a profile whose bindings expire before their entry candle can close again returned a full ladder of green rungs and no answer. The whole computation is two config values and no market data: an auto binding lives `minHoldMinutes`, and over that span it sees `floor(minHoldMinutes / interval)` closes of the interval the entry decision is made on. When that is 1, discovery hands the strategy a coin, gives it a single evaluation, and takes it back.
+ * The gap this closes: every other "why is it not buying" rung reads `condition_states`, and a strategy that simply sees no signal writes no row there — correctly, since declining to open a position is the strategy working. So a profile whose bindings expire before their entry candle can close again returned a full ladder of green rungs and no answer. The whole computation is two config values and no market data: an auto binding becomes eligible for rotation after `minHoldMinutes`, and that span guarantees at least `floor(minHoldMinutes / interval)` closes of the interval the entry decision is made on (one more when it straddles a close). When that minimum is 1, discovery may take a coin back after a single guaranteed evaluation. Eligibility is not removal: the reap's wallet, pin, position and open-order guards can keep a binding longer.
  *
  * It reports on the CONFIGURATION, not on what is currently bound, so it answers the same on a profile holding nothing — which is the state it most needs to explain.
  *
@@ -1197,13 +1197,13 @@ const stepEntrySignalReach = (input: ProfileDiagnosisInput): DiagnosisStepResult
   if (closes >= MIN_ENTRY_SIGNAL_CLOSES) {
     return {
       status: 'ok',
-      line: `A coin is held at least ${holdPhrase}, which spans ${closes} ${interval} closes — room for an entry signal to appear.`,
+      line: `A coin is held at least ${holdPhrase}, which guarantees at least ${closes} ${interval} closes — room for an entry signal to appear.`,
       items: [],
     };
   }
   return {
     status: 'finding',
-    line: `A coin is rotated out after ${holdPhrase}, which spans ${closes === 1 ? 'only one' : `only ${closes}`} ${interval} close${closes === 1 ? '' : 's'} — barely a chance for an entry signal to appear.`,
+    line: `A coin can be rotated out after ${holdPhrase}, which guarantees ${closes === 1 ? 'only one' : `only ${closes}`} ${interval} close${closes === 1 ? '' : 's'} — barely a chance for an entry signal to appear.`,
     items: [
       {
         id: 'entry-signal-reach',
@@ -1211,13 +1211,13 @@ const stepEntrySignalReach = (input: ProfileDiagnosisInput): DiagnosisStepResult
         code: 'hold-shorter-than-signal',
         // Not `by-design`: the operator did not choose "never enter". They chose a hold time and an entry interval that happen to be the same order of magnitude, and the consequence is invisible from either setting on its own. That is a real problem to act on, and it is also not a halt — discovery, orders and exits all still work — which is what `degraded` means.
         severity: 'degraded',
-        title: 'Coins are rotated out before their entry signal can fire',
-        detail: `Discovery picks a coin on a short-interval burst, then releases it after ${holdPhrase}. The entry decision is made on the ${interval} candle, so over that whole window the strategy gets ${closes === 1 ? 'one look' : `${closes} looks`} at it. Raising the minimum hold, or moving the entry decision to a faster candle, is what gives a signal room to appear.`,
+        title: 'Coins can be rotated out before their entry signal can fire',
+        detail: `Discovery picks a coin on a short-interval burst, and may release it once ${holdPhrase} have passed. The entry decision is made on the ${interval} candle, so that window guarantees the strategy only ${closes === 1 ? 'one look' : `${closes} looks`} at it. Raising the minimum hold, or moving the entry decision to a faster candle, is what gives a signal room to appear.`,
         sinceMs: null,
         evidence: [
           `Minimum hold ${holdPhrase}.`,
           `Entry candle interval ${interval}.`,
-          `${closes} close${closes === 1 ? '' : 's'} per holding period.`,
+          `At least ${closes} close${closes === 1 ? '' : 's'} per holding period.`,
         ],
         symbols: [],
         lever: leverFor(input, 'entry-signal-reach'),

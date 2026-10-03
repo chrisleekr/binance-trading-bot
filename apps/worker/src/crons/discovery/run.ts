@@ -485,7 +485,7 @@ export const runDiscoveryForProfile = async (
       // Never traded here, so the balance is not ours to protect. Logged rather than counted: the attempt's verdict is still whatever `reapSymbol` returns below, and a second tally entry for one attempt would make the outcome counts stop summing to the attempts. `removeUnpinnedIfFlat` remains the backstop: it refuses atomically on an open order or a positive tracked quantity.
       port.logger.info(
         { symbol },
-        'cron discovery: wallet holds this coin but the profile never ordered it; reaping',
+        'cron discovery: wallet holds this coin but the profile never ordered it and the account never traded it; reaping',
       );
     }
     const outcome = await port.reapSymbol(symbol, nowMs);

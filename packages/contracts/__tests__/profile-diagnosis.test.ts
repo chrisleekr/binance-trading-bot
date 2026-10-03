@@ -766,17 +766,17 @@ describe('rung 9: entry signal reach', () => {
       id: 'entry-signal-reach',
       condition: 'entry-signal-reach',
       code: 'hold-shorter-than-signal',
-      title: 'Coins are rotated out before their entry signal can fire',
+      title: 'Coins can be rotated out before their entry signal can fire',
       sinceMs: null,
       symbols: [],
     });
-    expect(r.items[0]?.detail).toContain('releases it after 1440 minutes');
+    expect(r.items[0]?.detail).toContain('may release it once 1440 minutes have passed');
     expect(r.items[0]?.detail).toContain('one look');
     expect(r.items[0]?.severity).toBe('degraded');
     expect(r.items[0]?.evidence).toEqual([
       'Minimum hold 1440 minutes.',
       'Entry candle interval 1d.',
-      '1 close per holding period.',
+      'At least 1 close per holding period.',
     ]);
     // The whole point of the rung: an unexplained drought becomes a named setting.
     expect(r.items[0]?.lever).toEqual({
@@ -821,7 +821,7 @@ describe('rung 9: entry signal reach', () => {
     expect(under.status).toBe('finding');
     // The rendered hold, not only the verdict. The close count FLOORS, so anything that ROUNDS the same value for display makes the sentence refute itself: `humanizeDuration(119 minutes)` is "2 hours", printed beside "only one 1h close".
     expect(under.line).toBe(
-      'A coin is rotated out after 119 minutes, which spans only one 1h close — barely a chance for an entry signal to appear.',
+      'A coin can be rotated out after 119 minutes, which guarantees only one 1h close — barely a chance for an entry signal to appear.',
     );
   });
 
