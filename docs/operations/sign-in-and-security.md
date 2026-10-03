@@ -128,7 +128,7 @@ If you believe the server itself was compromised, also change `AUTH_SECRET` and 
 docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DELETE FROM jwks;"'
 ```
 
-Restoring a backup also signs everyone out, because the restored database brings back whatever sessions it held when it was taken.
+Restoring a backup asks you to confirm it's you first, because the archive replaces your password, your single sign-on link and these settings. It then signs everyone out, because the restored database brings back whatever sessions it held when it was taken.
 
 ## AI agents (MCP)
 
