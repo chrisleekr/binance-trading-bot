@@ -23,6 +23,13 @@ import type pino from 'pino';
 import { createMetricsRegistry, type MetricsRegistry } from '@app/observability';
 import { resolveGitSha } from '@app/core/git-sha';
 import { createAuth, type Auth } from './auth.js';
+import {
+  createSecurityRedis,
+  createSecurityServices,
+  type SecurityServices,
+} from './auth/security.js';
+import { createWebSocketSessionWatch, type WebSocketSessionWatch } from './ws/session-watch.js';
+import type { DiscoveryResult, SingleSignOnConfig } from './auth/single-sign-on.js';
 import { createLlm, type LlmAssist } from '@app/llm';
 import type { Env } from './env.js';
 import { createLogger } from './middleware/logger.js';
@@ -116,8 +123,80 @@ export interface DI {
    * `sessionResolver`; null off-demo or before onboarding. Never per-request.
    */
   demoOperatorId: UserId | null;
+  /** The sign-in system: limits, security events, settings, single sign-on state. */
+  security: SecurityServices;
+  /** Builds a Better Auth instance for the current security state. The boot sequence calls it again after deciding which sign-in methods are usable; see {@link buildAuth}. */
+  rebuildAuth: () => Auth;
+  /** Open WebSockets and the sessions behind them, so an ended session closes its sockets. */
+  websocketSessions: WebSocketSessionWatch;
   shutdown: () => Promise<void>;
 }
+
+/** Facts the boot sequence establishes before the DI container exists. */
+export interface BootFacts {
+  /** The identity provider check, present only when single sign-on is enabled. */
+  readonly singleSignOnDiscovery?: DiscoveryResult;
+}
+
+/**
+ * The single sign-on configuration from the environment, or null when it is off.
+ *
+ * @param env - Parsed environment.
+ * @returns The provider settings the rest of the app reads.
+ */
+export const singleSignOnConfigFromEnv = (env: Env): SingleSignOnConfig | null =>
+  env.SINGLE_SIGN_ON_ENABLED &&
+  env.SINGLE_SIGN_ON_ISSUER_URL !== undefined &&
+  env.SINGLE_SIGN_ON_CLIENT_ID !== undefined &&
+  env.SINGLE_SIGN_ON_CLIENT_SECRET !== undefined
+    ? {
+        issuer: env.SINGLE_SIGN_ON_ISSUER_URL,
+        clientId: env.SINGLE_SIGN_ON_CLIENT_ID,
+        clientSecret: env.SINGLE_SIGN_ON_CLIENT_SECRET,
+        buttonLabel: env.SINGLE_SIGN_ON_BUTTON_LABEL,
+      }
+    : null;
+
+/**
+ * Builds the Better Auth instance from the environment and the current security state.
+ *
+ * The single sign-on provider is registered only when its discovery document passed the boot check, so Better Auth never runs its own unbounded discovery fetch against a provider already known to be unreachable. Password sign-in follows the security state, which the boot guard may have forced on.
+ *
+ * @param env - Parsed environment.
+ * @param db - Database handle.
+ * @param logger - Logger.
+ * @param security - The sign-in services and their resolved state.
+ * @param discoveryUrl - The discovery URL that passed the boot check, when single sign-on is available.
+ * @returns The Better Auth instance.
+ */
+export const buildAuth = (
+  env: Env,
+  db: Database,
+  logger: Logger,
+  security: SecurityServices,
+  discoveryUrl: string | undefined,
+): Auth =>
+  createAuth({
+    db,
+    webOrigins: env.WEB_ORIGIN,
+    authSecret: env.AUTH_SECRET,
+    isProduction: env.NODE_ENV === 'production',
+    logger,
+    // Passed only while the flag is on, so `MCP_ENABLED=0` leaves the authorization server unregistered rather than mounted and unused.
+    ...(env.MCP_ENABLED && env.MCP_RESOURCE_URL !== undefined
+      ? { mcpResource: env.MCP_RESOURCE_URL }
+      : {}),
+    ...(env.PUBLIC_BASE_URL !== undefined ? { publicBaseUrl: env.PUBLIC_BASE_URL } : {}),
+    passwordSignIn: security.passwordSignIn,
+    ...(security.singleSignOn !== null &&
+    security.singleSignOnAvailable &&
+    discoveryUrl !== undefined
+      ? { singleSignOn: { ...security.singleSignOn, discoveryUrl } }
+      : {}),
+    // Read uncached: the reset command bumps the epoch from another process, and a session stamped from a cached value would be ended as invalidated once the cache caught up.
+    securityEpoch: async () => (await repo.authSecuritySettings.get(db)).securityEpoch,
+    events: security.events,
+  });
 
 /**
  * Boot guard for `LIVE_DEMO`: a demo box holds testnet keys only, so refuse to
@@ -135,7 +214,7 @@ export const assertLiveDemoInvariant = async (
   }
 };
 
-export const createDI = (env: Env): DI => {
+export const createDI = (env: Env, facts: BootFacts = {}): DI => {
   const pool = createPool({ kind: 'api', connectionString: env.DATABASE_URL });
   const db = createDb(pool);
   const redis = createRedis(env.REDIS_URL);
@@ -156,16 +235,30 @@ export const createDI = (env: Env): DI => {
   });
   const logger = createLogger({ level: env.NODE_ENV === 'production' ? 'info' : 'debug' });
   const metrics = createMetricsRegistry({ service: 'api' });
-  const auth = createAuth({
+  // Its own fail-fast connection: on the shared one a Redis outage would hold every request in the flood limit for ioredis's whole retry budget before the in-process fallback answered.
+  const securityRedis = createSecurityRedis(env.REDIS_URL);
+  const security = createSecurityServices({
     db,
-    webOrigins: env.WEB_ORIGIN,
-    authSecret: env.AUTH_SECRET,
-    isProduction: env.NODE_ENV === 'production',
+    redis: securityRedis,
+    queue,
     logger,
-    // Passed only while the flag is on, so `MCP_ENABLED=0` leaves the authorization server unregistered rather than mounted and unused.
-    ...(env.MCP_ENABLED && env.MCP_RESOURCE_URL !== undefined
-      ? { mcpResource: env.MCP_RESOURCE_URL }
-      : {}),
+    registry: metrics.registry,
+    secret: env.AUTH_SECRET,
+    singleSignOn: singleSignOnConfigFromEnv(env),
+    passwordSignIn: env.PASSWORD_SIGN_IN_ENABLED,
+  });
+  const discovery = facts.singleSignOnDiscovery;
+  security.singleSignOnAvailable = security.singleSignOn !== null && discovery?.ok === true;
+  if (security.singleSignOn !== null)
+    security.metrics.singleSignOnAvailable.set(security.singleSignOnAvailable ? 1 : 0);
+  const discoveryUrl = discovery?.ok === true ? discovery.discoveryUrl : undefined;
+  const rebuildAuth = (): Auth => buildAuth(env, db, logger, security, discoveryUrl);
+  const auth = rebuildAuth();
+  const websocketSessions = createWebSocketSessionWatch({
+    db,
+    subscriber: redis.raw().duplicate(),
+    security,
+    logger,
   });
   // One keyless REST client per Binance host. Klines is unsigned, and the client
   // attaches the key to signed calls only, so empty credentials never reach the
@@ -188,11 +281,14 @@ export const createDI = (env: Env): DI => {
   const gitSha = resolveGitSha(env.GIT_SHA || undefined);
   const bootedAt = new Date().toISOString();
   const shutdown = async (): Promise<void> => {
+    await websocketSessions.stop();
     await queue.close();
     await tickQueue.close();
     await backtestQueue.close();
     await advisorQueue.close();
     await diagnosisQueue.close();
+    // With no offline queue, QUIT is refused outright while Redis is down; dropping the socket keeps the rest of shutdown running.
+    await securityRedis.quit().catch(() => securityRedis.disconnect());
     await redis.quit();
     await pool.end();
   };
@@ -217,6 +313,9 @@ export const createDI = (env: Env): DI => {
     bootedAt,
     // Resolved in boot() once LIVE_DEMO is known and the DB is reachable.
     demoOperatorId: null,
+    security,
+    rebuildAuth,
+    websocketSessions,
     shutdown,
   };
 };

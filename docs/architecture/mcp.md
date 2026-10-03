@@ -45,6 +45,10 @@ Fetching an attacker-supplied URL from inside that trust boundary is the obvious
 
 **The token never touches the REST API.** It is verified once, at `/api/mcp`, and the identity it resolves to is injected into a second in-process mount of the same routers. `sessionResolver` reads only the Better Auth session cookie, so a stolen access token replayed against `GET /api/backup` is simply unauthenticated.
 
+**Signing in to approve an agent is ordinary sign-in.** `/oauth2/authorize` sends the browser to `/login` with a signed query; after a password or single sign-on login the web app replays that query to `/oauth2/authorize` and lands on `/consent`. Single sign-on proves who the operator is and nothing more: Better Auth stays the only authorization server agents talk to, and every sign-in limit and security event applies unchanged. The authorize, consent, token and revoke endpoints sit behind the auth gateway's allow-list and its own rate limits ([Auth](auth.md)).
+
+**Revocation has to beat a token nobody stores.** Access tokens are JWTs the resource server verifies by signature alone, so deleting grant rows would leave an issued token working until it expires (an hour by default). `repo.authIdentity.revokeAgentAccess` therefore also stamps `auth_security_settings.agent_access_not_before`, and `/api/mcp` refuses any token issued at or before it. The route reads that cutoff from the row on every verified call rather than from the 30-second settings cache, because the reset command revokes from another process and a scaled deployment runs several api replicas. Revoke agent access, password change, the reset command, sign-out-everywhere and restore all go through that function.
+
 **Discovery documents live at the origin root.** RFC 9728 and RFC 8414 locate them at `/.well-known/<name>` on the origin, optionally followed by the resource path. `apps/api/src/routes/well-known.ts` forwards `oauth-protected-resource` to Better Auth unchanged and rewrites `oauth-authorization-server` and `openid-configuration` to `/api/auth/.well-known/<name>`.
 
 ## Dispatch

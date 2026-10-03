@@ -27,10 +27,29 @@ describe('createAuth — config invariants', () => {
     expect(auth.options.plugins ?? []).toHaveLength(0);
   });
 
-  it('sets a 24h session window with a 1h sliding refresh', () => {
+  it("sets Better Auth's session lifetime to the 7-day ceiling with a 15-minute refresh", () => {
+    // The operator's idle and absolute limits (at most 24 h and 168 h) are enforced by the session resolver; Better Auth's own expiry is only the outer bound, and the refresh interval is the precision of the idle timeout.
     const auth = createAuth(baseOpts);
-    expect(auth.options.session?.expiresIn).toBe(60 * 60 * 24);
-    expect(auth.options.session?.updateAge).toBe(60 * 60);
+    expect(auth.options.session?.expiresIn).toBe(60 * 60 * 168);
+    expect(auth.options.session?.updateAge).toBe(15 * 60);
+  });
+
+  it('requires the same 12 to 256 character password the sign-up contract does', () => {
+    const auth = createAuth(baseOpts);
+    expect(auth.options.emailAndPassword?.minPasswordLength).toBe(12);
+    expect(auth.options.emailAndPassword?.maxPasswordLength).toBe(256);
+  });
+
+  it('never links a new sign-in identity to the operator by matching email', () => {
+    const auth = createAuth(baseOpts);
+    expect(auth.options.account?.accountLinking?.disableImplicitLinking).toBe(true);
+    expect(auth.options.account?.updateAccountOnSignIn).toBe(false);
+  });
+
+  it('relaxes only the single sign-on state cookie to SameSite=Lax, so the identity provider redirect can carry it back', () => {
+    const auth = createAuth(baseOpts);
+    expect(auth.options.advanced?.cookies?.['state']?.attributes?.sameSite).toBe('lax');
+    expect(auth.options.advanced?.cookies?.['session_token']).toBeUndefined();
   });
 
   it('emits Secure HttpOnly SameSite=Strict cookies in production', () => {
@@ -46,10 +65,14 @@ describe('createAuth — config invariants', () => {
     expect(auth.options.advanced?.useSecureCookies).toBe(false);
   });
 
-  it('limits the loginRateLimit window to 60s/5 attempts', () => {
+  it("turns Better Auth's own in-memory limiter off, because the Redis limits in front of it replace it", () => {
     const auth = createAuth(baseOpts);
-    expect(auth.options.rateLimit?.window).toBe(60);
-    expect(auth.options.rateLimit?.max).toBe(5);
+    expect(auth.options.rateLimit?.enabled).toBe(false);
+  });
+
+  it('turns password sign-in off when asked', () => {
+    const auth = createAuth({ ...baseOpts, passwordSignIn: false });
+    expect(auth.options.emailAndPassword?.enabled).toBe(false);
   });
 
   it('trusts the configured web origin', () => {

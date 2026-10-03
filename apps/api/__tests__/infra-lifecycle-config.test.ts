@@ -200,7 +200,7 @@ describe('shared API test infrastructure lifecycle', () => {
 
   it('returns the cleanup-owned Redis client from raw', () => {
     const ownerStart = helpersSource.search(
-      /^const createTestDI = \(logger: pino\.Logger, infra: ResolvedInfra\): DI => \{$/m,
+      /^const createTestDI = \(\s*logger: pino\.Logger,\s*infra: ResolvedInfra,\s*opts: SetupAppOptions = \{\},?\s*\): DI => \{$/m,
     );
     const ownerEnd = helpersSource.search(/^\/\/ Anything that can run SQL:/m);
     expect(ownerStart).toBeGreaterThanOrEqual(0);

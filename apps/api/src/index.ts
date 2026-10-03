@@ -7,6 +7,11 @@ import { createApp } from './app.js';
 import { RESTORE_MAX_BODY_BYTES } from './middleware/body-limit.js';
 import { createAuth } from './auth.js';
 import { assertLiveDemoInvariant, createDI } from './di.js';
+import {
+  discoverSingleSignOn,
+  settleSignInMethods,
+  watchSingleSignOnRecovery,
+} from './auth/boot.js';
 import { loadEnv, publicListenerHostname, type Env } from './env.js';
 import { startWsRegistry, type WsRegistry } from './ws/registry.js';
 import { installGracefulShutdown } from '@app/core/shutdown';
@@ -21,9 +26,18 @@ export interface ApiHandle {
 // signal wiring via installGracefulShutdown, so two boots in one process cannot
 // each race a process.exit.
 export const boot = async (env: Env): Promise<ApiHandle> => {
-  const di = createDI(env);
+  // Checked before the app exists, with a hard timeout: Better Auth's own discovery fetch has none and every request waits on it, so an unreachable identity provider must be known before it is registered.
+  const singleSignOnDiscovery = await discoverSingleSignOn(
+    env.SINGLE_SIGN_ON_ENABLED ? env.SINGLE_SIGN_ON_ISSUER_URL : undefined,
+  );
+  const di = createDI(env, singleSignOnDiscovery !== undefined ? { singleSignOnDiscovery } : {});
   // A LIVE_DEMO box holds testnet keys only — refuse to start on a live key.
   await assertLiveDemoInvariant(di.db, { liveDemo: env.LIVE_DEMO });
+  await settleSignInMethods(di, singleSignOnDiscovery);
+  // Recovery restarts through the graceful-shutdown path the caller installed, so the worker in a ROLE=all process drains too.
+  const stopSingleSignOnWatch = watchSingleSignOnRecovery(di, () =>
+    process.kill(process.pid, 'SIGTERM'),
+  );
   // Resolve the demo operator once so sessionResolver can inject it for every
   // anonymous request. Null before onboarding, which keeps /onboarding working.
   if (env.LIVE_DEMO) di.demoOperatorId = await repo.users.findSingleId(di.db);
@@ -67,6 +81,7 @@ export const boot = async (env: Env): Promise<ApiHandle> => {
 
   const shutdown = async (): Promise<void> => {
     health.markShutdown();
+    stopSingleSignOnWatch?.();
     server.stop();
     adminServer.stop();
     if (registry) await registry.stop();

@@ -90,7 +90,12 @@ describeIfInfra('api-keys cross-account isolation (envelope mapping)', () => {
       headers: { 'x-test-user-id': fx.alice.userId },
     });
     expect(res.status).toBe(204);
-    expect(addSpy).not.toHaveBeenCalled();
+    // No profile or tick work: credentials resolve per tick. The only job is the security alert every key change raises.
+    expect(addSpy.mock.calls.map((call) => call[0])).toEqual(['notify-auth-security']);
+    expect(addSpy.mock.calls[0]?.[1]).toMatchObject({
+      event: 'api-key-changed',
+      category: 'auth-alert',
+    });
     addSpy.mockRestore();
   });
 });

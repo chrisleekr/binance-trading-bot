@@ -256,6 +256,20 @@ describe('MCP request plans', () => {
     );
   });
 
+  it('refuses an omitted path argument by name instead of planning an empty segment', () => {
+    // `get_logs` takes `symbol` only for kind=symbol, so the schema cannot require it. Planned as an empty segment the call 404s at the router, and the agent reads that as a symbol with no log rather than as its own missing argument.
+    const logs = MCP_TOOLS_BY_NAME.get('get_logs');
+    expect(() => logs?.plan({ accountId: 'a', profileId: 'p', kind: 'symbol' })).toThrow(
+      /symbol is required/,
+    );
+    const lint = MCP_TOOLS_BY_NAME.get('lint_config');
+    expect(() => lint?.plan({ kind: 'profile', config: {} })).toThrow(/accountId is required/);
+    // The kind that does not take the argument still plans without it.
+    expect(logs?.plan({ accountId: 'a', profileId: 'p', kind: 'profile' }).path).toBe(
+      '/api/accounts/a/profiles/p/logs',
+    );
+  });
+
   it('still plans an ordinary path parameter through unchanged', () => {
     // The discriminating half: a refusal that rejected everything would satisfy the case above.
     const tool = MCP_TOOLS_BY_NAME.get('get_profile');

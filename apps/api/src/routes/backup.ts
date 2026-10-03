@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { stream } from 'hono/streaming';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
+import { publishSessionRevocation } from 'auth/session-revocation.js';
 import { HttpError } from 'middleware/error.js';
 import { requireUser } from 'middleware/require-user.js';
 import { requireNotDemo } from 'middleware/require-not-demo.js';
@@ -173,6 +174,26 @@ const runChild = (
     }
   });
 
+/**
+ * Signs out every session and revokes agent access after a restore. The dump brings back its own sessions and its own security epoch, so without this a session revoked after the dump was taken would work again. This browser is signed out too; the operator signs in with the credentials the dump holds.
+ *
+ * @param di - The container.
+ * @returns Nothing; throws when the database refuses, and the caller reports that the restore is not safe to use yet.
+ */
+export const signOutEverythingAfterRestore = async (di: DI): Promise<void> => {
+  await di.db.transaction(async (raw) => {
+    const tx = raw as unknown as DI['db'];
+    await repo.authSecuritySettings.bumpSecurityEpoch(tx);
+    const operator = await repo.authIdentity.findSoleUser(tx);
+    if (operator !== null) {
+      await repo.authIdentity.deleteAllSessions(tx, operator.id);
+      await repo.authIdentity.revokeAgentAccess(tx, operator.id, new Date());
+    }
+  });
+  di.security.settings.invalidate();
+  await publishSessionRevocation(di, { sessionIds: [] });
+};
+
 export const backupRouter = (di: DI): ApiHono => {
   const app = createApiHono();
   app.use('/backup', requireUser());
@@ -257,7 +278,20 @@ export const backupRouter = (di: DI): ApiHono => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
-    c.set('auditEvent', { event: 'restore', payload: { size: buf.byteLength } });
+    c.set('auditEvent', {
+      event: 'restore',
+      payload: { size: buf.byteLength },
+      alreadyApplied: true,
+    });
+    try {
+      await signOutEverythingAfterRestore(di);
+    } catch (err) {
+      di.logger.error({ err }, 'restore_session_invalidation_failed');
+      throw new HttpError(
+        'INTERNAL',
+        'The database was restored, but signing out existing sessions failed. Run the reset-password command before using the app.',
+      );
+    }
     return c.json({ restoredAt: new Date().toISOString() }, 200);
   });
 

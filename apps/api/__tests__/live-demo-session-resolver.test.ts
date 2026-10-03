@@ -21,7 +21,7 @@ import type { Env } from '../src/types.js';
 const DEMO_ID = asUserId('00000000-0000-4000-8000-00000000d001');
 const SESSION_ID = asUserId('00000000-0000-4000-8000-00000000e001');
 
-const authWith = (session: { user: { id: string } } | null): Auth =>
+const authWith = (session: { user: { id: string }; session: { id: string } } | null): Auth =>
   ({ api: { getSession: async () => session } }) as unknown as Auth;
 
 // Intended Phase-B signature: sessionResolver(auth, demo), where `demo` is the
@@ -49,8 +49,10 @@ describe('sessionResolver under LIVE_DEMO', () => {
   });
 
   it('a real Better Auth session always wins over the demo injection', async () => {
-    expect(await probe(authWith({ user: { id: SESSION_ID } }), { userId: DEMO_ID })).toBe(
-      SESSION_ID,
-    );
+    expect(
+      await probe(authWith({ user: { id: SESSION_ID }, session: { id: 'session-1' } }), {
+        userId: DEMO_ID,
+      }),
+    ).toBe(SESSION_ID);
   });
 });

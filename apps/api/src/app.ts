@@ -6,7 +6,8 @@ import { corsAllowlist } from './middleware/cors.js';
 import { errorHandler } from './middleware/error.js';
 import { requestLogger } from './middleware/logger.js';
 import { httpMetrics } from './middleware/metrics.js';
-import { loginRateLimit } from './middleware/login-rate-limit.js';
+import { apiFloodLimit } from './middleware/api-flood-limit.js';
+import { crossSiteRequestGuard } from './middleware/cross-site-request-guard.js';
 import { securityHeaders } from './middleware/security-headers.js';
 import { requestBodyLimit } from './middleware/body-limit.js';
 import { healthRouter, type HealthRouter } from './routes/health.js';
@@ -52,6 +53,9 @@ export const createApp = (di: DI): AppHandle => {
   // asset fetch never pays a Better Auth session lookup. Security headers (above)
   // still wrap the response; /api and SPA routes don't match this prefix.
   if (web) app.get('/assets/*', assetsHandler(web.root));
+  // Both run before the session lookup, so a flood or a forged cross-site request costs no database work. The flood limit decides its budget from a local signature check on the session cookie.
+  app.use('/api/*', apiFloodLimit(di));
+  app.use('/api/*', crossSiteRequestGuard(di));
   // Under LIVE_DEMO the boot-resolved sole operator is injected for anonymous
   // requests; off-demo (or before onboarding) demoOperatorId is null → no-op.
   app.use(
@@ -59,6 +63,7 @@ export const createApp = (di: DI): AppHandle => {
     sessionResolver(
       di.auth,
       di.env.LIVE_DEMO && di.demoOperatorId ? { userId: di.demoOperatorId } : null,
+      { db: di.db, settings: di.security.settings, events: di.security.events },
     ),
   );
   app.use('*', audit(di));
@@ -66,12 +71,6 @@ export const createApp = (di: DI): AppHandle => {
   // router so any successful write busts the dashboard read-through caches.
   app.use('*', bustDashboardCache(di.redis));
   app.onError(errorHandler(di.logger));
-
-  // Login throttle is mounted ONLY on the sign-in paths. Better Auth's
-  // catch-all exposes /sign-in/email (and could expose /sign-in/social
-  // in future); a wildcard matches both so a path addition can't
-  // silently bypass the throttle.
-  app.use('/api/auth/sign-in/*', loginRateLimit(di.redis));
 
   // /api/auth/*
   app.route('/api/auth', authRouter(di));

@@ -117,7 +117,7 @@ A workspace package's `dependencies` must not re-declare a third-party package i
 
 The test: if a third-party entry can be removed from a package's `dependencies` and it still resolves (because a workspace dependency pulls it in) **and** none of the package's own code — `src/`, `scripts/`, and every other entry point — has a direct `import … from '<dep>'` (`import type` counts), the entry is redundant; drop it.
 
-Rationale: a re-declared transitive dependency is a second place a version can drift. For example, were Drizzle consumed only through `@app/db`, `drizzle-orm` would belong in `packages/db` alone — but `apps/api` imports it directly from `scripts/reset-password.ts`, so it stays declared there.
+Rationale: a re-declared transitive dependency is a second place a version can drift. For example, were Drizzle consumed only through `@app/db`, `drizzle-orm` would belong in `packages/db` alone and nowhere else.
 
 This rule covers runtime `dependencies` only. Build-time tooling in `devDependencies` — bundler plugins, the peers they require to build, and test libraries — is declared wherever the build needs it, regardless of whether the package's own code imports it directly.
 

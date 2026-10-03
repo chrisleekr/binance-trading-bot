@@ -18,6 +18,8 @@ export const ErrorCode = z.enum([
   'INTERNAL',
   'INVALID_PASSWORD',
   'ONBOARDING_CLOSED',
+  // A sensitive change needs fresh proof the operator is present: a password, or a single sign-on login completed in the last few minutes.
+  'REAUTHENTICATION_REQUIRED',
   // The profile's strategy does not support what was requested — an operator action it honors no override for (e.g. a force-buy on momentum), or a setting it cannot read (arming `enterOnAdd` on a strategy that declares no `entry-hint` bundle). Distinct from VALIDATION_FAILED because the payload is well-formed and would be valid on another strategy, which is exactly the difference the SPA phrases as "this strategy can't do that".
   'ACTION_UNSUPPORTED',
   // The profile references a strategy name/version not in the registry.
@@ -52,8 +54,10 @@ const STATUS: Record<ErrorCode, number> = {
   UPSTREAM_FAILED: 502,
   SERVICE_UNAVAILABLE: 503,
   INTERNAL: 500,
-  INVALID_PASSWORD: 401,
+  // 403, not 401: the caller IS signed in and only mistyped a confirmation password. The web client treats every 401 as an ended session and sends the operator to the sign-in page, so a typo would sign them out of the screen they were on.
+  INVALID_PASSWORD: 403,
   ONBOARDING_CLOSED: 403,
+  REAUTHENTICATION_REQUIRED: 403,
   ACTION_UNSUPPORTED: 422,
   STRATEGY_NOT_REGISTERED: 404,
 };

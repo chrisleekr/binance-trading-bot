@@ -93,7 +93,12 @@ describe('MCP tokens on the REST API', () => {
 
   it('still resolves a real Better Auth session, so the check above is not refusing everything', async () => {
     const auth = {
-      api: { getSession: async () => ({ user: { id: '00000000-0000-4000-8000-00000000b001' } }) },
+      api: {
+        getSession: async () => ({
+          user: { id: '00000000-0000-4000-8000-00000000b001' },
+          session: { id: 'session-1' },
+        }),
+      },
     } as unknown as Auth;
     const app = new Hono<Env>();
     app.use('*', sessionResolver(auth, null));

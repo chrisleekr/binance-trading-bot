@@ -108,3 +108,109 @@ describe('MCP_ENABLED and LIVE_DEMO are mutually exclusive at boot', () => {
     expect(env.LIVE_DEMO).toBe(expectedDemo);
   });
 });
+
+describe('sign-in method variables', () => {
+  const SSO = {
+    SINGLE_SIGN_ON_ENABLED: '1',
+    SINGLE_SIGN_ON_ISSUER_URL: 'https://tenant.auth0.com/',
+    SINGLE_SIGN_ON_CLIENT_ID: 'client',
+    SINGLE_SIGN_ON_CLIENT_SECRET: 'secret',
+    PUBLIC_BASE_URL: 'https://bot.example.com',
+  };
+
+  it('defaults to password sign-in only', () => {
+    const env = loadEnv(MINIMUM);
+    expect(env.PASSWORD_SIGN_IN_ENABLED).toBe(true);
+    expect(env.SINGLE_SIGN_ON_ENABLED).toBe(false);
+  });
+
+  it('refuses a mistyped password flag instead of silently hiding the form', () => {
+    expect(() => loadEnv({ ...MINIMUM, PASSWORD_SIGN_IN_ENABLED: 'yes' })).toThrow(
+      /PASSWORD_SIGN_IN_ENABLED/,
+    );
+  });
+
+  it('refuses a configuration with no way to sign in', () => {
+    expect(() => loadEnv({ ...MINIMUM, PASSWORD_SIGN_IN_ENABLED: '0' })).toThrow(
+      /At least one of PASSWORD_SIGN_IN_ENABLED or SINGLE_SIGN_ON_ENABLED/,
+    );
+    expect(
+      loadEnv({ ...MINIMUM, ...SSO, PASSWORD_SIGN_IN_ENABLED: '0' }).PASSWORD_SIGN_IN_ENABLED,
+    ).toBe(false);
+  });
+
+  it.each([
+    'SINGLE_SIGN_ON_ISSUER_URL',
+    'SINGLE_SIGN_ON_CLIENT_ID',
+    'SINGLE_SIGN_ON_CLIENT_SECRET',
+    'PUBLIC_BASE_URL',
+  ])('requires %s when single sign-on is on, and treats an empty value as missing', (name) => {
+    expect(() => loadEnv({ ...MINIMUM, ...SSO, [name]: undefined })).toThrow(
+      /are required when SINGLE_SIGN_ON_ENABLED is true/,
+    );
+    expect(() => loadEnv({ ...MINIMUM, ...SSO, [name]: '' })).toThrow(
+      /are required when SINGLE_SIGN_ON_ENABLED is true/,
+    );
+  });
+
+  it('accepts empty optional values while single sign-on is off, as compose passes them', () => {
+    const env = loadEnv({
+      ...MINIMUM,
+      SINGLE_SIGN_ON_ISSUER_URL: '',
+      SINGLE_SIGN_ON_CLIENT_ID: '',
+      SINGLE_SIGN_ON_CLIENT_SECRET: '',
+      PUBLIC_BASE_URL: '',
+    });
+    expect(env.SINGLE_SIGN_ON_ISSUER_URL).toBeUndefined();
+    expect(env.PUBLIC_BASE_URL).toBeUndefined();
+  });
+
+  it('keeps the issuer byte-for-byte, trailing slash included, because ID tokens are compared against it', () => {
+    expect(loadEnv({ ...MINIMUM, ...SSO }).SINGLE_SIGN_ON_ISSUER_URL).toBe(
+      'https://tenant.auth0.com/',
+    );
+  });
+
+  it('refuses a plaintext issuer or base address on a non-loopback host', () => {
+    expect(() =>
+      loadEnv({ ...MINIMUM, ...SSO, SINGLE_SIGN_ON_ISSUER_URL: 'http://tenant.auth0.com/' }),
+    ).toThrow(/SINGLE_SIGN_ON_ISSUER_URL must be an https URL/);
+    expect(() =>
+      loadEnv({ ...MINIMUM, ...SSO, PUBLIC_BASE_URL: 'http://bot.example.com' }),
+    ).toThrow(/PUBLIC_BASE_URL must be an https URL/);
+    expect(
+      loadEnv({
+        ...MINIMUM,
+        ...SSO,
+        SINGLE_SIGN_ON_ISSUER_URL: 'http://127.0.0.1:4000/',
+        PUBLIC_BASE_URL: 'http://localhost:3000',
+      }).PUBLIC_BASE_URL,
+    ).toBe('http://localhost:3000');
+  });
+
+  it('refuses a base address that carries a path or credentials', () => {
+    expect(() =>
+      loadEnv({ ...MINIMUM, ...SSO, PUBLIC_BASE_URL: 'https://bot.example.com/app' }),
+    ).toThrow(/origin only/);
+    expect(() =>
+      loadEnv({ ...MINIMUM, ...SSO, PUBLIC_BASE_URL: 'https://user:pw@bot.example.com' }),
+    ).toThrow(/origin only/);
+  });
+
+  it('refuses single sign-on on the live demo', () => {
+    expect(() => loadEnv({ ...MINIMUM, ...SSO, LIVE_DEMO: 'true' })).toThrow(
+      /SINGLE_SIGN_ON_ENABLED and LIVE_DEMO cannot both be true/,
+    );
+  });
+
+  it('requires the base address and the MCP resource to share one origin', () => {
+    const mcp = { MCP_ENABLED: 'true', MCP_RESOURCE_URL: 'https://other.example.com/api/mcp' };
+    expect(() => loadEnv({ ...MINIMUM, ...SSO, ...mcp })).toThrow(
+      /PUBLIC_BASE_URL must be the same origin as MCP_RESOURCE_URL/,
+    );
+    expect(
+      loadEnv({ ...MINIMUM, ...SSO, ...mcp, MCP_RESOURCE_URL: 'https://bot.example.com/api/mcp' })
+        .MCP_ENABLED,
+    ).toBe(true);
+  });
+});

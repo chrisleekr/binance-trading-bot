@@ -4,6 +4,8 @@ import { createBunWebSocket } from 'hono/bun';
 import type { ServerWebSocket } from 'bun';
 import type { DI } from 'di.js';
 import { replayMissed } from 'ws/replay.js';
+import { upgradeWithReservation } from 'ws/session-watch.js';
+import { clientIpFromHeaders } from 'auth/client-address.js';
 import { isAllowedOrigin } from 'middleware/cors.js';
 import { createApiHono, type ApiHono } from 'types.js';
 
@@ -21,6 +23,8 @@ export interface WsRouterHandle {
 //   1. session cookie → userId   (else 401)
 //   2. Origin in the WEB_ORIGIN allowlist  (else 403)
 //   3. profileId owned by userId (else 404)
+//   4. a free per-address socket slot, reserved now and held until the socket closes (else 429)
+// The socket is then tracked by its session, so it closes with 4401 when the session ends rather than streaming until the tab closes.
 // Then subscribe ws.raw to `events:<userId>:<profileId>` and replay missed
 // events from the Redis stream of the same name + ":stream" if ?since= given.
 export const createWsRouter = (di: DI): WsRouterHandle => {
@@ -48,12 +52,21 @@ export const createWsRouter = (di: DI): WsRouterHandle => {
       if (err instanceof ProfileNotOwnedError) return c.text('not_found', 404);
       throw err;
     }
+    const ipAddress = clientIpFromHeaders(c.req.raw.headers);
+    const reservation = di.websocketSessions.reserve(ipAddress);
+    if (reservation === null) return c.text('too_many_connections', 429);
+    const sessionId = c.get('sessionId') ?? null;
     const since = Number(c.req.query('since') ?? 0);
     const topic = eventsChannelKey(accountId, profileId);
     const streamKey = eventsStreamKey(accountId, profileId);
 
     const handler = upgradeWebSocket(() => ({
       async onOpen(_e, ws) {
+        reservation.open({
+          userId: operatorId,
+          sessionId,
+          close: (code, reason) => ws.close(code, reason),
+        });
         const raw = ws.raw;
         if (raw && typeof raw.subscribe === 'function') {
           raw.subscribe(topic);
@@ -78,11 +91,12 @@ export const createWsRouter = (di: DI): WsRouterHandle => {
         // read-only channel in v1.0.
       },
       onClose(_e, ws) {
+        reservation.release();
         const raw = ws.raw;
         if (raw && typeof raw.unsubscribe === 'function') raw.unsubscribe(topic);
       },
     }));
-    return handler(c, next);
+    return upgradeWithReservation(reservation, () => handler(c, next));
   });
 
   return { router: app, websocket };

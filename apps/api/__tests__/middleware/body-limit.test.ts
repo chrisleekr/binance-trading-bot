@@ -189,6 +189,8 @@ describe('the cap is mounted on the app the server actually serves', () => {
       redis: {},
       db: {},
       auth: { handler: async () => new Response(null, { status: 404 }), api: {} },
+      // Read when the middleware chain is built; the 413 is answered before any of it runs.
+      security: { settings: {}, events: {}, protection: {} },
       demoOperatorId: null,
     }) as unknown as DI;
 

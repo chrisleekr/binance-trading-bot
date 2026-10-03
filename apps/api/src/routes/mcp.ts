@@ -4,6 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { requireMcpAuth } from '@better-auth/mcp';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import type { UserId } from '@app/contracts';
+import { repo } from '@app/db';
+import { clientIpFromHeaders } from '../auth/client-address.js';
+import { rateLimitedResponse } from '../auth/http.js';
 import type { DI } from '../di.js';
 import { dispatchMcpTool, EMPTY_CLIENT_CONTEXT, type McpClientContext } from '../mcp/dispatch.js';
 import { MCP_RESOURCES, readMcpResource } from '../mcp/resources.js';
@@ -71,7 +74,7 @@ const isClientContext = (value: unknown): value is McpClientContext =>
   'realIp' in value &&
   'userAgent' in value;
 
-/** Requests the operator's agents may make in a window, and the window. Keyed on the operator, so every approved client shares one budget: a model in a loop is the expected failure mode here, not an attacker, and the limit exists so a runaway agent exhausts the agents' budget rather than the account's Binance request weight. */
+/** Requests the operator's agents may make together in a window, and the window. Counted per operator rather than per token, so a second agent or a re-authorized one does not add a budget. A model in a loop is the expected failure mode here, not an attacker: the limit exists so runaway agents burn this budget rather than the account's Binance request weight. */
 const RATE_LIMIT_MAX = 120;
 const RATE_LIMIT_WINDOW_SEC = 60;
 
@@ -159,7 +162,7 @@ export const buildMcpServer = (
  *
  * 1. `LIVE_DEMO` is refused outright. That mode injects the sole operator id for every anonymous caller, so an MCP endpoint reachable on a demo box is an anonymous trading control plane with a consent screen nobody has to pass.
  * 2. `requireMcpAuth` verifies the bearer token against the authorization server's JWKS and answers an unauthenticated request with the RFC 9728 `WWW-Authenticate` header MCP clients need to start the flow.
- * 3. A per-operator rate limit shared by every approved agent, applied inside the verified-token callback so an unauthenticated caller cannot consume that budget.
+ * 3. A per-operator rate limit, applied inside the verified-token callback so an unauthenticated caller cannot consume the agents' budget. Callers without a verified token pay the anonymous per-address budget instead.
  *
  * The route itself is only mounted while `MCP_ENABLED` is on, so the operator kill switch removes the surface rather than guarding it.
  */
@@ -194,6 +197,25 @@ export const mcpRouter = (di: DI): ApiHono => {
           status: 401,
           headers: { 'content-type': 'application/json' },
         });
+      }
+      // The token is a signed JWT that stays valid until it expires, whatever happened to its grant. Revoking agent access (directly, by a password change, sign-out-everywhere or a reset) stamps a cutoff, and a token issued before it is refused here. `iat` is whole seconds, so a token minted in the same second as the revocation is refused too; the agent just authorizes again.
+      // Read uncached, one primary-key lookup per verified call: the reset command revokes from another process and a scaled deployment runs several api replicas, so the cached settings would let a revoked token keep working for up to half a minute. A failed read throws, refusing the call rather than skipping the cutoff.
+      const cutoff = (await repo.authSecuritySettings.get(di.db)).agentAccessNotBefore;
+      const issuedAtMs = Number(claims.iat) * 1000;
+      if (cutoff !== null && !(issuedAtMs > cutoff.getTime())) {
+        return new Response(
+          JSON.stringify({
+            error: 'invalid_token',
+            error_description: 'agent access was revoked; authorize again',
+          }),
+          {
+            status: 401,
+            headers: {
+              'content-type': 'application/json',
+              'www-authenticate': 'Bearer error="invalid_token"',
+            },
+          },
+        );
       }
       const granted = grantedScopesOf(claims as TokenClaims);
       const allowed = await consumeRateLimit(di, operatorId);
@@ -230,7 +252,28 @@ export const mcpRouter = (di: DI): ApiHono => {
     if (di.env.LIVE_DEMO) {
       throw new HttpError('FORBIDDEN', 'The MCP control plane is disabled in the live demo.');
     }
-    return protectedHandler(c.req.raw);
+    const ipAddress = clientIpFromHeaders(c.req.raw.headers);
+    const presented = /^bearer\s/i.test(c.req.header('authorization') ?? '');
+    // The public app's per-address flood limit skips this route, so a verified agent is metered only by the per-operator budget above. Anyone who has not proved a token still pays the anonymous budget: a caller presenting none pays before any work, and one whose token is refused pays once the refusal is known, since telling the two apart costs only a local signature check.
+    if (!presented) {
+      const refusal = await di.security.protection.checkApiFlood(ipAddress, false);
+      if (refusal !== null) return rateLimitedResponse(refusal.retryAfterMs);
+    }
+    const response = await protectedHandler(c.req.raw);
+    // A request with no bearer token is how every client discovers the authorization server, so only a token that was presented and refused is recorded.
+    if (response.status === 401 && presented) {
+      await di.security.events.record({
+        event: 'agent-authentication-failed',
+        actor: 'agent',
+        method: 'agent',
+        reason: 'invalid_credentials',
+        ipAddress,
+        userAgent: c.req.header('user-agent') ?? null,
+      });
+      const refusal = await di.security.protection.checkApiFlood(ipAddress, false);
+      if (refusal !== null) return rateLimitedResponse(refusal.retryAfterMs);
+    }
+    return response;
   });
   return app;
 };

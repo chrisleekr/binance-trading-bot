@@ -60,6 +60,41 @@
     "kind": "config"
   },
   {
+    "env": "PASSWORD_SIGN_IN_ENABLED",
+    "group": "Sign-in",
+    "kind": "config"
+  },
+  {
+    "env": "SINGLE_SIGN_ON_ENABLED",
+    "group": "Sign-in",
+    "kind": "config"
+  },
+  {
+    "env": "SINGLE_SIGN_ON_ISSUER_URL",
+    "group": "Sign-in",
+    "kind": "config"
+  },
+  {
+    "env": "SINGLE_SIGN_ON_CLIENT_ID",
+    "group": "Sign-in",
+    "kind": "config"
+  },
+  {
+    "env": "SINGLE_SIGN_ON_CLIENT_SECRET",
+    "group": "Sign-in",
+    "kind": "secret"
+  },
+  {
+    "env": "SINGLE_SIGN_ON_BUTTON_LABEL",
+    "group": "Sign-in",
+    "kind": "config"
+  },
+  {
+    "env": "PUBLIC_BASE_URL",
+    "group": "Sign-in",
+    "kind": "config"
+  },
+  {
     "env": "PORT",
     "group": "HTTP and admin ports",
     "kind": "config"
