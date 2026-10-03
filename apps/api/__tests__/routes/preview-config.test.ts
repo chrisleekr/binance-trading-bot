@@ -1,6 +1,6 @@
 import type { ConfigPreviewResponse } from '@app/contracts';
 import { GLOBAL_KEYS, profileKey } from '@app/db';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
@@ -187,6 +187,40 @@ describeIfInfra('preview-config route', () => {
       expect(body.effectiveConfig).toBeDefined();
     } finally {
       marketData.getKlines = restore;
+    }
+  });
+
+  it('answers an empty projection and logs it when the strategy projection throws', async () => {
+    // A throwing projection must not look like a config that arms nothing: the empty answer is kept, and the throw leaves a warn line naming the strategy.
+    const registry = fx.di.strategies as unknown as {
+      describeForProfile: (name: string, version: string) => { status: string; strategy: unknown };
+    };
+    const realDescribe = registry.describeForProfile.bind(registry);
+    registry.describeForProfile = (name, version) => {
+      const resolved = realDescribe(name, version);
+      if (resolved.status === 'unknown') return resolved;
+      return {
+        ...resolved,
+        strategy: {
+          ...(resolved.strategy as object),
+          previewLevels: () => {
+            throw new Error('projection bug');
+          },
+        },
+      };
+    };
+    const warn = vi.spyOn(fx.di.logger, 'warn');
+    try {
+      const { status, body } = await preview({});
+      expect(status).toBe(200);
+      expect(body.sections).toEqual([]);
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({ symbol: SYMBOL, strategy: 'trailing-trade' }),
+        'preview_levels_threw',
+      );
+    } finally {
+      registry.describeForProfile = realDescribe;
+      warn.mockRestore();
     }
   });
 

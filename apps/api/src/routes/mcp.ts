@@ -71,7 +71,7 @@ const isClientContext = (value: unknown): value is McpClientContext =>
   'realIp' in value &&
   'userAgent' in value;
 
-/** Requests one token may make in a window, and the window. A model in a loop is the expected failure mode here, not an attacker: the limit exists so a runaway agent burns its own budget rather than the account's Binance request weight. */
+/** Requests the operator's agents may make in a window, and the window. Keyed on the operator, so every approved client shares one budget: a model in a loop is the expected failure mode here, not an attacker, and the limit exists so a runaway agent exhausts the agents' budget rather than the account's Binance request weight. */
 const RATE_LIMIT_MAX = 120;
 const RATE_LIMIT_WINDOW_SEC = 60;
 
@@ -159,7 +159,7 @@ export const buildMcpServer = (
  *
  * 1. `LIVE_DEMO` is refused outright. That mode injects the sole operator id for every anonymous caller, so an MCP endpoint reachable on a demo box is an anonymous trading control plane with a consent screen nobody has to pass.
  * 2. `requireMcpAuth` verifies the bearer token against the authorization server's JWKS and answers an unauthenticated request with the RFC 9728 `WWW-Authenticate` header MCP clients need to start the flow.
- * 3. A per-token rate limit, applied inside the verified-token callback so an unauthenticated caller cannot consume a verified token's budget.
+ * 3. A per-operator rate limit shared by every approved agent, applied inside the verified-token callback so an unauthenticated caller cannot consume that budget.
  *
  * The route itself is only mounted while `MCP_ENABLED` is on, so the operator kill switch removes the surface rather than guarding it.
  */

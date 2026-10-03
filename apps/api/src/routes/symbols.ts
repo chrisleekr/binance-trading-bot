@@ -397,8 +397,12 @@ export const symbolsRouter = (di: DI): ApiHono => {
         ...(account ? { account } : {}),
         ...(candles.length > 0 ? { candles } : {}),
       });
-    } catch {
-      // A strategy projection is a pure read and should never throw. If one does, the honest answer is an empty projection rather than a 500 that tells the caller nothing about their config.
+    } catch (err) {
+      // A strategy projection is a pure read and should never throw. If one does, the answer is an empty projection rather than a 500 that tells the caller nothing about their config, and the throw is logged so it is not mistaken for a config that projects no levels.
+      di.logger.warn(
+        { err, symbol, strategy: profile.strategyName, version: profile.strategyVersion },
+        'preview_levels_threw',
+      );
       model = { sections: [] };
     }
     return c.json(

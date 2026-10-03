@@ -58,7 +58,7 @@ describe('notify-agent-action pipeline job', () => {
 
   it('acknowledges a muted category rather than dead-lettering the completed action', async () => {
     // The operator turned the agent-action category off. The write already happened in the api, so a throw here would retry and eventually raise `job-failed` about a notification that was deliberately silenced.
-    // What this pins is the acknowledgement, not the muting: the handler never reads the outcome back, so a 'muted' return and a 'delivered' one take an identical path here and this case would not notice if the two swapped. Whether a muted category actually suppresses the send is decided in the notifier, and is pinned there against a delivering control.
+    // What this pins is the acknowledgement, not the muting. Whether a muted category actually suppresses the send is decided in the notifier, and is pinned there against a delivering control.
     const accountNotify = vi.fn(async () => 'muted');
     await expect(
       harness(accountNotify as never).run({
@@ -69,6 +69,31 @@ describe('notify-agent-action pipeline job', () => {
       }),
     ).resolves.toBeUndefined();
     expect(accountNotify).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws when every notifier failed, so the job retries instead of dropping the notice', async () => {
+    // `failed` means nothing was delivered: acknowledging it would leave an agent trade the operator never hears about, and a retry cannot double-notify.
+    const accountNotify = vi.fn(async () => 'failed');
+    await expect(
+      harness(accountNotify as never).run({
+        userId: USER,
+        accountId: ACCOUNT,
+        tool: 'trigger_buy',
+        summary: 'An AI agent ran trigger_buy.',
+      }),
+    ).rejects.toThrow(/agent_action_notification_failed: trigger_buy/);
+  });
+
+  it('acknowledges no-notifier, since a retry cannot create a notifier', async () => {
+    const accountNotify = vi.fn(async () => 'no-notifier');
+    await expect(
+      harness(accountNotify as never).run({
+        userId: USER,
+        accountId: ACCOUNT,
+        tool: 'trigger_buy',
+        summary: 'An AI agent ran trigger_buy.',
+      }),
+    ).resolves.toBeUndefined();
   });
 
   it('dead-letters rather than acknowledging when the notifier dependency is absent', async () => {

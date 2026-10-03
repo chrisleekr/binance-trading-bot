@@ -131,18 +131,30 @@ describeIfInfra('auth integration — sign-up → change-password → re-sign-in
     expect(migratedSignIn.status).toBe(200);
   });
 
-  it('still accepts a NEW sign-up after the identity migrations have run', async () => {
-    // The half the sign-in assertion above cannot reach. An existing credential authenticates fine against a `NOT NULL issuer` column, because nothing inserts into `account` on sign-in. It is the INSERT that fails, so only a fresh sign-up observes the constraint that 0096 relaxes.
-    const res = await app.request('/api/auth/sign-up', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'second@local.test', password: PW_OLD, name: NAME }),
+  it('still accepts a NEW account insert after the identity migrations have run', async () => {
+    // The half the sign-in assertion above cannot reach. An existing credential authenticates fine against a `NOT NULL issuer` column, because nothing inserts into `account` on sign-in. It is the INSERT that fails. The `/sign-up` route cannot reach it here: the operator already exists, so the one-operator guard answers 403 before Better Auth runs. So this makes the exact call Better Auth's sign-up makes, `internalAdapter.linkAccount` with no issuer, for the existing user. A distinct providerId keeps the operator's real credential untouched, and the row is removed afterwards so later sign-ins see only that credential.
+    const user = await fx.di.pool.query<{ id: string }>(`select id from "user" where email = $1`, [
+      EMAIL,
+    ]);
+    const userId = user.rows[0]?.id;
+    expect(userId).toBeDefined();
+    const ctx = await fx.di.auth.$context;
+    const linked = await ctx.internalAdapter.linkAccount({
+      userId: userId as string,
+      providerId: 'migration-probe',
+      accountId: userId as string,
+      password: 'unused',
     });
-    const issuer = await fx.di.pool.query<{ is_nullable: string }>(
-      `select is_nullable from information_schema.columns where table_name = 'account' and column_name = 'issuer'`,
-    );
-    expect(issuer.rows[0]?.is_nullable).toBe('YES');
-    expect(res.status).not.toBe(500);
+    try {
+      expect(linked.id).toBeTruthy();
+      const row = await fx.di.pool.query<{ issuer: string | null }>(
+        `select issuer from "account" where id = $1`,
+        [linked.id],
+      );
+      expect(row.rows).toEqual([{ issuer: null }]);
+    } finally {
+      await fx.di.pool.query(`delete from "account" where id = $1`, [linked.id]);
+    }
   });
 
   it('rejects change-password with a wrong oldPassword and skips the audit row', async () => {

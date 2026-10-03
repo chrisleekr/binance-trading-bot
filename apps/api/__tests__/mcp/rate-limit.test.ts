@@ -1,4 +1,4 @@
-// The per-token request budget in front of the MCP endpoint.
+// The per-operator request budget in front of the MCP endpoint, shared by every approved agent.
 //
 // The budget is the only throttle on an internet-reachable surface that places real orders, and its failure mode is the interesting part: it lives in Redis, and so do the idempotency records. A Redis outage is therefore the one moment the limit has to keep holding rather than quietly stop, which is why these cases compare the two paths against each other instead of pinning a number.
 
@@ -102,7 +102,7 @@ const firstRefusal = async (di: DI, operatorId: string): Promise<number> => {
   return -1;
 };
 
-describe('MCP per-token rate limit', () => {
+describe('MCP per-operator rate limit', () => {
   beforeEach(() => {
     // Pinned to the middle of a window, so a real minute boundary cannot land inside a case and hand it a fresh budget halfway through.
     vi.useFakeTimers({ now: new Date('2026-09-15T10:00:30.000Z') });

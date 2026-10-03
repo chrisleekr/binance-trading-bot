@@ -26,7 +26,7 @@ flowchart TB
   Cimd["CIMD discovery<br/>client_id is the client's own HTTPS metadata URL"]:::auth
   Consent["/consent in the web app<br/>the operator approves the client and its scopes"]:::auth
   Token["access token<br/>audience-bound to MCP_RESOURCE_URL"]:::auth
-  Route["POST /api/mcp<br/>LIVE_DEMO refusal, requireMcpAuth, per-token rate limit"]:::core
+  Route["POST /api/mcp<br/>LIVE_DEMO refusal, requireMcpAuth, per-operator rate limit"]:::core
   Table["tool table<br/>the allow-list, fail-closed"]:::core
   Inner["internal router set<br/>mountApiRouters, audit actor=agent"]:::core
   Guards["the existing route guards<br/>scopeAccount, assertEntryNotHalted, assertActionSupported"]:::core
@@ -39,7 +39,7 @@ flowchart TB
   classDef deny fill:#8a1c1c,color:#ffffff
 ```
 
-**Client ID Metadata Documents, not dynamic registration.** A client identifies itself by an HTTPS URL that serves its own metadata; the server fetches that document and registers the client from it. `POST /api/auth/oauth2/register` is not on the auth gateway's allow-list, so it answers 404; behind that, `allowDynamicClientRegistration` and `allowUnauthenticatedClientRegistration` are both false (`apps/api/src/auth.ts`).
+**Client ID Metadata Documents, not dynamic registration.** A client identifies itself by an HTTPS URL that serves its own metadata; the server fetches that document and registers the client from it. `POST /api/auth/oauth2/register` refuses every caller: `allowDynamicClientRegistration` and `allowUnauthenticatedClientRegistration` are both false (`apps/api/src/auth.ts`).
 
 Fetching an attacker-supplied URL from inside that trust boundary is the obvious hazard, so the transport in `apps/api/src/lib/cimd-transport.ts` refuses anything but `https`, resolves the hostname exactly once, refuses every RFC 6890 special-use address, pins the approved address while leaving TLS identity bound to the hostname, allows only GET and HEAD, and refuses redirects. It replaces `@better-auth/cimd`'s Node-only transport, which Bun cannot use.
 
@@ -91,7 +91,7 @@ That split holds only while no order route answers 4xx after taking effect. The 
 | Variable | Effect |
 | --- | --- |
 | `MCP_ENABLED` | Off, `/api/mcp` is **not mounted at all** and no metadata is published. There is no surface to secure rather than a guarded one to trust. |
-| `MCP_RESOURCE_URL` | The canonical identifier tokens are audience-bound to. It must be the URL an agent actually reaches; an internal address produces a 401 that explains nothing. Required when the flag is on. Boot refuses anything but `https` except on a loopback host, and refuses a query string, fragment or embedded credentials. When `PUBLIC_BASE_URL` is set it must be this URL's origin; when it is not, this URL's origin becomes the authorization server's origin. |
+| `MCP_RESOURCE_URL` | The canonical identifier tokens are audience-bound to. It must be the URL an agent actually reaches; an internal address produces a 401 that explains nothing. Required when the flag is on. Boot refuses anything but `https` except on a loopback host, and refuses a query string, fragment or embedded credentials. This URL's origin also becomes Better Auth's `baseURL`, so it is the authorization server's origin. |
 
 `LIVE_DEMO` and `MCP_ENABLED` are mutually exclusive at boot: `apps/api/src/env.ts` refuses to start with both set. A demo box treats every anonymous caller as the operator, so an MCP endpoint there would be an anonymous trading control plane. The route also answers 403 under `LIVE_DEMO`.
 

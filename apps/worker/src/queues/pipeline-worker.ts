@@ -1042,12 +1042,16 @@ export const registerPipelineWorker = (queueSet: QueueSet, deps: PipelineWorkerD
           // Throwing rather than returning: an agent placed a real order and the operator was told nothing. A silent acknowledgement here is exactly the class of failure the charter forbids, so this dead-letters and raises `job-failed` instead.
           throw new Error('pipeline_missing_dep: notify-agent-action requires accountNotify');
         }
-        await deps.accountNotify({
+        const outcome = await deps.accountNotify({
           category: 'agent-action',
           accountId: payload.accountId,
           body: payload.summary,
           ...(payload.symbol !== undefined ? { symbol: payload.symbol } : {}),
         });
+        // `failed` means every configured notifier errored and nothing was delivered, so a retry cannot double-notify; throwing lets BullMQ retry and then dead-letter. `muted` and `no-notifier` are acknowledged: retrying cannot change either.
+        if (outcome === 'failed') {
+          throw new Error(`agent_action_notification_failed: ${payload.tool}`);
+        }
         return;
       }
       case 'reconfigure-profile': {
