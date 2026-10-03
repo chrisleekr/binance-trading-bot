@@ -130,12 +130,14 @@ const runCycle = async (
       fiatQuoteAssets: new Set(['ZWL']),
       tradingSymbols: new Set(symbols),
     },
+    // Most cases exercise a hint-reading strategy; the skip is asserted by the one case that overrides this to false.
+    readsEntryHint: true,
     ...over,
   });
 };
 
 const fakePort = (over: Partial<DiscoveryProfilePort> = {}): DiscoveryProfilePort => ({
-  logger: { warn: vi.fn() },
+  logger: { warn: vi.fn(), info: vi.fn() },
   getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' })],
   getKlines: async () => eligibleKlines(),
   listRotatableSymbols: async () => [],
@@ -146,6 +148,9 @@ const fakePort = (over: Partial<DiscoveryProfilePort> = {}): DiscoveryProfilePor
   siblingConflict: vi.fn(async () => null), // default: no sibling conflict
   refreshEntryHint: vi.fn(async () => undefined),
   heldOnExchange: vi.fn(async () => false), // default: wallet flat, reap allowed
+  // Default true — "this profile has traded here" — so the wallet guard's verdict is the whole answer, exactly as it was before the never-traded arm existed. A false default would silently convert every existing wallet-held refusal into a reap and the suite would stop testing the guard it was written for.
+  everPlacedOrder: vi.fn(async () => true),
+  everTradedOnExchange: vi.fn(async () => true),
   reapSymbol: vi.fn(async () => 'removed' as const),
   recordReapOutcome: vi.fn(),
   emit: vi.fn(async () => undefined),
@@ -363,6 +368,21 @@ describe('runDiscoveryForProfile', () => {
     );
     expect(call).toBeDefined();
     expect(JSON.parse(call?.[1] as string)).toMatchObject({ high24h: '999' });
+  });
+
+  it('writes no entry-hint at all when the strategy declares no entry-hint bundle', async () => {
+    // The skip is keyed off the capability, not the settings: this config arms every hint field, so a refresh that still ran would be visible.
+    const port = fakePort({ getAllTickers: async () => [ticker({ highPrice: '123.45' })] });
+    const cfg = DiscoveryConfigSchema.parse({
+      ...permissiveConfig(),
+      enterOnAdd: true,
+      entryGuard: { maxDistanceFrom24hHighPercent: '3', knifeCandles: 3, knifeDropPercent: '5' },
+    });
+    const r = await runCycle(port, cfg, 'USDT', { readsEntryHint: false });
+    expect(port.refreshEntryHint).not.toHaveBeenCalled();
+    // The rest of the cycle is untouched: the symbol is still admitted and bound.
+    expect(r.added).toBe(1);
+    expect(port.addSymbol).toHaveBeenCalledWith('AAAUSDT', NOW);
   });
 
   it('a created add emits the INFO add line and not the re-add warn (#454)', async () => {
@@ -636,6 +656,134 @@ describe('runDiscoveryForProfile', () => {
     // Separated from `wallet-held` because they are opposite facts. One is the guard working — a real position kept safe. The other is the guard blind, and a run of them is a credential or API fault that stops rotation entirely while looking exactly like a healthy hold.
     expect(r.reapOutcomes).toEqual(reapTally({ 'hold-unproven': 1 }));
     expect(recorded(port)).toEqual(['hold-unproven']);
+  });
+
+  it('reaps a coin the wallet holds when this profile has never ordered it', async () => {
+    // The guard exists for an unadopted fill of OURS. A profile that never placed an order here has no fill to have missed, so the balance is someone else's business — fee BNB, an operator's own holding — and refusing over it pins the slot for the life of the account. Live case: BNBBTC on the TT profile, proposed for removal every cycle, zero BNBBTC orders ever placed.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => true),
+      everPlacedOrder: vi.fn(async () => false),
+      everTradedOnExchange: vi.fn(async () => false),
+    });
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
+    expect(r.removed).toBe(1);
+    expect(port.everTradedOnExchange).toHaveBeenCalledWith('OLDUSDT');
+    expect(port.reapSymbol).toHaveBeenCalledWith('OLDUSDT', NOW);
+    expect(port.emit).toHaveBeenCalledWith('OLDUSDT', 'remove');
+    // The attempt's verdict is the repo's, not a second entry of its own: one attempt, one outcome, so the tally still sums to the attempts made.
+    expect(r.reapOutcomes).toEqual(reapTally({ removed: 1 }));
+    expect(recorded(port)).toEqual(['removed']);
+    // Rare and worth a line, but not something to act on — the balance is provably not ours.
+    expect(port.logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ symbol: 'OLDUSDT' }),
+      expect.stringContaining('never ordered it'),
+    );
+  });
+
+  it('keeps refusing when the wallet is unreadable, even though the profile never ordered it', async () => {
+    // The never-traded arm may overrule a wallet VERDICT; it may not substitute for one that was never reached. Deferring costs one cycle; an unreadable wallet is transient.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => null),
+      everPlacedOrder: vi.fn(async () => false),
+    });
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
+    expect(r.removed).toBe(0);
+    expect(port.reapSymbol).not.toHaveBeenCalled();
+    expect(r.reapOutcomes).toEqual(reapTally({ 'hold-unproven': 1 }));
+    // Not even asked: a question whose answer cannot be acted on is a query spent for nothing, and asking it invites the next reader to wire it back into the decision.
+    expect(port.everPlacedOrder).not.toHaveBeenCalled();
+    expect(port.everTradedOnExchange).not.toHaveBeenCalled();
+  });
+
+  it('keeps refusing when the ledger is empty but Binance reports a fill on the symbol', async () => {
+    // The ledger is not complete: a placement whose response was lost and whose probe could not resolve it is `ambiguous` with no `orders` row, and the fill adopter refuses its fill for want of one. The binding is then the only handle on a live position, so an empty ledger alone must not release it.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => true),
+      everPlacedOrder: vi.fn(async () => false),
+      everTradedOnExchange: vi.fn(async () => true),
+    });
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
+    expect(r.removed).toBe(0);
+    expect(port.reapSymbol).not.toHaveBeenCalled();
+    expect(r.reapOutcomes).toEqual(reapTally({ 'wallet-held': 1 }));
+    expect(recorded(port)).toEqual(['wallet-held']);
+  });
+
+  it('keeps the refusal when Binance trade history cannot be read', async () => {
+    // An exchange fault must not become the reason a coin is abandoned: `null` keeps the wallet guard's verdict.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => true),
+      everPlacedOrder: vi.fn(async () => false),
+      everTradedOnExchange: vi.fn(async () => null),
+    });
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
+    expect(r.removed).toBe(0);
+    expect(port.reapSymbol).not.toHaveBeenCalled();
+    expect(r.reapOutcomes).toEqual(reapTally({ 'wallet-held': 1 }));
+  });
+
+  it('does not ask Binance when the ledger already shows an order', async () => {
+    // The signed call is spent only on the rare never-ordered arm; a ledger row already settles the refusal.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => true),
+      everPlacedOrder: vi.fn(async () => true),
+    });
+    await runCycle(port, permissiveConfig(), 'USDT');
+    expect(port.everTradedOnExchange).not.toHaveBeenCalled();
+  });
+
+  it('keeps the refusal when the order history itself cannot be read', async () => {
+    // A database that cannot answer must not become the reason a coin is abandoned: `null` keeps whatever the wallet guard already decided.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => true),
+      everPlacedOrder: vi.fn(async () => null),
+    });
+    const r = await runCycle(port, permissiveConfig(), 'USDT');
+    expect(r.removed).toBe(0);
+    expect(port.reapSymbol).not.toHaveBeenCalled();
+    expect(r.reapOutcomes).toEqual(reapTally({ 'wallet-held': 1 }));
+  });
+
+  it('does not ask the order history when the wallet is already flat', async () => {
+    // The ordinary reap must stay one query. The never-traded arm is a second opinion on a refusal, not a step on the happy path.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => false),
+    });
+    await runCycle(port, permissiveConfig(), 'USDT');
+    expect(port.everPlacedOrder).not.toHaveBeenCalled();
+  });
+
+  it('prices the held-guard from this cycle’s ticker feed, and passes null for a symbol it lacks', async () => {
+    // The value bound inside the guard needs a price. A bound symbol that has since been delisted is absent from the feed, and null there disarms that bound rather than the whole guard.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['AAAUSDT', 'GONEUSDT'],
+      getAllTickers: async () => [ticker({ symbol: 'AAAUSDT', lastPrice: '7.25' })],
+      heldOnExchange: vi.fn(async () => false),
+    });
+    await runCycle(port, permissiveConfig(), 'USDT');
+    expect(port.heldOnExchange).toHaveBeenCalledWith('GONEUSDT', null);
+  });
+
+  it('passes the feed price for a reaped symbol the feed still lists', async () => {
+    // The other arm, and the one that pins the price map itself. Asserting only the null case above leaves `priceBySymbol[t.symbol] = t.lastPrice` deletable: every call would then pass null, `isValuelessResidue` answers false for any balance with no price, and the dust half of the whole guard is dead with the suite green. Blocklisted rather than feed-absent, because a symbol has to still BE in the feed to have a price to pass.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['FADEUSDT'],
+      getAllTickers: async () => [
+        ticker({ symbol: 'AAAUSDT' }),
+        ticker({ symbol: 'FADEUSDT', lastPrice: '7.25' }),
+      ],
+      heldOnExchange: vi.fn(async () => false),
+    });
+    const cfg = DiscoveryConfigSchema.parse({ ...permissiveConfig(), blacklist: ['FADEUSDT'] });
+    await runCycle(port, cfg, 'USDT');
+    expect(port.heldOnExchange).toHaveBeenCalledWith('FADEUSDT', '7.25');
   });
 
   it('tallies every outcome a single cycle produced, keeping emit/notify on the removals only', async () => {
@@ -939,7 +1087,7 @@ describe('runDiscoveryForProfile — the permission cut explains itself', () => 
   it('warns on the port’s logger, naming how many symbols the account may not trade', async () => {
     const warn = vi.fn();
     const port = fakePort({
-      logger: { warn },
+      logger: { warn, info: vi.fn() },
       getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' }), ticker({ symbol: 'CRCLBUSDT' })],
     });
     await runCycle(port, permissiveConfig(), 'USDT', permissionWake);
@@ -955,7 +1103,7 @@ describe('runDiscoveryForProfile — the permission cut explains itself', () => 
   it('stays quiet when the account may trade every candidate', async () => {
     const warn = vi.fn();
     const port = fakePort({
-      logger: { warn },
+      logger: { warn, info: vi.fn() },
       getAllTickers: async () => [ticker({ symbol: 'AAAUSDT' })],
     });
     await runCycle(port, permissiveConfig(), 'USDT', permissionWake);

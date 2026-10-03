@@ -354,6 +354,171 @@ describeIfInfra('discovery router', () => {
     expect(body.config.maxAutoSymbols).toBe(7);
   });
 
+  // `enterOnAdd` and the `entryGuard` block reach a strategy only through the discovery entry-hint bundle. On a strategy that declares no such bundle they saved cleanly and then did nothing — an operator arming an anti-chase guard got a 200 and no guard. These four cases pin the whole gate: the flag is read off the plugin's own capability declaration, the refusal names the knobs, an off-everywhere payload still saves, and a strategy that DOES read the hint is untouched.
+  const momentumProfile = async (id: string, discoveryConfig?: Record<string, unknown>) => {
+    const momentum = buildStrategyRegistry().get('momentum');
+    if (!momentum) throw new Error('expected momentum to be registered');
+    const profileId = asProfileId(id);
+    await fx.di.pool.query(
+      `insert into profiles (id, account_id, name, strategy_name, strategy_version, config, state, discovery_config)
+       values ($1, $2, $5, 'momentum', $3, '{}', '{}', $4)`,
+      [
+        profileId,
+        fx.alice.accountId,
+        momentum.version,
+        discoveryConfig ? JSON.stringify(discoveryConfig) : null,
+        // The account's profile names are unique; derive one from the id so each case owns its row without a shared counter.
+        `entry mode demo ${id.slice(-4)}`,
+      ],
+    );
+    return profileId;
+  };
+
+  const patchDiscovery = (profileId: string, body: Record<string, unknown>) =>
+    fx.app.request(`/api/accounts/${fx.alice.accountId}/profiles/${profileId}/discovery-config`, {
+      method: 'PATCH',
+      headers: headers(fx.alice.userId),
+      body: JSON.stringify(body),
+    });
+
+  it('PATCH refuses to arm the entry-mode knobs on a strategy that reads no entry hint', async () => {
+    const profileId = await momentumProfile('00000000-0000-4000-8000-00000000a511');
+    const res = await patchDiscovery(
+      profileId,
+      fullConfig({
+        enterOnAdd: true,
+        entryGuard: {
+          maxDistanceFrom24hHighPercent: '3',
+          knifeCandles: 3,
+          knifeDropPercent: '5',
+        },
+      }),
+    );
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe('ACTION_UNSUPPORTED');
+    // Every armed knob is named, not just the first one found.
+    expect(body.error.message).toContain('enterOnAdd');
+    expect(body.error.message).toContain('entryGuard.maxDistanceFrom24hHighPercent');
+    expect(body.error.message).toContain('entryGuard.knifeCandles');
+    expect(body.error.message).toContain('entryGuard.knifeDropPercent');
+  });
+
+  it('PATCH still saves an unrelated edit on such a strategy when the entry-mode knobs are off', async () => {
+    const profileId = await momentumProfile('00000000-0000-4000-8000-00000000a512');
+    // `'0.00'` rather than `'0'`: the off test is numeric, so a differently spelled zero must not read as arming the guard.
+    const res = await patchDiscovery(
+      profileId,
+      fullConfig({
+        maxAutoSymbols: 4,
+        enterOnAdd: false,
+        entryGuard: {
+          maxDistanceFrom24hHighPercent: '0.00',
+          knifeCandles: 0,
+          knifeDropPercent: '0',
+        },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      config: { maxAutoSymbols: number };
+      entryModeSupported: boolean;
+    };
+    expect(body.config.maxAutoSymbols).toBe(4);
+    expect(body.entryModeSupported).toBe(false);
+  });
+
+  it('PATCH lets an already-armed profile keep saving unrelated edits, so hiding the control is not a trap', async () => {
+    // A value stored under a hint-reading strategy that was later switched to one that is not. The editor hides these controls and carries them back verbatim, so a gate keyed on the value alone would wedge every later save.
+    const armed = {
+      enterOnAdd: true,
+      entryGuard: { maxDistanceFrom24hHighPercent: '3', knifeCandles: 3, knifeDropPercent: '5' },
+    };
+    const profileId = await momentumProfile(
+      '00000000-0000-4000-8000-00000000a513',
+      fullConfig(armed),
+    );
+    const res = await patchDiscovery(profileId, fullConfig({ ...armed, maxAutoSymbols: 6 }));
+    expect(res.status).toBe(200);
+    expect(
+      ((await res.json()) as { config: { maxAutoSymbols: number } }).config.maxAutoSymbols,
+    ).toBe(6);
+
+    // Raising the same knob further is a NEW arming and is still refused.
+    const raised = await patchDiscovery(
+      profileId,
+      fullConfig({ ...armed, entryGuard: { ...armed.entryGuard, knifeCandles: 4 } }),
+    );
+    expect(raised.status).toBe(422);
+    expect(((await raised.json()) as { error: { message: string } }).error.message).toContain(
+      'entryGuard.knifeCandles',
+    );
+
+    // Same setting, respelled. `'3.0'` is the stored `'3'`, so the unchanged test has to be numeric: a text compare would call this an arming and refuse a save that altered nothing.
+    const respelled = await patchDiscovery(
+      profileId,
+      fullConfig({
+        ...armed,
+        entryGuard: { ...armed.entryGuard, maxDistanceFrom24hHighPercent: '3.0' },
+      }),
+    );
+    expect(respelled.status).toBe(200);
+
+    // Disarming is always allowed, and `'0.00'` is off. The off test has to be numeric for the same reason: a text compare against the `'0'` sentinel would read this as arming a guard the operator was switching off, and the stored `'3'` it differs from would carry it to the refusal.
+    const disarmed = await patchDiscovery(
+      profileId,
+      fullConfig({
+        enterOnAdd: false,
+        entryGuard: {
+          maxDistanceFrom24hHighPercent: '0.00',
+          knifeCandles: 0,
+          knifeDropPercent: '0.0',
+        },
+      }),
+    );
+    expect(disarmed.status).toBe(200);
+    const after = (await disarmed.json()) as {
+      config: { enterOnAdd: boolean; entryGuard: { maxDistanceFrom24hHighPercent: string } };
+    };
+    expect(after.config.enterOnAdd).toBe(false);
+    expect(after.config.entryGuard.maxDistanceFrom24hHighPercent).toBe('0.00');
+  });
+
+  it('treats an unparseable stored config as carrying nothing, so an arming payload is still refused', async () => {
+    // `minAgeDays` is capped at 40, so this row fails its own schema — an out-of-band DB edit or a restore. The comparison then has nothing to compare against and every armed knob reads as newly armed, which wedges this profile's discovery settings until the row is repaired: the alternative is letting an arming write through on the strength of a stored value nobody could read. Documents the outcome, and does NOT pin the `cur = null` branch — substituting all-off defaults there answers identically, because every armed value differs from every off sentinel. That branch is dominated and is written the way it is for honesty, not for behaviour.
+    const profileId = await momentumProfile(
+      '00000000-0000-4000-8000-00000000a514',
+      fullConfig({ minAgeDays: 90, enterOnAdd: true }),
+    );
+    const res = await patchDiscovery(profileId, fullConfig({ enterOnAdd: true }));
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { error: { message: string } }).error.message).toContain(
+      'enterOnAdd',
+    );
+  });
+
+  it('PATCH arms the entry-mode knobs freely on a strategy that DOES read the entry hint', async () => {
+    // The seeded profile runs trailing-trade, which declares the `entry-hint` bundle. Same payload the momentum case is refused for.
+    const res = await patchDiscovery(
+      fx.alice.profileId,
+      fullConfig({
+        enterOnAdd: true,
+        entryGuard: {
+          maxDistanceFrom24hHighPercent: '3',
+          knifeCandles: 3,
+          knifeDropPercent: '5',
+        },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      config: { enterOnAdd: boolean };
+      entryModeSupported: boolean;
+    };
+    expect(body.config.enterOnAdd).toBe(true);
+    expect(body.entryModeSupported).toBe(true);
+  });
+
   it('PATCH rejects a malformed config (422 from the body validator)', async () => {
     const res = await fx.app.request(
       `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/discovery-config`,

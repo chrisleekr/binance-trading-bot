@@ -59,11 +59,14 @@ The SPA renders a strategy's `PreviewModel` with **one generic component**, so a
 | Field | Meaning |
 | --- | --- |
 | `candleIntervals` | The kline intervals the worker must fetch and feed. |
+| `entryOnCandleClose?` | `readonly entryOnCandleClose?: boolean`. Whether the ENTRY decision is evaluated on closes of `config.candleInterval` rather than on every tick's price. A cadence claim, not a data-source one: reading the candle window for indicators, sizing or a veto guard does not make it true. Optional, absent reads as false. |
 | `needsUserDataStream` | Subscribe the account / order user stream. |
 | `needsMiniTicker` | Subscribe the symbol mini-ticker price feed. |
 | `needsProfileKv?` | `readonly needsProfileKv?: boolean`. Opt into the per-profile KV store: when `true` the worker loads it into `TickInput.profileKv` for cross-symbol reads. Optional, defaults off — the worker skips the load unless set. |
 | `bundleProviders` | Named per-tick bundle inputs the worker assembles before calling `tick()` (for example `override`, `technicals`). |
 | `operatorActions` | The subset of the contracts `OPERATOR_ACTIONS` closed set this strategy honors. An empty array means no operator surface. |
+
+`entryOnCandleClose` lets the `entry-signal-reach` diagnosis rung count entry chances without naming a strategy (invariant 1). Momentum declares `true`; trailing-trade and rebalance declare `false`. Any value other than `true`, including absent, makes that rung report `unknown`.
 
 `operatorActions` tokens are validated against `OPERATOR_ACTIONS` (`packages/contracts/src/operator-actions.ts`) at the api wire boundary (the `OperatorAction` `z.enum`) and by the registry consistency test. An action a strategy does not declare is gated `422` at the api, dropped by the worker, and omitted from the web UI, so an action that would be silently dropped never renders. `operatorActions` and `bundleProviders` are both `readonly string[]` to keep this package free of a `@app/contracts` dependency; the closed set is enforced at the boundary, not by the type.
 
@@ -169,7 +172,7 @@ One optional capability lets the worker converge per-symbol state without import
 The empirical path momentum took:
 
 1. **New package.** `packages/strategy/<name>` with npm name `@app/strategy-<name>`, exporting one object that satisfies `Strategy`.
-2. **Declare capabilities.** The `candleIntervals` and feeds the worker must provide, the `bundleProviders` the strategy reads, and the `operatorActions` it honors (a subset of `OPERATOR_ACTIONS`).
+2. **Declare capabilities.** The `candleIntervals` and feeds the worker must provide, whether the entry waits for a candle close (`entryOnCandleClose`), the `bundleProviders` the strategy reads, and the `operatorActions` it honors (a subset of `OPERATOR_ACTIONS`).
 3. **Register it.** Add one `registry.register(<strategy>)` line to `buildStrategyRegistry` in `@app/strategy-registry` (`packages/strategy/registry/src/index.ts`). This is the only place an app names a concrete strategy (core invariant 1); `apps/api` and `apps/worker` consume the built registry, never a `strategy-*` package directly.
 4. **Add a golden-replay fixture and test.** Capture a `.jsonl` fixture of real ticks and assert `replayFixture(<strategy>, fixture)` returns diff = 0, as momentum does with `fixtures/replay/cross-cycle.jsonl`. The replay gate diffs each tick's `decisions` and `nextState` against the fixture, a required quality gate that catches behavioural drift on every tick. It deliberately ignores `logs` and `metrics` — a strategy may add or reword either without re-capturing a fixture. That exemption is about the replay gate only; `metrics` still has to clear step 5.
 5. **Declare any new metric names.** Every `MetricEntry` a tick returns is drained onto the catalogued `strategy_metric_total` series with its name as a label, so an undeclared name would export under a label nobody is watching. `packages/strategy/registry/__tests__/strategy-metric-names.test.ts` walks the `metric(` call sites across `packages/strategy/*/src/**` and asserts the **exact set** of names, so a new one fails the build until it is listed and a removed one fails just as loudly. Promote a free-form tag onto the series only through `apps/worker/src/metrics/catalog.ts` — anything not in `labelNames` is dropped by the sink, silently and by design.

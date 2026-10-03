@@ -106,6 +106,8 @@ export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> =
     'EMA cross-up entry with a trailing-stop / cross-down exit. Single long position, no grid.',
   capabilities: {
     candleIntervals: MOMENTUM_CANDLE_INTERVALS,
+    // The entry IS the cross of two EMAs over CLOSED candles of `config.candleInterval`, so a flat symbol gets exactly one entry decision per close of that interval and no more.
+    entryOnCandleClose: true,
     needsUserDataStream: true,
     needsMiniTicker: true,
     // Reads the operator-override slot so a force-sell can reach the tick.

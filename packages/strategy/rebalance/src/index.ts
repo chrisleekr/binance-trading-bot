@@ -89,6 +89,8 @@ export const rebalance: Strategy<RebalanceConfig, RebalanceState, RebalanceBundl
     'Hold a basket at target weights and trade back when one drifts — fixed weights, or equal-weight the top-K by momentum. Cross-symbol; off by default.',
   capabilities: {
     candleIntervals: REBALANCE_CANDLE_INTERVALS,
+    // False: a trade fires when a weight has DRIFTED past its band, which is a per-tick comparison against current values. The candle window feeds the momentum score and the client-order-id dedup key, neither of which gates the decision to trade.
+    entryOnCandleClose: false,
     needsUserDataStream: true,
     needsMiniTicker: true,
     needsProfileKv: true,

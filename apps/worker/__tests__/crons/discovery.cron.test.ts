@@ -29,6 +29,7 @@ import type { SymbolAdmission } from '../../src/crons/discovery/symbol-admission
 import type { MetricsSink } from '../../src/metrics/catalog.js';
 import type { ActiveProfile } from '../../src/profile-manager/profile-manager.js';
 import { QUEUE_NAMES } from '../../src/queues/queue-names.js';
+import { strategies } from '../../src/strategies.js';
 
 const mocked = vi.hoisted(() => ({
   accountsBinanceModeById: vi.fn(),
@@ -296,10 +297,14 @@ describe('buildDiscoveryCron adapter', () => {
       ProfileRepo['profileSymbols'],
       'listForProfile' | 'findForSymbol' | 'upsert' | 'setSource' | 'removeUnpinnedIfFlat'
     >;
+    const listHistoryForSymbol = vi.fn<ProfileRepo['orders']['listHistoryForSymbol']>(
+      async () => [],
+    );
     const repo = {
       profile: { findById },
       conditionStates: { recordCondition },
       profileSymbols,
+      orders: { listHistoryForSymbol },
       profileNotifiers: { listForProfile: listNotifiers },
       actionLogs: { append: actionLogAppend },
       discoveryUniverseSnapshots: { record: recordSnapshot },
@@ -317,7 +322,11 @@ describe('buildDiscoveryCron adapter', () => {
       canTrade: true,
       permissions: ['SPOT'],
     }));
-    const binanceClient = { getAccount } satisfies Pick<BinanceRestClient, 'getAccount'>;
+    const getMyTrades = vi.fn<BinanceRestClient['getMyTrades']>(async () => []);
+    const binanceClient = { getAccount, getMyTrades } satisfies Pick<
+      BinanceRestClient,
+      'getAccount' | 'getMyTrades'
+    >;
     const resolveBinanceClient = vi.fn<BootContext['resolveBinanceClient']>(
       async () => binanceClient as unknown as BinanceRestClient,
     );
@@ -352,6 +361,8 @@ describe('buildDiscoveryCron adapter', () => {
       notifyProviders,
       liveDemo: false,
       queueSet,
+      // The REAL registry, not a stub: `readsEntryHint` is read off the momentum plugin's own capability declaration, so a stub here would assert the fixture rather than the strategy.
+      strategies,
     } satisfies Pick<
       BootContext,
       | 'logger'
@@ -367,6 +378,7 @@ describe('buildDiscoveryCron adapter', () => {
       | 'notifyProviders'
       | 'liveDemo'
       | 'queueSet'
+      | 'strategies'
     >;
 
     mocked.shouldRunProfile.mockResolvedValue(true);
@@ -474,6 +486,8 @@ describe('buildDiscoveryCron adapter', () => {
       liveAdmission: admission,
       assetPolicy,
       accountPermissions: ['SPOT'],
+      // The fixture profile runs momentum, which declares no `entry-hint` bundle, so the cycle is told to skip the per-symbol hint write. The trailing-trade counterpart runs at the end of this test: alone, `false` here is indistinguishable from a resolution that fails.
+      readsEntryHint: false,
     });
     if (!capturedPort) throw new Error('expected the public handler to build a discovery port');
     const port = capturedPort;
@@ -485,6 +499,8 @@ describe('buildDiscoveryCron adapter', () => {
       'emitMembershipLost',
       'emitReadd',
       'enqueueResync',
+      'everPlacedOrder',
+      'everTradedOnExchange',
       'getAllTickers',
       'getKlines',
       'heldOnExchange',
@@ -551,9 +567,41 @@ describe('buildDiscoveryCron adapter', () => {
       '{"enterOnAdd":true}',
     );
 
-    expect(await port.heldOnExchange('ETHUSDT')).toBe(true);
+    // Both arms, because one alone is unfalsifiable here. The fixture holds 0.5 ETH: at 2000 that is 1000 quote, held whether or not the adapter forwards the exchange's `minNotional` and the price at all. Only the residue case fails the moment either argument stops being threaded — 0.5 x 0.00001 is 5e-6, under 1% of the 10-unit NOTIONAL floor.
+    expect(await port.heldOnExchange('ETHUSDT', '2000')).toBe(true);
+    expect(await port.heldOnExchange('ETHUSDT', '0.00001')).toBe(false);
     expect(resolveBinanceClient).toHaveBeenCalledWith(OPERATOR_ID, ACCOUNT_ID);
     expect(mocked.writeAccountPermissions).toHaveBeenCalledWith(redis, ACCOUNT_ID, ['SPOT']);
+
+    // Asked of the profile-bound repo, so the ownership chain the reap runs under is the one the history is read under. `limit: 1` because the question is existence, not the history itself.
+    expect(await port.everPlacedOrder('ETHUSDT')).toBe(false);
+    expect(listHistoryForSymbol).toHaveBeenCalledWith('ETHUSDT', 1);
+
+    // The fail-safe arm, at the adapter that owns it. `run.test.ts` proves the CYCLE keeps refusing on a null, but it hands that null in from a fake port, so nothing there reaches this catch. Without it an unreadable ledger throws out of the reap loop instead of deferring, and the claim that a database outage can never be the reason a coin is abandoned stops being true.
+    const warn = vi.spyOn(logger, 'warn');
+    listHistoryForSymbol.mockRejectedValueOnce(new Error('connection terminated'));
+    expect(await port.everPlacedOrder('ETHUSDT')).toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ profileId: PROFILE_ID, symbol: 'ETHUSDT' }),
+      'cron discovery: order history unreadable for held-guard; not reaping',
+    );
+    warn.mockRestore();
+
+    // Existence again, so `limit: 1`. Read on the profile's own account credentials, the same client the wallet read uses.
+    expect(await port.everTradedOnExchange('ETHUSDT')).toBe(false);
+    expect(getMyTrades).toHaveBeenCalledWith({ symbol: 'ETHUSDT', limit: 1 });
+    // Unreadable history defers instead of throwing out of the reap loop.
+    const tradeWarn = vi.spyOn(logger, 'warn');
+    getMyTrades.mockRejectedValueOnce(new Error('-1003 too many requests'));
+    expect(await port.everTradedOnExchange('ETHUSDT')).toBeNull();
+    expect(tradeWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ profileId: PROFILE_ID, symbol: 'ETHUSDT' }),
+      'cron discovery: trade history unreadable for held-guard; not reaping',
+    );
+    tradeWarn.mockRestore();
+    // No credentials: nothing can answer, so the refusal stands.
+    resolveBinanceClient.mockResolvedValueOnce(null);
+    expect(await port.everTradedOnExchange('ETHUSDT')).toBeNull();
 
     expect(await port.reapSymbol('ETHUSDT', NOW)).toBe('removed');
     expect(vi.mocked(applyDiscoveryReap)).toHaveBeenCalledWith(
@@ -678,5 +726,14 @@ describe('buildDiscoveryCron adapter', () => {
       { userId: OPERATOR_ID, accountId: ACCOUNT_ID, profileId: PROFILE_ID },
       { removeOnComplete: true, removeOnFail: { count: 1_000 } },
     );
+
+    // The opposite arm of the same derivation, driven a second time through the real handler rather than asserted off a fixture. Momentum answering `false` is also what a broken resolution answers, so on its own it pins nothing: only a strategy that DOES declare the bundle can tell the two apart. Trailing-trade is that strategy, and it is the one whose anti-chase and falling-knife guards stop being applied if the cycle wrongly skips the hint write. Run last so the call-count assertions above still see a single cycle.
+    findById.mockResolvedValueOnce({
+      ...profileRow,
+      strategyName: 'trailing-trade',
+      strategyVersion: '1',
+    });
+    await cron.handler({} as Job);
+    expect(capturedWake).toMatchObject({ readsEntryHint: true });
   });
 });

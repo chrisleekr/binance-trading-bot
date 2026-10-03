@@ -159,6 +159,8 @@ export const trailingTrade: Strategy<TTConfig, TTState, TTBundle> = {
     // to one interval per profile based on `config.candleInterval`; the
     // capability list is the universe the strategy CAN serve.
     candleIntervals: ['1m', '5m', '15m', '30m', '1h', '4h', '1d'],
+    // False, and stated rather than omitted. The first buy is a PRICE trigger evaluated every tick — `firstBuyTriggerBasis: 'immediate'` enters at once, and the `'lowest-price'` variant compares the current price against a window low rather than waiting for a close. `candleInterval` here feeds the indicator window and the knife-guard veto, not the trigger.
+    entryOnCandleClose: false,
     needsUserDataStream: true,
     needsMiniTicker: true,
     bundleProviders: ['technicals', 'override', 'entry-hint'],

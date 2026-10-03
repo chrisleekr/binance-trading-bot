@@ -44,6 +44,7 @@ const baseDashboard = {
     netTradeCount7d: 0,
   },
   gauge: { deployedQuote: '0', maxAccountExposureQuote: null, autoSymbolCount: 1 },
+  entryModeSupported: true,
   universe: null,
   holdings: [],
   autoSymbols: [],

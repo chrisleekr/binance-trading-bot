@@ -62,10 +62,15 @@ const input = (over: Partial<ProfileDiagnosisInput> = {}): ProfileDiagnosisInput
       maxAutoSymbols: 5,
       minAgeDays: 30,
       changeMinPercent: '2',
+      minHoldMinutes: 120,
     },
     maxAutoSymbols: 5,
     refreshPeriodMs: 900_000,
     autoSymbolCount: 2,
+    // A 2h hold on a 15m entry candle is 8 closes, so the default fixture clears the entry-signal-reach rung and every unrelated case stays a one-rung test.
+    minHoldMinutes: 120,
+    candleInterval: '15m',
+    entryOnCandleClose: true,
     ...over.profile,
   },
   worker: { heartbeatPresent: true, ...over.worker },
@@ -732,7 +737,186 @@ describe('rung 8: symbol slots', () => {
   });
 });
 
-describe('rung 9: entry blockers', () => {
+describe('rung 9: entry signal reach', () => {
+  const withProfile = (over: Record<string, unknown>) =>
+    input({ profile: { ...input().profile, ...over } });
+
+  it('is ok when the hold window spans several closes of the entry candle', () => {
+    // 2h hold, 15m candle: 8 closes.
+    const r = runDiagnosisStep('entry-signal-reach', input());
+    expect(r.status).toBe('ok');
+    expect(r.line).toContain('8 15m closes');
+    expect(r.items).toEqual([]);
+  });
+
+  it('finds the live momentum shape: a 24h hold on a daily entry candle is one close', () => {
+    // The 2026-09-05 profile, where the shipped ladder returned twelve green rungs and no answer. Every bound coin got exactly one daily close before the rotation took it back.
+    const r = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({
+        minHoldMinutes: 1440,
+        candleInterval: '1d',
+        discoveryConfig: { ...input().profile.discoveryConfig, minHoldMinutes: 1440 },
+      }),
+    );
+    expect(r.status).toBe('finding');
+    expect(r.line).toContain('only one 1d close');
+    // The identity fields, not just the severity: `code` routes the operator's remedy and `title`/`detail` are the whole finding as it reaches the page, so a typo in any of them ships a report nobody can act on.
+    expect(r.items[0]).toMatchObject({
+      id: 'entry-signal-reach',
+      condition: 'entry-signal-reach',
+      code: 'hold-shorter-than-signal',
+      title: 'Coins can be rotated out before their entry signal can fire',
+      sinceMs: null,
+      symbols: [],
+    });
+    expect(r.items[0]?.detail).toContain('may release it once 1440 minutes have passed');
+    expect(r.items[0]?.detail).toContain('one look');
+    expect(r.items[0]?.severity).toBe('degraded');
+    expect(r.items[0]?.evidence).toEqual([
+      'Minimum hold 1440 minutes.',
+      'Entry candle interval 1d.',
+      'At least 1 close per holding period.',
+    ]);
+    // The whole point of the rung: an unexplained drought becomes a named setting.
+    expect(r.items[0]?.lever).toEqual({
+      label: 'Min hold (minutes)',
+      path: 'minHoldMinutes',
+      value: '1440',
+      surface: 'discovery',
+    });
+  });
+
+  it('finds a hold shorter than one whole candle, where the count floors to zero', () => {
+    const r = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({ minHoldMinutes: 30, candleInterval: '1d' }),
+    );
+    expect(r.status).toBe('finding');
+    expect(r.line).toContain('only 0 1d closes');
+  });
+
+  it('stays ok for a fast entry candle under the same 24h hold', () => {
+    // The counterpart to the live case: same hold, `1m` entry candle, 1440 closes. Without this the rung could be a permanent red light on any 24h hold and the finding above would prove nothing about the interval half of the division.
+    const r = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({ minHoldMinutes: 1440, candleInterval: '1m' }),
+    );
+    expect(r.status).toBe('ok');
+    expect(r.line).toContain('1440 1m closes');
+  });
+
+  it('holds the boundary at two closes rather than reporting the bar it is set to', () => {
+    // Two closes is the first non-degenerate case and reads ok; one does not.
+    expect(
+      runDiagnosisStep(
+        'entry-signal-reach',
+        withProfile({ minHoldMinutes: 120, candleInterval: '1h' }),
+      ).status,
+    ).toBe('ok');
+    const under = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({ minHoldMinutes: 119, candleInterval: '1h' }),
+    );
+    expect(under.status).toBe('finding');
+    // The rendered hold, not only the verdict. The close count FLOORS, so anything that ROUNDS the same value for display makes the sentence refute itself: `humanizeDuration(119 minutes)` is "2 hours", printed beside "only one 1h close".
+    expect(under.line).toBe(
+      'A coin can be rotated out after 119 minutes, which guarantees only one 1h close — barely a chance for an entry signal to appear.',
+    );
+  });
+
+  it('agrees with itself on the singular at the schema minimum of one minute', () => {
+    // `minHoldMinutes` is `.int().min(1)`, so this renders in production. The finding's line and its evidence state the same quantity, and a second hand-rolled plural would let them disagree inside one report.
+    const r = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({ minHoldMinutes: 1, candleInterval: '1h' }),
+    );
+    expect(r.status).toBe('finding');
+    expect(r.line).toContain('after 1 minute,');
+    expect(r.items[0]?.evidence?.[0]).toBe('Minimum hold 1 minute.');
+  });
+
+  // One injection per input, not one conjunction test: with both removed at once either guard alone would still answer unknown, so neither would be pinned.
+  it('is unknown, never ok, when the minimum hold is not known', () => {
+    const r = runDiagnosisStep('entry-signal-reach', withProfile({ minHoldMinutes: null }));
+    expect(r.status).toBe('unknown');
+    expect(r.items).toEqual([]);
+    // The line too, as the three sibling unknown branches do. All four answer `unknown`, so status alone cannot tell them apart, and the operator only ever sees the sentence.
+    expect(r.line).toBe('The minimum hold time is not known.');
+  });
+
+  it('is unknown, never ok, when the entry candle interval is not known', () => {
+    const r = runDiagnosisStep('entry-signal-reach', withProfile({ candleInterval: null }));
+    expect(r.status).toBe('unknown');
+    expect(r.items).toEqual([]);
+    // The line, not just the status: the variable-length branch below also answers unknown, and it renders the interval into its sentence. Without this the absent-interval branch is deletable and the operator is told an interval of `null` has no fixed length.
+    expect(r.line).toBe("This strategy's entry candle interval is not known.");
+  });
+
+  it('is unknown for a calendar-month interval, whose length is not constant', () => {
+    // `1M` is a real member of CANDLE_INTERVALS, so this is not an invalid input — it is one the division cannot be run on without inventing a length.
+    const r = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({ minHoldMinutes: 1440, candleInterval: '1M' }),
+    );
+    expect(r.status).toBe('unknown');
+    expect(r.line).toContain('no fixed length');
+  });
+
+  it('is skipped when auto-discovery is off, since nothing rotates a coin out', () => {
+    // `minHoldMinutes` bounds an AUTO binding and nothing else. On a hand-pinned profile there is no rotation to be starved by, and this rung raises `degraded` — which would move the whole report to "needs attention" over a setting that governs nothing here.
+    const r = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({ minHoldMinutes: 1440, candleInterval: '1d', discoveryEnabled: false }),
+    );
+    expect(r.status).toBe('skipped');
+    expect(r.items).toEqual([]);
+  });
+
+  it('is unknown when the discovery config could not be read, rather than skipped', () => {
+    // Unreadable is not "switched off": one is a fact nobody could establish, the other is the operator's choice, and the shared guard keeps them apart.
+    const r = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({
+        minHoldMinutes: 1440,
+        candleInterval: '1d',
+        discoveryEnabled: null,
+        discoveryConfig: null,
+      }),
+    );
+    expect(r.status).toBe('unknown');
+  });
+
+  it('is unknown for a strategy whose entry does not wait for a candle close', () => {
+    // Counting entry chances per candle is momentum's shape. Trailing-trade's first buy is a price trigger that can fire seconds after a symbol is bound, so the same arithmetic would name `minHoldMinutes` for a drought it does not cause. Not asserting a fault is not the same as asserting health, so this is `unknown` and never `ok`.
+    const r = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({ minHoldMinutes: 1440, candleInterval: '1d', entryOnCandleClose: false }),
+    );
+    expect(r.status).toBe('unknown');
+    expect(r.items).toEqual([]);
+    expect(r.line).toContain('does not make its entry decision on a candle close');
+  });
+
+  it('is unknown when the strategy is not registered, so no capability was declared at all', () => {
+    // Null, not false: nobody answered. Same verdict, kept apart because collapsing them is the "silence reads as a claim" this ladder refuses.
+    const r = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({ minHoldMinutes: 1440, candleInterval: '1d', entryOnCandleClose: null }),
+    );
+    expect(r.status).toBe('unknown');
+  });
+
+  it('answers the same on a profile holding nothing, which is the state it exists to explain', () => {
+    const r = runDiagnosisStep(
+      'entry-signal-reach',
+      withProfile({ minHoldMinutes: 1440, candleInterval: '1d', autoSymbolCount: 0 }),
+    );
+    expect(r.status).toBe('finding');
+  });
+});
+
+describe('rung 10: entry blockers', () => {
   it('groups symbols by reason rather than listing one row per coin', () => {
     const r = runDiagnosisStep(
       'entry-blockers',
@@ -825,7 +1009,7 @@ const EXIT_ATTRIBUTION = {
 // How long a coin has to stay without a resting protective stop before the state stops being an ordinary post-entry tick and becomes something the operator has to act on. One tick of it is the stop going on next tick; the same span still open a quarter of an hour later means every arm is being refused and the position has nothing under it.
 const UNPLACED_PERSIST_MS = PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS;
 
-describe('rung 10: exit blockers', () => {
+describe('rung 11: exit blockers', () => {
   it('names the rung and the level each held coin is waiting on', () => {
     const r = runDiagnosisStep(
       'exit-blockers',
@@ -1103,7 +1287,7 @@ describe('rung 10: exit blockers', () => {
   });
 });
 
-describe('rung 11: exit protection', () => {
+describe('rung 12: exit protection', () => {
   it('warns when a held coin has no exit below its entry', () => {
     const r = runDiagnosisStep(
       'exit-protection',
@@ -1237,7 +1421,7 @@ describe('rung 11: exit protection', () => {
   });
 });
 
-describe('rung 12: which setting', () => {
+describe('rung 13: which setting', () => {
   it('says nothing is misconfigured when the blocks trace to no setting', () => {
     // The honest bottom rung: "your settings are just strict" and "the market is
     // not cooperating" are valid answers, and must not be dressed up as a cause.

@@ -40,6 +40,8 @@ const config = {
 const dashboard = {
   config,
   quoteAsset: 'USDT',
+  // The seeded profile's strategy reads the discovery entry hint, so the editor shows the entry-mode controls. The false case has its own test below.
+  entryModeSupported: true,
   scoreboard: {
     realizedProfit: '123.45',
     realizedProfitPercent: '2.5',
@@ -381,11 +383,60 @@ describe('DiscoveryDashboard', () => {
     const toggle = screen.getByLabelText('Enter On Add');
     expect(toggle).toBeInTheDocument();
     expect(screen.getByText(/skips short-interval confirmation/i)).toBeInTheDocument();
+    // The positive counterpart for the hidden-case assertion below. Without it, a drift in this derived label would leave that `queryByLabelText(...).not` passing forever while the anti-chase control stayed on screen.
+    expect(screen.getByLabelText(/24h high/i)).toBeInTheDocument();
     await userEvent.click(toggle);
     await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
     await waitFor(() => {
       const patch = calls.find((c) => c.method === 'PATCH' && c.url.endsWith('/discovery-config'));
       expect((patch?.body as { enterOnAdd: boolean }).enterOnAdd).toBe(true);
+    });
+  });
+
+  it('hides the entry-mode controls whole when the strategy reads no entry hint', async () => {
+    // Rendering them on such a strategy is the defect: they save cleanly and then do nothing, so the operator arms a risk control that never runs.
+    setUp((url) =>
+      url.endsWith('/profiles/p1/discovery')
+        ? json({ ...dashboard, entryModeSupported: false })
+        : json({}, 404),
+    );
+    await screen.findByTestId('discovery-config-editor');
+    await userEvent.click(screen.getByText('Discovery settings'));
+    expect(screen.queryByLabelText('Enter On Add')).not.toBeInTheDocument();
+    expect(screen.queryByText(/skips short-interval confirmation/i)).not.toBeInTheDocument();
+    // The anti-chase guards ride the same hint and go with them.
+    expect(screen.queryByLabelText(/24h high/i)).not.toBeInTheDocument();
+    // The rest of the form is untouched.
+    expect(screen.getByLabelText('Min 24h volume on this market (USD)')).toBeInTheDocument();
+  });
+
+  it('carries the hidden entry-mode values back verbatim, so a save is not also a silent edit', async () => {
+    // The api gate refuses only a CHANGE that arms, so a legacy-armed profile can still save unrelated edits — but only if the form hands its stored values back untouched rather than dropping them to the schema default.
+    const armed = {
+      ...config,
+      enterOnAdd: true,
+      entryGuard: { maxDistanceFrom24hHighPercent: '3', knifeCandles: 3, knifeDropPercent: '5' },
+    };
+    const { calls } = setUp((url, init) =>
+      url.endsWith('/discovery-config') && init?.method === 'PATCH'
+        ? json({ ...dashboard, config: armed, entryModeSupported: false })
+        : url.endsWith('/profiles/p1/discovery')
+          ? json({ ...dashboard, config: armed, entryModeSupported: false })
+          : json({}, 404),
+    );
+    await screen.findByTestId('discovery-config-editor');
+    await userEvent.click(screen.getByText('Discovery settings'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    await waitFor(() => {
+      const patch = calls.find((c) => c.method === 'PATCH' && c.url.endsWith('/discovery-config'));
+      expect(patch).toBeDefined();
+      const body = patch?.body as {
+        enterOnAdd: boolean;
+        entryGuard: { maxDistanceFrom24hHighPercent: string; knifeCandles: number };
+      };
+      expect(body.enterOnAdd).toBe(true);
+      expect(body.entryGuard.maxDistanceFrom24hHighPercent).toBe('3');
+      expect(body.entryGuard.knifeCandles).toBe(3);
     });
   });
 

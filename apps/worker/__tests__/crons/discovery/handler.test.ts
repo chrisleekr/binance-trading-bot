@@ -113,7 +113,12 @@ describe('discoveryHandler', () => {
   const deps = (over: Partial<Parameters<typeof discoveryHandler>[0]>) => ({
     logger,
     listActive: () => [profile('1')],
-    loadConfig: async () => ({ cfg: permissiveConfig(), quoteAsset: 'USDT', name: 'Alpha' }),
+    loadConfig: async () => ({
+      cfg: permissiveConfig(),
+      quoteAsset: 'USDT',
+      name: 'Alpha',
+      readsEntryHint: true,
+    }),
     shouldRun: async () => true,
     runForProfile: vi.fn(async () => cycleResult({ added: 1 })),
     fetchAllTickers: vi.fn(async () => [ticker({ symbol: 'AAAUSDT' })]),
@@ -140,7 +145,12 @@ describe('discoveryHandler', () => {
     const run2 = vi.fn(async () => cycleResult());
     await discoveryHandler(
       deps({
-        loadConfig: async () => ({ cfg: disabled, quoteAsset: 'USDT', name: 'Alpha' }),
+        loadConfig: async () => ({
+          cfg: disabled,
+          quoteAsset: 'USDT',
+          name: 'Alpha',
+          readsEntryHint: true,
+        }),
         runForProfile: run2,
       }),
     )({} as Job);
@@ -173,6 +183,29 @@ describe('discoveryHandler', () => {
       }),
     );
   });
+
+  // Both directions. A handler that hardcoded either one would pass a single-value test: `false` kills the hint for the one strategy that reads it, `true` re-arms a Redis write per desired symbol per cycle on every strategy that does not.
+  it.each([true, false])(
+    "forwards the strategy's entry-hint capability (%s) from loadConfig into the wake context",
+    async (readsEntryHint) => {
+      const runForProfile = vi.fn(async () => cycleResult());
+      await discoveryHandler(
+        deps({
+          loadConfig: async () => ({
+            cfg: permissiveConfig(),
+            quoteAsset: 'USDT',
+            name: 'Alpha',
+            readsEntryHint,
+          }),
+          runForProfile,
+        }),
+      )({} as Job);
+      expect(runForProfile).toHaveBeenCalledWith(
+        ...Array.from({ length: 6 }, () => expect.anything()),
+        expect.objectContaining({ readsEntryHint }),
+      );
+    },
+  );
 
   it('resolves the account permission tags once per account, shared across its profiles', async () => {
     // The tags belong to the key pair, so two profiles on one account must not

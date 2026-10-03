@@ -321,6 +321,14 @@ export interface MetricEntry {
 
 export interface Capabilities {
   readonly candleIntervals: readonly CandleInterval[];
+  /**
+   * Whether the strategy's ENTRY decision is evaluated on closes of `config.candleInterval`, rather than on every tick's price.
+   *
+   * A cadence claim, not a data-source one: several strategies read the candle window for indicators, sizing or a veto guard while still deciding to enter off the current price. Momentum's EMA cross is the first shape; trailing-trade's first buy is a price trigger that can fire seconds after a symbol is bound, and rebalance trades on drift.
+   *
+   * Declared because the diagnosis ladder needs it and may not ask a plugin by name (invariant 1): `entry-signal-reach` divides a discovery hold window by the entry cadence to say how many chances a binding gets, and that arithmetic is meaningless — and its `degraded` finding wrong — for a strategy that can enter at any moment. Absent reads as false, so a strategy that has not thought about it makes the rung report `unknown` rather than assert a cadence nobody declared.
+   */
+  readonly entryOnCandleClose?: boolean;
   readonly needsUserDataStream: boolean;
   readonly needsMiniTicker: boolean;
   /**

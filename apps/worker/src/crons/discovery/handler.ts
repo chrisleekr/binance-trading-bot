@@ -33,6 +33,8 @@ export interface LoadedDiscovery {
   /** The profile's display name, prefixed onto its discovery notifications so a
    * multi-profile operator can tell which profile rotated a symbol. */
   readonly name: string;
+  /** Whether the profile's strategy declares the `entry-hint` bundle provider. Resolved once here, beside the config read that already holds the profile row, so the cycle does not re-resolve the plugin per symbol. */
+  readonly readsEntryHint: boolean;
 }
 
 /** Default an unresolved account mode to the most-restrictive testnet universe, never live. */
@@ -44,6 +46,8 @@ export interface ProfileWakeContext {
   readonly liveAdmission: ReadonlyMap<string, SymbolAdmission>;
   readonly assetPolicy: AssetPolicy;
   readonly accountPermissions: readonly string[];
+  /** Whether the profile's strategy declares the `entry-hint` bundle provider, carried from the config load so the cycle can skip a hint refresh nothing will read. */
+  readonly readsEntryHint: boolean;
 }
 
 /** Injected dependencies for {@link discoveryHandler} — all I/O behind functions. */
@@ -151,7 +155,7 @@ export const discoveryHandler =
       try {
         const loaded = await deps.loadConfig(p);
         if (!loaded || !loaded.cfg.enabled) continue;
-        const { cfg, quoteAsset, name } = loaded;
+        const { cfg, quoteAsset, name, readsEntryHint } = loaded;
         if (!(await deps.shouldRun(p, cfg.refreshPeriodMs, nowMs))) continue;
         // Zero-seed every cause for a profile that is actually running a cycle, ahead of anything that can refuse. A prom-client child does not exist until its first write and is born holding that value, so an unseeded counter's first abort reads as a series that has always been 1, and `increase()` sees no rise. At the default 15-minute refresh a second abort would eventually make it visible; at the maximum legal period it would take a day, and the alert exists precisely to catch the case where discovery has silently stopped rotating.
         for (const cause of ASSET_POLICY_ABORT_CAUSES) {
@@ -201,6 +205,7 @@ export const discoveryHandler =
           // Lazy by construction: nothing above this line touches the network for the classification, so a wake where every profile is gated never fetches it.
           assetPolicy: await deps.getAssetPolicy(),
           accountPermissions: await cachedPermissions,
+          readsEntryHint,
         });
         await deps.clearAssetPolicyAbort(p);
         // Refusals log too, not just rotations. A cycle that only refused used to log nothing at all, so the operator whose coin list had stopped moving had a metric they never look at and a silent log. `pinned` and `not-found` have no other diagnosis surface, and the whole tally rides the payload so one line answers "what did this cycle actually do".

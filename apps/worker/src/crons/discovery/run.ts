@@ -145,7 +145,8 @@ export interface DiscoveryProfilePort {
    * silent by construction, so without this the operator has no way to learn
    * why a symbol they expect stopped appearing.
    */
-  readonly logger: Pick<Logger, 'warn'>;
+  // `info` as well as `warn`: reaping a coin the account still holds a balance of is a normal outcome once the balance is proven not to be ours, but it is rare and worth a line — `warn` would tell the operator to act on something that needs no action.
+  readonly logger: Pick<Logger, 'warn' | 'info'>;
   getAllTickers(): Promise<readonly Ticker24hrDto[]>;
   getKlines(symbol: string, limit: number): Promise<readonly Candle[]>;
   /** The profile's UNPINNED bindings: everything discovery is allowed to count against the cap and rotate out, whatever created it. */
@@ -179,16 +180,33 @@ export interface DiscoveryProfilePort {
    */
   refreshEntryHint(symbol: string, value: string): Promise<void>;
   /**
-   * Whether the exchange wallet still holds a sellable amount of the symbol's
-   * base asset (free + locked >= the symbol's `minQty` lot floor). The local
-   * `avg_entry_prices` ledger is NOT authoritative: a real buy whose fill has
-   * not yet been adopted leaves the ledger empty while the wallet holds coins,
-   * and reaping then orphans a live position ("never
-   * unsubscribe a held symbol"). Returns `null` when the balance cannot be read
-   * (missing credentials / API error); the caller then refuses to reap rather
-   * than abandon a possibly-held position.
+   * Whether the exchange wallet still holds a sellable amount of the symbol's base asset (free + locked, tested against the symbol's `minQty` lot floor and its `minNotional` order-value floor).
+   *
+   * The local `avg_entry_prices` ledger is NOT authoritative: a real buy whose fill has not yet been adopted leaves the ledger empty while the wallet holds coins, and reaping then orphans a live position ("never unsubscribe a held symbol").
+   *
+   * @param symbol - The trading pair whose base asset is being tested.
+   * @param referencePrice - Latest price for the pair, valuing the balance against the order-value floor, or null when the symbol is absent from this cycle's ticker feed. Null disarms the value bound, never the whole guard.
+   * @returns True when the balance could still back an unadopted position, false when the wallet is provably flat, and null when the balance could not be read at all (missing credentials, API error). The caller refuses to reap on either non-false answer rather than abandon a possibly-held position.
    */
-  heldOnExchange(symbol: string): Promise<boolean | null>;
+  heldOnExchange(symbol: string, referencePrice: string | null): Promise<boolean | null>;
+  /**
+   * Whether this profile has ever placed an order for the symbol.
+   *
+   * The wallet guard above asks the account, but the question it exists to answer is about this PROFILE: could the balance be a buy of ours whose fill has not been adopted yet? That premise needs an order to have existed. A profile that never placed one has no fill to have missed, so the balance provably belongs to something else — fee BNB, an operator's manual holding, another account's coin — and refusing the reap over it pins the slot for good.
+   *
+   * `orders` is the ledger of what this profile placed: the executor writes a row on placement, and `insertTracking` backfills one for anything discovered by other means. It is not quite every own-order surface — the fill adopter also treats a `manual_orders` row as an own origin — but that table has no production writer today, so reading it here would be a query against a set nothing fills. If the manual surface is ever armed, this read has to grow with it, because an unadopted manual fill is the same hazard the wallet guard covers.
+   *
+   * @param symbol - The trading pair to look for in this profile's order history.
+   * @returns True when at least one order exists, false when none does, null when the question could not be answered.
+   */
+  everPlacedOrder(symbol: string): Promise<boolean | null>;
+  /**
+   * Whether this ACCOUNT has ever filled a trade on the symbol, read from Binance itself. The order ledger is not complete: a placement whose response was lost and whose probe could not resolve it returns `ambiguous` with no `orders` row, as does an accepted order whose two bookkeeping writes both failed, and the fill adopter refuses such a fill for want of a row, so the binding is then the only handle left on the position. Exchange history has no such gap. Account-wide rather than per profile, so a coin the account ever traded keeps the refusal, which is the cautious direction.
+   *
+   * @param symbol - The trading pair whose fills to look for on this account.
+   * @returns True when at least one fill exists, false when none does, null when the question could not be answered.
+   */
+  everTradedOnExchange(symbol: string): Promise<boolean | null>;
   /** Reap if unpinned + flat. Returns the repo's verdict verbatim: `removed` is the only success, and the other three name why the row stayed. */
   reapSymbol(symbol: string, nowMs: number): Promise<ReapOutcome>;
   /**
@@ -243,6 +261,8 @@ export interface DiscoveryProfileContext {
   readonly liveAdmission: ReadonlyMap<string, SymbolAdmission>;
   /** Permission tags the account holds; empty disables the permission cut. */
   readonly accountPermissions?: readonly string[];
+  /** Whether the profile's strategy declares the `entry-hint` bundle provider. False skips the per-cycle hint refresh entirely: the hash is read by nothing on such a profile, so writing it is a Redis round trip per desired symbol per cycle that buys a value no tick will ever load. Required, not optional-defaulting-to-false: either default silently disables or silently enables the refresh at a construction site that forgot the field, and the compiler is the only thing that can tell the two apart. */
+  readonly readsEntryHint: boolean;
 }
 
 /**
@@ -286,7 +306,12 @@ export const runDiscoveryForProfile = async (
   });
   // 24h high per symbol, captured for the enter-on-add anti-chase guard.
   const highBySymbol: Record<string, string> = {};
-  for (const t of rawTickers) highBySymbol[t.symbol] = t.highPrice;
+  // Last price per symbol, which values a wallet balance against the symbol's order-value floor in the reap guard below. Built off `rawTickers` rather than `tickers` for the same reason the highs are: `tickers` is the quote-matched, policy-filtered universe, and a bound symbol that has since been delisted or filtered out is exactly the one whose reap is being decided. Absent from the feed leaves the price null, which disarms the value bound rather than the guard.
+  const priceBySymbol: Record<string, string> = {};
+  for (const t of rawTickers) {
+    highBySymbol[t.symbol] = t.highPrice;
+    priceBySymbol[t.symbol] = t.lastPrice;
+  }
   const shortlist = shortlistByTicker(tickers, cfg);
   const rotatableSymbols = await port.listRotatableSymbols();
   const pinnedSymbols = await port.listPinnedSymbols();
@@ -440,13 +465,28 @@ export const runDiscoveryForProfile = async (
     // symbol the wallet still holds must never be unsubscribed — that orphans a
     // live, unmanaged position. `null` (balance unreadable) is treated as held:
     // refuse to abandon when we cannot prove the symbol is flat.
-    const held = await port.heldOnExchange(symbol);
+    // A balance alone is not that missed fill, though, and reading it as one pins the slot for the life of the account. Two questions narrow it to the fill this guard is actually about, and each disarms only itself: the guard's own value bound drops a balance the exchange would refuse to sell at all, and the never-traded check below drops one belonging to a symbol this profile never ordered and the account never filled on Binance.
+    const held = await port.heldOnExchange(symbol, priceBySymbol[symbol] ?? null);
     if (held !== false) {
-      // Counted, not silently skipped. This guard refuses more rotations than the repo's does, and its two cases are opposite facts: `true` is a position held on evidence, `null` is a position nothing could establish either way. Left as a bare `continue`, a profile whose credentials had stopped working simply stopped rotating, indistinguishably from one with nothing to rotate.
-      const walletOutcome = held === true ? 'wallet-held' : 'hold-unproven';
-      reapOutcomes[walletOutcome] += 1;
-      port.recordReapOutcome(walletOutcome);
-      continue;
+      // The wallet says something, but the wallet is the ACCOUNT's and the guard's premise is about this PROFILE: only an unadopted fill of ours justifies keeping a symbol we have been told to drop. Asked only on the refusing path, so the ordinary reap still costs one query, and asked of the same profile scope the reap itself runs under.
+      //
+      // Asked ONLY of a `true` verdict, never of a `null` one. This arm may overrule a wallet verdict; it may not substitute for one that was never reached. Deferring instead costs one cycle: an unreadable wallet is transient by nature, and the next cycle reaps on a real verdict.
+      //
+      // An empty ledger alone is not proof the balance is foreign: a placement left `ambiguous` writes no `orders` row and its fill is never adopted (see `everTradedOnExchange`). So the override also needs Binance to report no fill on the symbol, asked only after the ledger says no so the signed call is spent on this rare arm alone.
+      const everTraded = held === true ? await port.everPlacedOrder(symbol) : null;
+      const exchangeTraded = everTraded === false ? await port.everTradedOnExchange(symbol) : null;
+      if (everTraded !== false || exchangeTraded !== false) {
+        // Counted, not silently skipped. This guard refuses more rotations than the repo's does, and its two cases are opposite facts: `true` is a position held on evidence, `null` is a position nothing could establish either way. Left as a bare `continue`, a profile whose credentials had stopped working simply stopped rotating, indistinguishably from one with nothing to rotate.
+        const walletOutcome = held === true ? 'wallet-held' : 'hold-unproven';
+        reapOutcomes[walletOutcome] += 1;
+        port.recordReapOutcome(walletOutcome);
+        continue;
+      }
+      // Never traded here, so the balance is not ours to protect. Logged rather than counted: the attempt's verdict is still whatever `reapSymbol` returns below, and a second tally entry for one attempt would make the outcome counts stop summing to the attempts. `removeUnpinnedIfFlat` remains the backstop: it refuses atomically on an open order or a positive tracked quantity.
+      port.logger.info(
+        { symbol },
+        'cron discovery: wallet holds this coin but the profile never ordered it and the account never traded it; reaping',
+      );
     }
     const outcome = await port.reapSymbol(symbol, nowMs);
     reapOutcomes[outcome] += 1;
@@ -468,14 +508,17 @@ export const runDiscoveryForProfile = async (
   // never a flat first entry and the guards only fire on one.
   // Each hint is an independent write to a distinct hash field; pipeline them so
   // the refresh pays one round-trip batch rather than one per desired symbol.
-  await Promise.all(
-    diff.desired.map((symbol) =>
-      port.refreshEntryHint(
-        symbol,
-        buildEntryHintValue(nowMs, stored.enterOnAdd, highBySymbol[symbol], stored.entryGuard),
+  // Skipped whole on a strategy that does not declare the `entry-hint` bundle: nothing loads the hash, so every write is a round trip for a value no tick reads, and the payload it carries — `enterOnAdd` and the anti-chase guards — is settings such a profile cannot act on either. The skip disables the only WRITER of that hash; both paths that CLEAR it — the reap, via `reapUnpinnedBinding`, and the orphan cleanup above — sit outside this gate, so a skipped profile still sheds entries as symbols leave and merely stops gaining them. Entries a profile already held when its strategy changed therefore survive until each of those symbols leaves by one of those two routes, inert in the meantime because nothing loads the hash. Switched back, the first cycle rewrites every desired symbol, so staleness is bounded by one refresh period.
+  if (ctx.readsEntryHint) {
+    await Promise.all(
+      diff.desired.map((symbol) =>
+        port.refreshEntryHint(
+          symbol,
+          buildEntryHintValue(nowMs, stored.enterOnAdd, highBySymbol[symbol], stored.entryGuard),
+        ),
       ),
-    ),
-  );
+    );
+  }
   if (added > 0 || removed > 0) await port.enqueueResync();
   return { added, removed, reapOutcomes };
 };

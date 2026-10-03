@@ -6,6 +6,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import type { Logger } from 'pino';
+import { buildStrategyRegistry } from '@app/strategy-registry';
 import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import { profileRepoFromScope, type Database, type ProfileScope } from '@app/db';
 
@@ -145,6 +146,93 @@ const makeConditionDeps = (
     } as unknown as DiagnosisGatherDeps['repo'],
   };
 };
+
+/**
+ * Deps whose profile row is the variable under test, for the three fields the entry-signal-reach rung reads off it.
+ *
+ * `strategies` is the REAL registry unless a case overrides it: the entry-cadence flag comes off a plugin's own capability declaration, so a stub would assert the fixture rather than the strategy.
+ */
+const makeProfileDeps = (
+  over: Record<string, unknown>,
+  strategies?: DiagnosisGatherDeps['strategies'],
+): DiagnosisGatherDeps => {
+  const { deps } = makeDeps({ listConditionEdges: async () => [] }, makeLogger());
+  return {
+    ...deps,
+    strategies: strategies ?? buildStrategyRegistry(),
+    repo: {
+      ...deps.repo,
+      profile: { findById: vi.fn(async () => ({ ...profileRow, ...over })) },
+    } as unknown as DiagnosisGatherDeps['repo'],
+  };
+};
+
+// The rung that answers "can a coin still produce a buy signal before it is rotated out" reads two settings and no market data. Both have to survive the gather intact, and both have to degrade to null rather than to a guess — reporting health off a cadence nobody read is the failure that rung exists to fix.
+describe('gatherDiagnosisInput — the entry-signal-reach inputs', () => {
+  it('carries the minimum hold and the entry candle interval through', async () => {
+    const { input } = await gatherDiagnosisInput(
+      makeProfileDeps({
+        config: { candleInterval: '1d' },
+        discoveryConfig: { enabled: true, maxAutoSymbols: 5, minHoldMinutes: 1440 },
+      }),
+    );
+    expect(input.profile.minHoldMinutes).toBe(1440);
+    expect(input.profile.candleInterval).toBe('1d');
+  });
+
+  it("reads the entry cadence off each plugin's own capability, not off a strategy name", async () => {
+    // Momentum's entry IS an EMA cross over closed candles; trailing-trade's first buy is a price trigger that can fire seconds after a symbol is bound. The rung's arithmetic is only meaningful for the first, so the flag decides whether it answers at all.
+    const momentum = await gatherDiagnosisInput(makeProfileDeps({ strategyName: 'momentum' }));
+    expect(momentum.input.profile.entryOnCandleClose).toBe(true);
+
+    const tt = await gatherDiagnosisInput(makeProfileDeps({ strategyName: 'trailing-trade' }));
+    expect(tt.input.profile.entryOnCandleClose).toBe(false);
+  });
+
+  it('reports null, not false, for a strategy that is not registered', async () => {
+    // Nobody answered, which is not the same as a plugin answering "on price". The rung reports unknown for both, and keeping them apart is what stops silence from reading as a claim.
+    const { input } = await gatherDiagnosisInput(
+      makeProfileDeps({ strategyName: 'not-a-strategy' }, {
+        get: () => undefined,
+      } as unknown as DiagnosisGatherDeps['strategies']),
+    );
+    expect(input.profile.entryOnCandleClose).toBeNull();
+  });
+
+  it('reads the interval by literal key, so a config that names it nothing reports null', async () => {
+    // Contracts is the leaf and may not know a strategy type, so this is a duck-read. The one thing it must not do is fall back to a default cadence.
+    const { input } = await gatherDiagnosisInput(
+      makeProfileDeps({ config: { entryInterval: '1h' } }),
+    );
+    expect(input.profile.candleInterval).toBeNull();
+  });
+
+  it('narrows to the closed interval set, not merely to a string', async () => {
+    // The column is jsonb and the api's enum guards only the write path, so a restore or an out-of-band edit can put any string here. A bare `typeof === 'string'` would carry it into an operator-facing sentence verbatim, and an inherited-member name would once have divided to NaN and read as a mapped cadence.
+    const { input } = await gatherDiagnosisInput(
+      makeProfileDeps({ config: { candleInterval: 'constructor' } }),
+    );
+    expect(input.profile.candleInterval).toBeNull();
+
+    const other = await gatherDiagnosisInput(makeProfileDeps({ config: { candleInterval: '7h' } }));
+    expect(other.input.profile.candleInterval).toBeNull();
+  });
+
+  it('reports a non-string interval as null rather than passing the raw value on', async () => {
+    const { input } = await gatherDiagnosisInput(
+      makeProfileDeps({ config: { candleInterval: 60 } }),
+    );
+    expect(input.profile.candleInterval).toBeNull();
+  });
+
+  it('reports the minimum hold as null when the discovery config did not parse', async () => {
+    // Unreadable is not "no minimum hold": the rung answers unknown off this, and a zero here would make it answer with a division by a number nobody stored.
+    const { input } = await gatherDiagnosisInput(
+      makeProfileDeps({ discoveryConfig: { enabled: 'yes' } }),
+    );
+    expect(input.profile.minHoldMinutes).toBeNull();
+  });
+});
 
 const openCondition = (symbol: string, code: string) => ({
   condition: 'entry-blocked',

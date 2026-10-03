@@ -6,6 +6,7 @@ import {
   decimalMul,
   type DiscoveryActivityEntry,
   asDecimalString,
+  type BundleProvider,
   DiscoveryConfigSchema,
   DiscoveryDashboardResponse,
   type DiscoveryHolding,
@@ -14,6 +15,7 @@ import {
   type EntryBlockerResponse,
   ErrorEnvelope,
   readAccountExposureCap,
+  type StoredDiscoveryConfig,
   unwrapId,
 } from '@app/contracts';
 import { Decimal } from '@app/money';
@@ -33,7 +35,7 @@ import type { DI } from 'di.js';
 import { periodWindow } from 'lib/period-window.js';
 import { HttpError } from 'middleware/error.js';
 import { requireUser } from 'middleware/require-user.js';
-import { requireOwnedProfile, scopeOf } from 'route-helpers.js';
+import { requireOwnedProfile } from 'route-helpers.js';
 import { createApiHono, type ApiHono } from 'types.js';
 
 const DAY_MS = 86_400_000;
@@ -163,11 +165,106 @@ const resolveGaugeCap = (config: unknown, equity: Decimal): DecimalString | null
   return null;
 };
 
+/** The profile facts every discovery surface here reads, including the two that select the live plugin. */
+type DiscoveryProfileRow = {
+  config: unknown;
+  discoveryConfig?: unknown;
+  quoteAsset: string;
+  strategyName: string;
+  strategyVersion: string;
+};
+
+// The token, checked by the compiler rather than spelled inline. `bundleProviders` is typed `readonly string[]` (the closed set is worker-internal), so `.includes('entry_hint')` would compile and silently make every profile read as non-hint: the api would refuse every entry-mode save and the cron would stop writing the hash for the one strategy that reads it.
+const ENTRY_HINT = 'entry-hint' satisfies BundleProvider;
+
+/**
+ * Whether this profile's strategy reads the discovery entry-hint bundle, which is what makes `enterOnAdd` and the `entryGuard` knobs mean anything.
+ *
+ * Off the generic `capabilities.bundleProviders` declaration, never a strategy name, so adding a strategy needs no edit here — the same rule `assertActionSupported` follows for operator actions. Gated on the LIVE plugin rather than the stored version, again matching that helper: a profile whose strategy has bumped still ticks the live one.
+ *
+ * An unregistered strategy answers `false`. That is the safe direction for both callers: the editor hides two controls, and a write that arms them is refused — neither of which can be wrong about a plugin that is not running.
+ *
+ * @param di - Container, for the strategy registry.
+ * @param profile - The profile whose strategy is being resolved.
+ * @returns True when the strategy declares the `entry-hint` bundle provider.
+ */
+const entryModeSupported = (di: DI, profile: DiscoveryProfileRow): boolean => {
+  const resolved = di.strategies.describeForProfile(profile.strategyName, profile.strategyVersion);
+  return (
+    resolved.status !== 'unknown' &&
+    resolved.strategy.capabilities.bundleProviders.includes(ENTRY_HINT)
+  );
+};
+
+/**
+ * Whether a decimal-string knob is off. Compared numerically, not as text: the schema's off sentinel is `'0'`, but `'0.0'` and `'0.00'` are the same setting and an operator typing one must not read as arming the guard.
+ *
+ * No parse guard, deliberately. Both callers hand it a value that has already been through `decimalString` — the payload side via the route's body validator, the stored side via a `safeParse` whose failure is handled before this is reached — so a throw here would need an input the route cannot produce, and a catch for it would be a branch no test could ever cover.
+ *
+ * @param value - A decimal string off a validated discovery config.
+ * @returns True when the knob is numerically zero, which is its off sentinel.
+ */
+const decimalOff = (value: string): boolean => new Decimal(value).isZero();
+
+/**
+ * Whether two decimal-string knobs hold the same setting. Numeric, for the reason {@link decimalOff} is: `'3'` and `'3.0'` are one value, and a re-save that reformatted one must not read as a change.
+ *
+ * @param a - One validated decimal string.
+ * @param b - The other; compared by value, never by spelling.
+ * @returns True when the two name the same number.
+ */
+const decimalSame = (a: string, b: string): boolean => new Decimal(a).eq(new Decimal(b));
+
+/**
+ * Refuse a discovery config that ARMS an entry-mode knob on a strategy that cannot read it.
+ *
+ * `enterOnAdd` and the `entryGuard` block reach a strategy only through the entry-hint bundle. Saved against one that does not declare it they are inert, and the operator is told nothing — they set a risk control, get a 200, and it never runs. Refusing at the write is the honest answer; silently coercing them back to off would be the same silence with a different shape.
+ *
+ * Only a CHANGE that arms is refused, which is the difference between a guard and a trap. A profile can already hold an armed value — it was saved under a hint-reading strategy and then switched, or written out of band — and the editor hides these controls on such a profile, so every later save carries the stored values straight back. Refusing on the value alone would wedge that profile: no unrelated threshold could ever be edited again through a UI that does not show the field blocking it. So two payloads pass: one that re-saves the stored value unchanged, and one that switches the knob off. A payload that changes an armed knob to a DIFFERENT armed value is refused even when the new value is smaller, because on a strategy that reads none of them the difference between a tighter and a looser inert setting is not one this route is in a position to bless.
+ *
+ * @param di - Container, for the strategy registry.
+ * @param profile - The profile being written, naming the strategy whose declaration decides and carrying the stored config the payload is compared against.
+ * @param next - The discovery config the operator is trying to save.
+ */
+const assertEntryModeAllowed = (
+  di: DI,
+  profile: DiscoveryProfileRow,
+  next: StoredDiscoveryConfig,
+): void => {
+  if (entryModeSupported(di, profile)) return;
+  // An unparseable stored config compares as nothing-carried-over, so every armed knob in the payload reads as newly armed — the one thing it must not do is wave an arming write through on the strength of a value nobody can read. This `null` is a claim about representation, not a distinct behaviour: it is indistinguishable from substituting all-off defaults, because every armed value differs from every off sentinel, so no test can separate the two. Written as `null` because that is what is true.
+  const stored = DiscoveryConfigSchema.safeParse(profile.discoveryConfig ?? {});
+  const cur = stored.success ? stored.data : null;
+  const g = next.entryGuard;
+  const armed = [
+    next.enterOnAdd && cur?.enterOnAdd !== true ? 'enterOnAdd' : '',
+    !decimalOff(g.maxDistanceFrom24hHighPercent) &&
+    !(
+      cur &&
+      decimalSame(cur.entryGuard.maxDistanceFrom24hHighPercent, g.maxDistanceFrom24hHighPercent)
+    )
+      ? 'entryGuard.maxDistanceFrom24hHighPercent'
+      : '',
+    g.knifeCandles !== 0 && cur?.entryGuard.knifeCandles !== g.knifeCandles
+      ? 'entryGuard.knifeCandles'
+      : '',
+    !decimalOff(g.knifeDropPercent) &&
+    !(cur && decimalSame(cur.entryGuard.knifeDropPercent, g.knifeDropPercent))
+      ? 'entryGuard.knifeDropPercent'
+      : '',
+  ].filter((name) => name !== '');
+  if (armed.length === 0) return;
+  throw new HttpError(
+    'ACTION_UNSUPPORTED',
+    `strategy ${profile.strategyName} does not read the discovery entry hint, so ${armed.join(', ')} would have no effect`,
+  );
+};
+
 /** Compute the discovery operator-dashboard payload for a resolved profile. */
 const buildDashboard = async (
   di: DI,
   p: ProfileRepo,
-  profile: { config: unknown; discoveryConfig?: unknown; quoteAsset: string },
+  profile: DiscoveryProfileRow,
 ): Promise<DiscoveryDashboardResponse> => {
   // A stored config that fails validation (e.g. an out-of-band DB edit wrote an
   // out-of-range value) must not 500 the whole dashboard. Fall back to safe
@@ -287,6 +384,7 @@ const buildDashboard = async (
     holdings,
     autoSymbols,
     activity: toActivity(logs),
+    entryModeSupported: entryModeSupported(di, profile),
   };
 };
 
@@ -410,7 +508,9 @@ export const discoveryRouter = (di: DI): ApiHono => {
   app.openapi(patchRoute, async (c) => {
     const profileId = asProfileId(c.req.valid('param').profileId);
     const body = c.req.valid('json');
-    const p = await scopeOf(c, di, profileId);
+    // The row, not just the scope: the entry-mode gate is decided by this profile's strategy and by what it already has stored, both of which live on it.
+    const { p, profile } = await requireOwnedProfile(c, di, profileId);
+    assertEntryModeAllowed(di, profile, body);
     const updated = await p.profile.setDiscoveryConfig(body);
     if (!updated) throw new HttpError('NOT_FOUND', 'profile');
     c.set('auditEvent', { event: 'set-discovery-config', payload: { profileId } });

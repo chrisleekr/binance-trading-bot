@@ -13,6 +13,7 @@ import {
   DiscoveryConfigSchema,
   DISCOVERY_HEALTH_WINDOW,
   EntryHaltKind,
+  isCandleInterval,
   unwrapId,
   type AssetPolicyAbortRecord,
   type OpenCondition,
@@ -267,6 +268,17 @@ export const gatherDiagnosisInput = async (
       discoveryConfig: discoveryCfg,
       maxAutoSymbols: discoveryCfg?.maxAutoSymbols ?? null,
       refreshPeriodMs: discoveryCfg?.refreshPeriodMs ?? null,
+      minHoldMinutes: discoveryCfg?.minHoldMinutes ?? null,
+      // By literal key, because this gather may not know a strategy type (invariant 1). Deliberately NOT the pipeline's `resolveCandleInterval`, which validates against the plugin's declared intervals and falls back to `1h`: this rung would then divide by a cadence it inferred rather than one the operator set, and its finding names a setting. A field that is absent, unsupported or spelled differently reads null and the rung reports it could not measure.
+      //
+      // Narrowed to the closed interval set, not merely to `string`. This column is jsonb and the api's zod enum guards only the write path, so a restore or an out-of-band edit can put any string here; without this the value reaches an operator-facing sentence verbatim, and a name that happens to be an inherited object member would once have divided to `NaN` and read as a mapped cadence.
+      candleInterval: isCandleInterval(
+        (profile.config as { candleInterval?: unknown } | null)?.candleInterval,
+      )
+        ? (profile.config as { candleInterval: string }).candleInterval
+        : null,
+      // Off the plugin's generic capability declaration, never its name (invariant 1). An unregistered strategy answers null: nothing is running to have an entry cadence, and claiming one either way would be the fabrication this ladder refuses.
+      entryOnCandleClose: plugin ? (plugin.capabilities.entryOnCandleClose ?? false) : null,
       autoSymbolCount: rotatableSymbols.length,
     },
     worker: { heartbeatPresent },
