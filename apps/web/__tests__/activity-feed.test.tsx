@@ -66,6 +66,7 @@ const discoveryJson = (activity: readonly DiscoveryActivityEntry[]): Response =>
       netTradeCount7d: 0,
     },
     gauge: { deployedQuote: '0', maxAccountExposureQuote: null, autoSymbolCount: 0 },
+    entryModeSupported: true,
     universe: null,
     holdings: [],
     autoSymbols: [],

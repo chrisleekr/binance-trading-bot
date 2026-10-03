@@ -45,12 +45,9 @@ const TrendConfirmSchema = withParsedDefault(
   }),
 );
 
-// Anti-chase entry guards (default-off). They only bite an `enterOnAdd`
-// discovery entry: the cron captures the symbol's 24h high at add time and
-// threads these knobs through the entry-hint bundle, so the strategy can refuse
-// to buy a coin that already ran (chase guard) or is still falling (knife
-// guard). Each knob defaults to the "off" sentinel ('0' / 0), so an absent block
-// leaves every entry untouched.
+// Anti-chase entry guards (default-off). They bite ANY discovery first entry, not only an `enterOnAdd` one: the cron re-stamps the symbol's current 24h high and these knobs into the entry-hint bundle every cycle, so the strategy can refuse to buy a coin that already ran (chase guard) or is still falling (knife guard) whether the toggle is on or off. Each knob defaults to the "off" sentinel ('0' / 0), so an absent block leaves every entry untouched.
+//
+// They reach a strategy ONLY through that bundle, so on one that does not declare `entry-hint` they are inert. The api refuses a write that arms them there and the settings editor hides them, rather than letting an operator set a risk control that never runs.
 const EntryGuardSchema = withParsedDefault(
   z.object({
     maxDistanceFrom24hHighPercent: decimalString(
@@ -424,5 +421,7 @@ export const DiscoveryDashboardResponse = z.object({
   // held/waiting status reflect the action immediately, not the stale scan.
   autoSymbols: z.array(z.string()).default([]),
   activity: z.array(DiscoveryActivityEntry).default([]),
+  // Whether this profile's strategy honours the entry-mode knobs — `enterOnAdd` and the `entryGuard` block. Discovery is strategy-agnostic (invariant #1) and its config is one shared schema, but those two ride the entry-hint bundle and reach only a strategy that declares it. On one that does not, they save and do nothing: the editor renders a dead control and the operator is told nothing. Resolved by the api from the live plugin's declaration and carried here, on the response the editor already fetches, so the SPA branches on a generic capability rather than learning a strategy name. Required, not defaulted: a response that forgot to state it should fail its own schema, not quietly claim support.
+  entryModeSupported: z.boolean(),
 });
 export type DiscoveryDashboardResponse = z.infer<typeof DiscoveryDashboardResponse>;

@@ -96,6 +96,7 @@ const discovery = (
     },
     gauge,
     quoteAsset: 'USDT',
+    entryModeSupported: true,
     universe: null,
     holdings: [],
     autoSymbols: [],

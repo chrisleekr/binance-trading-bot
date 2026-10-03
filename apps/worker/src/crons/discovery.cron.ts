@@ -40,6 +40,7 @@ import { createAssetPolicyAbortRecordStore } from './discovery/abort-record.js';
 import { persistSnapshotBestEffort } from './discovery/snapshot.js';
 import { applyDiscoveryAdd, applyDiscoveryReap } from './discovery/apply.js';
 import { partitionByPin } from './discovery/pin-partition.js';
+import { BUNDLE_PROVIDER_ENTRY_HINT } from '../tick/bundle-providers.js';
 import { discoveryMessage, notifyDiscovery, type ResolvedNotifiers } from './discovery/notify.js';
 import {
   runDiscoveryForProfile,
@@ -127,7 +128,20 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
     // restart. Uppercase at the read boundary so the suffix match is robust to
     // any writer that did not normalise (the API PATCH does; a seed / future
     // create path might not).
-    return { cfg, quoteAsset: profile.quoteAsset.toUpperCase(), name: profile.name };
+    // Off the generic capability declaration, never a strategy name (core invariant #1): a strategy that does not list `entry-hint` reads no hint, so the cycle must not spend a Redis write per desired symbol stamping one. An unregistered strategy reads as false for the same reason the api's gate does — nothing is running to read it.
+    const resolved = ctx.strategies.describeForProfile(
+      profile.strategyName,
+      profile.strategyVersion,
+    );
+    const readsEntryHint =
+      resolved.status !== 'unknown' &&
+      resolved.strategy.capabilities.bundleProviders.includes(BUNDLE_PROVIDER_ENTRY_HINT);
+    return {
+      cfg,
+      quoteAsset: profile.quoteAsset.toUpperCase(),
+      name: profile.name,
+      readsEntryHint,
+    };
   };
 
   const shouldRun = (p: ActiveProfile, refreshPeriodMs: number, nowMs: number): Promise<boolean> =>
@@ -265,7 +279,7 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
       refreshEntryHint: async (symbol, value) => {
         await ctx.redis.hset(storageKeys.enterOnAddKey, symbol, value);
       },
-      heldOnExchange: async (symbol) => {
+      heldOnExchange: async (symbol, referencePrice) => {
         const wallet = await loadWallet();
         if (wallet === null) return null;
         let info;
@@ -280,12 +294,30 @@ export const buildDiscoveryCron = (ctx: BootContext): CronDef => {
           return null;
         }
         try {
-          return baseAssetHeld(wallet, info.baseAsset, info.filters.minQty);
+          return baseAssetHeld(
+            wallet,
+            info.baseAsset,
+            info.filters.minQty,
+            info.filters.minNotional,
+            referencePrice,
+          );
         } catch (err) {
           // Unparseable minQty/balance — fail safe (treat as held, don't reap).
           ctx.logger.warn(
             { profileId: pid, symbol, err: err },
             'cron discovery: unparseable minQty for held-guard; not reaping',
+          );
+          return null;
+        }
+      },
+      everPlacedOrder: async (symbol) => {
+        try {
+          return (await repo.orders.listHistoryForSymbol(symbol, 1)).length > 0;
+        } catch (err) {
+          // Can't read the ledger — fail safe. `null` keeps the wallet guard's refusal, so an unreachable database can never be the reason a coin is abandoned.
+          ctx.logger.warn(
+            { profileId: pid, symbol, err: err },
+            'cron discovery: order history unreadable for held-guard; not reaping',
           );
           return null;
         }

@@ -36,6 +36,43 @@ export type CandleInterval = (typeof CANDLE_INTERVALS)[number];
 export const isCandleInterval = (v: unknown): v is CandleInterval =>
   typeof v === 'string' && (CANDLE_INTERVALS as readonly string[]).includes(v);
 
+/**
+ * Milliseconds spanned by one candle, for the fixed-duration spine only. `1M` is absent because a calendar month has no constant length, so anything that divides by this table would be wrong for it by up to three days.
+ *
+ * Lives here, beside the tuple it is keyed on, for the reason the file header gives: a second copy of this table somewhere else drifts the moment an interval is added, and nothing type-checks the two against each other.
+ *
+ * A `Map` and not an object literal, matching the sibling interval mapper in `@app/binance`. A bracket lookup on an object walks the prototype chain and `Object.freeze` does not change that, so `'constructor'`, `'toString'` and `'__proto__'` would each resolve to something non-nullish, defeat the `?? null` below, and hand a caller a function where its type promises a number — which then divides to `NaN` and reads as a mapped interval. A `Map` has no such fallback for its keys.
+ */
+const FIXED_INTERVAL_MS: ReadonlyMap<string, number> = new Map(
+  Object.entries({
+    '1m': 60_000,
+    '3m': 180_000,
+    '5m': 300_000,
+    '15m': 900_000,
+    '30m': 1_800_000,
+    '1h': 3_600_000,
+    '2h': 7_200_000,
+    '4h': 14_400_000,
+    '6h': 21_600_000,
+    '8h': 28_800_000,
+    '12h': 43_200_000,
+    '1d': 86_400_000,
+    '3d': 259_200_000,
+    '1w': 604_800_000,
+  }),
+);
+
+/**
+ * Milliseconds in one candle of `interval`, or null when the interval is unknown or has no constant length (`1M`).
+ *
+ * Null rather than a throw so a PURE caller that merely wants to reason about cadence can degrade to "not known" instead of taking down whatever it is embedded in. A caller that genuinely cannot proceed without the number keeps its own throwing wrapper, which is what `@app/db`'s `intervalToMs` is.
+ *
+ * @param interval - A candle interval string, from config or the wire; not assumed valid, and not assumed to be an OWN key of anything.
+ * @returns The candle's duration in ms, or null when it is unknown or variable-length.
+ */
+export const candleIntervalMs = (interval: string): number | null =>
+  FIXED_INTERVAL_MS.get(interval) ?? null;
+
 // Backtest intervals: the fixed spine (no `1M` — the fill model's fixed grid is
 // undefined for a variable-length bar). The zod schema + inferred
 // `BacktestInterval` type live in `./backtest.ts` (their home, alongside the

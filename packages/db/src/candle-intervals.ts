@@ -4,36 +4,18 @@
 // neither a Database nor a ProfileScope). Shared by the candle repo
 // (findGaps) and the worker candle backfill.
 
-/**
- * Fixed-duration Binance kline intervals in milliseconds. `1M` (calendar
- * month) is intentionally absent — its duration is not constant, so a
- * fixed-grid gap walk is undefined for it; callers must reject it upstream.
- */
-const INTERVAL_MS: Readonly<Record<string, number>> = Object.freeze({
-  '1m': 60_000,
-  '3m': 180_000,
-  '5m': 300_000,
-  '15m': 900_000,
-  '30m': 1_800_000,
-  '1h': 3_600_000,
-  '2h': 7_200_000,
-  '4h': 14_400_000,
-  '6h': 21_600_000,
-  '8h': 28_800_000,
-  '12h': 43_200_000,
-  '1d': 86_400_000,
-  '3d': 259_200_000,
-  '1w': 604_800_000,
-});
+import { candleIntervalMs } from '@app/contracts';
 
 /**
  * Milliseconds spanned by one candle of `interval`. Throws on an unknown or
  * non-fixed-duration interval (e.g. `1M`) rather than guessing — a wrong
  * cadence would silently corrupt gap detection and the backfill loop.
+ *
+ * The table itself lives in `@app/contracts` beside the interval tuple it is keyed on; this is the throwing wrapper the candle store wants, over the nullable answer a pure caller wants.
  */
 export function intervalToMs(interval: string): number {
-  const ms = INTERVAL_MS[interval];
-  if (ms === undefined) {
+  const ms = candleIntervalMs(interval);
+  if (ms === null) {
     throw new Error(`unsupported candle interval: ${interval}`);
   }
   return ms;

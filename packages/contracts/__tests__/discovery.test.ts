@@ -187,6 +187,7 @@ describe('DiscoveryDashboardResponse', () => {
         netTradeCount7d: 0,
       },
       gauge: { deployedQuote: '0', maxAccountExposureQuote: null, autoSymbolCount: 0 },
+      entryModeSupported: true,
     });
     expect(res.holdings).toEqual([]);
     expect(res.autoSymbols).toEqual([]);
@@ -194,6 +195,27 @@ describe('DiscoveryDashboardResponse', () => {
     expect(res.configInvalid).toBe(false);
     expect(res.scoreboard.feeBasis).toBe('unknown');
     expect(res.scoreboard.feeBasis7d).toBe('unknown');
+  });
+
+  it('refuses a dashboard payload that omits entryModeSupported rather than defaulting it', () => {
+    // Required, not defaulted, on purpose: a default of `true` renders two dead controls on a strategy that reads no entry hint, and a default of `false` hides two live ones. Neither is a claim a producer that forgot the field has earned, so the schema refuses instead.
+    const res = DiscoveryDashboardResponse.safeParse({
+      config: {},
+      quoteAsset: 'USDT',
+      scoreboard: {
+        realizedProfit: '0',
+        realizedProfitPercent: '0',
+        tradeCount: 0,
+        netTradeCount: 0,
+        winRate: 0,
+        realizedProfit7d: '0',
+        tradeCount7d: 0,
+        netTradeCount7d: 0,
+      },
+      gauge: { deployedQuote: '0', maxAccountExposureQuote: null, autoSymbolCount: 0 },
+    });
+    expect(res.success).toBe(false);
+    expect(res.error?.issues.map((i) => i.path.join('.'))).toContain('entryModeSupported');
   });
 
   it("defaults both fee tiers to 'unknown' when the producer omits them", () => {
@@ -212,6 +234,7 @@ describe('DiscoveryDashboardResponse', () => {
         netTradeCount7d: 0,
       },
       gauge: { deployedQuote: '0', maxAccountExposureQuote: null, autoSymbolCount: 0 },
+      entryModeSupported: true,
     });
     expect(res.scoreboard.feeBasis).toBe('unknown');
     expect(res.scoreboard.feeBasis7d).toBe('unknown');

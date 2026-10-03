@@ -468,6 +468,9 @@ function DiscoveryActivity({
   );
 }
 
+/** Config keys that only reach a strategy through the discovery entry-hint bundle, and so are hidden whole on a strategy that does not declare it. */
+const ENTRY_MODE_KEYS = ['enterOnAdd', 'entryGuard'] as const;
+
 /**
  * Schema-driven editor for the discovery thresholds. `enabled` is owned by the
  * card's on/off switch, so it is stripped from the form (one control, no
@@ -475,27 +478,39 @@ function DiscoveryActivity({
  * Schema is derived from `DiscoveryConfigSchema` client-side. Discovery config
  * lives in `@app/contracts` (already in the SPA bundle), so there is no
  * strategy-plugin boundary forcing it over the wire, and no payload to bloat.
+ *
+ * The entry-mode block is stripped the same way, for a different reason: on a strategy that reads no entry hint those controls save cleanly and then do nothing, which is the worst thing a risk control can do. It is hidden rather than disabled because a greyed-out field still tells the operator the setting exists here, and on this profile it does not. Both stripped groups are re-attached from the current config at submit, so hiding a control never rewrites what it holds — and the API's matching gate refuses only a CHANGE that arms, so that round trip is accepted.
  */
 function DiscoveryConfigEditor({
   profileId,
   config,
+  entryModeSupported,
 }: {
   readonly profileId: string;
   readonly config: StoredDiscoveryConfig;
+  readonly entryModeSupported: boolean;
 }): React.JSX.Element {
   const queryClient = useQueryClient();
   const [banner, setBanner] = useState<ActionBannerState | null>(null);
 
-  // Same conversion the API runs for strategy configs, minus `enabled`.
+  const hidden = useMemo(
+    () => ['enabled', ...(entryModeSupported ? [] : ENTRY_MODE_KEYS)],
+    [entryModeSupported],
+  );
+  // Same conversion the API runs for strategy configs, minus the hidden keys.
   const schema = useMemo(() => {
     const full = toConfigJsonSchema(DiscoveryConfigSchema) as {
       properties?: Record<string, unknown>;
       required?: readonly string[];
     } & Record<string, unknown>;
     const properties = { ...(full.properties ?? {}) };
-    delete properties['enabled'];
-    return { ...full, properties, required: (full.required ?? []).filter((k) => k !== 'enabled') };
-  }, []);
+    for (const key of hidden) delete properties[key];
+    return {
+      ...full,
+      properties,
+      required: (full.required ?? []).filter((k) => !hidden.includes(k)),
+    };
+  }, [hidden]);
   const defaults = useMemo(() => {
     const rest: Record<string, unknown> = { ...config };
     delete rest['enabled'];
@@ -507,6 +522,10 @@ function DiscoveryConfigEditor({
       patchDiscoveryConfig(profileId, {
         ...values,
         enabled: config.enabled,
+        // Carried back verbatim on a profile whose editor hid them, so a save through this form does not also silently edit a setting it did not show. That holds while the stored config parsed; an unparseable one is already served to this form as schema defaults, and a save then rewrites every field from them — these two included, and not specially.
+        ...(entryModeSupported
+          ? {}
+          : { enterOnAdd: config.enterOnAdd, entryGuard: config.entryGuard }),
       } as StoredDiscoveryConfig),
     onSuccess: async () => {
       setBanner({ kind: 'ok', message: 'Settings saved.' });
@@ -841,7 +860,11 @@ export function DiscoveryDashboard({
 
       <PinnedSymbols profileId={profileId} />
 
-      <DiscoveryConfigEditor profileId={profileId} config={config} />
+      <DiscoveryConfigEditor
+        profileId={profileId}
+        config={config}
+        entryModeSupported={data.entryModeSupported}
+      />
 
       {data.universe ? (
         <DiscoveryUniverse

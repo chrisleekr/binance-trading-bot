@@ -79,6 +79,10 @@ const healthyInput = (): ProfileDiagnosisInput => ({
     maxAutoSymbols: 5,
     refreshPeriodMs: 900_000,
     autoSymbolCount: 1,
+    // 2h hold, 15m entry candle: 8 closes, so entry-signal-reach is one of the rungs this fixture resolves clean.
+    minHoldMinutes: 120,
+    candleInterval: '15m',
+    entryOnCandleClose: true,
   },
   worker: { heartbeatPresent: true },
   halts: [],

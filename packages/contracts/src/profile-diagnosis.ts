@@ -17,6 +17,7 @@ import {
   assessDiscoveryHealth,
   type SnapshotHealth,
 } from './discovery-health.js';
+import { candleIntervalMs } from './kline-intervals.js';
 import { labelForPath, titleCase } from './form-builder.js';
 import { attributeBlocker, type ReasonAttributionMap } from './reason-attribution.js';
 import { CONDITION_SEVERITY, type Condition, type ConditionSeverity } from './condition.js';
@@ -42,6 +43,7 @@ export const DIAGNOSIS_STEPS = [
   'market-breadth',
   'candidate-funnel',
   'symbol-slots',
+  'entry-signal-reach',
   'entry-blockers',
   'exit-blockers',
   'exit-protection',
@@ -59,6 +61,7 @@ export const DIAGNOSIS_STEP_LABELS: Record<DiagnosisStepId, string> = {
   'market-breadth': 'Is the market broad enough to buy into?',
   'candidate-funnel': 'Where do candidate coins drop out?',
   'symbol-slots': 'Is there room for another coin?',
+  'entry-signal-reach': 'Can a coin still produce a buy signal before it is rotated out?',
   'entry-blockers': 'What is holding back buys?',
   'exit-blockers': 'What are the held coins waiting on to sell?',
   'exit-protection': 'Does every held coin have a way out?',
@@ -341,6 +344,20 @@ export interface ProfileDiagnosisInput {
     readonly discoveryConfig: Record<string, unknown> | null;
     readonly maxAutoSymbols: number | null;
     readonly refreshPeriodMs: number | null;
+    /** Discovery's minimum hold, in minutes; null when the discovery config did not parse. Doubles as the min-hold-before-reap and the re-add cooldown, so it is the whole life of an auto binding. */
+    readonly minHoldMinutes: number | null;
+    /**
+     * The candle interval the strategy makes its entry decision on, read by the literal key `candleInterval` off the stored strategy config.
+     *
+     * By literal key and not through the plugin, because contracts is the leaf and may not know a strategy type (invariant 1); the gather narrows it to the closed `CANDLE_INTERVALS` set before it lands here. This is deliberately NOT the worker's own resolution, which validates the value against the plugin's declared intervals and falls back to `1h` on a miss — so a row naming an unsupported interval ticks on `1h` while this reads null and the rung reports it could not measure. That is the right direction for a rung whose whole contract is to say `unknown` rather than measure against a cadence it inferred, but it means this field answers a narrower question than the pipeline does.
+     */
+    readonly candleInterval: string | null;
+    /**
+     * Whether the strategy's ENTRY decision is evaluated on closes of {@link candleInterval}, off its `entryOnCandleClose` capability.
+     *
+     * Null when the strategy is not in the registry, which is not the same as false: false is a plugin saying its entry fires on price, null is nobody having answered. The rung reports `unknown` for both, so the distinction costs nothing today and is kept because collapsing them would be the same "silence reads as a claim" this ladder exists to refuse.
+     */
+    readonly entryOnCandleClose: boolean | null;
     /** Symbols currently bound by discovery (not operator-pinned). */
     readonly autoSymbolCount: number;
   };
@@ -448,6 +465,7 @@ const severityOf = (condition: string): ConditionSeverity =>
 const DISCOVERY_LEVERS: ReasonAttributionMap = {
   'discovery-breadth': { setting: 'Market breadth floor', paths: ['marketBreadthMinPercent'] },
   maxAutoSymbols: { setting: 'Auto-held symbol cap', paths: ['maxAutoSymbols'] },
+  'entry-signal-reach': { setting: 'Minimum hold time', paths: ['minHoldMinutes'] },
   blacklist: { setting: 'Blocklist', paths: ['blacklist'] },
   liquidity: { setting: 'Pair volume floor', paths: ['min24hPairVolumeUsd'] },
   activity: { setting: 'Coin volume floor', paths: ['min24hAssetVolumeUsd'] },
@@ -1118,6 +1136,96 @@ const stepSymbolSlots = (input: ProfileDiagnosisInput): DiagnosisStepResult => {
   };
 };
 
+/**
+ * How many closes of the entry candle a binding must see before the rung stops calling it structurally starved.
+ *
+ * Two, and the bar is not tuned. At ONE close the binding gets a single evaluation of the entry signal over its whole life, and discovery selected the coin on a burst that by construction post-dates the signal it is now waiting to see fire again — so the one chance it gets is the one already spent. Two is simply the first number that is not that degenerate case. Anything above it would be a judgement about how likely a signal is, which needs market data this rung deliberately does not read.
+ */
+const MIN_ENTRY_SIGNAL_CLOSES = 2;
+
+/**
+ * Whether a discovery-bound coin can still produce an entry signal before the rotation takes it away.
+ *
+ * The gap this closes: every other "why is it not buying" rung reads `condition_states`, and a strategy that simply sees no signal writes no row there — correctly, since declining to open a position is the strategy working. So a profile whose bindings expire before their entry candle can close again returned a full ladder of green rungs and no answer. The whole computation is two config values and no market data: an auto binding lives `minHoldMinutes`, and over that span it sees `floor(minHoldMinutes / interval)` closes of the interval the entry decision is made on. When that is 1, discovery hands the strategy a coin, gives it a single evaluation, and takes it back.
+ *
+ * It reports on the CONFIGURATION, not on what is currently bound, so it answers the same on a profile holding nothing — which is the state it most needs to explain.
+ *
+ * Fails `unknown` on either missing input rather than `ok`, because reporting health off a number it could not read is the exact failure this rung was added to fix.
+ *
+ * @param input - The full diagnosis input; this rung reads `minHoldMinutes` and `candleInterval` only.
+ * @returns `unknown` when either input is missing or the interval has no constant length, `finding` when a binding sees fewer than {@link MIN_ENTRY_SIGNAL_CLOSES} closes, `ok` with the count otherwise.
+ */
+const stepEntrySignalReach = (input: ProfileDiagnosisInput): DiagnosisStepResult => {
+  // The hold window is a DISCOVERY setting: it bounds an auto binding and nothing else. With discovery off there are no auto bindings, nothing rotates a coin away from anything, and the same guard the three discovery rungs use says so — `skipped` when it is off, `unknown` when the config could not be read. Without it a hand-pinned profile is handed a `degraded` finding about a rotation that cannot happen, and `degraded` is what moves the whole report to "needs attention".
+  const unavailable = discoveryUnavailable(
+    input,
+    'Auto-discovery is off, so nothing rotates a coin out before its entry signal can fire.',
+  );
+  if (unavailable) return unavailable;
+  // The arithmetic below counts entry OPPORTUNITIES, which only means something for a strategy whose entry waits for a close. A strategy that enters off the current price gets an opportunity every tick, so dividing its hold window by a candle length would name `minHoldMinutes` for a drought it does not cause. `unknown` rather than `ok`: not asserting a fault is not the same as asserting health, and this rung exists because that difference was collapsed.
+  if (input.profile.entryOnCandleClose !== true) {
+    return {
+      status: 'unknown',
+      line: 'This strategy does not make its entry decision on a candle close, so a holding period cannot be counted in entry chances.',
+      items: [],
+    };
+  }
+  const minHoldMinutes = input.profile.minHoldMinutes;
+  if (minHoldMinutes === null) {
+    return { status: 'unknown', line: 'The minimum hold time is not known.', items: [] };
+  }
+  const interval = input.profile.candleInterval;
+  if (interval === null) {
+    return {
+      status: 'unknown',
+      line: "This strategy's entry candle interval is not known.",
+      items: [],
+    };
+  }
+  // `1M` lands here too: a calendar month has no constant length, so the division below would be wrong by up to three days and the rung would name a lever off a number it made up.
+  const intervalMs = candleIntervalMs(interval);
+  if (intervalMs === null) {
+    return {
+      status: 'unknown',
+      line: `The entry candle interval ${interval} has no fixed length, so the hold window cannot be counted in closes.`,
+      items: [],
+    };
+  }
+  const closes = Math.floor((minHoldMinutes * MS_PER.minute) / intervalMs);
+  // The configured number, not `humanizeDuration`, which ROUNDS while the close count FLOORS: a 90-minute hold on `1h` renders as "2 hours" beside a count of one close, and the sentence refutes itself.
+  const holdPhrase = `${minHoldMinutes} minute${minHoldMinutes === 1 ? '' : 's'}`;
+  if (closes >= MIN_ENTRY_SIGNAL_CLOSES) {
+    return {
+      status: 'ok',
+      line: `A coin is held at least ${holdPhrase}, which spans ${closes} ${interval} closes — room for an entry signal to appear.`,
+      items: [],
+    };
+  }
+  return {
+    status: 'finding',
+    line: `A coin is rotated out after ${holdPhrase}, which spans ${closes === 1 ? 'only one' : `only ${closes}`} ${interval} close${closes === 1 ? '' : 's'} — barely a chance for an entry signal to appear.`,
+    items: [
+      {
+        id: 'entry-signal-reach',
+        condition: 'entry-signal-reach',
+        code: 'hold-shorter-than-signal',
+        // Not `by-design`: the operator did not choose "never enter". They chose a hold time and an entry interval that happen to be the same order of magnitude, and the consequence is invisible from either setting on its own. That is a real problem to act on, and it is also not a halt — discovery, orders and exits all still work — which is what `degraded` means.
+        severity: 'degraded',
+        title: 'Coins are rotated out before their entry signal can fire',
+        detail: `Discovery picks a coin on a short-interval burst, then releases it after ${holdPhrase}. The entry decision is made on the ${interval} candle, so over that whole window the strategy gets ${closes === 1 ? 'one look' : `${closes} looks`} at it. Raising the minimum hold, or moving the entry decision to a faster candle, is what gives a signal room to appear.`,
+        sinceMs: null,
+        evidence: [
+          `Minimum hold ${holdPhrase}.`,
+          `Entry candle interval ${interval}.`,
+          `${closes} close${closes === 1 ? '' : 's'} per holding period.`,
+        ],
+        symbols: [],
+        lever: leverFor(input, 'entry-signal-reach'),
+      },
+    ],
+  };
+};
+
 const stepEntryBlockers = (input: ProfileDiagnosisInput): DiagnosisStepResult => {
   const open = openOf(input, 'entry-blocked');
   if (open.length === 0) {
@@ -1435,6 +1543,7 @@ const DIAGNOSIS_LADDER: readonly {
   { id: 'market-breadth', run: stepMarketBreadth },
   { id: 'candidate-funnel', run: stepCandidateFunnel },
   { id: 'symbol-slots', run: stepSymbolSlots },
+  { id: 'entry-signal-reach', run: stepEntrySignalReach },
   { id: 'entry-blockers', run: stepEntryBlockers },
   { id: 'exit-blockers', run: stepExitBlockers },
   { id: 'exit-protection', run: stepExitProtection },

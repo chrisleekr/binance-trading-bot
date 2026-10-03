@@ -48,10 +48,11 @@ The check then runs in the background as a checklist, in the order that matters,
 6. Is the market broad enough to buy into?
 7. Where do candidate coins drop out?
 8. Is there room for another coin?
-9. What is holding back buys?
-10. What are the held coins waiting on to sell?
-11. Does every held coin have a way out?
-12. Which setting is responsible?
+9. Can a coin still produce a buy signal before it is rotated out?
+10. What is holding back buys?
+11. What are the held coins waiting on to sell?
+12. Does every held coin have a way out?
+13. Which setting is responsible?
 
 The order is the ranking: the first step that finds something owns the headline, because a stopped engine makes every later answer meaningless. Every finding is still listed, and each one that traces back to a setting carries a link that opens the right section with that field expanded and highlighted.
 

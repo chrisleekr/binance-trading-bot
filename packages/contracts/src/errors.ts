@@ -18,9 +18,7 @@ export const ErrorCode = z.enum([
   'INTERNAL',
   'INVALID_PASSWORD',
   'ONBOARDING_CLOSED',
-  // The profile's strategy does not support the operator action requested
-  // (e.g. a force-buy on a strategy that honors no overrides). Distinct from
-  // VALIDATION_FAILED so the SPA can phrase "this strategy can't do that".
+  // The profile's strategy does not support what was requested — an operator action it honors no override for (e.g. a force-buy on momentum), or a setting it cannot read (arming `enterOnAdd` on a strategy that declares no `entry-hint` bundle). Distinct from VALIDATION_FAILED because the payload is well-formed and would be valid on another strategy, which is exactly the difference the SPA phrases as "this strategy can't do that".
   'ACTION_UNSUPPORTED',
   // The profile references a strategy name/version not in the registry.
   'STRATEGY_NOT_REGISTERED',
