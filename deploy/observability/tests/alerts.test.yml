@@ -432,7 +432,7 @@ tests:
               severity: warning
             exp_annotations:
               summary: 'Single sign-on is unavailable'
-              description: 'The identity provider could not be reached or its discovery document did not match SINGLE_SIGN_ON_ISSUER_URL, so single sign-on is disabled. If password sign-in is off, the api switched it back on for this run so the operator is not locked out. Check the api logs for single_sign_on_unavailable_at_boot, which carries the reason. The api exits once the provider answers again and comes back only if its container has a restart policy such as restart: unless-stopped.'
+              description: 'The identity provider could not be reached or its discovery document did not match SINGLE_SIGN_ON_ISSUER_URL, so single sign-on is disabled. If password sign-in is off, the api switched it back on for this run so the operator is not locked out. Check the api logs for single_sign_on_unavailable_at_boot, which carries the reason. The api process (with the worker, under ROLE=all) exits once the provider answers again and comes back only if its container has a restart policy such as restart: unless-stopped.'
       - eval_time: 30m
         alertname: SingleSignOnUnavailable
         exp_alerts: []
@@ -481,7 +481,7 @@ tests:
               severity: warning
             exp_annotations:
               summary: 'The api is refusing more than one request per second as a flood'
-              description: 'An address is sending more api requests than the configured per-minute allowance. The api is refusing them cheaply, but a volumetric attack must be stopped at the proxy; see docs/operations/sign-in-and-security.md, "Protecting against floods".'
+              description: 'One or more addresses are sending more api requests than the configured per-minute allowance. The api is refusing them cheaply, but a volumetric attack must be stopped at the proxy; see docs/operations/sign-in-and-security.md, "Protecting against floods".'
     # Auth: password checks refused for capacity, seeded at zero per limit.
   - interval: 1m
     input_series:
