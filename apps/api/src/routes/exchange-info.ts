@@ -30,10 +30,27 @@ export const exchangeInfoCacheKey = (mode: BinanceMode): string =>
  */
 export const EXCHANGE_INFO_CACHE_TTL_SECONDS = 300;
 
+/**
+ * Optional narrowing for a caller that already knows which pairs it cares about.
+ *
+ * Binance lists thousands of pairs, and each carries its filter set and permission tags, so the unnarrowed body runs to megabytes. The symbol picker wants exactly that, because it is a picker. Anything sizing a single order wants one row of it, and handing megabytes to a caller that needs two kilobytes is how an MCP agent's context is spent on permission tags.
+ *
+ * Comma-separated rather than a repeated parameter so one `?symbols=` reads the same whether it names one pair or ten, which is the grammar every other list-valued query in this app already uses.
+ */
+const ExchangeInfoQuery = z.object({
+  symbols: z
+    .string()
+    .optional()
+    .describe(
+      'Comma-separated pairs to return, for example BTCUSDT,ETHUSDT. Omit for every listed pair.',
+    ),
+});
+
 const route = createRoute({
   method: 'get',
   path: '/exchange-info',
   tags: ['symbols'],
+  request: { query: ExchangeInfoQuery },
   responses: {
     200: {
       description: 'binance exchangeInfo, narrowed to symbol+base+quote+status',
@@ -186,7 +203,16 @@ export const exchangeInfoRouter = (di: DI): ApiHono => {
 
   app.openapi(route, async (c) => {
     const body = await loadOrFetchExchangeInfo(di.redis.raw(), 'live');
-    return c.json(body, 200);
+    const requested = c.req.valid('query').symbols;
+    if (requested === undefined) return c.json(body, 200);
+    // Unknown names are dropped rather than refused: a caller asking for five pairs and getting four back can see which one is not listed, whereas a 400 tells it only that one of the five was wrong.
+    const wanted = new Set(
+      requested
+        .split(',')
+        .map((name) => name.trim().toUpperCase())
+        .filter((name) => name !== ''),
+    );
+    return c.json({ ...body, symbols: body.symbols.filter((s) => wanted.has(s.symbol)) }, 200);
   });
 
   return app;

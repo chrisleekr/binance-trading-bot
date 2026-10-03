@@ -400,9 +400,7 @@ export const handleBackfillTradeArchive = async (
       feesQuote: resolvedFees.feesQuote,
       feeBasis: resolvedFees.feeBasis,
       source,
-      // Pin to the real closing time so historic P/L lands at its trade date
-      // and these past rows never disturb the forward archive's `since`
-      // cutoff (which tracks the latest archivedAt).
+      // The real closing time, so the operator's archive list, which sorts on this column, shows a historic cycle at its trade date rather than at the date it was reconstructed. It is no longer what keeps these rows out of the forward archive's cursor: that watermark now reads `coalesce(cycle_end, archived_at)`, so the `cycleEnd` below already pins them below it.
       archivedAt: new Date(rt.closedAtMs),
       // The round-trip's closing time is the natural cycle key: a concurrent
       // backfill of the same round-trip collapses on the partial unique index.

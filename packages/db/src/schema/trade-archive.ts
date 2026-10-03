@@ -65,8 +65,11 @@ export const tradeArchive = pgTable(
     // archive) or a round-trip's closing time (backfill). Two consumers
     // archiving the same completed cycle compute the same value, so the partial
     // unique index below collapses their inserts. Nullable for pre-cycle_end
-    // rows; every new insert stamps it. Distinct from `archivedAt`, which is the
-    // clock-pinned write time driving the next archive's `since` cutoff.
+    // rows; every new insert stamps it.
+    //
+    // Also the exchange-clock watermark the next archive's `since` cutoff is read from, coalescing to `archivedAt` only for those legacy rows. Distinct from `archivedAt`, which is the writer's wall clock at INSERT and orders the operator's archive list: it is stamped after this window was read, so bounding the next window by it would strand every fill that closed in between.
+    //
+    // One residual is accepted rather than overlooked: the next window's floor is strictly greater than this value, so an `orders` row persisted AFTER both of an archive's reads whose `closed_at` is at or below the value stamped here is stranded for good. Reaching it takes out-of-order persistence, a late-adopted fill or a reconciliation sweep writing an older `closed_at` after a newer one, or a tie: two fills from one match share Binance's `transactTime` to the millisecond, and the second is adopted after the archive the first one enqueued has already read. A tie-safe floor (`>=` minus the order ids already archived) is not enough on its own, because a window holding only the tied row would stamp this same value and the unique index below would collapse its insert; closing it for good needs a per-order archived marker rather than a time watermark. The pre-`cycle_end` behaviour stranded strictly more, its floor being the even later `archived_at` write time, so this is a residual and not a regression.
     //
     // Correctness precondition: a given (profile, symbol) has at most one
     // archivable cycle per millisecond. Holds because grid cycles close

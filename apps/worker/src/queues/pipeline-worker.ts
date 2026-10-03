@@ -12,6 +12,7 @@ import { Decimal } from '@app/money';
 import type { NotifyProviderRegistry } from '@app/notify';
 import { BinanceApiError, type BinanceMode, type BinanceRestClient } from '@app/binance';
 import {
+  AgentActionNotifyJob,
   asAccountId,
   asProfileId,
   asUserId,
@@ -114,6 +115,13 @@ export interface PipelineWorkerDeps {
   readonly reconcileOwnership?: () => Promise<void>;
   // Retires the profile's own metric children on teardown, and carries the reconcile counters for the mid-run reconfigure sweep below. Required, not optional: those counters are the only record that a reconcile deleted a position, and an omittable sink drops them silently.
   readonly metrics: MetricsSink;
+  // Account-scoped notifier fan-out, used by `notify-agent-action`. Optional because every existing caller of this worker predates it and none of them raise an account event; when it is absent the job dead-letters rather than acknowledging silently, which is the loud failure an unannounced agent trade deserves.
+  readonly accountNotify?: (input: {
+    category: 'agent-action';
+    accountId: AccountId;
+    body: string;
+    symbol?: string;
+  }) => Promise<unknown>;
 }
 
 /**
@@ -179,6 +187,39 @@ const parseAccountJob = (data: unknown): { userId: UserId; accountId: AccountId 
   const d = data as { userId?: unknown; accountId?: unknown };
   if (typeof d.userId !== 'string' || typeof d.accountId !== 'string') return null;
   return { userId: asUserId(d.userId), accountId: asAccountId(d.accountId) };
+};
+
+/**
+ * `notify-agent-action` is the api's handoff for "an AI agent just changed something".
+ *
+ * The api cannot send a notification itself: the only production dispatch chokepoint is this worker's `dispatchNotify`, which also carries the live-demo kill switch. Enqueuing here rather than growing a second dispatch path is what keeps one place able to mute everything.
+ *
+ * Shape comes from `AgentActionNotifyJob` in `@app/contracts`, which the api also builds against. The producer is in another package, so a renamed field is invisible to both type systems unless one declaration binds them; hand-validating the same fields a second time here is exactly how the two drift while every test on both sides stays green.
+ *
+ * Exported so the api's suite can feed a captured `queue.add` payload through the consumer's own acceptance test.
+ *
+ * @param data - Raw BullMQ job payload.
+ * @returns The parsed payload with ids branded, or null so `requirePayload` dead-letters it loudly rather than acknowledging a job that did nothing.
+ */
+export const parseAgentActionNotifyJob = (
+  data: unknown,
+): {
+  userId: UserId;
+  accountId: AccountId;
+  tool: string;
+  summary: string;
+  symbol?: string;
+} | null => {
+  const parsed = AgentActionNotifyJob.safeParse(data);
+  if (!parsed.success) return null;
+  const { userId, accountId, tool, summary, symbol } = parsed.data;
+  return {
+    userId: asUserId(userId),
+    accountId: asAccountId(accountId),
+    tool,
+    summary,
+    ...(symbol !== undefined ? { symbol } : {}),
+  };
 };
 
 const parseProfileSymbolJob = (
@@ -993,6 +1034,20 @@ export const registerPipelineWorker = (queueSet: QueueSet, deps: PipelineWorkerD
         // and unsubscribe) so an enable's converge cannot race a concurrent
         // disable's teardown mid-operation under pipeline concurrency.
         await deps.chain.run(ids.profileId, () => handleSubscribe(deps, ids));
+        return;
+      }
+      case 'notify-agent-action': {
+        const payload = requirePayload(parseAgentActionNotifyJob(job.data), job);
+        if (!deps.accountNotify) {
+          // Throwing rather than returning: an agent placed a real order and the operator was told nothing. A silent acknowledgement here is exactly the class of failure the charter forbids, so this dead-letters and raises `job-failed` instead.
+          throw new Error('pipeline_missing_dep: notify-agent-action requires accountNotify');
+        }
+        await deps.accountNotify({
+          category: 'agent-action',
+          accountId: payload.accountId,
+          body: payload.summary,
+          ...(payload.symbol !== undefined ? { symbol: payload.symbol } : {}),
+        });
         return;
       }
       case 'reconfigure-profile': {

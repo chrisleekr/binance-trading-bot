@@ -1,9 +1,14 @@
 import type { Database } from '@app/db';
 import { repo, schema } from '@app/db';
+import { cimd } from '@better-auth/cimd';
+import { mcp } from '@better-auth/mcp';
 import { betterAuth } from 'better-auth';
 import type { Auth as BetterAuthInstance, BetterAuthOptions } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { jwt } from 'better-auth/plugins';
 import type { UserId } from '@app/contracts';
+import { fetchClientMetadataResource } from './lib/cimd-transport.js';
+import { MCP_SCOPES } from './mcp/scopes.js';
 
 /**
  * Structural shape Better Auth needs from a logger. Kept as a local interface
@@ -28,10 +33,60 @@ export interface AuthOptions {
   isProduction: boolean;
   /** Best-effort logger for the post-onboarding hook. Optional so tests can omit. */
   logger?: AuthLogger;
+  /**
+   * Canonical MCP resource identifier, present only when the operator enabled the control plane. Undefined leaves the OAuth authorization server entirely unregistered rather than registered-but-idle: an operator who never opted in has no `/api/auth/oauth2/*` surface, no client table reachable from the network, and nothing to misconfigure.
+   */
+  mcpResource?: string;
 }
+
+/**
+ * Better Auth plugin set for the MCP control plane, or an empty list when the operator has not enabled it.
+ *
+ * `jwt()` is not optional decoration: `mcp()` signs access tokens with the key it manages and `requireMcpAuth` verifies them against the `/jwks` endpoint it publishes, so omitting it leaves the resource server with nothing to verify against. `cimd()` is how clients register at all, since dynamic client registration stays off by design, and its transport is supplied by this repo because Bun cannot use the package's Node-only one.
+ *
+ * @param resource - Canonical resource identifier tokens are audience-bound to, or undefined to register no OAuth surface.
+ * @returns The plugin list to spread into the Better Auth options.
+ */
+const mcpPlugins = (resource: string | undefined): BetterAuthOptions['plugins'] => {
+  if (resource === undefined) return [];
+  const oauthProvider = mcp({
+    loginPage: '/login',
+    consentPage: '/consent',
+    resource,
+    scopes: [...MCP_SCOPES],
+    // Dynamic client registration stays off: an open `POST /oauth2/register` on a host holding plaintext Binance keys is a registration surface nobody is watching, and the MCP revision this targets deprecates it in favour of the metadata documents cimd() reads.
+    allowDynamicClientRegistration: false,
+    allowUnauthenticatedClientRegistration: false,
+  });
+  // The only cast in this file, and it buys nothing behavioural. `mcp()` returns a plugin whose OpenAPI documentation metadata spells an optional `items` as `items?: undefined`, which `exactOptionalPropertyTypes` refuses to widen into the published `OpenAPIParameter`. The disagreement is entirely inside the generated API-docs blob; every field Better Auth actually executes against typechecks, and narrowing the cast to this one value keeps the rest of the plugin list checked.
+  return [
+    jwt(),
+    oauthProvider as unknown as NonNullable<BetterAuthOptions['plugins']>[number],
+    cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }),
+  ];
+};
+
+/**
+ * Origin the authorization server publishes itself at, derived from the MCP resource identifier.
+ *
+ * Better Auth otherwise derives its origin from whatever host each request arrives with. For cookie auth that is harmless; for an OAuth authorization server it is not, because the issuer, the JWKS URL and every endpoint in the discovery documents are built from it. Behind a proxy that means a token minted under one derived issuer and verified against another, which fails as an unexplained 401. The resource identifier is the one public URL the operator has already had to get right, so its origin is the honest source for this.
+ *
+ * @param resource - The configured MCP resource identifier, or undefined when the control plane is off.
+ * @returns The `baseURL` option carrying that origin, or an empty object to leave Better Auth's existing per-request derivation alone.
+ */
+const authBaseUrlOption = (resource: string | undefined): { baseURL?: string } => {
+  if (resource === undefined) return {};
+  try {
+    return { baseURL: new URL(resource).origin };
+  } catch {
+    // Unreachable while the env schema validates the URL, and an unparseable value here must not take down cookie auth for a misconfigured MCP flag.
+    return {};
+  }
+};
 
 const authOptions = (opts: AuthOptions): BetterAuthOptions => ({
   secret: opts.authSecret,
+  ...authBaseUrlOption(opts.mcpResource),
   database: drizzleAdapter(opts.db, {
     provider: 'pg',
     schema: {
@@ -39,8 +94,18 @@ const authOptions = (opts: AuthOptions): BetterAuthOptions => ({
       session: schema.session,
       account: schema.account,
       verification: schema.verification,
+      // OAuth provider tables from migration 0095. The adapter resolves a model by the KEY here, so a plugin whose model is missing throws "model not found" at the first authorization rather than at boot.
+      jwks: schema.jwks,
+      oauthClient: schema.oauthClient,
+      oauthResource: schema.oauthResource,
+      oauthClientResource: schema.oauthClientResource,
+      oauthRefreshToken: schema.oauthRefreshToken,
+      oauthAccessToken: schema.oauthAccessToken,
+      oauthConsent: schema.oauthConsent,
+      oauthClientAssertion: schema.oauthClientAssertion,
     },
   }),
+  plugins: mcpPlugins(opts.mcpResource),
   emailAndPassword: { enabled: true, requireEmailVerification: false },
   // `enabled` is stated rather than left to default: Better Auth otherwise
   // derives it from its own read of process.env.NODE_ENV, which is a second,

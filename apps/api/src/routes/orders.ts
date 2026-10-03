@@ -130,11 +130,16 @@ const ticker24hrRoute = createRoute({
 // trades panel; the operator scans the latest fills, not deep history.
 const RECENT_TRADES_LIMIT = 50;
 
+// Capped at the panel's page rather than left open: the ceiling is Binance's own row cap, and a caller asking for fewer rows is asking for a smaller answer, never a larger upstream call.
+const RecentTradesQ = z.object({
+  limit: z.coerce.number().int().min(1).max(RECENT_TRADES_LIMIT).optional(),
+});
+
 const recentTradesRoute = createRoute({
   method: 'get',
   path: '/profiles/{profileId}/symbols/{symbol}/trades',
   tags: ['orders'],
-  request: { params: ProfileSymbolParam },
+  request: { params: ProfileSymbolParam, query: RecentTradesQ },
   responses: {
     200: {
       description: 'recent trades',
@@ -147,11 +152,16 @@ const recentTradesRoute = createRoute({
 // 100 levels per side feed the panel's price-grouping: the operator can aggregate the raw ladder into coarser buckets and still see real liquidity depth. The panel slices the rendered rows down from this regardless of grouping. Raising it is not free — Binance prices `/api/v3/depth` in bands by `limit`, and the client reserves per band.
 const ORDER_BOOK_LIMIT = 100;
 
+// Bounded above by the panel's own ladder for the reason the constant documents: Binance prices the depth call in bands by `limit`, so only a value at or below the band already reserved for is free.
+const OrderBookQ = z.object({
+  limit: z.coerce.number().int().min(1).max(ORDER_BOOK_LIMIT).optional(),
+});
+
 const orderBookRoute = createRoute({
   method: 'get',
   path: '/profiles/{profileId}/symbols/{symbol}/depth',
   tags: ['orders'],
-  request: { params: ProfileSymbolParam },
+  request: { params: ProfileSymbolParam, query: OrderBookQ },
   responses: {
     200: { description: 'order book', content: { 'application/json': { schema: OrderBook } } },
     404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
@@ -320,6 +330,7 @@ export const ordersRouter = (di: DI): ApiHono => {
 
   app.openapi(recentTradesRoute, async (c) => {
     const { profileId: profileIdRaw, symbol } = c.req.valid('param');
+    const limit = c.req.valid('query').limit ?? RECENT_TRADES_LIMIT;
     const { p } = await requireOwnedProfile(c, di, asProfileId(profileIdRaw));
     const mode = (await repo.accounts.binanceModeById(di.db, p.scope.accountId)) ?? 'test';
     // Recent trades are exchange-global market data, not account-scoped state
@@ -328,7 +339,7 @@ export const ordersRouter = (di: DI): ApiHono => {
     // testnet/live host.
     let trades: RecentTradeDto[];
     try {
-      trades = await di.marketData.getRecentTrades(mode, symbol, RECENT_TRADES_LIMIT);
+      trades = await di.marketData.getRecentTrades(mode, symbol, limit);
     } catch (err) {
       rethrowAsHttpError(err);
     }
@@ -347,6 +358,7 @@ export const ordersRouter = (di: DI): ApiHono => {
 
   app.openapi(orderBookRoute, async (c) => {
     const { profileId: profileIdRaw, symbol } = c.req.valid('param');
+    const limit = c.req.valid('query').limit ?? ORDER_BOOK_LIMIT;
     const { p } = await requireOwnedProfile(c, di, asProfileId(profileIdRaw));
     const mode = (await repo.accounts.binanceModeById(di.db, p.scope.accountId)) ?? 'test';
     // Order-book depth is exchange-global market data, not account-scoped
@@ -355,7 +367,7 @@ export const ordersRouter = (di: DI): ApiHono => {
     // the testnet/live host.
     let book: OrderBookDto;
     try {
-      book = await di.marketData.getDepth(mode, symbol, ORDER_BOOK_LIMIT);
+      book = await di.marketData.getDepth(mode, symbol, limit);
     } catch (err) {
       rethrowAsHttpError(err);
     }

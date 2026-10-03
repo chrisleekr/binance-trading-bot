@@ -16,6 +16,7 @@ import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
 import {
   assertActionSupported,
+  assertSymbolBound,
   assertEntryNotHalted,
   balanceQuantityForSymbol,
   enqueueApplyAvgEntryPrice,
@@ -209,6 +210,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
     const { profileId: profileIdRaw, symbol } = c.req.valid('param');
     const p = await scopeOf(c, di, asProfileId(profileIdRaw));
     await assertActionSupported(di, p, 'manual-order');
+    await assertSymbolBound(p, symbol);
     const scope = p.scope;
     const body = c.req.valid('json');
     // Buys only: the breaker pauses new risk, it never blocks an exit.
@@ -273,6 +275,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
   app.openapi(manualOrderAllRoute, async (c) => {
     const p = await scopeOf(c, di, asProfileId(c.req.valid('param').profileId));
     await assertActionSupported(di, p, 'manual-order');
+    // No binding check here: the fan-out below iterates this profile's bound symbols, so every symbol it reaches is bound by construction. A per-symbol assertion would be dead code that reads like a guard.
     const scope = p.scope;
     const body = c.req.valid('json');
     if (body.side === 'buy') await assertEntryNotHalted(di, p);
@@ -282,6 +285,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
       return c.json(
         {
           scheduled: 0,
+          failedSymbols: [],
           firstFireAt: new Date(0).toISOString(),
           lastFireAt: new Date(0).toISOString(),
         },
@@ -312,6 +316,8 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
     // count actually enqueued so the operator can see a partial outcome.
     const firstFireAt = new Date();
     let scheduled = 0;
+    // Named, not just counted. A caller told "3 scheduled" out of an unknown total cannot work out which symbols still hold their position, and an agent cannot reconstruct it: the fan-out is asynchronous, so "failed to schedule" and "scheduled but not yet ticked" look identical from outside. The symbol names were already in the log; this puts them where the caller can act on them.
+    const failedSymbols: string[] = [];
     for (const sym of matching) {
       const action = await p.overrideActions.record({
         symbol: sym.symbol,
@@ -331,19 +337,28 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
         );
         scheduled += 1;
       } catch (err) {
+        failedSymbols.push(sym.symbol);
         di.logger.error(
           { profileId: scope.profileId, symbol: sym.symbol, err: err },
           'manual-order-all: fan-out failed for one symbol; continuing with the rest',
         );
       }
     }
+    // A row reading only `count: 3` cannot be reconciled against anything later: it does not say which way the fan-out went, on which quote, or which symbols it missed.
     c.set('auditEvent', {
       event: 'bulk-manual-order',
-      payload: { profileId: scope.profileId, count: scheduled },
+      payload: {
+        profileId: scope.profileId,
+        count: scheduled,
+        quote: body.quote,
+        side: body.side,
+        ...(failedSymbols.length > 0 ? { failedSymbols } : {}),
+      },
     });
     return c.json(
       {
         scheduled,
+        failedSymbols,
         firstFireAt: firstFireAt.toISOString(),
         lastFireAt: firstFireAt.toISOString(),
       },
@@ -355,6 +370,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
     const { profileId: profileIdRaw, symbol } = c.req.valid('param');
     const p = await scopeOf(c, di, asProfileId(profileIdRaw));
     await assertActionSupported(di, p, 'trigger-buy');
+    await assertSymbolBound(p, symbol);
     await assertEntryNotHalted(di, p);
     const scope = p.scope;
     const action = await p.overrideActions.record({
@@ -380,6 +396,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
     const { profileId: profileIdRaw, symbol } = c.req.valid('param');
     const p = await scopeOf(c, di, asProfileId(profileIdRaw));
     await assertActionSupported(di, p, 'trigger-sell');
+    await assertSymbolBound(p, symbol);
     const scope = p.scope;
     const action = await p.overrideActions.record({
       symbol,
@@ -408,6 +425,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
     const { profileId: profileIdRaw, symbol } = c.req.valid('param');
     const p = await scopeOf(c, di, asProfileId(profileIdRaw));
     await assertActionSupported(di, p, 'trigger-sell');
+    await assertSymbolBound(p, symbol);
     const scope = p.scope;
     const { blocklist } = c.req.valid('json');
     const action = await p.overrideActions.record({

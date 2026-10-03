@@ -35,6 +35,14 @@ const ACCOUNT_IDENTITY_UPGRADE = readFileSync(
   new URL('../../../packages/db/migrations/0087_better_auth_account_issuer.sql', import.meta.url),
   'utf8',
 );
+// 0087 is no longer the last word on account identity. Better Auth 1.7.0 through 1.7.2 required the `issuer` column 0087 adds; 1.7.3 removed the requirement and went back to the 1.6 pair, so on the version this repo now runs a NOT NULL `issuer` rejects every sign-up. Replaying 0087 alone leaves the database in exactly that broken state, which is why the path under test is both migrations in order.
+const ACCOUNT_IDENTITY_RELAX = readFileSync(
+  new URL(
+    '../../../packages/db/migrations/0096_better_auth_account_issuer_optional.sql',
+    import.meta.url,
+  ),
+  'utf8',
+);
 
 /**
  * Extract the Better Auth session cookie from a `Set-Cookie` header. Better
@@ -109,17 +117,32 @@ describeIfInfra('auth integration — sign-up → change-password → re-sign-in
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toBeTruthy();
 
-    // Recreate the 1.6 account identity shape around the real password hash, then apply the production migration verbatim.
+    // Recreate the 1.6 account identity shape around the real password hash, then replay the production migrations verbatim, in order.
     await fx.di.pool.query(`
       alter table "account" alter column issuer drop not null;
-      drop index "account_issuer_accountId_uidx";
-      create unique index "account_provider_uniq" on "account" ("providerId", "accountId");
+      drop index if exists "account_issuer_accountId_uidx";
+      create unique index if not exists "account_provider_uniq" on "account" ("providerId", "accountId");
       update "account" set issuer = null;
     `);
     await fx.di.pool.query(ACCOUNT_IDENTITY_UPGRADE);
+    await fx.di.pool.query(ACCOUNT_IDENTITY_RELAX);
 
     const migratedSignIn = await signIn(PW_OLD);
     expect(migratedSignIn.status).toBe(200);
+  });
+
+  it('still accepts a NEW sign-up after the identity migrations have run', async () => {
+    // The half the sign-in assertion above cannot reach. An existing credential authenticates fine against a `NOT NULL issuer` column, because nothing inserts into `account` on sign-in. It is the INSERT that fails, so only a fresh sign-up observes the constraint that 0096 relaxes.
+    const res = await app.request('/api/auth/sign-up', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'second@local.test', password: PW_OLD, name: NAME }),
+    });
+    const issuer = await fx.di.pool.query<{ is_nullable: string }>(
+      `select is_nullable from information_schema.columns where table_name = 'account' and column_name = 'issuer'`,
+    );
+    expect(issuer.rows[0]?.is_nullable).toBe('YES');
+    expect(res.status).not.toBe(500);
   });
 
   it('rejects change-password with a wrong oldPassword and skips the audit row', async () => {

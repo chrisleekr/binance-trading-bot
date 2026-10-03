@@ -170,6 +170,30 @@ describeIfDb('summarizeArchiveSince — cost-basis accounting', () => {
     expect(row?.missingCostBasis).toBe(0);
   });
 
+  it("listClosedSince with a null ceiling returns a fill the caller's clock would have excluded", async () => {
+    // `closed_at` is stamped from the exchange's `transactTime`, so a ceiling read off the archiving process's clock sits in a different clock from the column it filters. The row it strands is the newest fill in the cycle, which for a closing SELL carries all of the realised P/L. A null ceiling is how the handler learns the window's upper edge from the data instead, so this pins that the nullable branch really drops the predicate rather than defaulting it.
+    const ahead = new Date('2026-06-20T10:00:00.058Z');
+    const behind = new Date('2026-06-20T10:00:00.000Z');
+    await ap.orders.insert(
+      filledOrder({
+        symbol: 'FFFUSDT',
+        side: 'SELL',
+        intent: 'grid-sell',
+        proceeds: '110',
+        closedAt: ahead,
+        realizedPnl: '10',
+        costBasisQuote: '100',
+      }),
+    );
+
+    const unbounded = await ap.tradeArchive.listClosedSince('FFFUSDT', null, null);
+    expect(unbounded.map((r) => r.closedAt?.getTime())).toEqual([ahead.getTime()]);
+
+    // The same read under a ceiling 58ms short of the fill: the defect, reproduced at the SQL layer.
+    const bounded = await ap.tradeArchive.listClosedSince('FFFUSDT', null, behind);
+    expect(bounded).toEqual([]);
+  });
+
   it('stampRealizedPnl costs an ALREADY-FILLED SELL row (the MARKET path) and is write-once', async () => {
     // A MARKET sell is inserted already-FILLED by place-order, so markFilled's
     // status flip never matches it. stampRealizedPnl must still stamp it.
@@ -205,5 +229,96 @@ describeIfDb('summarizeArchiveSince — cost-basis accounting', () => {
     const final = await ap.tradeArchive.summarizeArchiveSince('DDDUSDT', null, UNTIL);
     if (final === null) throw new Error('expected a summary');
     expect(Number(final.profit)).toBeCloseTo(10, 6);
+  });
+});
+
+/**
+ * The watermark `latestArchivedAt` hands the next archive. `archived_at` is the writer's wall clock at INSERT, stamped after the window was read, summed and priced against Binance; `cycle_end` is the newest `closed_at` in that window, in the exchange's clock. Reading the cutoff off the write time leaves the seconds in between bounded by neither archive, and a fill closing there is dropped with no `missingCostBasis` marker, because that marker only counts uncosted SELLs INSIDE a window.
+ */
+describeIfDb('latestArchivedAt — the next archive starts at the last cycle end', () => {
+  let fx: IsolationFixture;
+  let ap: ProfileRepo;
+
+  const archiveRow = (o: { symbol: string; archivedAt: Date; cycleEnd: Date | null }) => ({
+    symbol: o.symbol,
+    baseAsset: o.symbol.replace('USDT', ''),
+    quoteAsset: 'USDT',
+    totalBuyQuote: '100',
+    totalSellQuote: '110',
+    profit: '10',
+    archivedAt: o.archivedAt,
+    cycleEnd: o.cycleEnd,
+  });
+
+  beforeAll(async () => {
+    fx = await setupFixture();
+    ap = await profileRepo(fx.db, fx.alice.userId, fx.alice.accountId, fx.alice.profileId);
+  });
+
+  afterAll(async () => {
+    if (fx) await fx.cleanup();
+  });
+
+  it('does not strand a fill that closes between the archived window and its write', async () => {
+    const cycleEnd = new Date('2026-06-20T10:00:00.000Z');
+    // Nine seconds of aggregating the totals and paging `myTrades` for commissions.
+    const writtenAt = new Date('2026-06-20T10:00:09.000Z');
+    // Four seconds in: above the archived window's ceiling, below its write time.
+    const straddler = new Date('2026-06-20T10:00:04.000Z');
+
+    await ap.tradeArchive.insert(
+      archiveRow({ symbol: 'EEEUSDT', archivedAt: writtenAt, cycleEnd }),
+    );
+    await ap.orders.insert(
+      filledOrder({
+        symbol: 'EEEUSDT',
+        side: 'SELL',
+        intent: 'grid-sell',
+        proceeds: '55',
+        closedAt: straddler,
+        realizedPnl: '5',
+        costBasisQuote: '50',
+      }),
+    );
+
+    // Asserted through the two reads the handler feeds this cutoff to, before the cutoff itself, so the failure names the harm: the straddling fill has to land in the NEXT archive carrying its realised P/L, not vanish between two windows.
+    const since = await ap.tradeArchive.latestArchivedAt('EEEUSDT');
+    const rows = await ap.tradeArchive.listClosedSince('EEEUSDT', since, null);
+    expect(rows.map((r) => r.closedAt?.getTime())).toEqual([straddler.getTime()]);
+    const summary = await ap.tradeArchive.summarizeArchiveSince('EEEUSDT', since, straddler);
+    if (summary === null) throw new Error('expected a summary');
+    expect(Number(summary.profit)).toBeCloseTo(5, 6);
+    expect(since).toEqual(cycleEnd);
+  });
+
+  it('falls back to archived_at on a row written before cycle_end existed', async () => {
+    const writtenAt = new Date('2026-06-21T08:00:00.000Z');
+    await ap.tradeArchive.insert(
+      archiveRow({ symbol: 'GGGUSDT', archivedAt: writtenAt, cycleEnd: null }),
+    );
+    // Nothing better is recorded on a legacy row, and falling back to all-time instead would re-archive its cycle.
+    expect(await ap.tradeArchive.latestArchivedAt('GGGUSDT')).toEqual(writtenAt);
+  });
+
+  it('ignores a backfill written today for a cycle that closed long ago', async () => {
+    const oldCycle = new Date('2026-01-05T00:00:00.000Z');
+    const recentCycle = new Date('2026-06-22T09:00:00.000Z');
+    await ap.tradeArchive.insert(
+      archiveRow({
+        symbol: 'HHHUSDT',
+        archivedAt: new Date('2026-06-22T09:00:05.000Z'),
+        cycleEnd: recentCycle,
+      }),
+    );
+    // Reconstructed from `myTrades` after the fact, so its write time is the newer of the two while the cycle it describes is the older.
+    await ap.tradeArchive.insert(
+      archiveRow({
+        symbol: 'HHHUSDT',
+        archivedAt: new Date('2026-06-22T11:00:00.000Z'),
+        cycleEnd: oldCycle,
+      }),
+    );
+    // Electing the backfill would rewind the cutoff five months and re-archive every cycle since.
+    expect(await ap.tradeArchive.latestArchivedAt('HHHUSDT')).toEqual(recentCycle);
   });
 });

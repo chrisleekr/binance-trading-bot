@@ -75,6 +75,7 @@ describe('OpsNotifyConfig', () => {
       'job-failed': true,
       'dust-transfer': true,
       'orphan-order': true,
+      'agent-action': true,
     });
     expect(DEFAULT_OPS_NOTIFY_CONFIG).toEqual(OpsNotifyConfig.parse({}));
     for (const category of AccountNotifyEventCategory.options) {

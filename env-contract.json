@@ -45,6 +45,16 @@
     "kind": "config"
   },
   {
+    "env": "MCP_ENABLED",
+    "group": "Runtime",
+    "kind": "config"
+  },
+  {
+    "env": "MCP_RESOURCE_URL",
+    "group": "Runtime",
+    "kind": "config"
+  },
+  {
     "env": "PUBLIC_WEB_URL",
     "group": "Runtime",
     "kind": "config"

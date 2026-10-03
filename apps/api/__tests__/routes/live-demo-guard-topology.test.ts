@@ -74,6 +74,8 @@ const INTENTIONALLY_UNGUARDED_TRADING_ROUTES = new Set<string>([
   'POST /api/accounts/:accountId/profiles/:profileId/symbols/:symbol/force-eject',
   'POST /api/accounts/:accountId/profiles/:profileId/symbols/:symbol/manual-order',
   'POST /api/accounts/:accountId/profiles/:profileId/symbols/:symbol/pin',
+  // A POST because the candidate config travels in the body, but a read in every other sense: it projects the levels a config WOULD place and persists nothing, so there is no demo-box hazard for a guard to remove. The method is what puts it in front of this detector at all.
+  'POST /api/accounts/:accountId/profiles/:profileId/symbols/:symbol/preview-config',
   'POST /api/accounts/:accountId/profiles/:profileId/symbols/:symbol/reset-config',
   'POST /api/accounts/:accountId/profiles/:profileId/symbols/:symbol/reset-grid-trade',
   'POST /api/accounts/:accountId/profiles/:profileId/symbols/:symbol/trigger-buy',

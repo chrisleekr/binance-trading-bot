@@ -239,6 +239,7 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
       BACKUP_DIR: process.env['BACKUP_DIR'] ?? '/backups',
       GIT_SHA: 'testsha',
       LIVE_DEMO: false,
+      MCP_ENABLED: false,
     },
     pool,
     db,

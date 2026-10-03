@@ -11,6 +11,7 @@ import { orphanOrdersRoute } from '@/features/account/routes/account.orphan-orde
 import { accountSettingsRoute } from '@/features/account/routes/account.settings';
 import { accountOverviewRoute } from '@/features/dashboard/routes/index';
 import { homeRedirectRoute } from '@/features/dashboard/routes/home-redirect';
+import { consentRoute } from '@/features/auth/routes/consent';
 import { loginRoute } from '@/features/auth/routes/login';
 import { onboardingRoute } from '@/features/account/routes/onboarding';
 import {
@@ -43,6 +44,7 @@ const routeTree = rootRoute.addChildren([
   homeRedirectRoute,
   onboardingRoute,
   loginRoute,
+  consentRoute,
   accountNewRoute,
   accountScopeRoute.addChildren([
     accountOverviewRoute,

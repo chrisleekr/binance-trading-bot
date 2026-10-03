@@ -19,6 +19,7 @@ export * from './strategies.js';
 export * from './reason-attribution.js';
 export * from './profile-diagnosis.js';
 export * from './config-lint.js';
+export * from './config-preview.js';
 export * from './profiles.js';
 export * from './accounts.js';
 export * from './api-keys.js';

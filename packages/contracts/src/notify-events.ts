@@ -150,7 +150,12 @@ export const notifyEventMeta = (
  * whole worker, not a single profile. They fan out to the union of every
  * configured notifier and are gated by the account-global ops config.
  */
-export const AccountNotifyEventCategory = z.enum(['job-failed', 'dust-transfer', 'orphan-order']);
+export const AccountNotifyEventCategory = z.enum([
+  'job-failed',
+  'dust-transfer',
+  'orphan-order',
+  'agent-action',
+]);
 export type AccountNotifyEventCategory = z.infer<typeof AccountNotifyEventCategory>;
 
 /**
@@ -166,6 +171,8 @@ export const OpsNotifyConfig = z.object({
   // bot is not managing. The two-tick confirmation upstream already filters the
   // transient false positives, so what survives to here is worth hearing.
   'orphan-order': z.boolean().default(true),
+  // Default ON, and the one category where muting is a real decision rather than noise control: with it off, an AI agent can place, cancel and reconfigure real orders and the operator's only trace is the audit log they have to go and read.
+  'agent-action': z.boolean().default(true),
 });
 export type OpsNotifyConfig = z.infer<typeof OpsNotifyConfig>;
 
@@ -203,7 +210,31 @@ export const ACCOUNT_NOTIFY_EVENT_CATALOG: readonly AccountNotifyEventMeta[] = [
       'When an order is open on Binance that the bot is not managing — it will not be sold, stopped out, or repriced until you adopt or cancel it.',
     severity: 'warn',
   },
+  {
+    category: 'agent-action',
+    label: 'AI agent changed something',
+    description:
+      'When an AI agent connected over MCP places or cancels an order, changes configuration, or switches trading on or off. Every such action also writes an audit entry; this is the notification that tells you without being asked.',
+    severity: 'warn',
+  },
 ];
+
+/**
+ * Payload of the `notify-agent-action` pipeline job, the api's handoff to the worker for "an AI agent just changed something".
+ *
+ * It lives here because the producer and the consumer are different packages: the api builds this object and the worker parses it, and nothing in either package's type system sees the other side. A field renamed on one side would otherwise dead-letter every agent action silently, so both sides are bound to this one declaration.
+ */
+export const AgentActionNotifyJob = z.object({
+  userId: z.string().min(1),
+  accountId: z.string().min(1),
+  /** Tool that ran, so the operator is told what happened rather than that something did. */
+  tool: z.string().min(1),
+  /** Ready-to-send notification body. The api composes it because it knows the tool and its arguments; the worker only delivers. */
+  summary: z.string().min(1),
+  /** Present only for a symbol-scoped tool, and routed into the notification so the operator sees which market moved. */
+  symbol: z.string().min(1).optional(),
+});
+export type AgentActionNotifyJob = z.infer<typeof AgentActionNotifyJob>;
 
 /** Look up an account category's metadata; undefined for an unknown category. */
 export const accountNotifyEventMeta = (

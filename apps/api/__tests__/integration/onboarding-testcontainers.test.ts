@@ -168,6 +168,7 @@ const buildHarness = async (): Promise<Harness> => {
       BACKUP_DIR: '/backups',
       GIT_SHA: 'testsha',
       LIVE_DEMO: false,
+      MCP_ENABLED: false,
     },
     pool,
     db,

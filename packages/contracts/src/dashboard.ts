@@ -95,6 +95,8 @@ export const ProfileDashboardResponse = z.object({
   // emergency would otherwise go unheard. Computed fresh per request (not
   // from the dashboard cache) so a just-saved notifier clears the banner.
   enabledNotifierCount: z.number().int().nonnegative(),
+  // The profile-wide kill switch, which stops every symbol at once and is set and cleared by its own pair of routes. Without it here the switch is writable with nothing in this response changing, so a caller can turn trading off and read back a dashboard that still says every symbol is enabled: the per-symbol `enabled` flag below answers a different question and stays true. Defaulted so a dashboard-cache blob written before this field existed still decodes.
+  killSwitch: z.boolean().default(false),
   symbols: z.array(ProfileDashboardSymbol),
   cachedAt: z.iso.datetime(),
 });

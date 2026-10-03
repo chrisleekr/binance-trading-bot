@@ -86,6 +86,7 @@ const setUp = (initialDashboard: typeof dashboardBody = dashboardBody) => {
     if (url.endsWith(`/profiles/${PROFILE_ID}/manual-order-all`) && method === 'POST')
       return json({
         scheduled: 2,
+        failedSymbols: [],
         firstFireAt: '2026-05-10T05:00:01.000Z',
         lastFireAt: '2026-05-10T05:00:11.000Z',
       });

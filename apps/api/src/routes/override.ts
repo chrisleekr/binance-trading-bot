@@ -98,6 +98,12 @@ export const overrideRouter = (di: DI): ApiHono => {
     // Identity survives that race; the column does not.
     const target = await p.overrideActions.findActiveForSymbol(symbol);
     const deleted = await p.overrideActions.deletePendingForSymbol(symbol);
+    // Recorded before the read-back, which can throw: the row is already hard-deleted by this line, so a failure between here and the response would otherwise leave a cancel with no trace. Flagged applied whenever a row actually went, because the conflict branch below answers 409 after the delete has landed and the middleware skips its write on a 4xx. A cancel that removed nothing still logs on a 204, since pressing cancel is intent worth keeping either way, and `deleted: 0` is what tells the two apart.
+    c.set('auditEvent', {
+      event: 'cancel-override',
+      payload: { profileId, symbol, deleted },
+      alreadyApplied: deleted > 0,
+    });
     // Evict the cached override unless an active row survives: the repo guard leaves
     // a worker-claimed row in place, and the worker still reads the override
     // mid-side-effect, so dropping its Redis key would desync the cache from the DB.

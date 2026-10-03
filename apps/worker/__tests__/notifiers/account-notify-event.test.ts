@@ -242,4 +242,35 @@ describe('createAccountNotifyEventBatch', () => {
     // Muted before the resolve: a muted category costs no notifier read at all.
     expect(h.listEnabledForAccount).not.toHaveBeenCalled();
   });
+
+  it('mutes the agent-action category without failing the action that raised it', async () => {
+    // An operator who turns this category off has asked for silence, not for the agent's writes to start failing. The api has already completed the action by the time this runs, so the only correct behaviour is a `muted` outcome and no send. A throw here would dead-letter the job and raise `job-failed` about a notification nobody wanted.
+    h.get.mockResolvedValue({ events: { 'agent-action': false } });
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
+    const outcome = await createAccountNotifyEvent({
+      db,
+      notifyProviders: registryWith(send),
+      logger: silent,
+    })({ category: 'agent-action', accountId: ACC_A, body: 'An AI agent ran trigger_buy.' });
+    expect(outcome).toBe('muted');
+    expect(send).not.toHaveBeenCalled();
+    expect(h.listEnabledForAccount).not.toHaveBeenCalled();
+  });
+
+  it('delivers the same agent-action event while the category is on', async () => {
+    // The discriminating half. Without it the mute above holds just as well for a category that can never deliver, which is the same observation for an operator waiting to hear that an agent traded.
+    h.get.mockResolvedValue({ events: {} });
+    h.listEnabledForAccount.mockResolvedValue([
+      { provider: 'slack', config: { channel: '#a' }, secrets: { url: 'u' }, enabled: true },
+    ]);
+    const send = vi.fn<AnyNotifyProvider['send']>(async () => undefined);
+    const outcome = await createAccountNotifyEvent({
+      db,
+      notifyProviders: registryWith(send),
+      logger: silent,
+    })({ category: 'agent-action', accountId: ACC_A, body: 'An AI agent ran trigger_buy.' });
+    expect(outcome).toBe('delivered');
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[0]?.[0]?.message).toMatchObject({ topic: 'agent-action' });
+  });
 });

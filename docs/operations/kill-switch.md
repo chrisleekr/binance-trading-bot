@@ -62,6 +62,7 @@ The automatic entry breakers — the daily loss limit, the loss-streak guard, an
 
 - The dashboard card for a stopped profile shows a **kill-switch** badge.
 - The profile switcher and side navigation flag stopped profiles.
+- An agent reading the profile dashboard over [MCP](../architecture/mcp.md) sees it as `killSwitch`, so a tool that can set the switch can also read it back.
 - Every on and off is written to the profile's **audit log**.
 
 ## Releasing it

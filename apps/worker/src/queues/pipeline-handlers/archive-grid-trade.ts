@@ -709,16 +709,13 @@ export const handleArchiveGridTrade = async (
       `pipeline_archive_grid_trade: symbol-info missing for ${payload.symbol} (refresh cron not yet primed)`,
     );
   }
-  // Pin both reads (and the eventual archive row's `archivedAt`) to a
-  // single timestamp captured up front. Without an upper bound a row
-  // that closes between `summarizeArchiveSince` and `listClosedSince`
-  // could land in one query but not the other, leaving the archive
-  // row's totals out of sync with its JSONB row list. Pinning also
-  // makes the next archive's `since` cutoff consistent with the rows
-  // already accounted for: anything closed AFTER `archiveCutoff` rolls
-  // into the next archive cleanly.
-  const archiveCutoff = new Date(deps.clock.nowMs());
+  // Both reads still share one upper bound, for the reason they always did: a row closing between them would otherwise land in the totals but not the row list, or the reverse. What that bound may NOT be is a reading of this process's clock. `closed_at` is stamped from the exchange's `transactTime` (see `profile-bindings/persistence.ts`), so comparing it against `Date.now()` here compares two clocks that are only approximately aligned, and the row it strands is the worst possible one: the newest fill in the cycle, which for a closing SELL is the fill that carries all of the realised P/L. An exchange running milliseconds ahead was enough to archive a completed round trip as a buy-only window with `profit = 0`, with no `missingCostBasis` marker to show anything was missing, because the marker counts uncosted SELLs *inside* the window and the SELL was outside it.
+  //
+  // So the bound is taken from the data instead. The rows are read first with no ceiling, and the newest `closed_at` among them becomes the bound everything else is pinned to. That value is in the same clock as the column it is compared against, which is the property the old cutoff could not have.
   const since = await p.tradeArchive.latestArchivedAt(payload.symbol);
+  const rows = await p.tradeArchive.listClosedSince(payload.symbol, since, null);
+  // `rows` is ordered `desc(closedAt)`, so the head is the window's true upper edge.
+  const archiveCutoff = rows[0]?.closedAt ?? new Date(deps.clock.nowMs());
   const summary = await p.tradeArchive.summarizeArchiveSince(payload.symbol, since, archiveCutoff);
   if (!summary) {
     // No FILLED orders since the last archive. Skip the insert so the
@@ -746,7 +743,19 @@ export const handleArchiveGridTrade = async (
       'pipeline_archive_grid_trade_missing_cost_basis',
     );
   }
-  const rows = await p.tradeArchive.listClosedSince(payload.symbol, since, archiveCutoff);
+  // A window holding buys and no sell at all is a real state an operator can ask for, by archiving a cycle they are abandoning before it ever exits, and its `profit = 0` is then honest. It is ALSO the shape the clock-domain bug produced, so it is worth a line in the log: if a completed cycle ever archives this way again, this is the record that says so rather than a silent zero on the dashboard.
+  if (!rows.some((row) => row.side === 'SELL')) {
+    deps.logger.warn(
+      {
+        userId: payload.userId,
+        profileId: payload.profileId,
+        symbol: payload.symbol,
+        orderCount: rows.length,
+        since,
+      },
+      'pipeline_archive_grid_trade_no_sell_in_window',
+    );
+  }
   // Archive every FILLED row's summary into the generic `orders` jsonb. The
   // strategy-specific split lives in `summary.breakdown` (grouped per
   // `intent:side` by the SQL aggregator), so no intent-aware partition is
@@ -785,11 +794,8 @@ export const handleArchiveGridTrade = async (
     feesQuote,
     feeBasis,
     source,
-    // Pin `archivedAt` to the captured cutoff so the next archive's
-    // `since` is consistent with the rows already accounted for here.
-    // Without this, an order closing between the queries and the
-    // insert would silently miss both archives.
-    archivedAt: archiveCutoff,
+    // A plain write time, and nothing else: when this row was inserted. It bounds no window, because `cycleEnd` carries the window's ceiling in the exchange's own clock and `latestArchivedAt` reads the next archive's `since` from there; a write time would sit above that ceiling by however long the totals query and the fee round trip took, and every fill closing inside that band would fall between the two windows.
+    archivedAt: new Date(deps.clock.nowMs()),
     cycleEnd,
   });
   if (!inserted) {

@@ -71,6 +71,31 @@ export const assertEntryNotHalted = async (di: DI, p: ProfileRepo): Promise<void
 };
 
 /**
+ * Refuse an operator action that would arm an order on a symbol this profile does not trade.
+ *
+ * Binding is not bookkeeping. The row is where the shared-wallet invariants are enforced, and all of them are checked at bind time and nowhere else: that the symbol is listed and TRADING, that a live account holds the SPOT permission for it, that the order is feasible against this profile's own sizing, and the three exclusivity rules that stop two profiles on one account from fighting over the same asset, including the case where the base asset is what a sibling profile spends as its quote.
+ *
+ * Nothing downstream re-checks any of that. The override row and the tick job are keyed by symbol string alone, and `buildProfileTickContext` treats a missing binding as "no per-symbol override" rather than as a reason to stop, so an unbound symbol ticks against the profile's base config and can reach a real order. The system's own designed response to arriving in that state is telling: when a fill lands on an unbound symbol the adopter tries to bind it, and on an exclusivity conflict it cannot, so it keeps the position and writes a log line. That is an unmanageable position plus a log entry, which is exactly the outcome the bind-time guard exists to prevent.
+ *
+ * The browser cannot reach this path, because its symbol workspace is routed off the bound list. An agent passing a symbol as a plain string can, which is why the check belongs here rather than being left to the caller's good manners.
+ *
+ * Not applied to the bulk fan-out, which iterates the bound list and is therefore correct by construction, nor to cancellation, where acting on a since-unbound symbol is legitimate cleanup of an order that is still resting on the exchange.
+ *
+ * @param p - The already-resolved profile repo, for its ownership-proven scope.
+ * @param symbol - Symbol the request named.
+ * @returns Nothing on success. Throws `404 NOT_FOUND` when the symbol is not bound to this profile.
+ */
+export const assertSymbolBound = async (p: ProfileRepo, symbol: string): Promise<void> => {
+  const bound = await p.profileSymbols.findForSymbol(symbol);
+  if (!bound) {
+    throw new HttpError(
+      'NOT_FOUND',
+      `${symbol} is not bound to this profile. Add it first so the shared-wallet and tradability checks run.`,
+    );
+  }
+};
+
+/**
  * Whether a ledger quantity string is a usable size: parses to a finite
  * Decimal strictly greater than zero. An unparseable string returns false
  * rather than throwing, so a malformed row is treated as no row.

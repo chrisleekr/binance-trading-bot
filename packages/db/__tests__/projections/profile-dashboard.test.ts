@@ -186,6 +186,24 @@ describeIfDb('getProfileDashboard — cache miss fan-in', () => {
     expect(out.symbols[0]?.quantity).toBe('0.123456789012345678');
   });
 
+  it('reports the profile-wide kill switch, which no per-symbol flag can express', async () => {
+    // The switch has its own pair of routes, and a caller that sets it and reads this back has to see it move. The per-symbol `enabled` flag answers a different question and stays true with the switch on, so without this field the dashboard reports a fully enabled profile that is in fact stopped.
+    const killKey = `tenant:${fx.alice.accountId}:profile:${fx.alice.profileId}:kill-switch`;
+    const off = await getProfileDashboard(
+      scope,
+      makeRedisStub({ 'ticker:BTCUSDT': JSON.stringify({ price: '61000' }) }).redis,
+    );
+    expect(off.killSwitch).toBe(false);
+
+    const on = await getProfileDashboard(
+      scope,
+      makeRedisStub({ 'ticker:BTCUSDT': JSON.stringify({ price: '61000' }), [killKey]: '1' }).redis,
+    );
+    expect(on.killSwitch).toBe(true);
+    // Presence is the whole signal, so the per-symbol flag must NOT be what carried it.
+    expect(on.symbols[0]?.enabled).toBe(true);
+  });
+
   it('marks a symbol disabled when its disable-action key is present', async () => {
     const disableKey = `tenant:${fx.alice.accountId}:profile:${fx.alice.profileId}:disable-action:BTCUSDT`;
     // Fresh stub (no `dashboard:cache` entry) so the fan-in actually runs.
