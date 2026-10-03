@@ -262,7 +262,8 @@ describeIfInfra('profile log surfaces', () => {
       // than 500ing the window.
       expect(body.items.map((i) => i.streamId)).toEqual(['3-1', '2-1', '1-1']);
       expect(body.items[0]?.payload).toEqual({ reason: 'no signal' });
-      expect(body.oldestStreamId).toBe('1-1');
+      // The read reached the start of the stream, so there is no cursor to resume from.
+      expect(body.oldestStreamId).toBeNull();
       // Four entries against the default 100000 cap: nothing has been trimmed,
       // so nothing is missing behind them. The stream is simply young.
       expect(body.truncated).toBe(false);
@@ -288,7 +289,8 @@ describeIfInfra('profile log surfaces', () => {
         await get(`${base}/tick-trace?limit=1&symbol=ETHUSDT&before=2-1`)
       ).json()) as { items: { streamId: string }[]; oldestStreamId: string | null };
       expect(next.items).toEqual([]);
-      expect(next.oldestStreamId).toBe('1-1');
+      // That scan ran into the start of the stream, so a null cursor tells the agent nothing older remains; a non-null one would invite a page that can only be empty.
+      expect(next.oldestStreamId).toBeNull();
     });
 
     it('scans back across batches up to its bound, then hands back a cursor to continue from', async () => {

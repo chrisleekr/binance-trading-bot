@@ -28,9 +28,9 @@ export const TickTraceEntry = z.object({
 export type TickTraceEntry = z.infer<typeof TickTraceEntry>;
 
 /**
- * Newest-first window of raw trace entries. `oldestStreamId` is the id of the last entry the read examined, which under a symbol filter can be older than the last entry returned; pass it back as `before` to walk further into the past. A filtered page shorter than `limit` with a non-null `oldestStreamId` means the scan stopped at its bound, not that the stream ended.
+ * Newest-first window of raw trace entries. `oldestStreamId` is the id of the last entry the read examined, which under a symbol filter can be older than the last entry returned; pass it back as `before` to walk further into the past. It is null once the read reached the start of the stream, so a non-null value means older entries may remain: a filtered page shorter than `limit` with a cursor stopped at its scan bound, not at the end of the stream.
  *
- * `truncated` says the stream had been trimmed past the requested start, which is the difference between "nothing happened then" and "we no longer know".
+ * `truncated` is true when the stream sits at its configured length cap, so its oldest entries have been trimmed away. It does not say whether the trimmed entries fell inside the range this page asked about; it marks the point past which "nothing happened then" can no longer be told apart from "we no longer know".
  */
 export const TickTraceResponse = z.object({
   items: z.array(TickTraceEntry),

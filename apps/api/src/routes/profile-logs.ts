@@ -303,6 +303,8 @@ export const profileLogsRouter = (di: DI): ApiHono => {
     // The last entry EXAMINED, not the last one returned, so the next page resumes after everything this one already looked at rather than re-reading the entries it filtered out.
     let oldest: string | null = null;
     let scanned = 0;
+    // Set when a read came back short, which means it reached the start of the stream: there is nothing older to resume into, so the cursor is withheld rather than inviting a page that can only be empty.
+    let exhausted = false;
     while (items.length < limit && scanned < budget) {
       const count = symbol ? Math.min(TRACE_SCAN_BATCH, budget - scanned) : limit;
       // XREVRANGE, not XREAD: this is a read-only window over entries the drainer owns, and it must not touch the consumer group's delivery state. `(` makes the bound exclusive so paging cannot repeat the entry it resumed from.
@@ -315,12 +317,17 @@ export const profileLogsRouter = (di: DI): ApiHono => {
         if (entry !== null && (!symbol || entry.symbol === symbol)) items.push(entry);
         if (items.length === limit) break;
       }
-      if (raw.length < count) break;
+      // A full page stops the scan before the rest of this read was examined, so only a short read whose entries were all examined has reached the start of the stream.
+      if (items.length === limit) break;
+      if (raw.length < count) {
+        exhausted = true;
+        break;
+      }
     }
     return c.json(
       {
         items,
-        oldestStreamId: oldest,
+        oldestStreamId: exhausted ? null : oldest,
         // The stream sitting at its configured cap is what proves older entries
         // were dropped — that is a different fact from "nothing happened then",
         // and conflating them would have an operator conclude the bot was idle

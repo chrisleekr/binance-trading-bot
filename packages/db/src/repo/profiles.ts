@@ -100,6 +100,35 @@ export async function setDiscoveryConfig(
 }
 
 /**
+ * Read-modify-write of the profile's `discovery_config` under a row lock. A PATCH merges the caller's keys over the stored config; without the lock two concurrent PATCHes both merge from the same snapshot and the later write silently drops the earlier one's change.
+ *
+ * @param scope - The profile whose config is merged.
+ * @param merge - Builds the config to store from the stored jsonb as read under the lock. A throw rolls the transaction back, so validation belongs here.
+ * @returns The updated row, or null when the profile is gone.
+ */
+export async function mergeDiscoveryConfig(
+  scope: ProfileScope,
+  merge: (stored: unknown) => StoredDiscoveryConfig | Promise<StoredDiscoveryConfig>,
+): Promise<ProfileRow | null> {
+  const where = and(eq(profiles.id, scope.profileId), eq(profiles.accountId, scope.accountId));
+  return scope.db.transaction(async (raw) => {
+    const tx = raw as unknown as Database;
+    const [locked] = await tx
+      .select({ discoveryConfig: profiles.discoveryConfig })
+      .from(profiles)
+      .where(where)
+      .for('update');
+    if (locked === undefined) return null;
+    const [row] = await tx
+      .update(profiles)
+      .set({ discoveryConfig: await merge(locked.discoveryConfig) })
+      .where(where)
+      .returning();
+    return row ?? null;
+  });
+}
+
+/**
  * Write the profile's `risk_config` jsonb (the worker-side risk controls, stored
  * outside the strategy `config` per invariant #1). The portfolio-risk cron reads
  * this column directly, so no worker resync is needed. Returns the updated row,

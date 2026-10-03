@@ -10,7 +10,7 @@
 // profile holding a position through a quiet market. Without the window one quiet
 // weekend would bury the feed.
 //
-// Logged at info, not warn. A quiet account is the normal state, so at warn this row was the whole of a warn-level filter on a healthy profile and hid any real warning. A fill the silence did hide still reaches the operator: the reconcile this schedules adopts it through the fill adopter, which fires the order-filled alert.
+// Logged at info, not warn. A quiet account is the normal state, so at warn this row was the whole of a warn-level filter on a healthy profile and hid any real warning. A fill the silence did hide is not lost: the reconcile this schedules adopts it through the fill adopter, which records it and sends the order-filled alert when the operator has turned that alert on (it is off by default).
 
 import type { Logger } from 'pino';
 import { profileRepo, type Database } from '@app/db';

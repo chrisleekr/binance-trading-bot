@@ -52,7 +52,7 @@ describe('recordStreamSilence', () => {
     expect(d.notifierGapThrottle.allow).toHaveBeenCalledWith(`${PROFILE}:stream-silent`);
     expect(repoMocks.append).toHaveBeenCalledTimes(1);
     const row = repoMocks.append.mock.calls[0]?.[0];
-    // Info, not warn: an idle account is normal, and at warn this row filled every warn-level read of a healthy profile. A fill the silence hid alerts through the fill adopter instead.
+    // Info, not warn: an idle account is normal, and at warn this row filled every warn-level read of a healthy profile. A fill the silence hid is adopted by the reconcile instead, and alerts only if the operator turned the order-filled alert on.
     expect(row).toMatchObject({
       level: 'info',
       symbol: null,

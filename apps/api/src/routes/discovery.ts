@@ -512,13 +512,16 @@ export const discoveryRouter = (di: DI): ApiHono => {
     // The row, not just the scope: the entry-mode gate is decided by this profile's strategy and by what it already has stored, both of which live on it.
     const { p, profile } = await requireOwnedProfile(c, di, profileId);
     // An unparseable stored config merges as all-defaults, the same reading the dashboard gives it, so a bad stored value never blocks the save that repairs it. The merge is one level deep: a top-level key replaces its whole value, so `blacklist` is the complete new list and `entryGuard` a whole block. Deep-merging instead would make a list entry or a nested field impossible to remove by omission.
-    const stored = DiscoveryConfigSchema.safeParse(profile.discoveryConfig ?? {});
-    const merged = DiscoveryConfigSchema.parse({
-      ...(stored.success ? stored.data : {}),
-      ...patch,
+    // Merged from the config read under a row lock, so two concurrent PATCHes cannot both merge from one snapshot and drop each other's change; a refused entry mode throws inside and rolls back.
+    const updated = await p.profile.mergeDiscoveryConfig((current) => {
+      const stored = DiscoveryConfigSchema.safeParse(current ?? {});
+      const merged = DiscoveryConfigSchema.parse({
+        ...(stored.success ? stored.data : {}),
+        ...patch,
+      });
+      assertEntryModeAllowed(di, profile, merged);
+      return merged;
     });
-    assertEntryModeAllowed(di, profile, merged);
-    const updated = await p.profile.setDiscoveryConfig(merged);
     if (!updated) throw new HttpError('NOT_FOUND', 'profile');
     c.set('auditEvent', { event: 'set-discovery-config', payload: { profileId } });
     return c.json(await buildDashboard(di, p, updated), 200);
