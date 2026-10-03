@@ -422,7 +422,7 @@ tests:
     # Auth: identity provider unavailable for longer than 10m; recovery clears it.
   - interval: 1m
     input_series:
-      - series: auth_single_sign_on_available
+      - series: auth_single_sign_on_available{provider="oidc"}
         values: 0x20 1x20
     alert_rule_test:
       - eval_time: 15m
@@ -430,6 +430,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              provider: oidc
             exp_annotations:
               summary: 'Single sign-on is unavailable'
               description: 'The identity provider could not be reached or its discovery document did not match SINGLE_SIGN_ON_ISSUER_URL, so single sign-on is disabled. If password sign-in is off, the api switched it back on for this run so the operator is not locked out. Check the api logs for single_sign_on_unavailable_at_boot, which carries the reason. The api process (with the worker, under ROLE=all) exits once the provider answers again and comes back only if its container has a restart policy such as restart: unless-stopped.'
@@ -508,7 +509,7 @@ tests:
         values: 0+1x60
       - series: auth_rate_limited_total{limit="anonymous_api"}
         values: 0x10 0+30x60
-      - series: auth_single_sign_on_available
+      - series: auth_single_sign_on_available{provider="oidc"}
         values: 1x60
     alert_rule_test:
       - eval_time: 45m

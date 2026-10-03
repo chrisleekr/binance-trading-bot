@@ -125,7 +125,7 @@ export const watchSingleSignOnRecovery = (
       if (stopped || !result.ok) return;
       stopped = true;
       clearInterval(interval);
-      di.security.metrics.singleSignOnAvailable.set(1);
+      di.security.metrics.singleSignOnAvailable.set({ provider: SINGLE_SIGN_ON_PROVIDER_ID }, 1);
       di.logger.warn({ issuer: config.issuer }, 'single_sign_on_recovered_restarting');
       await di.security.events.record({ event: 'single-sign-on-recovered', actor: 'system' });
       requestRestart();

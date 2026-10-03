@@ -29,7 +29,7 @@ export interface AuthMetrics {
   readonly limited: Counter<'limit'>;
   readonly lockouts: Counter<never>;
   readonly rateLimitBackendErrors: Counter<never>;
-  readonly singleSignOnAvailable: Gauge<never>;
+  readonly singleSignOnAvailable: Gauge<'provider'>;
   readonly sinkFailures: Counter<'sink'>;
   readonly passwordChecksInFlight: Gauge<never>;
   readonly websocketClosed: Counter<'reason'>;
@@ -69,6 +69,8 @@ export const createAuthMetrics = (registry: Registry): AuthMetrics => {
   const singleSignOnAvailable = new Gauge({
     name: 'auth_single_sign_on_available',
     help: '1 when single sign-on is configured and its identity provider was reachable at the last check, 0 when configured but unavailable. Absent when single sign-on is not configured.',
+    // Labelled so the series is absent until it is set: prom-client exports an unlabelled gauge as 0 from construction, which would fire SingleSignOnUnavailable on every deployment without single sign-on.
+    labelNames: ['provider'],
     registers: [registry],
   });
   const sinkFailures = new Counter({

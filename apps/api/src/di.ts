@@ -22,7 +22,7 @@ import type { Pool } from 'pg';
 import type pino from 'pino';
 import { createMetricsRegistry, type MetricsRegistry } from '@app/observability';
 import { resolveGitSha } from '@app/core/git-sha';
-import { createAuth, type Auth } from './auth.js';
+import { createAuth, SINGLE_SIGN_ON_PROVIDER_ID, type Auth } from './auth.js';
 import {
   createSecurityRedis,
   createSecurityServices,
@@ -250,7 +250,10 @@ export const createDI = (env: Env, facts: BootFacts = {}): DI => {
   const discovery = facts.singleSignOnDiscovery;
   security.singleSignOnAvailable = security.singleSignOn !== null && discovery?.ok === true;
   if (security.singleSignOn !== null)
-    security.metrics.singleSignOnAvailable.set(security.singleSignOnAvailable ? 1 : 0);
+    security.metrics.singleSignOnAvailable.set(
+      { provider: SINGLE_SIGN_ON_PROVIDER_ID },
+      security.singleSignOnAvailable ? 1 : 0,
+    );
   const discoveryUrl = discovery?.ok === true ? discovery.discoveryUrl : undefined;
   const rebuildAuth = (): Auth => buildAuth(env, db, logger, security, discoveryUrl);
   const auth = rebuildAuth();

@@ -1,6 +1,9 @@
 // The boot sequence decides which sign-in methods a process offers. The operator's rule is "an identity provider that is down at startup degrades, never crashes, and never leaves the instance with no way in", so each case here pins one branch of that rule.
 
+import { createMetricsRegistry } from '@app/observability';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { createAuthMetrics } from '../../src/metrics/auth.js';
 
 const { findSoleUser, listSignInProviders, checkDiscovery } = vi.hoisted(() => ({
   findSoleUser: vi.fn(),
@@ -223,7 +226,7 @@ describe('watchSingleSignOnRecovery', () => {
     checkDiscovery.mockResolvedValue({ ok: true, discoveryUrl: 'x' });
     await vi.advanceTimersByTimeAsync(SINGLE_SIGN_ON_REPROBE_MS * 3);
     expect(restart).toHaveBeenCalledOnce();
-    expect(setAvailable).toHaveBeenCalledWith(1);
+    expect(setAvailable).toHaveBeenCalledWith({ provider: 'oidc' }, 1);
     expect(eventsOf(record)).toEqual(['single-sign-on-recovered']);
     stop?.();
   });
@@ -253,5 +256,22 @@ describe('watchSingleSignOnRecovery', () => {
     await vi.advanceTimersByTimeAsync(SINGLE_SIGN_ON_REPROBE_MS * 2);
     expect(checkDiscovery).not.toHaveBeenCalled();
     expect(restart).not.toHaveBeenCalled();
+  });
+});
+
+describe('single sign-on availability metric', () => {
+  it('exports no series until single sign-on is configured, so its alert cannot fire on a password-only deployment', async () => {
+    const { registry } = createMetricsRegistry({ service: 'sso-gauge-test' });
+    const metrics = createAuthMetrics(registry);
+    const samples = async (): Promise<string[]> =>
+      (await registry.metrics())
+        .split('\n')
+        .filter((line) => line.startsWith('auth_single_sign_on_available'));
+    // prom-client exports an unlabelled gauge as 0 from construction; that 0 is what SingleSignOnUnavailable fires on.
+    expect(await samples()).toEqual([]);
+    metrics.singleSignOnAvailable.set({ provider: 'oidc' }, 0);
+    const set = await samples();
+    expect(set).toHaveLength(1);
+    expect(set[0]).toMatch(/^auth_single_sign_on_available\{provider="oidc",.*\} 0$/);
   });
 });
