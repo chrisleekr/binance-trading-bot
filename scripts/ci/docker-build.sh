@@ -114,11 +114,7 @@ ensure_builder() {
   # dodge Docker Hub's unauthenticated pull rate limit (#122). Defaults to
   # the upstream so local dev keeps working without any env setup.
   docker run --privileged --rm "${BINFMT_IMAGE:-tonistiigi/binfmt}" --install all >/dev/null
-  # The buildkitd image is pinned by tag and digest. buildx otherwise pulls
-  # the floating moby/buildkit:buildx-stable-1, so a BuildKit release changes
-  # how images are pushed without any commit here: v0.33 broke every push to
-  # the GitLab registry that way. Raise this deliberately, and prove the new
-  # version with a docker-build run before merging.
+  # The buildkitd image is pinned by tag and digest so a BuildKit release can change how images are pushed only through a commit here; buildx otherwise pulls the floating moby/buildkit:buildx-stable-1. Raise it deliberately, and prove the new version with a docker-build run before merging. The pin does not by itself avoid the GitLab registry's MANIFEST_BLOB_UNKNOWN rejection of BuildKit v0.33's default provenance attestation: that is BUILDX_NO_DEFAULT_ATTESTATIONS=1 in the GitLab docker-build job, which a manual --push to that registry needs too.
   local buildkit_image="moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
   # Bind the current Docker CLI env to a named context. buildx cannot
   # propagate DOCKER_HOST + TLS env vars (DOCKER_TLS_VERIFY / DOCKER_CERT_PATH)
@@ -142,16 +138,9 @@ ensure_builder() {
   if [[ -z "$existing_host" ]]; then
     docker context create "$context" >/dev/null
   fi
-  if docker buildx inspect "$builder" >/dev/null 2>&1; then
-    local driver
-    driver="$(docker buildx inspect "$builder" --format '{{.Driver}}' 2>/dev/null || true)"
-    if [[ "$driver" != "docker-container" ]]; then
-      docker buildx rm "$builder" >/dev/null 2>&1 || true
-      docker buildx create --name "$builder" --driver docker-container --driver-opt "image=${buildkit_image}" "$context" >/dev/null
-    fi
-  else
-    docker buildx create --name "$builder" --driver docker-container --driver-opt "image=${buildkit_image}" "$context" >/dev/null
-  fi
+  # Recreated on every run so an existing builder can never keep an older buildkitd image or driver. `docker buildx inspect` has no --format flag, so neither can be compared in place.
+  docker buildx rm "$builder" >/dev/null 2>&1 || true
+  docker buildx create --name "$builder" --driver docker-container --driver-opt "image=${buildkit_image}" "$context" >/dev/null
   docker buildx inspect "$builder" --bootstrap >/dev/null
   docker buildx use "$builder"
 }
