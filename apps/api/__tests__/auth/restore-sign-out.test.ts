@@ -1,8 +1,33 @@
-// A restore brings back the dump's own sessions and security epoch, so a session revoked after the dump was taken would work again. The route signs everything out afterwards; this pins that step against a real database. The restore itself (pg_restore) is not run here, because it would overwrite the database every other suite shares.
+// A restore brings back the dump's own sessions and security epoch, so a session revoked after the dump was taken would work again. The route signs everything out afterwards; this pins that step against a real database. The real pg_restore is never run here, because it would overwrite the database every other suite shares; the route cases drive a faked one that fails.
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { EventEmitter } from 'node:events';
+import { readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+
+import { repo } from '@app/db';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { signOutEverythingAfterRestore } from '../../src/routes/backup.js';
+
+// pg_restore is replaced by a child that records its arguments and fails, so the route's failure path runs without overwriting the shared database. Every other command keeps the real spawn.
+const restoreCalls = vi.hoisted(() => [] as string[][]);
+vi.mock('node:child_process', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...orig,
+    spawn: (cmd: string, args: readonly string[], opts: unknown) => {
+      if (cmd !== 'pg_restore')
+        return (orig.spawn as (...a: unknown[]) => unknown)(cmd, args, opts);
+      restoreCalls.push([...args]);
+      const child = Object.assign(new EventEmitter(), {
+        stderr: new EventEmitter(),
+        stdin: { end: () => undefined },
+      });
+      setImmediate(() => child.emit('exit', 1));
+      return child;
+    },
+  };
+});
 
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
@@ -26,6 +51,44 @@ describeIfInfra('after a restore', () => {
   });
   afterAll(async () => {
     await fx.cleanup();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const restoreDirs = async (): Promise<string[]> =>
+    (await readdir(tmpdir())).filter((d) => d.startsWith('restore-'));
+  const postRestore = (): Promise<Response> => {
+    const form = new FormData();
+    form.append('archive', new File([new Uint8Array([1, 2, 3])], 'backup.dump'));
+    return Promise.resolve(
+      fx.app.request('/api/restore', {
+        method: 'POST',
+        headers: { 'x-test-user-id': fx.alice.userId },
+        body: form,
+      }),
+    );
+  };
+
+  it('restores in one transaction, so a failed restore changes nothing and removes the uploaded archive', async () => {
+    const dirsBefore = await restoreDirs();
+    restoreCalls.length = 0;
+    const res = await postRestore();
+    expect(res.ok).toBe(false);
+    expect(restoreCalls).toHaveLength(1);
+    // Without it pg_restore continues past errors and leaves the dump's sessions and older epoch in place while the route reports failure and skips the sign-out.
+    expect(restoreCalls[0]).toContain('--single-transaction');
+    expect(await restoreDirs()).toEqual(dirsBefore);
+  });
+
+  it('removes the uploaded archive when the pre-restore epoch cannot be read', async () => {
+    const dirsBefore = await restoreDirs();
+    restoreCalls.length = 0;
+    vi.spyOn(repo.authSecuritySettings, 'get').mockRejectedValueOnce(new Error('database down'));
+    const res = await postRestore();
+    expect(res.ok).toBe(false);
+    expect(restoreCalls).toHaveLength(0);
+    expect(await restoreDirs()).toEqual(dirsBefore);
   });
 
   it('signs out every session and revokes agent access, because the dump brought back its own', async () => {

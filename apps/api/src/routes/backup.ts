@@ -272,13 +272,24 @@ export const backupRouter = (di: DI): ApiHono => {
     const buf = Buffer.from(await file.arrayBuffer());
     const dir = await mkdtemp(join(tmpdir(), 'restore-'));
     const path = join(dir, 'backup.dump');
-    await writeFile(path, buf);
-    // Read before the restore overwrites it; the epoch after the restore must exceed this one.
-    const preRestoreEpoch = (await repo.authSecuritySettings.get(di.db)).securityEpoch;
+    let preRestoreEpoch: number;
     try {
+      await writeFile(path, buf);
+      // Read before the restore overwrites it; the epoch after the restore must exceed this one.
+      preRestoreEpoch = (await repo.authSecuritySettings.get(di.db)).securityEpoch;
+      // --single-transaction: without it pg_restore continues past errors, so a failed restore leaves the dump's sessions and older epoch in place and the sign-out below never runs. With it a failure rolls back and changes nothing.
       await runChild(
         'pg_restore',
-        ['--clean', '--if-exists', '--no-owner', '--no-acl', '--dbname', di.env.DATABASE_URL, path],
+        [
+          '--single-transaction',
+          '--clean',
+          '--if-exists',
+          '--no-owner',
+          '--no-acl',
+          '--dbname',
+          di.env.DATABASE_URL,
+          path,
+        ],
         { ...process.env, PGSSLMODE: di.env.PGSSLMODE },
       );
     } finally {
