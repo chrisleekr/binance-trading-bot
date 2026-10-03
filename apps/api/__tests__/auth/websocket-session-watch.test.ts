@@ -187,6 +187,19 @@ describeIfInfra('WebSocket session watch', () => {
     expect(w.reserve('198.51.100.8')).toBeNull();
   });
 
+  it('shares one address cap across an IPv6 /64, so rotating addresses inside it does not reset the cap', () => {
+    const w = build();
+    const held = Array.from({ length: WEBSOCKETS_PER_IP_ADDRESS }, (_, i) =>
+      w.reserve(`2001:db8:1:2::${(i + 1).toString(16)}`),
+    );
+    expect(held.every((r) => r !== null)).toBe(true);
+    expect(w.reserve('2001:db8:1:2:ffff::1')).toBeNull();
+    // A different /64 is a different client.
+    expect(w.reserve('2001:db8:1:3::1')).not.toBeNull();
+    held[0]?.release();
+    expect(w.reserve('2001:db8:1:2:ffff::1')).not.toBeNull();
+  });
+
   it('counts an address slot at reservation, so a burst of upgrades that have not opened yet cannot pass the cap', () => {
     const w = build();
     const pending = Array.from({ length: WEBSOCKETS_PER_IP_ADDRESS }, () =>

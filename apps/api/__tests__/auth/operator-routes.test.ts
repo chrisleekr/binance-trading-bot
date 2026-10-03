@@ -529,6 +529,40 @@ describeIfInfra('operator sign-in and security routes', () => {
     }
   });
 
+  it('still hands back the replacement cookie and says what is left to do when revocation fails after the password changed', async () => {
+    const cookie = await session();
+    const newPassword = 'changed-password-789';
+    // Better Auth has committed the new password by the time this runs, so the old one can no longer retry the change.
+    const bump = vi
+      .spyOn(repo.authSecuritySettings, 'bumpSecurityEpoch')
+      .mockRejectedValueOnce(new Error('statement timeout'));
+    let replacement = '';
+    try {
+      const res = await request('/change-password', {
+        method: 'POST',
+        cookie,
+        body: { oldPassword: PASSWORD, newPassword },
+      });
+      expect(res.status).toBe(500);
+      expect(((await res.json()) as { error: { message: string } }).error.message).toMatch(
+        /Sign out everywhere/,
+      );
+      replacement = cookieOf(res);
+      expect((await request('/session', { cookie: replacement })).status).toBe(200);
+      expect(await events('change-password')).toContainEqual(
+        expect.objectContaining({ detail: { revocation: 'failed' } }),
+      );
+    } finally {
+      bump.mockRestore();
+      const restored = await request('/change-password', {
+        method: 'POST',
+        cookie: replacement,
+        body: { oldPassword: newPassword, newPassword: PASSWORD },
+      });
+      expect(restored.status).toBe(204);
+    }
+  });
+
   it('counts only a wrong password against the lockout during re-authentication, and passes any other failure through', async () => {
     const attempt = { ipAddress: '203.0.113.9', userAgent: 'test', knownDevice: false };
     const proof = { method: 'password' as const, password: 'whatever-password' };

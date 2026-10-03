@@ -358,6 +358,25 @@ const guardReauthentication = async (fn: () => Promise<void>): Promise<Response 
   }
 };
 
+/**
+ * Re-authenticates the signed-in operator for a route outside this router that moves a credential, with the same proof, limits and events as the routes here.
+ *
+ * @param di - The container.
+ * @param c - The request context; its session supplies the operator and the single sign-on proof.
+ * @param proof - The password or single sign-on confirmation the caller sent.
+ * @returns Null when the operator is confirmed, or the 429 response to return when a limit refused the attempt. A wrong or missing proof throws an HttpError.
+ */
+export const reauthenticateOperator = async (
+  di: DI,
+  c: Context<Env>,
+  proof: Reauthentication,
+): Promise<Response | null> => {
+  const attempt = await attemptOf(di, c, (c.get('userId') as UserId | undefined) ?? null);
+  return guardReauthentication(() =>
+    requireReauthentication(di.db, di.auth, di.security, c.req.raw.headers, proof, attempt),
+  );
+};
+
 export const authRouter = (di: DI): ApiHono => {
   const app = createApiHono();
   const { security } = di;
@@ -627,13 +646,42 @@ export const authRouter = (di: DI): ApiHono => {
     }
     const replacementToken = await sessionTokenOf(response);
     // A password change is what the operator does when they suspect an intruder, so it revokes like sign-out-everywhere does: the raised epoch retires every known-device mark and any session Better Auth did not delete, and agent tokens go because a password change alone leaves them working. The one replacement session Better Auth just issued this browser is moved onto the new epoch in the same transaction, so the operator stays signed in.
-    const restamped = await di.db.transaction(async (tx) => {
-      const epoch = await repo.authSecuritySettings.bumpSecurityEpoch(tx);
-      await repo.authIdentity.revokeAgentAccess(tx, userId, new Date());
-      return replacementToken === null
-        ? false
-        : repo.authIdentity.setSessionEpochByToken(tx, userId, replacementToken, epoch);
-    });
+    let restamped: boolean;
+    try {
+      restamped = await di.db.transaction(async (tx) => {
+        const epoch = await repo.authSecuritySettings.bumpSecurityEpoch(tx);
+        await repo.authIdentity.revokeAgentAccess(tx, userId, new Date());
+        return replacementToken === null
+          ? false
+          : repo.authIdentity.setSessionEpochByToken(tx, userId, replacementToken, epoch);
+      });
+    } catch (err) {
+      // Better Auth already committed the new password, so this cannot be retried with the old one. Agent tokens and known-device marks are still live: say so, and still forward the replacement cookie so the operator can run sign-out-everywhere from this browser.
+      di.logger.error({ err, userId }, 'change_password_revocation_failed');
+      await security.events
+        .record({
+          event: 'change-password',
+          actor: 'user',
+          method: 'password',
+          ipAddress: attempt.ipAddress,
+          userAgent: attempt.userAgent,
+          detail: { revocation: 'failed' },
+        })
+        .catch((recordErr: unknown) =>
+          di.logger.error({ err: recordErr }, 'change_password_event_not_recorded'),
+        );
+      return withCookiesFrom(
+        response,
+        {
+          error: {
+            code: 'INTERNAL',
+            message:
+              'Your password was changed, but signing out other devices and AI agents did not finish. Use Sign out everywhere now.',
+          },
+        },
+        500,
+      ) as never;
+    }
     // Not a refusal: the password is already changed and everything is revoked; this browser is simply signed out on its next request.
     if (!restamped) di.logger.warn({ userId }, 'change_password_session_not_restamped');
     security.settings.invalidate();

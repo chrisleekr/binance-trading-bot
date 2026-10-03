@@ -1,6 +1,7 @@
 import { repo, type Database } from '@app/db';
 import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
+import { addressLimitKey } from '../auth/client-address.js';
 import { SESSION_REVOCATION_CHANNEL } from '../auth/session-revocation.js';
 import type { SecurityServices } from '../auth/security.js';
 import { sessionExpiry, sessionLimits } from '../middleware/auth.js';
@@ -11,7 +12,7 @@ export const WEBSOCKET_SESSION_ENDED = 4401;
 export const WEBSOCKET_TOO_MANY = 4409;
 /** Open sockets allowed per session. A dashboard uses one per open profile tab; more than this is a leak or a script. */
 export const WEBSOCKETS_PER_SESSION = 5;
-/** Open sockets allowed per client address, counted before any session check so a flood of upgrades cannot exhaust file descriptors. */
+/** Open sockets allowed per client address (IPv6 grouped by /64), counted when the upgrade is accepted so a flood of upgrades cannot exhaust file descriptors. Under LIVE_DEMO anonymous sockets carry no session, so this is their only bound. */
 export const WEBSOCKETS_PER_IP_ADDRESS = 20;
 /** How often every tracked session is re-read. The revocation message usually closes a socket at once; this bounds how long one survives when that message is lost. */
 export const WEBSOCKET_REVALIDATE_MS = 60_000;
@@ -34,7 +35,7 @@ export interface WebSocketReservation {
 
 /** Tracks open WebSockets so an ended session closes its sockets and connection counts stay bounded. */
 export interface WebSocketSessionWatch {
-  /** Takes one of the address's slots, or returns null when it already holds its maximum and the upgrade must be refused. The caller must `release` the reservation if no socket opens. */
+  /** Takes one of the address's slots (IPv6 addresses share their /64's slots), or returns null when it already holds its maximum and the upgrade must be refused. The caller must `release` the reservation if no socket opens. */
   reserve(ipAddress: string): WebSocketReservation | null;
   /** Re-reads every tracked session and closes sockets whose session ended. Exposed so the revocation message and tests can run it on demand. */
   revalidate(): Promise<void>;
@@ -130,7 +131,9 @@ export const createWebSocketSessionWatch = (
 
   return {
     reserve(ipAddress) {
-      const held = perIp.get(ipAddress) ?? 0;
+      // Bucketed like every other per-address limit, so an IPv6 client cannot take a fresh cap from each address in its /64.
+      const bucket = addressLimitKey(ipAddress).key;
+      const held = perIp.get(bucket) ?? 0;
       if (held >= WEBSOCKETS_PER_IP_ADDRESS) {
         deps.security.metrics.limited.inc({ limit: 'websocket_connections' });
         void deps.security.events.record({
@@ -140,16 +143,16 @@ export const createWebSocketSessionWatch = (
         });
         return null;
       }
-      perIp.set(ipAddress, held + 1);
+      perIp.set(bucket, held + 1);
       let tracked: WatchedSocket | null = null;
       let released = false;
       const release = (): void => {
         if (released) return;
         released = true;
         if (tracked !== null) sockets.delete(tracked);
-        const left = (perIp.get(ipAddress) ?? 1) - 1;
-        if (left <= 0) perIp.delete(ipAddress);
-        else perIp.set(ipAddress, left);
+        const left = (perIp.get(bucket) ?? 1) - 1;
+        if (left <= 0) perIp.delete(bucket);
+        else perIp.set(bucket, left);
       };
       return {
         open(socket) {

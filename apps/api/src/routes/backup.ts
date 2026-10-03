@@ -4,6 +4,7 @@ import {
   BackupConfigResponse,
   type BackupFileInfo,
   ErrorEnvelope,
+  Reauthentication,
   RestoreResponse,
 } from '@app/contracts';
 import { PG_DUMP_ARGS } from '@app/core/backup';
@@ -21,6 +22,7 @@ import { requireUser } from 'middleware/require-user.js';
 import { requireNotDemo } from 'middleware/require-not-demo.js';
 import { restoreBodyLimit } from 'middleware/body-limit.js';
 import { createApiHono, type ApiHono } from 'types.js';
+import { reauthenticateOperator } from './auth.js';
 
 const HOUR_MS = 3_600_000;
 const MAX_RECENT_BACKUPS = 20;
@@ -135,7 +137,14 @@ const restoreRoute = createRoute({
     body: {
       content: {
         'multipart/form-data': {
-          schema: z.object({ archive: z.any() }),
+          schema: z.object({
+            archive: z.any(),
+            reauthentication: z
+              .string()
+              .describe(
+                'JSON of the password or single sign-on confirmation, as the other credential-changing routes take.',
+              ),
+          }),
         },
       },
     },
@@ -196,6 +205,29 @@ export const signOutEverythingAfterRestore = async (
   });
   di.security.settings.invalidate();
   await publishSessionRevocation(di, { sessionIds: [] });
+};
+
+/**
+ * Reads the re-authentication part of the restore form, which multipart carries as a JSON string.
+ *
+ * @param part - The raw `reauthentication` form value.
+ * @returns The parsed proof; throws VALIDATION_FAILED when it is missing or malformed.
+ */
+const parseReauthentication = (part: string | File | null): Reauthentication => {
+  let raw: unknown;
+  try {
+    raw = typeof part === 'string' ? JSON.parse(part) : undefined;
+  } catch {
+    raw = undefined;
+  }
+  const parsed = Reauthentication.safeParse(raw);
+  if (!parsed.success) {
+    throw new HttpError(
+      'VALIDATION_FAILED',
+      'Confirm it is you: send your password or a fresh single sign-on with the restore.',
+    );
+  }
+  return parsed.data;
 };
 
 export const backupRouter = (di: DI): ApiHono => {
@@ -269,6 +301,10 @@ export const backupRouter = (di: DI): ApiHono => {
     if (!(file instanceof File)) {
       throw new HttpError('VALIDATION_FAILED', 'archive multipart part missing');
     }
+    // A restore replaces the password hash, the single sign-on identity and the security settings, then signs everyone out. Without re-authentication a stolen session could plant its own password and lock the operator out.
+    const proof = parseReauthentication(form.get('reauthentication'));
+    const refused = await reauthenticateOperator(di, c, proof);
+    if (refused !== null) return refused as never;
     const buf = Buffer.from(await file.arrayBuffer());
     const dir = await mkdtemp(join(tmpdir(), 'restore-'));
     const path = join(dir, 'backup.dump');

@@ -35,6 +35,8 @@ const describeIfInfra = HAS_INFRA ? describe : describe.skip;
 
 describeIfInfra('after a restore', () => {
   let fx: ApiFixture;
+  // A real Better Auth session: re-authentication checks the password against the caller's own session, which the test header shortcut does not create.
+  let cookie = '';
 
   beforeAll(async () => {
     fx = await setupApp({ seed: false });
@@ -48,6 +50,11 @@ describeIfInfra('after a restore', () => {
       }),
     });
     expect(res.status).toBe(200);
+    cookie = res.headers
+      .getSetCookie()
+      .map((c) => c.split(';')[0] ?? '')
+      .filter((c) => c.includes('session_token'))
+      .join('; ');
   });
   afterAll(async () => {
     await fx.cleanup();
@@ -58,17 +65,41 @@ describeIfInfra('after a restore', () => {
 
   const restoreDirs = async (): Promise<string[]> =>
     (await readdir(tmpdir())).filter((d) => d.startsWith('restore-'));
-  const postRestore = (): Promise<Response> => {
+  const postRestore = (
+    reauthentication: string | null = JSON.stringify({
+      method: 'password',
+      password: 'restore-operator-password',
+    }),
+  ): Promise<Response> => {
     const form = new FormData();
     form.append('archive', new File([new Uint8Array([1, 2, 3])], 'backup.dump'));
+    if (reauthentication !== null) form.append('reauthentication', reauthentication);
     return Promise.resolve(
       fx.app.request('/api/restore', {
         method: 'POST',
-        headers: { 'x-test-user-id': fx.alice.userId },
+        // The header admits the request through the fixture's user shortcut; the cookie is what the password check reads.
+        headers: { 'x-test-user-id': fx.alice.userId, cookie },
         body: form,
       }),
     );
   };
+
+  it('refuses a restore without a valid confirmation before writing the archive or running pg_restore', async () => {
+    // A restore replaces the password hash and the single sign-on identity, so a stolen session alone must not be able to plant its own.
+    const dirsBefore = await restoreDirs();
+    restoreCalls.length = 0;
+    expect((await postRestore(null)).status).toBe(422);
+    expect((await postRestore('{"method":"password"}')).status).toBe(422);
+    const wrong = await postRestore(
+      JSON.stringify({ method: 'password', password: 'not-the-operator-password' }),
+    );
+    expect(wrong.ok).toBe(false);
+    expect(((await wrong.json()) as { error: { code: string } }).error.code).toBe(
+      'INVALID_PASSWORD',
+    );
+    expect(restoreCalls).toHaveLength(0);
+    expect(await restoreDirs()).toEqual(dirsBefore);
+  });
 
   it('restores in one transaction, so a failed restore changes nothing and removes the uploaded archive', async () => {
     const dirsBefore = await restoreDirs();
