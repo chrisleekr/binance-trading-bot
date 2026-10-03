@@ -7,6 +7,7 @@ import {
   createSecuritySettingsStore,
   SECURITY_SETTINGS_CACHE_MS,
 } from '../../src/auth/security-settings.js';
+import { sessionExpiry, sessionLimits } from '../../src/middleware/auth.js';
 
 const mocks = vi.hoisted(() => ({ get: vi.fn() }));
 
@@ -82,6 +83,7 @@ describe('security settings store', () => {
     expect(degraded).toEqual({
       settings: DEFAULT_AUTH_SECURITY_SETTINGS,
       securityEpoch: 4,
+      degraded: true,
     });
     expect(error).toHaveBeenCalledWith(
       expect.objectContaining({ err: expect.any(Error) }),
@@ -129,5 +131,39 @@ describe('security settings store', () => {
     // Had the stale snapshot been cached, this would answer 1 without reading.
     expect((await store.get()).securityEpoch).toBe(2);
     expect(mocks.get).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('session limits on a degraded snapshot', () => {
+  const HOUR = 3_600_000;
+  const now = Date.UTC(2026, 9, 3);
+  // Two days old and idle for twelve hours: past the strict fallback (24 h / 8 h) but inside limits an operator may choose (168 h / 24 h).
+  const session = {
+    createdAt: new Date(now - 48 * HOUR),
+    updatedAt: new Date(now - 12 * HOUR),
+    securityEpoch: 4,
+  };
+
+  it('does not end a session on the fallback limits after a failed read', () => {
+    const limits = sessionLimits({
+      settings: DEFAULT_AUTH_SECURITY_SETTINGS,
+      securityEpoch: 4,
+      degraded: true,
+    });
+    expect(sessionExpiry(session, limits, now)).toBeNull();
+  });
+
+  it('still ends a session issued before the last known epoch', () => {
+    const limits = sessionLimits({
+      settings: DEFAULT_AUTH_SECURITY_SETTINGS,
+      securityEpoch: 5,
+      degraded: true,
+    });
+    expect(sessionExpiry(session, limits, now)).toBe('session-invalidated');
+  });
+
+  it('enforces the same limits when they were actually read', () => {
+    const limits = sessionLimits({ settings: DEFAULT_AUTH_SECURITY_SETTINGS, securityEpoch: 4 });
+    expect(sessionExpiry(session, limits, now)).toBe('session-expired-absolute');
   });
 });

@@ -3,7 +3,7 @@ import type { Redis } from 'ioredis';
 import type { Logger } from 'pino';
 import { SESSION_REVOCATION_CHANNEL } from '../auth/session-revocation.js';
 import type { SecurityServices } from '../auth/security.js';
-import { sessionExpiry } from '../middleware/auth.js';
+import { sessionExpiry, sessionLimits } from '../middleware/auth.js';
 
 /** Close code sent when the session behind a socket has ended. In the 4000-4999 range RFC 6455 leaves to applications; the web client treats it as "sign in again", not "reconnect". */
 export const WEBSOCKET_SESSION_ENDED = 4401;
@@ -85,12 +85,7 @@ export const createWebSocketSessionWatch = (
   const revalidate = async (): Promise<void> => {
     const tracked = [...sockets].filter((s) => s.sessionId !== null);
     if (tracked.length === 0) return;
-    const { settings, securityEpoch } = await deps.security.settings.get();
-    const policy = {
-      absoluteHours: settings.sessionAbsoluteLifetimeHours,
-      idleHours: settings.sessionIdleTimeoutHours,
-      securityEpoch,
-    };
+    const policy = sessionLimits(await deps.security.settings.get());
     const t = now();
     const live = new Set<string>();
     for (const userId of new Set(tracked.map((s) => s.userId))) {

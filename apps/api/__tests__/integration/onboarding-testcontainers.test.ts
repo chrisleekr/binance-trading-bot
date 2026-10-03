@@ -148,10 +148,12 @@ const buildHarness = async (): Promise<Harness> => {
   };
 
   const metrics = createMetricsRegistry({ service: 'api-onboarding-test' });
+  // Held so shutdown can close it; an unclosed connection keeps the event loop alive and delays teardown.
+  const securityRedis = new Redis(redis.redisUrl);
   // The real Redis limiter: this journey signs up once and then uses the header shim, so no limit is reached.
   const security = createSecurityServices({
     db,
-    redis: new Redis(redis.redisUrl),
+    redis: securityRedis,
     queue,
     logger,
     registry: metrics.registry,
@@ -229,6 +231,7 @@ const buildHarness = async (): Promise<Harness> => {
       await backtestQueue.close();
       await advisorQueue.close();
       await diagnosisQueue.close();
+      await securityRedis.quit();
       await pool.end();
     },
   };

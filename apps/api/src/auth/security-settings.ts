@@ -6,6 +6,8 @@ import type { Logger } from 'pino';
 export interface SecuritySnapshot {
   readonly settings: AuthSecuritySettings;
   readonly securityEpoch: number;
+  /** Set when the database read failed and `settings` are the strict fallback, not the operator's choice. Rate limits may use the fallback; anything that deletes a session or closes a socket on a lifetime must not, or one failed read signs the operator out. */
+  readonly degraded?: true;
 }
 
 /** Cached access to the operator's sign-in protection settings. */
@@ -65,6 +67,7 @@ export const createSecuritySettingsStore = (
         return {
           settings: DEFAULT_AUTH_SECURITY_SETTINGS,
           securityEpoch: lastEpoch,
+          degraded: true,
         };
       }
     },

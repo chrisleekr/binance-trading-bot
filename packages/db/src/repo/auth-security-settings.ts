@@ -50,12 +50,16 @@ export async function setSettings(
  * Advances the security epoch, which invalidates every session and known-device cookie issued before it in one write.
  *
  * @param db - Database handle, or a transaction so the bump commits together with the change that caused it.
+ * @param atLeast - An epoch the result must exceed even if the stored one is lower. A restore brings back the dump's older epoch; bumping only that would re-validate known-device cookies revoked after the dump was taken.
  * @returns The new epoch.
  */
-export async function bumpSecurityEpoch(db: Database): Promise<number> {
+export async function bumpSecurityEpoch(db: Database, atLeast = 0): Promise<number> {
   const [row] = await db
     .update(authSecuritySettings)
-    .set({ securityEpoch: sql`${authSecuritySettings.securityEpoch} + 1`, updatedAt: sql`now()` })
+    .set({
+      securityEpoch: sql`greatest(${authSecuritySettings.securityEpoch}, ${atLeast}) + 1`,
+      updatedAt: sql`now()`,
+    })
     .where(eq(authSecuritySettings.id, SINGLETON_ID))
     .returning({ securityEpoch: authSecuritySettings.securityEpoch });
   if (!row) throw new Error('auth-security-settings.bumpSecurityEpoch: singleton row missing');

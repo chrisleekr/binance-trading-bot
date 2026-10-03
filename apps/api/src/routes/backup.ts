@@ -178,12 +178,16 @@ const runChild = (
  * Signs out every session and revokes agent access after a restore. The dump brings back its own sessions and its own security epoch, so without this a session revoked after the dump was taken would work again. This browser is signed out too; the operator signs in with the credentials the dump holds.
  *
  * @param di - The container.
+ * @param preRestoreEpoch - The live epoch read before the restore ran. The new epoch must exceed it, not just the dump's, or known-device cookies revoked after the dump was taken become valid again.
  * @returns Nothing; throws when the database refuses, and the caller reports that the restore is not safe to use yet.
  */
-export const signOutEverythingAfterRestore = async (di: DI): Promise<void> => {
+export const signOutEverythingAfterRestore = async (
+  di: DI,
+  preRestoreEpoch: number,
+): Promise<void> => {
   await di.db.transaction(async (raw) => {
     const tx = raw as unknown as DI['db'];
-    await repo.authSecuritySettings.bumpSecurityEpoch(tx);
+    await repo.authSecuritySettings.bumpSecurityEpoch(tx, preRestoreEpoch);
     const operator = await repo.authIdentity.findSoleUser(tx);
     if (operator !== null) {
       await repo.authIdentity.deleteAllSessions(tx, operator.id);
@@ -269,6 +273,8 @@ export const backupRouter = (di: DI): ApiHono => {
     const dir = await mkdtemp(join(tmpdir(), 'restore-'));
     const path = join(dir, 'backup.dump');
     await writeFile(path, buf);
+    // Read before the restore overwrites it; the epoch after the restore must exceed this one.
+    const preRestoreEpoch = (await repo.authSecuritySettings.get(di.db)).securityEpoch;
     try {
       await runChild(
         'pg_restore',
@@ -284,7 +290,7 @@ export const backupRouter = (di: DI): ApiHono => {
       alreadyApplied: true,
     });
     try {
-      await signOutEverythingAfterRestore(di);
+      await signOutEverythingAfterRestore(di, preRestoreEpoch);
     } catch (err) {
       di.logger.error({ err }, 'restore_session_invalidation_failed');
       throw new HttpError(

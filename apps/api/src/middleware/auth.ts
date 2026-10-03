@@ -4,7 +4,7 @@ import type { MiddlewareHandler } from 'hono';
 import { BETTER_AUTH_SESSION_TTL_SECONDS, type Auth } from 'auth.js';
 import { clientIpFromHeaders } from 'auth/client-address.js';
 import type { SecurityEventRecorder } from 'auth/security-events.js';
-import type { SecuritySettingsStore } from 'auth/security-settings.js';
+import type { SecuritySettingsStore, SecuritySnapshot } from 'auth/security-settings.js';
 import type { Env } from 'types.js';
 
 /** What the resolver needs to enforce session lifetimes and the security epoch. Optional so narrow test harnesses can omit it. */
@@ -22,6 +22,13 @@ const SESSION_TOUCH_INTERVAL_MS = 15 * 60_000;
 /** Better Auth's own session lifetime, the ceiling above the operator's limits. */
 const BETTER_AUTH_SESSION_TTL_MS = BETTER_AUTH_SESSION_TTL_SECONDS * 1000;
 
+/** The limits and epoch a session is checked against. */
+export interface SessionLimits {
+  readonly absoluteHours: number;
+  readonly idleHours: number;
+  readonly securityEpoch: number;
+}
+
 /** Why a still-stored session is refused. */
 type SessionExpiry = 'session-expired-absolute' | 'session-expired-idle' | 'session-invalidated';
 
@@ -35,7 +42,7 @@ type SessionExpiry = 'session-expired-absolute' | 'session-expired-idle' | 'sess
  */
 export const sessionExpiry = (
   session: { createdAt: Date | string; updatedAt: Date | string; securityEpoch?: number | null },
-  policy: { absoluteHours: number; idleHours: number; securityEpoch: number },
+  policy: SessionLimits,
   now: number,
 ): SessionExpiry | null => {
   if ((session.securityEpoch ?? 0) < policy.securityEpoch) return 'session-invalidated';
@@ -45,6 +52,22 @@ export const sessionExpiry = (
     return 'session-expired-idle';
   return null;
 };
+
+/**
+ * The limits a session is checked against for this snapshot. On a degraded snapshot the lifetime and idle limits are lifted, because the fallback settings are stricter than what the operator may have chosen and enforcing them would permanently delete valid sessions after one failed read; the epoch check stays, since the epoch is the last one actually read.
+ *
+ * @param snapshot - The current security settings snapshot.
+ * @returns The policy to pass to {@link sessionExpiry}.
+ */
+export const sessionLimits = (snapshot: SecuritySnapshot): SessionLimits => ({
+  absoluteHours: snapshot.degraded
+    ? Number.POSITIVE_INFINITY
+    : snapshot.settings.sessionAbsoluteLifetimeHours,
+  idleHours: snapshot.degraded
+    ? Number.POSITIVE_INFINITY
+    : snapshot.settings.sessionIdleTimeoutHours,
+  securityEpoch: snapshot.securityEpoch,
+});
 
 // Resolves Better Auth session → c.set('userId', …). Does NOT 401; the
 // require-user middleware enforces that on account-scoped routes.
@@ -69,14 +92,9 @@ export const sessionResolver =
     });
     let userId = session?.user.id ?? null;
     if (session !== null && userId !== null && policy !== null) {
-      const { settings, securityEpoch } = await policy.settings.get();
       const expiry = sessionExpiry(
         session.session as { createdAt: Date; updatedAt: Date; securityEpoch?: number | null },
-        {
-          absoluteHours: settings.sessionAbsoluteLifetimeHours,
-          idleHours: settings.sessionIdleTimeoutHours,
-          securityEpoch,
-        },
+        sessionLimits(await policy.settings.get()),
         (policy.now ?? Date.now)(),
       );
       if (expiry !== null) {

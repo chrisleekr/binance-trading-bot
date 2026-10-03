@@ -37,7 +37,7 @@ describeIfInfra('after a restore', () => {
       ).rows[0]?.e ?? -1;
     const before = await epochOf();
     expect((await fx.di.pool.query(`select 1 from session`)).rowCount).toBeGreaterThan(0);
-    await signOutEverythingAfterRestore(fx.di);
+    await signOutEverythingAfterRestore(fx.di, before);
     expect(await epochOf()).toBe(before + 1);
     expect((await fx.di.pool.query(`select 1 from session`)).rowCount).toBe(0);
     const cutoff = await fx.di.pool.query<{ t: Date | null }>(
@@ -45,5 +45,15 @@ describeIfInfra('after a restore', () => {
     );
     expect(cutoff.rows[0]?.t).not.toBeNull();
     expect((await fx.di.security.settings.get()).securityEpoch).toBe(before + 1);
+  });
+
+  it('raises the epoch past the pre-restore one when the dump carried an older epoch', async () => {
+    // A dump taken at epoch 2 restored over a live epoch of 4: a plain bump would land on 3 and re-validate known-device cookies issued at 3.
+    await fx.di.pool.query(`update auth_security_settings set security_epoch = 2`);
+    await signOutEverythingAfterRestore(fx.di, 4);
+    const rows = await fx.di.pool.query<{ e: number }>(
+      `select security_epoch as e from auth_security_settings`,
+    );
+    expect(rows.rows[0]?.e).toBe(5);
   });
 });

@@ -35,7 +35,7 @@ export const SINGLE_SIGN_ON_PROVIDER_ID = 'oidc';
 // Decisions:
 //   - email + password (switchable) and optional OpenID Connect single sign-on; no SMTP, no in-app second factor
 //   - scrypt password hashing (Better Auth 1.7 default)
-//   - cookie: Secure in production, HttpOnly, SameSite=Strict, 24h; the OAuth state cookie alone is Lax (see below)
+//   - cookie: Secure in production, HttpOnly, SameSite=Strict, Max-Age BETTER_AUTH_SESSION_TTL_SECONDS (168h, the ceiling; the session resolver enforces the operator's shorter idle and absolute limits); the OAuth state cookie alone is Lax (see below)
 //   - Better Auth's in-memory rate limiter is off: the Redis limiter in auth/sign-in-protection.ts replaces it for every exposed path
 //   - at most one user, enforced here, in the routes, and by a database index
 export interface AuthOptions {
