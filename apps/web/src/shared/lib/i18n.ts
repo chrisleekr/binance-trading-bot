@@ -115,6 +115,9 @@ const en: Readonly<Record<string, string>> = {
   'consent.scope.mcp_trade.title': 'Trade and change settings with real funds',
   'consent.scope.mcp_trade.body':
     'Place and cancel real orders, switch symbols on and off, rewrite strategy configuration, and widen the risk limits that would otherwise stop it. On a live account this spends real money without asking again.',
+  'consent.scope.offline_access.title': 'Stay connected for up to 7 days',
+  'consent.scope.offline_access.body':
+    'The client can renew its access on its own instead of asking you again every hour. It stops working after 7 days without use, or as soon as you revoke agent access, change your password or sign out everywhere.',
   'consent.error.failed':
     'The authorization server rejected this decision. Start the flow again from your client.',
   'consent.error.unsigned':

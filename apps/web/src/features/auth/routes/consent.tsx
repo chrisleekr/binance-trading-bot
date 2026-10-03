@@ -81,6 +81,11 @@ const SCOPE_COPY: Readonly<Record<string, { title: I18nKey; body: I18nKey; dange
     body: 'consent.scope.mcp_trade.body',
     danger: true,
   },
+  offline_access: {
+    title: 'consent.scope.offline_access.title',
+    body: 'consent.scope.offline_access.body',
+    danger: false,
+  },
 };
 
 /**

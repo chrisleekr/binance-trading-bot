@@ -65,7 +65,7 @@ Why the bot acted, or why it did not. Each row is one thing the worker decided, 
 
 ### Raw tick trace
 
-Below the log list, collapsed until you open it. This is a direct window onto the stream the worker already writes on every tick, so it costs no storage and needs nothing armed in advance — but it is trimmed by entry count, not by age, so on a busy profile it reaches back hours rather than days. Payloads are shown unprojected: whatever the strategy recorded is what you see. When you need a window that outlives the buffer, arm capture instead of enlarging it.
+Below the log list, collapsed until you open it. This is a direct window onto the stream the worker already writes on every tick, so it costs no storage and needs nothing armed in advance — but it is trimmed by entry count, not by age, so on a busy profile it reaches back hours rather than days. Payloads are shown unprojected: whatever the strategy recorded is what you see. When you need a window that outlives the buffer, arm capture instead of enlarging it. Filtered to one symbol, each page searches back through up to 2,000 entries for that symbol's ticks; if it stops before filling the page, **Load older** continues from where it stopped.
 
 How long log rows are kept, and how many trace entries are held, are set in [Settings → Log retention](../system/settings.md#log-retention).
 

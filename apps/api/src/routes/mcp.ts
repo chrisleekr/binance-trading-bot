@@ -10,7 +10,7 @@ import { rateLimitedResponse } from '../auth/http.js';
 import type { DI } from '../di.js';
 import { dispatchMcpTool, EMPTY_CLIENT_CONTEXT, type McpClientContext } from '../mcp/dispatch.js';
 import { MCP_RESOURCES, readMcpResource } from '../mcp/resources.js';
-import { MCP_SCOPES } from '../mcp/scopes.js';
+import { MCP_AUTHORIZATION_SCOPES } from '../mcp/scopes.js';
 import { MCP_TOOLS } from '../mcp/tools.js';
 import { HttpError } from '../middleware/error.js';
 import { createApiHono, type ApiHono } from '../types.js';
@@ -243,7 +243,8 @@ export const mcpRouter = (di: DI): ApiHono => {
     {
       resource,
       requiredScopes: [],
-      challengeScopes: [...MCP_SCOPES],
+      // Names offline_access too, because MCP clients request exactly the scopes the challenge names; leaving it out is why agents never received a refresh token.
+      challengeScopes: [...MCP_AUTHORIZATION_SCOPES],
     },
   );
 

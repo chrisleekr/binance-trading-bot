@@ -154,9 +154,9 @@ Enqueues are coalesced two ways. BullMQ's `jobId` (`reconcile-symbol:<pid>:<sym>
 
 The user-stream pool runs a **second** liveness clock, independent of the heartbeat one. Binance's pongs prove the socket is up; they prove nothing about whether events are still being **delivered** on it. A silently half-dead stream answers every ping and delivers no `executionReport`, and the bot happily trades on a position it no longer holds.
 
-So the pool also tracks time since the last **account event** per profile. Past `accountEventIdleMs` (default 45 min, floor 60s) it reconnects, resyncs, and raises `onStreamSilent` — which writes a durable operator-visible `action_logs` row (throttled per `(profile, topic)`) and enqueues a `symbol-reconcile` for every symbol on the profile.
+So the pool also tracks time since the last **account event** per profile. Past `accountEventIdleMs` (default 45 min, floor 60s) it reconnects, resyncs, and raises `onStreamSilent` — which writes a durable operator-visible `action_logs` row at **info** level (throttled per `(profile, topic)`) and enqueues a `symbol-reconcile` for every symbol on the profile.
 
-Silence here is **not** a fault: Binance emits an account event only when a balance changes, so a profile holding through a quiet market is legitimately idle for hours. The operator-facing copy says what actually happened — quiet stream, reconnected to check — rather than "the stream is broken", which would train the operator to ignore the one row that, on the day it matters, is the only warning a fill went missing.
+Silence here is **not** a fault: Binance emits an account event only when a balance changes, so a profile holding through a quiet market is legitimately idle for hours. The operator-facing copy says what actually happened — quiet stream, reconnected to check — rather than "the stream is broken". The row is info, not warn, because a quiet stream is the normal state. A fill the silence hid is still adopted by the reconcile it schedules, and the fill adopter sends the `order-filled` alert if the operator has turned it on (off by default).
 
 ### Boot & reconfigure
 

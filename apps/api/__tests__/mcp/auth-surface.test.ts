@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createAuth, type Auth } from '../../src/auth.js';
 import type { DI } from '../../src/di.js';
-import { MCP_SCOPES } from '../../src/mcp/scopes.js';
+import { MCP_AUTHORIZATION_SCOPES, MCP_OFFLINE_SCOPE } from '../../src/mcp/scopes.js';
 import { mcpRouter } from '../../src/routes/mcp.js';
 import { wellKnownRouter } from '../../src/routes/well-known.js';
 import type { ApiHono } from '../../src/types.js';
@@ -55,7 +55,9 @@ describe.skipIf(!HAS_INFRA)('MCP endpoint before authentication', () => {
     const resource = new URL(RESOURCE);
     const metadataUrl = `${resource.origin}/.well-known/oauth-protected-resource${resource.pathname}`;
     expect(challenge).toContain(`resource_metadata="${metadataUrl}"`);
-    for (const scope of MCP_SCOPES) expect(challenge).toContain(scope);
+    for (const scope of MCP_AUTHORIZATION_SCOPES) expect(challenge).toContain(scope);
+    // Clients request exactly the scopes the challenge names, so without this one no agent ever receives a refresh token.
+    expect(challenge).toContain(MCP_OFFLINE_SCOPE);
   });
 
   it('points that challenge at a document this app actually serves', async () => {

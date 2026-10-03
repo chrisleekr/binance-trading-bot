@@ -170,6 +170,17 @@ describe('ConsentPage', () => {
     expect(scopes).not.toHaveTextContent('mcp:trade');
   });
 
+  it('explains the stay-connected scope in plain words instead of showing offline_access', async () => {
+    setUp(
+      '/consent?client_id=https%3A%2F%2Fclient.example%2Fmeta.json&scope=mcp%3Aread%20offline_access' +
+        '&sig=deadbeef&ba_param=sig&ba_param=ba_param&ba_param=client_id&ba_param=scope',
+    );
+    const scopes = await screen.findByTestId('consent-scopes');
+    expect(scopes).toHaveTextContent(t('consent.scope.offline_access.title'));
+    expect(scopes).toHaveTextContent(t('consent.scope.offline_access.body'));
+    expect(scopes).not.toHaveTextContent('offline_access');
+  });
+
   it('marks the trading scope as dangerous and the read scope as not', async () => {
     setUp(SIGNED_CONSENT_URL);
     const items = (await screen.findByTestId('consent-scopes')).querySelectorAll('li');

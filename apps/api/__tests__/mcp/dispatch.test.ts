@@ -225,6 +225,14 @@ describe('MCP request plans', () => {
     expect(plan?.body).toEqual({ side: 'BUY', type: 'MARKET', quantity: '1' });
   });
 
+  it('asks the dashboard for held balances unless the agent asks for all', () => {
+    const tool = MCP_TOOLS_BY_NAME.get('get_dashboard');
+    expect(tool?.plan({ accountId: 'a', profileId: 'p' }).query).toEqual({ balances: 'held' });
+    expect(tool?.plan({ accountId: 'a', profileId: 'p', balances: 'all' }).query).toEqual({
+      balances: 'all',
+    });
+  });
+
   it('routes a consolidated read by its kind selector', () => {
     const tool = MCP_TOOLS_BY_NAME.get('get_market_data');
     const depth = tool?.plan({

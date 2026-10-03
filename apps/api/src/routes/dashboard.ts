@@ -18,6 +18,7 @@ import {
   ProfileDashboardResponse,
 } from '@app/contracts';
 import { POSITION_SEED_REFUSED, projections } from '@app/db';
+import { Decimal } from '@app/money';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
 import { periodWindow } from 'lib/period-window.js';
@@ -29,11 +30,21 @@ import { createApiHono, type ApiHono } from 'types.js';
 
 const ProfileIdParam = z.object({ profileId: z.uuid() });
 
+// Binance lists every asset it has ever supported, so an account holding five coins comes back with around 800 balance rows. `held` keeps the ones that matter, which is what an agent reading through MCP needs; the SPA keeps the full list because its panels look a symbol's base asset up by name.
+const ProfileDashboardQuery = z.object({
+  balances: z
+    .enum(['all', 'held'])
+    .optional()
+    .describe(
+      'all (default): every asset Binance reports. held: only assets with a free or locked amount, plus the profile quote asset.',
+    ),
+});
+
 const profileDashboardRoute = createRoute({
   method: 'get',
   path: '/profiles/{profileId}/dashboard',
   tags: ['dashboard'],
-  request: { params: ProfileIdParam },
+  request: { params: ProfileIdParam, query: ProfileDashboardQuery },
   responses: {
     200: {
       description: 'composite',
@@ -236,7 +247,16 @@ export const dashboardRouter = (di: DI): ApiHono => {
       // The cost basis on this row survives a refused seed by design, so without this the dashboard reads it as a held position and prices it — a gain on something that will never be sold, in the column where every real one sits.
       positionSeedRefusal: refusals.get(s.symbol) ?? null,
     }));
-    return c.json({ ...dashboard, enabledNotifierCount, symbols }, 200);
+    const balances =
+      c.req.valid('query').balances === 'held'
+        ? dashboard.balances.filter(
+            (b) =>
+              b.asset === dashboard.quoteAsset ||
+              !new Decimal(b.free).isZero() ||
+              !new Decimal(b.locked).isZero(),
+          )
+        : dashboard.balances;
+    return c.json({ ...dashboard, balances, enabledNotifierCount, symbols }, 200);
   });
 
   app.openapi(aggregateRoute, async (c) => {

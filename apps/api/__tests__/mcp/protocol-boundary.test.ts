@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createAuth, type Auth } from '../../src/auth.js';
 import type { DI } from '../../src/di.js';
 import { MCP_RESOURCES } from '../../src/mcp/resources.js';
-import { MCP_SCOPE_READ, MCP_SCOPE_TRADE } from '../../src/mcp/scopes.js';
+import { MCP_OFFLINE_SCOPE, MCP_SCOPE_READ, MCP_SCOPE_TRADE } from '../../src/mcp/scopes.js';
 import { MCP_TOOLS } from '../../src/mcp/tools.js';
 import { sessionResolver } from '../../src/middleware/auth.js';
 import { errorHandler } from '../../src/middleware/error.js';
@@ -174,13 +174,30 @@ describe.skipIf(!HAS_INFRA)('MCP protocol boundary over a real token', () => {
    * @param scopes - Space-delimited scopes to request.
    * @returns The bearer token the token endpoint issued.
    */
-  const accessTokenFor = async (scopes: string): Promise<string> => {
+  const accessTokenFor = async (scopes: string): Promise<string> =>
+    (await tokensFor(scopes, ['authorization_code'])).access_token;
+
+  /**
+   * Runs one complete authorization-code flow and returns everything the token endpoint issued, plus the client that asked.
+   *
+   * @param scopes - Space-delimited scopes to request.
+   * @param grantTypes - Grants the client registers; a refresh token is only ever issued to a client that lists `refresh_token`.
+   * @returns The access token, the refresh token when one was issued, and the client credentials a refresh grant needs.
+   */
+  const tokensFor = async (
+    scopes: string,
+    grantTypes: readonly string[],
+  ): Promise<{
+    access_token: string;
+    refresh_token?: string;
+    client: { client_id: string; client_secret: string };
+  }> => {
     const redirectUri = `${origin}/agent-callback`;
     const created = await authPost('/oauth2/create-client', {
       client_name: `agent-${scopes.replace(/\W+/g, '-')}`,
       redirect_uris: [redirectUri],
-      scope: `${MCP_SCOPE_READ} ${MCP_SCOPE_TRADE}`,
-      grant_types: ['authorization_code'],
+      scope: `${MCP_SCOPE_READ} ${MCP_SCOPE_TRADE} ${MCP_OFFLINE_SCOPE}`,
+      grant_types: [...grantTypes],
       response_types: ['code'],
       token_endpoint_auth_method: 'client_secret_post',
       // `native`, because the redirect lands on an http loopback port. A `web` client is required to use https on a non-loopback host, which is the right rule and the wrong one for a locally-run agent client: MCP Inspector is exactly this shape.
@@ -235,9 +252,42 @@ describe.skipIf(!HAS_INFRA)('MCP protocol boundary over a real token', () => {
       }),
     });
     expect(tokenRes.status).toBe(200);
-    const tokens = (await tokenRes.json()) as { access_token?: string; scope?: string };
+    const tokens = (await tokenRes.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+      scope?: string;
+    };
     expect(tokens.access_token).toBeTruthy();
-    return tokens.access_token ?? '';
+    return {
+      access_token: tokens.access_token ?? '',
+      ...(tokens.refresh_token === undefined ? {} : { refresh_token: tokens.refresh_token }),
+      client,
+    };
+  };
+
+  /**
+   * Exchanges a refresh token at the token endpoint, the way an MCP client renews an expired access token.
+   *
+   * @param refreshToken - Refresh token from an earlier grant.
+   * @param client - Credentials of the client that holds it.
+   * @returns The HTTP status and the decoded token response.
+   */
+  const refresh = async (
+    refreshToken: string,
+    client: { client_id: string; client_secret: string },
+  ): Promise<{ status: number; body: { access_token?: string; refresh_token?: string } }> => {
+    const res = await fetch(`${origin}/api/auth/oauth2/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', origin },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: client.client_id,
+        client_secret: client.client_secret,
+        resource: `${origin}/api/mcp`,
+      }),
+    });
+    return { status: res.status, body: (await res.json()) as { access_token?: string } };
   };
 
   /**
@@ -553,15 +603,41 @@ describe.skipIf(!HAS_INFRA)('MCP protocol boundary over a real token', () => {
       requested: LEGACY_REVISION,
     });
   });
+  it('issues a refresh token only for offline_access, and a refreshed access token works', async () => {
+    // Without a refresh token the agent dies when its one-hour access token expires, and the operator re-authorizes by hand every hour.
+    const withoutOffline = await tokensFor(MCP_SCOPE_READ, ['authorization_code', 'refresh_token']);
+    expect(withoutOffline.refresh_token).toBeUndefined();
+
+    const offline = await tokensFor(`${MCP_SCOPE_READ} ${MCP_OFFLINE_SCOPE}`, [
+      'authorization_code',
+      'refresh_token',
+    ]);
+    expect(offline.refresh_token).toBeTruthy();
+    const renewed = await refresh(offline.refresh_token ?? '', offline.client);
+    expect(renewed.status, JSON.stringify(renewed.body)).toBe(200);
+    expect(renewed.body.access_token).toBeTruthy();
+    expect(renewed.body.access_token).not.toBe(offline.access_token);
+    expect((await rpc(renewed.body.access_token ?? '', 'server/discover')).status).toBe(200);
+  });
+
   // Last on purpose: it revokes the token every case above shares.
   it('refuses an already issued token once agent access is revoked, although the JWT itself is still unexpired', async () => {
     const before = await rpc(fullToken, 'server/discover');
     expect(before.status).toBe(200);
+    // A refresh token minted before the revocation must die with it, or the agent mints a fresh, post-cutoff access token and walks straight back in.
+    const offline = await tokensFor(`${MCP_SCOPE_READ} ${MCP_OFFLINE_SCOPE}`, [
+      'authorization_code',
+      'refresh_token',
+    ]);
+    expect(offline.refresh_token).toBeTruthy();
     // Issued tokens are whole-second `iat`; step past the issuing second so the cutoff is strictly later, as it is in real use.
     await new Promise((resolve) => setTimeout(resolve, 1100));
     await repo.authIdentity.revokeAgentAccess(fx.di.db, operatorId, new Date());
     fx.di.security.settings.invalidate();
     const after = await rpc(fullToken, 'server/discover');
     expect(after.status).toBe(401);
+    const renewed = await refresh(offline.refresh_token ?? '', offline.client);
+    expect(renewed.status).toBeGreaterThanOrEqual(400);
+    expect(renewed.body.access_token).toBeUndefined();
   });
 });

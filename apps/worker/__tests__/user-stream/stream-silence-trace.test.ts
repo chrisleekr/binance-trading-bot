@@ -38,7 +38,7 @@ const deps = (allow: boolean) => ({
 const AGE_MS = 45 * 60_000;
 
 describe('recordStreamSilence', () => {
-  it('writes ONE warn-level action_log with the stream-silent topic when the throttle allows', async () => {
+  it('writes ONE info-level action_log with the stream-silent topic when the throttle allows', async () => {
     // The operator-visible half of the idle watchdog. The reconnect happens either
     // way; this row is the only thing that tells the operator their stream went
     // quiet and the bot went to check. A throttle-key typo or a wrong level would
@@ -52,8 +52,9 @@ describe('recordStreamSilence', () => {
     expect(d.notifierGapThrottle.allow).toHaveBeenCalledWith(`${PROFILE}:stream-silent`);
     expect(repoMocks.append).toHaveBeenCalledTimes(1);
     const row = repoMocks.append.mock.calls[0]?.[0];
+    // Info, not warn: an idle account is normal, and at warn this row filled every warn-level read of a healthy profile. A fill the silence hid alerts through the fill adopter instead.
     expect(row).toMatchObject({
-      level: 'warn',
+      level: 'info',
       symbol: null,
       ctx: { topic: 'stream-silent', ageMs: AGE_MS },
     });

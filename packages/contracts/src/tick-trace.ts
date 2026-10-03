@@ -28,10 +28,9 @@ export const TickTraceEntry = z.object({
 export type TickTraceEntry = z.infer<typeof TickTraceEntry>;
 
 /**
- * Newest-first window of raw trace entries. `oldestStreamId` is the id of the
- * last entry returned; pass it back as `before` to walk further into the past.
- * `truncated` says the stream had been trimmed past the requested start, which
- * is the difference between "nothing happened then" and "we no longer know".
+ * Newest-first window of raw trace entries. `oldestStreamId` is the id of the last entry the read examined, which under a symbol filter can be older than the last entry returned; pass it back as `before` to walk further into the past. A filtered page shorter than `limit` with a non-null `oldestStreamId` means the scan stopped at its bound, not that the stream ended.
+ *
+ * `truncated` says the stream had been trimmed past the requested start, which is the difference between "nothing happened then" and "we no longer know".
  */
 export const TickTraceResponse = z.object({
   items: z.array(TickTraceEntry),
@@ -40,7 +39,7 @@ export const TickTraceResponse = z.object({
 });
 export type TickTraceResponse = z.infer<typeof TickTraceResponse>;
 
-/** Query for the raw trace reader. `before` is a Redis stream id from a previous page. */
+/** Query for the raw trace reader. `before` is a Redis stream id from a previous page. With `symbol` set, `limit` counts matching entries and the reader scans back a bounded number of raw entries to find them. */
 export const TickTraceQuery = z.object({
   symbol: z.string().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),

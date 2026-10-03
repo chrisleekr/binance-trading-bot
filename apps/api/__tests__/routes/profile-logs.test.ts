@@ -268,11 +268,59 @@ describeIfInfra('profile log surfaces', () => {
       expect(body.truncated).toBe(false);
     });
 
-    it('filters by symbol after the read, since the stream interleaves symbols', async () => {
+    it('filters by symbol, since the stream interleaves symbols', async () => {
       const body = (await (await get(`${base}/tick-trace?limit=10&symbol=ETHUSDT`)).json()) as {
         items: { streamId: string }[];
       };
       expect(body.items.map((i) => i.streamId)).toEqual(['2-1']);
+    });
+
+    it('counts limit in matching entries, reading past the ones it filters out', async () => {
+      // The newest entry is '4-1', which is not ETHUSDT. Filtering one read of `limit` entries answered this with an empty page, and an agent asking why one pair is idle read that as "it never ticked".
+      const body = (await (await get(`${base}/tick-trace?limit=1&symbol=ETHUSDT`)).json()) as {
+        items: { streamId: string }[];
+        oldestStreamId: string | null;
+      };
+      expect(body.items.map((i) => i.streamId)).toEqual(['2-1']);
+      // The cursor is the last entry examined, so the next page resumes after the match rather than re-reading it.
+      expect(body.oldestStreamId).toBe('2-1');
+      const next = (await (
+        await get(`${base}/tick-trace?limit=1&symbol=ETHUSDT&before=2-1`)
+      ).json()) as { items: { streamId: string }[]; oldestStreamId: string | null };
+      expect(next.items).toEqual([]);
+      expect(next.oldestStreamId).toBe('1-1');
+    });
+
+    it('scans back across batches up to its bound, then hands back a cursor to continue from', async () => {
+      // 2000 BTCUSDT entries sit in front of one ETHUSDT entry: exactly the scan bound, read in several batches. Seeded on bob's profile and deleted afterwards so the ids the other cases assert on are untouched.
+      const bobKey = auditStreamKey(fx.bob.accountId, fx.bob.profileId);
+      const pipeline = redis.pipeline();
+      pipeline.xadd(bobKey, '1-1', 'body', streamEntry({ symbol: 'ETHUSDT' }));
+      for (let i = 2; i <= 2001; i += 1)
+        pipeline.xadd(bobKey, `${i}-1`, 'body', streamEntry({ symbol: 'BTCUSDT' }));
+      await pipeline.exec();
+      const bobBase = `/api/accounts/${fx.bob.accountId}/profiles/${fx.bob.profileId}`;
+      const read = async (query: string) =>
+        (await (await get(`${bobBase}/tick-trace?${query}`, fx.bob.userId)).json()) as {
+          items: { streamId: string }[];
+          oldestStreamId: string | null;
+        };
+      try {
+        // A page that spans more than one batch still fills to limit, newest first.
+        const wide = await read('limit=250&symbol=BTCUSDT');
+        expect(wide.items).toHaveLength(250);
+        expect(wide.items[0]?.streamId).toBe('2001-1');
+        expect(wide.items.at(-1)?.streamId).toBe('1752-1');
+
+        // The bound stops the scan one entry short of the match. The page is empty, but the cursor says where it stopped, which is the difference between "not found yet" and "never ticked".
+        const bounded = await read('limit=5&symbol=ETHUSDT');
+        expect(bounded.items).toEqual([]);
+        expect(bounded.oldestStreamId).toBe('2-1');
+        const resumed = await read(`limit=5&symbol=ETHUSDT&before=${bounded.oldestStreamId}`);
+        expect(resumed.items.map((i) => i.streamId)).toEqual(['1-1']);
+      } finally {
+        await redis.del(bobKey);
+      }
     });
 
     it('pages exclusively, so the entry it resumed from is not repeated', async () => {
