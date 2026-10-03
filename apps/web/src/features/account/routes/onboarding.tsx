@@ -111,8 +111,15 @@ function OnboardingPage() {
       </header>
 
       <Alert variant="warning" data-testid="onboarding-warning">
-        <AlertTitle>{t('onboarding.warning.title')}</AlertTitle>
-        <AlertDescription>{t('onboarding.warning.body')}</AlertDescription>
+        {/* With password sign-in off no password is created here, so the recovery path is the provider identity, not a password. */}
+        <AlertTitle>
+          {t(
+            passwordSignIn ? 'onboarding.warning.title' : 'onboarding.warning.single_sign_on.title',
+          )}
+        </AlertTitle>
+        <AlertDescription>
+          {t(passwordSignIn ? 'onboarding.warning.body' : 'onboarding.warning.single_sign_on.body')}
+        </AlertDescription>
       </Alert>
 
       {singleSignOn !== null && (

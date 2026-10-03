@@ -24,7 +24,10 @@ const json = (body: Json, status = 200, headers: Record<string, string> = {}): R
 const stub = (path: string) =>
   createRoute({ getParentRoute: () => rootRoute, path, component: () => null });
 
-const setUp = (responder: (url: string, init?: RequestInit) => Response | Promise<Response>) => {
+const setUp = (
+  responder: (url: string, init?: RequestInit) => Response | Promise<Response>,
+  status: Record<string, unknown> = { masterExists: false },
+) => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
       typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
@@ -33,7 +36,7 @@ const setUp = (responder: (url: string, init?: RequestInit) => Response | Promis
   vi.stubGlobal('fetch', fetchMock);
   const queryClient = createQueryClient();
   // Pre-seed onboarding-status so root loader doesn't try to redirect.
-  queryClient.setQueryData(['auth', 'onboarding-status'], { masterExists: false });
+  queryClient.setQueryData(['auth', 'onboarding-status'], status);
   const indexStub = stub('/');
   const loginStub = stub('/login');
   const router = createRouter({
@@ -65,6 +68,20 @@ describe('OnboardingPage', () => {
     // The production image ships no package.json, so a `bun run` script name cannot resolve there; only the bundled file path works.
     expect(warning.textContent ?? '').toContain('/app/dist/reset-password.js');
     expect(warning.textContent ?? '').not.toContain('bun run reset-password');
+    // There is no compose file at the repo root, so the command must name the production files.
+    expect(warning.textContent ?? '').toContain('-f deploy/compose/docker-compose.prod.yml');
+  });
+
+  it('gives single sign-on recovery guidance, not password guidance, when no password is created', async () => {
+    setUp(() => json({}, 200), {
+      masterExists: false,
+      passwordSignIn: false,
+      singleSignOn: { buttonLabel: 'Sign in with Example', available: true },
+    });
+    const text = (await screen.findByTestId('onboarding-warning')).textContent ?? '';
+    expect(text).toContain('--unlink-single-sign-on');
+    expect(text).toContain('PASSWORD_SIGN_IN_ENABLED=1');
+    expect(text).not.toContain('If this password is lost');
   });
 
   it('shows the 12-character password requirement inline before any submit', async () => {

@@ -98,20 +98,22 @@ A session that runs out is recorded when that browser next makes a request. One 
 
 ## Locked out?
 
-Try these in order.
+Try these in order. Run the commands on the server from the repo root; they name the same compose files and `.env` the stack was started with, because there is no compose file at the root.
 
 1. **Use a browser you signed in from before.** It skips the lockout.
 2. **Use single sign-on**, if it is set up.
 3. **Lift the lockout on the server.** This lifts the lockout on your email, the site-wide slow-down, and the block on every address (the server cannot tell which one is yours, so it clears them all; anyone still guessing is blocked again by the same limits). It leaves the password unchanged:
 
    ```bash
-   docker compose run --rm app bun /app/dist/reset-password.js --email <email> --clear-lockout
+   docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env \
+     run --rm app bun /app/dist/reset-password.js --email <email> --clear-lockout
    ```
 
 4. **Reset the password.** This prints a new password, lifts everything step 3 lifts, and signs out every browser and every AI agent:
 
    ```bash
-   docker compose run --rm app bun /app/dist/reset-password.js --email <email>
+   docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env \
+     run --rm app bun /app/dist/reset-password.js --email <email>
    ```
 
    Add `--unlink-single-sign-on` if the provider identity itself is lost or compromised. The reset command never contacts the identity provider, so it works while the provider is down.
@@ -125,7 +127,8 @@ On **Settings > Security**, choose **Sign out everywhere**. It ends every sessio
 If you believe the server itself was compromised, also change `AUTH_SECRET` and restart. That makes every session cookie, known device and signed sign-in link unreadable. With the MCP control plane on, it also leaves the agent signing key unreadable, because Better Auth encrypts that key with `AUTH_SECRET`, so every new agent sign-in fails with "Failed to decrypt private key". Delete the old key, and a new one is created on the next agent sign-in. Tokens signed with the old key stop working:
 
 ```bash
-docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DELETE FROM jwks;"'
+docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env \
+  exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "DELETE FROM jwks;"'
 ```
 
 Restoring a backup asks you to confirm it's you first, because the archive replaces your password, your single sign-on link and these settings. It then signs everyone out, because the restored database brings back whatever sessions it held when it was taken.

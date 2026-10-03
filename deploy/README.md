@@ -115,7 +115,8 @@ Migrations run automatically on boot: the container entrypoint (`apps/server/doc
 To run migrations manually (offline path), invoke the same binary:
 
 ```bash
-docker compose exec app bun /app/dist/migrate.js
+docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env \
+  exec app bun /app/dist/migrate.js
 ```
 
 ### 7. Open the URL — first-run onboarding
@@ -336,7 +337,8 @@ ls /tmp/restore/backups/
 # Run from the repo root, or anchor explicitly with $(git rev-parse --show-toplevel).
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cp "/tmp/restore/backups/<dump>.dump" "$REPO_ROOT/backups/restore.dump"
-docker compose exec -T postgres pg_restore \
+docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env \
+  exec -T postgres pg_restore \
   -U postgres -d binance_trading_bot /backups/restore.dump
 ```
 
@@ -358,38 +360,38 @@ docker compose exec -T postgres pg_restore \
 
 | Symptom | Cause | Resolution |
 | --- | --- | --- |
-| `/readyz` 503 with `redis ping failed` | Redis container not yet healthy | `docker compose logs redis` — typically a port collision on host |
-| `/readyz` 503 with `db ping failed` | Postgres healthcheck still pending | `docker compose logs postgres` — extension setup can take ≥10 s on first run |
+| `/readyz` 503 with `redis ping failed` | Redis container not yet healthy | `dc logs redis` (the helper under Operator commands) — typically a port collision on host |
+| `/readyz` 503 with `db ping failed` | Postgres healthcheck still pending | `dc logs postgres` — extension setup can take ≥10 s on first run |
 | Browser blocks API requests with CORS error | `WEB_ORIGIN` does not match the URL bar | Update `WEB_ORIGIN` in `.env`, `docker compose up -d` to roll the api |
 | Binance returns `-2014` (API key format) | Whitespace or pasted prefix | Re-paste the key without surrounding quotes |
 | Binance returns `-2015` (rejected by config) | IP allowlist missing the VM's egress IP, or key lacks Spot permission | See step 8 |
 | Worker REST calls to Binance run slow under heavy cron load | Per-IP weight governor blocking callers to stay under Binance's 6000/min limit, by design | No tunable knob — the governor auto-throttles. If pathologically slow, check worker logs for a runaway fetch loop repeating one REST call. A `weight governor: Redis unavailable` warning instead points to Redis, not weight |
 | `docker compose pull` rate-limited by Docker Hub | Anonymous pull quota exceeded | `docker login` with any Docker Hub account before retrying |
-| `backup` service logs `dump failed (exit 1)` | Postgres password mismatch | Confirm `POSTGRES_PASSWORD` in `.env` matches the container's value |
 
 ---
 
 ## Operator commands
 
-```bash
-# Tail the app (api + live worker + study in one process)
-docker compose logs -f app
+Run from the repo root. Each command names the same compose files and `.env` the stack was started with, because there is no compose file at the root. Backups are taken from Settings > Backup & restore, not from a compose service.
 
-# Run a one-shot backup
-docker compose run --rm backup
+```bash
+dc() { docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env "$@"; }
+
+# Tail the app (api + live worker + study in one process)
+dc logs -f app
 
 # Reset the master password (prints a new one, signs out every browser and AI agent)
-docker compose run --rm app bun /app/dist/reset-password.js --email <email>
+dc run --rm app bun /app/dist/reset-password.js --email <email>
 
 # Lift a sign-in lockout without changing the password
-docker compose run --rm app bun /app/dist/reset-password.js --email <email> --clear-lockout
+dc run --rm app bun /app/dist/reset-password.js --email <email> --clear-lockout
 
 # Re-run DB migrations manually (they also run on boot via the entrypoint)
-docker compose exec app bun /app/dist/migrate.js
+dc exec app bun /app/dist/migrate.js
 
 # Stop everything (volumes preserved)
-docker compose down
+dc down
 
 # Stop and wipe everything (DESTRUCTIVE)
-docker compose down -v
+dc down -v
 ```

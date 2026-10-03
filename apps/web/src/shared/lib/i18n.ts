@@ -62,7 +62,10 @@ const en: Readonly<Record<string, string>> = {
   'onboarding.subtitle': 'First-run setup. This screen is shown once.',
   'onboarding.warning.title': 'Lost-password recovery requires host shell access',
   'onboarding.warning.body':
-    'There is no in-app password recovery. If this password is lost, run `docker compose run --rm app bun /app/dist/reset-password.js --email <email>` on the server. Store this password in a password manager now.',
+    'There is no in-app password recovery. If this password is lost, run `docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env run --rm app bun /app/dist/reset-password.js --email <email>` on the server from the repo root. Store this password in a password manager now.',
+  'onboarding.warning.single_sign_on.title': 'Lost-access recovery requires host shell access',
+  'onboarding.warning.single_sign_on.body':
+    'There is no in-app recovery. If you lose access to your identity provider account, run `docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env run --rm app bun /app/dist/reset-password.js --email <email> --unlink-single-sign-on` on the server from the repo root, then set PASSWORD_SIGN_IN_ENABLED=1 and restart so the password it prints can sign in.',
   'onboarding.submit': 'Create account',
   'onboarding.single_sign_on.help':
     'The identity you sign in with becomes the only one that can sign in here. You can add a password later from Settings > Security.',

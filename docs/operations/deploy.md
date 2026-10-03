@@ -56,7 +56,9 @@ Migrations run **automatically on boot** — the container entrypoint (`apps/ser
 After this upgrade, refresh any already-open browser tab before relying on Net P/L. Older cached SPA code ignores the additive completeness marker, although the page remains functional.
 
 ```bash
-docker compose exec app bun /app/dist/migrate.js
+docker compose -f deploy/compose/docker-compose.yml \
+               -f deploy/compose/docker-compose.prod.yml \
+               --env-file .env exec app bun /app/dist/migrate.js
 ```
 
 ```mermaid
@@ -137,7 +139,7 @@ Run Prometheus on the `internal` network so those hostnames resolve. In the defa
 | `DiscoveryAssetPolicyAborting` | warning | Discovery could not establish its stablecoin/fiat classification and abandoned a profile's cycle (`discovery_asset_policy_abort_total`), leaving that profile's symbol set untouched. Nothing unsafe is admitted — the cycle aborts before any add or remove — but the profile stops rotating silently. The 25-hour range covers the slowest legal `refreshPeriodMs` (86400000): an abort consumes the profile's whole refresh window, so at long periods a shorter range would hold at most one increment and never fire. `cause` routes the fix — the three `*-route-empty` / `no-product-rows` causes mean the Binance product feed changed shape and the projection needs updating, `cross-check-gap` is a stale feed that often clears itself, `empty-admission-map` is a cold exchange-info cache the refresh cron repairs, `product-feed-unreadable` is a reply that is not this catalogue at all. `product-feed-unreachable` is the one cause that can be a transient the bot already recovered from: it stays on this rule because `shouldRun` caps a profile at one abort per refresh period, so a count threshold could never fire on a slow refresh — confirm against the profile page's asset-policy finding before chasing it. |
 | `WSDisconnectsHigh` | warning | More than five Binance websocket closes in 15 minutes (`binance_ws_disconnects_total`, counted per account at close, and only for closes the worker did not ask for — disabling a profile or shutting the worker down is not counted, or a deploy would page by itself). One reconnect is routine — Binance cycles a connection every 24 hours, and so does any network blip — while five in a quarter of an hour is a stream that cannot stay up. Warning, not critical: the pool reconnects on its own, so account and order updates are stale for the gap rather than trading being halted. |
 | `AuthSignInFailureSpike` | warning | More than 20 failed sign-ins in 15 minutes, held for 5 minutes (`auth_events_total{event="sign-in-failed"}`). The per-address limits refuse most guesses before the password is checked, so volume here means attempts are reaching the check from many addresses. Settings > Security lists the addresses and reasons. |
-| `AuthAccountLocked` | warning | Password sign-in for an email was locked after repeated wrong passwords (`auth_lockouts_total`). A browser that signed in successfully before is exempt; if the operator is locked out, `docker compose run --rm app bun /app/dist/reset-password.js --email <email> --clear-lockout` lifts it. |
+| `AuthAccountLocked` | warning | Password sign-in for an email was locked after repeated wrong passwords (`auth_lockouts_total`). A browser that signed in successfully before is exempt; if the operator is locked out, The reset command with `--clear-lockout` lifts it; see [Locked out?](sign-in-and-security.md#locked-out). |
 | `AuthRateLimitBackendDown` | warning | At least one rate limit decision could not reach Redis in the last 5 minutes, held for 2 minutes (`auth_rate_limit_backend_errors_total`). The api falls back to a stricter per-process limiter rather than refusing everyone, so limits still apply, but no longer shared across api replicas. |
 | `SingleSignOnUnavailable` | warning | Single sign-on is configured but the identity provider failed the check the api runs at start (`auth_single_sign_on_available == 0`) for 10 minutes. The button is disabled, password sign-in is switched on for that run if nothing else could reach the operator, and the api process exits when the provider answers again so it restarts with the provider registered; in the default `ROLE=all` container that restarts the worker too. That restart depends on the container's restart policy, which `docker-compose.prod.yml` and `docker-compose.scale.yml` set to `unless-stopped`; without one the process stays down. A provider that fails after a healthy start is not re-checked; its failures appear as failed sign-ins. |
 | `AuthEventSinkFailing` | warning | Security events could not be written to the audit trail or queued for notification (`auth_event_sink_failures_total`, by `sink`). They are still in the api log, but may be missing from Settings > Security or from notifications. |
@@ -187,11 +189,13 @@ Both are named with their missing series in the comments at the bottom of `alert
 
 ## Common operator commands
 
+Run from the repo root. Each command names the same compose files and `.env` as step 4, because there is no compose file at the root. Backups are taken from Settings > Backup & restore, not from a compose service:
+
 ```bash
-docker compose logs -f app                          # tail the app
-docker compose run --rm backup                      # one-shot backup
-docker compose run --rm app bun /app/dist/reset-password.js --email <email>  # reset the master password
-docker compose down                                 # stop (volumes preserved)
+dc() { docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env "$@"; }
+dc logs -f app                                       # tail the app
+dc run --rm app bun /app/dist/reset-password.js --email <email>  # reset the master password
+dc down                                              # stop (volumes preserved)
 ```
 
 ## Changing configuration

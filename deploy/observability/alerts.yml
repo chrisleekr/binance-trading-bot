@@ -727,7 +727,7 @@ groups:
           severity: warning
         annotations:
           summary: 'Password sign-in was locked after repeated failures'
-          description: 'Too many wrong passwords were tried for one email address, so password sign-in for it is locked for the configured period. A device that signed in successfully before is exempt. If the operator is locked out, run `docker compose run --rm app bun /app/dist/reset-password.js --email <email> --clear-lockout` on the server.'
+          description: 'Too many wrong passwords were tried for one email address, so password sign-in for it is locked for the configured period. A device that signed in successfully before is exempt. If the operator is locked out, follow "Locked out?" in docs/operations/sign-in-and-security.md, which lifts the lockout with the reset command and --clear-lockout.'
 
       - alert: AuthRateLimitBackendDown
         # Every limit decision that could not reach Redis. The api falls back to a stricter per-process limiter rather than refusing everyone, so sign-in keeps working, but limits are no longer shared between api replicas.
