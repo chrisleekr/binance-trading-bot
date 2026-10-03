@@ -155,6 +155,8 @@ export const AccountNotifyEventCategory = z.enum([
   'dust-transfer',
   'orphan-order',
   'agent-action',
+  'auth-activity',
+  'auth-alert',
 ]);
 export type AccountNotifyEventCategory = z.infer<typeof AccountNotifyEventCategory>;
 
@@ -173,6 +175,10 @@ export const OpsNotifyConfig = z.object({
   'orphan-order': z.boolean().default(true),
   // Default ON, and the one category where muting is a real decision rather than noise control: with it off, an AI agent can place, cancel and reconfigure real orders and the operator's only trace is the audit log they have to go and read.
   'agent-action': z.boolean().default(true),
+  // Routine sign-ins. Mutable, because a sign-in the operator just made is noise to them.
+  'auth-activity': z.boolean().default(true),
+  // Credential, session and protection changes. Always true: the PATCH route refuses false, because silencing this is the first thing an intruder would do.
+  'auth-alert': z.literal(true).default(true),
 });
 export type OpsNotifyConfig = z.infer<typeof OpsNotifyConfig>;
 
@@ -215,6 +221,20 @@ export const ACCOUNT_NOTIFY_EVENT_CATALOG: readonly AccountNotifyEventMeta[] = [
     label: 'AI agent changed something',
     description:
       'When an AI agent connected over MCP places or cancels an order, changes configuration, or switches trading on or off. Every such action also writes an audit entry; this is the notification that tells you without being asked.',
+    severity: 'warn',
+  },
+  {
+    category: 'auth-activity',
+    label: 'Someone signed in',
+    description:
+      'Each successful sign-in, with how (password or single sign-on), the IP address and the browser. If you did not just sign in, open Settings > Security and sign out everywhere.',
+    severity: 'info',
+  },
+  {
+    category: 'auth-alert',
+    label: 'Security alert',
+    description:
+      'A password, sign-in method, session, AI agent access, API key or protection setting changed, or sign-in attempts were blocked. This one cannot be muted.',
     severity: 'warn',
   },
 ];

@@ -1,9 +1,17 @@
-import { boolean, index, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 
 /**
  * Better Auth's drizzle adapter resolves model names against this schema map by matching the table's *exported variable name*, not the SQL identifier; the variables therefore stay singular (`user`, `session`, `account`, `verification`) to match Better Auth's internal model names while the SQL tables (created in migration 0007_better_auth.sql and upgraded for the 1.7 account identity in 0087_better_auth_account_issuer.sql) also use the singular camelCase columns Better Auth emits by default.
  *
- * Domain code MUST NOT read or write these tables directly; all access is funnelled through the Better Auth API. They are exported solely to give the drizzle adapter a typed schema so the runtime does not throw "model 'user' was not found in the schema object".
+ * Better Auth owns these rows. Outside its API, only `repo.authIdentity` touches them, for the few things Better Auth cannot do: counting operators for the single-operator gate, and the revocations and credential repair that the reset command and restore must perform without constructing an auth instance (so a hung identity provider cannot block recovery), and the retention sweep of expired `verification` rows. Any other code goes through the Better Auth API.
  */
 export const user = pgTable('user', {
   id: text('id').primaryKey(),
@@ -28,6 +36,11 @@ export const session = pgTable(
     userAgent: text('userAgent'),
     createdAt: timestamp('createdAt', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { withTimezone: true }).notNull().defaultNow(),
+    // Written through Better Auth `session.additionalFields` (migration 0098). A session whose epoch is below auth_security_settings.security_epoch was issued before a sign-out-everywhere and is refused.
+    securityEpoch: integer('securityEpoch').notNull().default(0),
+    signInMethod: text('signInMethod'),
+    // When the person last proved who they are; for single sign-on, the identity provider's auth_time.
+    interactiveAuthenticatedAt: timestamp('interactiveAuthenticatedAt', { withTimezone: true }),
   },
   (t) => [
     index('session_user_id_idx').on(t.userId),
@@ -53,6 +66,8 @@ export const account = pgTable(
     accessTokenExpiresAt: timestamp('accessTokenExpiresAt', { withTimezone: true }),
     refreshTokenExpiresAt: timestamp('refreshTokenExpiresAt', { withTimezone: true }),
     scope: text('scope'),
+    // The email the identity provider reported, for display only. Written through Better Auth's `account.additionalFields`; never used to match a sign-in, because the provider lets its owner change it.
+    providerEmail: text('providerEmail'),
     createdAt: timestamp('createdAt', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updatedAt', { withTimezone: true }).notNull().defaultNow(),
   },

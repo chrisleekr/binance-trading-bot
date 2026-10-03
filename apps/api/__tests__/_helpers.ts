@@ -317,6 +317,9 @@ const resetSingletons = async (db: Queryable): Promise<void> => {
       action_log_days = 1, action_log_max_rows = 200000,
       audit_log_days = 90, audit_stream_maxlen = 100000,
       debug_capture_profile_id = null, debug_capture_until = null`);
+  await db.query(/* sql */ `insert into auth_security_settings (id) values (1)
+    on conflict (id) do update set settings = '{}'::jsonb, security_epoch = 0,
+      agent_access_not_before = null`);
   await db.query(/* sql */ `insert into ai_provider_config (id) values (1)
     on conflict (id) do update set
       provider = 'anthropic',

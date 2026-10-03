@@ -101,7 +101,8 @@ export type MetricName =
   | 'reconcile_position_removed_total'
   | 'reconcile_value_bound_disarmed_total'
   | 'pipeline_apply_seed_gate_stood_down_total'
-  | 'archive_recovery_sweep_profiles_total';
+  | 'archive_recovery_sweep_profiles_total'
+  | 'auth_alert_undelivered_total';
 
 /**
  * The spec behind each name. Exhaustive by construction: a name in the union with
@@ -430,6 +431,12 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     kind: 'counter',
     help: 'Profiles the archive-recovery sweep accounted for in a run, by outcome. `swept`: the profile was walked, whether or not it had anything to repair. `failed`: the profile query OR one of its backfill enqueues threw. `timeout`: the database cancelled a statement for that profile, which the budget is the expected cause of. `checkout`: the pool refused a connection before the transaction for that profile opened, which is account-wide backpressure rather than anything about the profile itself. `unswept`: the pass ran out of its wall-clock budget before reaching the profile, so the next run resumes there. A sustained non-zero `unswept` rate means the active-profile count has outgrown one pass.',
     labelNames: ['outcome'],
+  },
+  // The out-of-band backstop for security notifications. An intruder who deletes every notifier, or a Slack outage, silences the in-app alert; this counter is what Alertmanager still sees. Both outcomes and both categories are seeded at zero when the pipeline worker registers, so the first undelivered alert is an observable rise and `increase()` works.
+  auth_alert_undelivered_total: {
+    kind: 'counter',
+    help: 'Security notifications (sign-ins, lockouts, credential changes) the worker could not deliver, by category and outcome. `no-notifier`: no notifier is configured or enabled, so nobody was told. `failed`: every configured notifier errored.',
+    labelNames: ['category', 'outcome'],
   },
   // Every one of the three `kind` values is emitted by the cron, including `daily-loss`: a label whose third value structurally cannot appear reads as "that breaker never fires" on a dashboard, which is indistinguishable from it being broken.
   portfolio_risk_halt_total: {

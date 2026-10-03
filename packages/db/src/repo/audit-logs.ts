@@ -138,19 +138,95 @@ export async function pruneOlderThan(
 ): Promise<number> {
   const rows = await db
     .delete(auditLogs)
-    .where(and(eq(auditLogs.operatorId, operatorId), lt(auditLogs.createdAt, cutoff)))
+    .where(
+      and(
+        eq(auditLogs.operatorId, operatorId),
+        eq(auditLogs.category, 'general'),
+        lt(auditLogs.createdAt, cutoff),
+      ),
+    )
     .returning({ ok: sql<number>`1` });
   return rows.length;
 }
 
 /**
- * Global, cross-operator prune. Driven by the worker's `audit-prune`
- * cron with a single retention-days horizon.
+ * Global, cross-operator prune of ordinary audit rows. Driven by the worker's `audit-prune` cron with the operator's general retention. Security rows are excluded on purpose: they follow {@link pruneSecurityOlderThan} and its longer floor, so lowering general retention cannot erase evidence of a compromise.
+ *
+ * @param db - Database handle.
+ * @param cutoff - Rows created before this are deleted.
+ * @returns How many rows were deleted.
  */
 export async function pruneAllOlderThan(db: Database, cutoff: Date): Promise<number> {
   const rows = await db
     .delete(auditLogs)
-    .where(lt(auditLogs.createdAt, cutoff))
+    .where(and(eq(auditLogs.category, 'general'), lt(auditLogs.createdAt, cutoff)))
     .returning({ ok: sql<number>`1` });
   return rows.length;
+}
+
+/**
+ * Global prune of security rows on their own retention.
+ *
+ * @param db - Database handle.
+ * @param cutoff - Security rows created before this are deleted.
+ * @returns How many rows were deleted.
+ */
+export async function pruneSecurityOlderThan(db: Database, cutoff: Date): Promise<number> {
+  const rows = await db
+    .delete(auditLogs)
+    .where(and(eq(auditLogs.category, 'security'), lt(auditLogs.createdAt, cutoff)))
+    .returning({ ok: sql<number>`1` });
+  return rows.length;
+}
+
+/**
+ * Pages the operator's security events, newest first, for the Security page.
+ *
+ * @param db - Database handle.
+ * @param operatorId - The operator whose events to read.
+ * @param limit - Page size.
+ * @param cursor - The previous page's boundary, or null for the first page.
+ * @returns One page, each row carrying the microsecond-precision token the next cursor is built from.
+ */
+export async function listSecurityForOperator(
+  db: Database,
+  operatorId: UserId,
+  limit: number,
+  cursor: AuditLogCursor | null,
+): Promise<(AuditLogRow & { cursorToken: string })[]> {
+  const conditions = [eq(auditLogs.operatorId, operatorId), eq(auditLogs.category, 'security')];
+  if (cursor !== null) {
+    conditions.push(
+      sql`(
+        ${auditLogs.createdAt} < ${cursor.createdAt}::timestamptz
+        OR (${auditLogs.createdAt} = ${cursor.createdAt}::timestamptz AND ${auditLogs.id} < ${cursor.id})
+      )`,
+    );
+  }
+  return db
+    .select({
+      ...getTableColumns(auditLogs),
+      cursorToken: sql<string>`to_char(${auditLogs.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+    })
+    .from(auditLogs)
+    .where(and(...conditions))
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+    .limit(limit);
+}
+
+/**
+ * Raises the occurrence count stored on an aggregated security row. Only ever increases it, so two writers racing with different counts keep the larger one.
+ *
+ * @param db - Database handle.
+ * @param id - The aggregated row.
+ * @param count - Occurrences observed so far in the row's window.
+ * @returns Nothing; a row that has already been pruned is silently absent.
+ */
+export async function raiseSecurityCount(db: Database, id: string, count: number): Promise<void> {
+  await db
+    .update(auditLogs)
+    .set({
+      payload: sql`jsonb_set(coalesce(${auditLogs.payload}, '{}'::jsonb), '{count}', to_jsonb(greatest(coalesce((${auditLogs.payload}->>'count')::int, 1), ${count})))`,
+    })
+    .where(and(eq(auditLogs.id, id), eq(auditLogs.category, 'security')));
 }
