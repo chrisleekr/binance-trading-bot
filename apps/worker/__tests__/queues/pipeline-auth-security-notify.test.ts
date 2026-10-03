@@ -34,8 +34,14 @@ const harness = (accountNotify?: PipelineWorkerDeps['accountNotify']) => {
   const invoke = handler as (job: Job) => Promise<void>;
   return {
     record,
-    run: (data: unknown) =>
-      invoke({ name: 'notify-auth-security', data, id: 'job-1' } as unknown as Job),
+    run: (data: unknown, attempt?: { attemptsMade: number; attempts: number }) =>
+      invoke({
+        name: 'notify-auth-security',
+        data,
+        id: 'job-1',
+        attemptsMade: attempt?.attemptsMade ?? 0,
+        opts: { attempts: attempt?.attempts ?? 1 },
+      } as unknown as Job),
   };
 };
 
@@ -85,6 +91,22 @@ describe('notify-auth-security pipeline job', () => {
     expect(undelivered(h.record)).toEqual([{ category: 'auth-alert', outcome: 'failed' }]);
   });
 
+  it('does not count a failed attempt that will be retried, so an alert delivered on retry never pages', async () => {
+    const h = harness(vi.fn(async () => 'failed') as never);
+    await expect(h.run(JOB, { attemptsMade: 0, attempts: 3 })).rejects.toThrow(
+      /auth_security_notification_failed/,
+    );
+    expect(undelivered(h.record)).toEqual([]);
+  });
+
+  it('counts a failure once, on the final attempt', async () => {
+    const h = harness(vi.fn(async () => 'failed') as never);
+    await expect(h.run(JOB, { attemptsMade: 2, attempts: 3 })).rejects.toThrow(
+      /auth_security_notification_failed/,
+    );
+    expect(undelivered(h.record)).toEqual([{ category: 'auth-alert', outcome: 'failed' }]);
+  });
+
   it('dead-letters a payload that does not match the contract instead of notifying nobody', async () => {
     const accountNotify = vi.fn(async () => 'delivered');
     await expect(
@@ -93,7 +115,20 @@ describe('notify-auth-security pipeline job', () => {
     expect(accountNotify).not.toHaveBeenCalled();
   });
 
-  it('dead-letters rather than acknowledging when the notifier dependency is absent', async () => {
-    await expect(harness(undefined).run(JOB)).rejects.toThrow(/accountNotify/);
+  it('dead-letters rather than acknowledging when the notifier dependency is absent, and counts it as failed', async () => {
+    const h = harness(undefined);
+    await expect(h.run(JOB)).rejects.toThrow(/accountNotify/);
+    expect(undelivered(h.record)).toEqual([{ category: 'auth-alert', outcome: 'failed' }]);
+  });
+
+  it('counts a dispatch that throws as failed, then rethrows so the job still fails', async () => {
+    // Nothing was delivered either way; without the count the alert watching this series stays at zero exactly when delivery is broken.
+    const h = harness(
+      vi.fn(async () => {
+        throw new Error('notifier registry unavailable');
+      }) as never,
+    );
+    await expect(h.run(JOB)).rejects.toThrow(/notifier registry unavailable/);
+    expect(undelivered(h.record)).toEqual([{ category: 'auth-alert', outcome: 'failed' }]);
   });
 });

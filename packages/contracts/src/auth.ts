@@ -13,15 +13,6 @@ export const OnboardingStatus = z.object({
    * Defaults false so a client predating the field keeps today's behaviour.
    */
   demoMode: z.boolean().default(false),
-  /** Whether the email and password form is accepted. False when the server runs with password sign-in switched off. */
-  passwordSignIn: z.boolean().default(true),
-  /** The configured single sign-on provider, or null when single sign-on is not configured. `available` is false while the identity provider cannot be reached, so the button can say why it will not work. */
-  singleSignOn: z
-    .object({ buttonLabel: z.string(), available: z.boolean() })
-    .nullable()
-    .default(null),
-  /** True when no configured method could reach the operator and the server forced password sign-in on so they are not locked out. */
-  passwordSignInForced: z.boolean().default(false),
 });
 /** TS type derived from {@link OnboardingStatus} so consumers don't re-run z.infer at every call site. */
 export type OnboardingStatus = z.infer<typeof OnboardingStatus>;
@@ -59,50 +50,6 @@ export const SessionResponse = z.object({
   userId: z.uuid(),
   email: z.email(),
   displayName: z.string().nullable(),
-  /** Whether a password is set, so the SPA offers "change" or "set" and never a form that cannot work. */
-  hasPassword: z.boolean(),
-  /** Whether a single sign-on identity is linked to the operator. */
-  singleSignOnLinked: z.boolean(),
-  /** The email the identity provider reported for the linked identity, shown so the operator can tell which provider account it is. Null when none is linked, or until an identity linked before this was recorded signs in again. */
-  singleSignOnEmail: z.string().nullable(),
 });
 /** TS type derived from {@link SessionResponse} so consumers don't re-run z.infer at every call site. */
 export type SessionResponse = z.infer<typeof SessionResponse>;
-
-/** One active session as the Security page shows it. The session token is never part of this shape. */
-export const ActiveSession = z.object({
-  id: z.string(),
-  createdAt: z.string(),
-  lastActiveAt: z.string(),
-  expiresAt: z.string(),
-  ipAddress: z.string().nullable(),
-  userAgent: z.string().nullable(),
-  /** True for the session making this request. */
-  current: z.boolean(),
-});
-/** TS type derived from {@link ActiveSession}. */
-export type ActiveSession = z.infer<typeof ActiveSession>;
-
-/** Response for `GET /auth/sessions`. */
-export const ActiveSessionList = z.object({ sessions: z.array(ActiveSession) });
-/** TS type derived from {@link ActiveSessionList}. */
-export type ActiveSessionList = z.infer<typeof ActiveSessionList>;
-
-/** Body for `POST /auth/single-sign-on/start`. `returnTo` is where the browser lands after the identity provider; `pendingAuthorization` is the signed agent-authorization query the login page was opened with, if any; `reauthenticate` forces the identity provider to ask again rather than reuse its session. */
-export const SingleSignOnStartRequest = z.object({
-  returnTo: z.string().max(2048).optional(),
-  pendingAuthorization: z.string().max(8192).optional(),
-  reauthenticate: z.boolean().optional(),
-});
-/** TS type derived from {@link SingleSignOnStartRequest}. */
-export type SingleSignOnStartRequest = z.infer<typeof SingleSignOnStartRequest>;
-
-/** Response carrying the identity provider URL the browser must navigate to. */
-export const SingleSignOnRedirect = z.object({ url: z.url() });
-/** TS type derived from {@link SingleSignOnRedirect}. */
-export type SingleSignOnRedirect = z.infer<typeof SingleSignOnRedirect>;
-
-/** Body for `POST /auth/password`: sets a first password for an operator who signed up through single sign-on. */
-export const SetPasswordRequest = z.object({ newPassword: z.string().min(12).max(256) });
-/** TS type derived from {@link SetPasswordRequest}. */
-export type SetPasswordRequest = z.infer<typeof SetPasswordRequest>;

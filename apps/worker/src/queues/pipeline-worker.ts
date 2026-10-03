@@ -1034,7 +1034,7 @@ const AUTH_UNDELIVERED_OUTCOMES = ['no-notifier', 'failed'] as const;
 /**
  * Delivers one security notification composed by the api.
  *
- * A notification nobody receives is counted on `auth_alert_undelivered_total`, which Alertmanager watches independently of every in-app channel. `failed` also throws, so the job dead-letters and leaves a durable trace; `no-notifier` does not, because retrying cannot create a notifier.
+ * A notification nobody receives is counted on `auth_alert_undelivered_total`, which Alertmanager watches independently of every in-app channel. `failed` also throws, so the job retries and then dead-letters; it is counted and logged only on the final attempt, so an alert delivered on retry never pages and one that never arrives counts once. `no-notifier` is acknowledged, because retrying cannot create a notifier.
  *
  * @param deps - The worker dependencies; `accountNotify` is required for this job.
  * @param job - The queued job; its payload is validated here.
@@ -1043,22 +1043,45 @@ const AUTH_UNDELIVERED_OUTCOMES = ['no-notifier', 'failed'] as const;
 const handleAuthSecurityNotify = async (deps: PipelineWorkerDeps, job: Job): Promise<void> => {
   const parsed = AuthSecurityNotifyJob.safeParse(job.data);
   const payload = requirePayload(parsed.success ? parsed.data : null, job);
+  // BullMQ counts previous failures in `attemptsMade`, so this is the last try when no attempt remains after it.
+  const finalAttempt = job.attemptsMade + 1 >= (job.opts?.attempts ?? 1);
+  // A missing dependency or a throwing dispatch also delivered nothing, so on the final attempt both count as `failed` before the job takes its failure path; otherwise the alert watching this counter stays at zero exactly when delivery is broken.
+  const countFailed = (): void => {
+    if (!finalAttempt) return;
+    deps.metrics.record('auth_alert_undelivered_total', 1, {
+      category: payload.category,
+      outcome: 'failed',
+    });
+    deps.logger.error(
+      { securityEvent: payload.event, category: payload.category, outcome: 'failed' },
+      'auth_security_notification_undelivered',
+    );
+  };
   if (!deps.accountNotify) {
+    countFailed();
     throw new Error('pipeline_missing_dep: notify-auth-security requires accountNotify');
   }
-  const outcome = await deps.accountNotify({
-    category: payload.category,
-    body: payload.body,
-    fields: payload.fields,
-  });
-  if (outcome === 'no-notifier' || outcome === 'failed') {
+  let outcome: unknown;
+  try {
+    outcome = await deps.accountNotify({
+      category: payload.category,
+      body: payload.body,
+      fields: payload.fields,
+    });
+  } catch (err) {
+    countFailed();
+    throw err;
+  }
+  if (outcome === 'failed') {
+    countFailed();
+    throw new Error(`auth_security_notification_failed: ${payload.event}`);
+  }
+  if (outcome === 'no-notifier') {
     deps.metrics.record('auth_alert_undelivered_total', 1, { category: payload.category, outcome });
     deps.logger.error(
       { securityEvent: payload.event, category: payload.category, outcome },
       'auth_security_notification_undelivered',
     );
-    if (outcome === 'failed')
-      throw new Error(`auth_security_notification_failed: ${payload.event}`);
   }
 };
 

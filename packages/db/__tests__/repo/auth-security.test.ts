@@ -116,6 +116,40 @@ describeIfDb('sign-in repository functions', () => {
     });
   });
 
+  it('never moves the agent cutoff backwards when an older revocation commits later', async () => {
+    // A slow request or a retried reset can carry an older `at`; letting it win would re-admit tokens issued between the two cutoffs.
+    await rolledBack(async (tx) => {
+      const userId = await insertUser(tx);
+      const newer = new Date('2026-01-02T03:04:05.000Z');
+      await authIdentity.revokeAgentAccess(tx, userId, newer);
+      await authIdentity.revokeAgentAccess(tx, userId, new Date('2026-01-01T00:00:00.000Z'));
+      expect((await authSecuritySettings.get(tx)).agentAccessNotBefore?.toISOString()).toBe(
+        newer.toISOString(),
+      );
+    });
+  });
+
+  it('refuses to report agent access revoked when the settings row is missing', async () => {
+    // Deleting grants alone leaves issued tokens valid; only the cutoff ends them, so a missing row must fail loudly.
+    await rolledBack(async (tx) => {
+      const userId = await insertUser(tx);
+      await tx.execute(sql`delete from auth_security_settings`);
+      await expect(authIdentity.revokeAgentAccess(tx, userId, new Date())).rejects.toThrow(
+        /auth_security_settings row missing/,
+      );
+    });
+  });
+
+  it('deletes every session when none is kept', async () => {
+    await rolledBack(async (tx) => {
+      const userId = await insertUser(tx);
+      await insertSession(tx, userId);
+      await insertSession(tx, userId);
+      expect(await authIdentity.deleteSessionsExcept(tx, userId, [])).toBe(2);
+      expect(await authIdentity.listSessions(tx, userId)).toEqual([]);
+    });
+  });
+
   it('re-stamps only the session whose token it is given, and only for its owner', async () => {
     await rolledBack(async (tx) => {
       const userId = await insertUser(tx);

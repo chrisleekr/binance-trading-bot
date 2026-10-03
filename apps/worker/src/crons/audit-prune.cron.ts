@@ -100,11 +100,16 @@ export const buildAuditPruneCron = (ctx: BootContext): CronDef =>
           new Date(Date.now() - days * MS_PER_DAY),
         );
         // Security events keep their own, longer horizon (never under a year), read from the sign-in settings and validated like every other read of them, so the general horizon above can never erase evidence of a compromise.
-        const stored = AuthSecuritySettings.safeParse(
-          (await repo.authSecuritySettings.get(ctx.db)).settings ?? {},
+        // The retention field is parsed on its own: one invalid unrelated setting must not drop this horizon to the default and erase events the operator chose to keep longer.
+        const settings = (await repo.authSecuritySettings.get(ctx.db)).settings;
+        const stored = AuthSecuritySettings.shape.securityEventRetentionDays.safeParse(
+          settings !== null && typeof settings === 'object'
+            ? (settings as Record<string, unknown>)['securityEventRetentionDays']
+            : undefined,
         );
-        const securityDays = (stored.success ? stored.data : DEFAULT_AUTH_SECURITY_SETTINGS)
-          .securityEventRetentionDays;
+        const securityDays = stored.success
+          ? stored.data
+          : DEFAULT_AUTH_SECURITY_SETTINGS.securityEventRetentionDays;
         const security = await repo.auditLogs.pruneSecurityOlderThan(
           ctx.db,
           new Date(Date.now() - securityDays * MS_PER_DAY),

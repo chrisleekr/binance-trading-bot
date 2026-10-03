@@ -90,7 +90,7 @@ describe('audit-prune security event retention', () => {
     expect(securityCutoffDays()).toBe(400);
   });
 
-  it('falls back to the default 365 days when the stored document fails validation', async () => {
+  it('falls back to the default 365 days when the stored retention itself fails validation', async () => {
     // Below the contract's 365-day floor, so trusting the raw value would erase security history early.
     stubs.storedSettings.mockResolvedValueOnce({
       settings: { securityEventRetentionDays: 10 },
@@ -98,6 +98,16 @@ describe('audit-prune security event retention', () => {
     });
     await runSweep();
     expect(securityCutoffDays()).toBe(365);
+  });
+
+  it('keeps a valid retention when an unrelated setting fails validation', async () => {
+    // One bad field must not drag the security horizon to the default: that would permanently delete events between 365 and 1825 days old that the operator chose to keep.
+    stubs.storedSettings.mockResolvedValueOnce({
+      settings: { securityEventRetentionDays: 1825, knownDeviceLifetimeDays: 9999 },
+      securityEpoch: 0,
+    });
+    await runSweep();
+    expect(securityCutoffDays()).toBe(1825);
   });
 
   it('deletes expired single sign-on state as of now', async () => {

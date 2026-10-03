@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, eq, lt, notInArray, sql } from 'drizzle-orm';
 import { account, session, user, verification } from '../schema/better-auth.js';
 import { oauthAccessToken, oauthConsent, oauthRefreshToken } from '../schema/better-auth-oauth.js';
 import { authSecuritySettings } from '../schema/auth-security-settings.js';
@@ -180,12 +180,14 @@ export async function deleteSessionsExcept(
   userId: string,
   keepSessionIds: readonly string[],
 ): Promise<number> {
-  const all = await db.select({ id: session.id }).from(session).where(eq(session.userId, userId));
-  const doomed = all.map((r) => r.id).filter((id) => !keepSessionIds.includes(id));
-  if (doomed.length === 0) return 0;
+  // One statement, so a session created while this runs is deleted too; a select-then-delete would let a sign-in landing between them survive "sign out other sessions".
   const rows = await db
     .delete(session)
-    .where(and(eq(session.userId, userId), inArray(session.id, doomed)))
+    .where(
+      keepSessionIds.length === 0
+        ? eq(session.userId, userId)
+        : and(eq(session.userId, userId), notInArray(session.id, [...keepSessionIds])),
+    )
     .returning({ id: session.id });
   return rows.length;
 }
@@ -230,10 +232,18 @@ export async function revokeAgentAccess(
   userId: string,
   at: Date,
 ): Promise<{ accessTokens: number; refreshTokens: number; consents: number }> {
-  await db
+  // Monotonic: a revocation carrying an older `at` that commits later must not move the cutoff back and re-admit tokens issued in between.
+  const [stamped] = await db
     .update(authSecuritySettings)
-    .set({ agentAccessNotBefore: at, updatedAt: sql`now()` })
-    .where(eq(authSecuritySettings.id, 1));
+    .set({
+      agentAccessNotBefore: sql`greatest(coalesce(${authSecuritySettings.agentAccessNotBefore}, '-infinity'::timestamptz), ${at})`,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(authSecuritySettings.id, 1))
+    .returning({ id: authSecuritySettings.id });
+  // Without the row nothing ends already issued tokens, so deleting grants and reporting success would hide exactly the gap this cutoff closes.
+  if (!stamped)
+    throw new Error('auth-identity.revokeAgentAccess: auth_security_settings row missing');
   const accessTokens = await db
     .delete(oauthAccessToken)
     .where(eq(oauthAccessToken.userId, userId))

@@ -14,9 +14,6 @@ describe('OnboardingStatus.demoMode', () => {
     expect(OnboardingStatus.parse({ masterExists: true })).toEqual({
       masterExists: true,
       demoMode: false,
-      passwordSignIn: true,
-      singleSignOn: null,
-      passwordSignInForced: false,
     });
   });
 
