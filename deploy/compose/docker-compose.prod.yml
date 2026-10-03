@@ -24,7 +24,7 @@
 
 services:
   postgres:
-    # TimescaleDB 2.29.2. Shared with the ordinary Testcontainers runtime pin so integration tests exercise the deployed extension surface; packages/testcontainers/__tests__/timescaledb-image-pin.test.ts fails if they drift.
+    # TimescaleDB 2.30.2. Shared with the ordinary Testcontainers runtime pin so integration tests exercise the deployed extension surface; packages/testcontainers/__tests__/timescaledb-image-pin.test.ts fails if they drift.
     image: timescale/timescaledb:2.30.2-pg17@sha256:b346edcdb51a1fd6020e3965e0bd1c9f3406fa6d5fbce1e28f4852587ef934e2
     restart: unless-stopped
     environment:
