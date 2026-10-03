@@ -114,6 +114,12 @@ ensure_builder() {
   # dodge Docker Hub's unauthenticated pull rate limit (#122). Defaults to
   # the upstream so local dev keeps working without any env setup.
   docker run --privileged --rm "${BINFMT_IMAGE:-tonistiigi/binfmt}" --install all >/dev/null
+  # The buildkitd image is pinned by tag and digest. buildx otherwise pulls
+  # the floating moby/buildkit:buildx-stable-1, so a BuildKit release changes
+  # how images are pushed without any commit here: v0.33 broke every push to
+  # the GitLab registry that way. Raise this deliberately, and prove the new
+  # version with a docker-build run before merging.
+  local buildkit_image="moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
   # Bind the current Docker CLI env to a named context. buildx cannot
   # propagate DOCKER_HOST + TLS env vars (DOCKER_TLS_VERIFY / DOCKER_CERT_PATH)
   # into the buildkitd helper container; pointing the builder at a context
@@ -141,10 +147,10 @@ ensure_builder() {
     driver="$(docker buildx inspect "$builder" --format '{{.Driver}}' 2>/dev/null || true)"
     if [[ "$driver" != "docker-container" ]]; then
       docker buildx rm "$builder" >/dev/null 2>&1 || true
-      docker buildx create --name "$builder" --driver docker-container "$context" >/dev/null
+      docker buildx create --name "$builder" --driver docker-container --driver-opt "image=${buildkit_image}" "$context" >/dev/null
     fi
   else
-    docker buildx create --name "$builder" --driver docker-container "$context" >/dev/null
+    docker buildx create --name "$builder" --driver docker-container --driver-opt "image=${buildkit_image}" "$context" >/dev/null
   fi
   docker buildx inspect "$builder" --bootstrap >/dev/null
   docker buildx use "$builder"
