@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.6.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.5.0...v1.6.0) (2026-10-03)
+
+
+### Features
+
+* **api:** harden sign-in with OIDC single sign-on, rate limits and lockout ([#791](https://github.com/chrisleekr/binance-trading-bot/issues/791)) ([e5cf99a](https://github.com/chrisleekr/binance-trading-bot/commit/e5cf99a1f763c61f9ba613143173a8e9eb213304))
+* **auth:** add security settings, security events and their delivery ([#790](https://github.com/chrisleekr/binance-trading-bot/issues/790)) ([f00cc7d](https://github.com/chrisleekr/binance-trading-bot/commit/f00cc7d3fa25a59f4060a549a2f6c02555b1e7f4))
+* **mcp:** answer why-no-trade in one read and keep agents connected ([#793](https://github.com/chrisleekr/binance-trading-bot/issues/793)) ([dff50dc](https://github.com/chrisleekr/binance-trading-bot/commit/dff50dcedb597a55594ccdbd1c4f38f3b05e805a))
+* **mcp:** expose the bot to AI agents over MCP with OAuth 2.1 ([#789](https://github.com/chrisleekr/binance-trading-bot/issues/789)) ([1284026](https://github.com/chrisleekr/binance-trading-bot/commit/12840261d0729e22858b1abd53a70099d842b324))
+* **web:** add the Security settings page, sign-in alerts and operator docs ([#792](https://github.com/chrisleekr/binance-trading-bot/issues/792)) ([c3fe265](https://github.com/chrisleekr/binance-trading-bot/commit/c3fe26543519c64e234fbd10bbc330fcf65ca442))
+
+
+### Bug Fixes
+
+* **deps:** patch docs toolchain alerts and refresh dependencies ([#797](https://github.com/chrisleekr/binance-trading-bot/issues/797)) ([1d003ef](https://github.com/chrisleekr/binance-trading-bot/commit/1d003ef71f34e2c9d3b1f7e80e8b8d95556dcac9))
+* **discovery:** unstick momentum idle slots, dead entry settings, blind diagnosis ([#788](https://github.com/chrisleekr/binance-trading-bot/issues/788)) ([8fcf22e](https://github.com/chrisleekr/binance-trading-bot/commit/8fcf22e901f84918688024a1ab426f7e61dfa208))
+
 ## [1.5.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.4.0...v1.5.0) (2026-09-08)
 
 
