@@ -407,6 +407,13 @@ docker-build:
     DOCKER_TLS_CERTDIR: /certs
     DOCKER_TLS_VERIFY: '1'
     DOCKER_CERT_PATH: /certs/client
+    # BuildKit v0.32+ pushes its default provenance attestation as an OCI
+    # artifact manifest that references the image manifest. The GitLab
+    # registry refuses a manifest whose reference it has not stored yet, so
+    # every multi-arch push failed with MANIFEST_BLOB_UNKNOWN once the
+    # floating buildx-stable-1 builder reached v0.33.
+    # Nothing consumes the attestation here.
+    BUILDX_NO_DEFAULT_ATTESTATIONS: '1'
     # Mirror tonistiigi/binfmt and oven/bun in the project's GitLab registry
     # so this job sidesteps Docker Hub's 100/6h unauthenticated pull rate
     # limit. The mirror images are populated by hand; refresh with
