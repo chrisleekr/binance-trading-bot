@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import {
   createRootRouteWithContext,
+  type ErrorComponentProps,
   Outlet,
   redirect,
   useLocation,
@@ -117,7 +118,7 @@ function NotFoundComponent() {
   );
 }
 
-function RootErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function RootErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   const onRetry = (): void => {
     reset();

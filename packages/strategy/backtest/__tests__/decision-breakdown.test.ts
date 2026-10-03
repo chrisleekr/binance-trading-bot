@@ -41,6 +41,35 @@ describe('runBacktest — decisionBreakdown', () => {
     expect(logs.find((e) => e.message === 'diag-note')).toMatchObject({ count: 6, reason: null });
   });
 
+  it('breaks a count-and-message tie on reason, then level, so the report is byte-reproducible', async () => {
+    // Four buckets that tie on count and message: only the reason (a missing one sorts first) and then the level can order them.
+    const tieStrategy: typeof diagStrategy = {
+      ...diagStrategy,
+      tick: (input) => ({
+        nextState: { n: input.state.n + 1 },
+        decisions: [],
+        logs: [
+          { level: 'info', message: 'tie', context: { reason: 'b' } },
+          { level: 'warn', message: 'tie', context: { reason: 'a' } },
+          { level: 'info', message: 'tie' },
+          { level: 'info', message: 'tie', context: { reason: 'a' } },
+        ],
+        metrics: [],
+      }),
+    };
+    const report = await runBacktest({
+      ...baseOpts,
+      strategy: tieStrategy,
+      dataSource: candleSource(flatCandles(3, '100')),
+    });
+    expect(report.decisionBreakdown.logs.map((e) => [e.reason, e.level])).toEqual([
+      [null, 'info'],
+      ['a', 'info'],
+      ['a', 'warn'],
+      ['b', 'info'],
+    ]);
+  });
+
   it('is empty for a run with no candles', async () => {
     const report = await runBacktest({
       ...baseOpts,

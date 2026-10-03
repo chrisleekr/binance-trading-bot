@@ -12,8 +12,8 @@
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
-    "@types/ws": "~8.18.1",
-    "sharp": "^0.35.4",
-    "ws": "~8.21.3"
+    "@types/ws": "~8.18.2",
+    "sharp": "^0.35.5",
+    "ws": "~8.22.0"
   }
 }

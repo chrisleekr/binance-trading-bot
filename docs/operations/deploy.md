@@ -49,6 +49,22 @@ docker compose -f deploy/compose/docker-compose.yml \
 
 The stack serves plain HTTP on `APP_HTTP_PORT` and does not bundle a reverse proxy. Front the `app` service with TLS — Cloudflare Tunnel, an nginx or Traefik host proxy, or a hosted edge. The three reference configurations are in [`deploy/README.md`](https://github.com/chrisleekr/binance-trading-bot/blob/main/deploy/README.md#tls-at-the-edge).
 
+## Upgrading TimescaleDB
+
+A new TimescaleDB image does not upgrade the extension inside an existing database: the image keeps the older extension libraries, and the database goes on running the version it has until you update it. Migrations do not do this (`create extension if not exists` never upgrades). CI and the Testcontainers suites start from fresh databases on the pinned version, so update after every TimescaleDB image bump to keep production on the version the tests run.
+
+From the repo root, after pulling and restarting with the new image:
+
+```bash
+dc() { docker compose -f deploy/compose/docker-compose.yml -f deploy/compose/docker-compose.prod.yml --env-file .env "$@"; }
+dc stop app   # so no app session is using the old version while it updates
+dc exec postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "ALTER EXTENSION timescaledb UPDATE;"'
+dc exec postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select extversion from pg_extension where extname = '"'"'timescaledb'"'"';"'
+dc start app
+```
+
+The last query should print the version in the image tag. `ALTER EXTENSION` must be the first command of a new session, which is why `psql` runs with `-X` (it skips `.psqlrc`); otherwise TimescaleDB refuses with "cannot be updated after the old version has already been loaded".
+
 ## Database migrations: boot vs. manual
 
 Migrations run **automatically on boot** — the container entrypoint (`apps/server/docker-entrypoint.sh`) runs the idempotent migration runner before the app starts, so a first-time operator does nothing here. Every `api`, `worker`, and `study` container in the split topology runs it before boot. This is safe because `packages/db/src/migrate.ts` holds a Postgres advisory lock for the session: simultaneous starts serialize, and later callers observe the migration ledger rather than racing on DDL. This also prevents a newly deployed worker from referencing an additive column before another role has applied it. The manual offline path, run by hand only when the app is not booting, is:
