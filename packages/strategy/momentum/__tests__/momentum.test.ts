@@ -354,6 +354,38 @@ describe('momentum.tick — entry', () => {
     );
     expect(out.decisions).toEqual([{ type: 'noop' }]);
     expect(out.nextState).toEqual(flat());
+    expect(out.logs).toContainEqual({
+      level: 'debug',
+      message: 'momentum: flat, no entry signal',
+      context: {
+        symbol: 'BTCUSDT',
+        fastEma: '10',
+        slowEma: '10',
+        entryThreshold: '10',
+        fastVsThresholdPercent: '0.00',
+        waitingFor: 'cross-up',
+      },
+    });
+  });
+
+  it('says a coin already above its threshold must fall back before it can cross up again', () => {
+    // fast(2) = 10.5 and slow(3) = 10 on both the previous and the current window ordering, so no cross fires while the fast line sits 5% above the threshold.
+    const out = momentum.tick(
+      mkInput({ closes: mkCandles(['8', '9', '10', '11']), currentPrice: '11', state: flat() }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs).toContainEqual({
+      level: 'debug',
+      message: 'momentum: flat, no entry signal',
+      context: {
+        symbol: 'BTCUSDT',
+        fastEma: '10.5',
+        slowEma: '10',
+        entryThreshold: '10',
+        fastVsThresholdPercent: '5.00',
+        waitingFor: 'fall-back-then-cross-up',
+      },
+    });
   });
 
   it('clears a stale protective-stop blocker while flat with no entry signal', () => {

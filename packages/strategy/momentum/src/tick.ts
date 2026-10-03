@@ -292,7 +292,11 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
         );
       }
     }
-    return evaluateEntry(scoped, crossUp, lastCandle.closeTimeMs, candles);
+    return evaluateEntry(scoped, crossUp, lastCandle.closeTimeMs, candles, {
+      fastNow,
+      slowNow,
+      threshold: slowNow.mul(band),
+    });
   }
   return evaluateExit(scoped, state.entryPrice, crossDown, lastCandle, candles, forceSell);
 };
@@ -302,11 +306,21 @@ const evaluateEntry = (
   crossUp: boolean,
   candleCloseMs: number,
   candles: readonly Candle[],
+  signal: { fastNow: Decimal; slowNow: Decimal; threshold: Decimal },
 ): MomentumOutput => {
   const { state, config, market, profile, account } = input;
   if (!crossUp) {
+    // A bare "no signal" cannot tell an operator, or an agent reading the tick trace, whether the coin is about to cross or crossed weeks ago and must fall back first. The EMA values answer that without recomputing them from candles.
+    const { fastNow, slowNow, threshold } = signal;
     return hold(state, [
-      log('debug', 'momentum: flat, no entry signal', { symbol: market.symbol }),
+      log('debug', 'momentum: flat, no entry signal', {
+        symbol: market.symbol,
+        fastEma: fastNow.toFixed(),
+        slowEma: slowNow.toFixed(),
+        entryThreshold: threshold.toFixed(),
+        fastVsThresholdPercent: fastNow.div(threshold).minus(1).times(100).toFixed(2),
+        waitingFor: fastNow.gt(threshold) ? 'fall-back-then-cross-up' : 'cross-up',
+      }),
     ]);
   }
   // Resolve the quote budget (percentage sizing + reserve cap) before sizing the

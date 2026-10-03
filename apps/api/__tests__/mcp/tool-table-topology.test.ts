@@ -300,11 +300,15 @@ describe('a consolidated read refuses an argument its selected route would disca
     ).toThrow(/symbol/);
   });
 
-  it('refuses cursor on the tick trace, which pages by a stream id this tool does not expose', () => {
+  it('refuses cursor on the tick trace, which pages by before instead', () => {
     // `TickTraceQuery` declares `symbol`, `limit` and `before`. A dropped `cursor` re-reads page one forever, so an agent walking back through a trace loops without ever being told.
     expect(
       plan('get_logs', { accountId: 'a', profileId: 'p', kind: 'tick-trace', cursor: 'x' }),
     ).toThrow(/cursor/);
+    // The converse: `before` belongs to the tick trace alone, and the action-log reader would strip it and answer page one.
+    expect(
+      plan('get_logs', { accountId: 'a', profileId: 'p', kind: 'profile', before: '1-1' }),
+    ).toThrow(/before/);
   });
 
   it('refuses limit on candles and interval on depth, which read neither', () => {
@@ -334,10 +338,16 @@ describe('a consolidated read refuses an argument its selected route would disca
     const tool = MCP_TOOLS_BY_NAME.get('get_logs');
     expect(tool).toBeDefined();
     expect(
-      tool?.plan({ accountId: 'a', profileId: 'p', kind: 'tick-trace', symbol: 'BTCUSDT' }),
+      tool?.plan({
+        accountId: 'a',
+        profileId: 'p',
+        kind: 'tick-trace',
+        symbol: 'BTCUSDT',
+        before: '1790956503938-0',
+      }),
     ).toMatchObject({
       path: '/api/accounts/a/profiles/p/tick-trace',
-      query: { symbol: 'BTCUSDT' },
+      query: { symbol: 'BTCUSDT', before: '1790956503938-0' },
     });
     expect(
       tool?.plan({ accountId: 'a', profileId: 'p', kind: 'profile', q: 'halt' }),

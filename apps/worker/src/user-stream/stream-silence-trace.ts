@@ -9,6 +9,8 @@
 // as the account stays idle, and an idle account is the NORMAL state for a
 // profile holding a position through a quiet market. Without the window one quiet
 // weekend would bury the feed.
+//
+// Logged at info, not warn. A quiet account is the normal state, so at warn this row was the whole of a warn-level filter on a healthy profile and hid any real warning. A fill the silence did hide is not lost: the reconcile this schedules adopts it through the fill adopter, which records it and sends the order-filled alert when the operator has turned that alert on (it is off by default).
 
 import type { Logger } from 'pino';
 import { profileRepo, type Database } from '@app/db';
@@ -55,7 +57,7 @@ export const recordStreamSilence = async (
   ageMs: number,
 ): Promise<void> => {
   const minutes = Math.round(ageMs / 60_000);
-  deps.logger.warn(
+  deps.logger.info(
     { operatorId, accountId, profileId, ageMs },
     'user-stream: no account event for the idle window; reconnected and scheduled a reconcile',
   );
@@ -65,7 +67,7 @@ export const recordStreamSilence = async (
     await scoped.actionLogs.append({
       time: new Date(),
       symbol: null,
-      level: 'warn',
+      level: 'info',
       msg: `No account activity on this profile's Binance stream for ${minutes} minutes — reconnecting to verify it is still live.`,
       ctx: { topic: 'stream-silent', ageMs },
     });

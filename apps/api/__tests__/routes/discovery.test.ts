@@ -354,6 +354,36 @@ describeIfInfra('discovery router', () => {
     expect(body.config.maxAutoSymbols).toBe(7);
   });
 
+  it('PATCH keeps every stored field the body leaves out', async () => {
+    const url = `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/discovery-config`;
+    const patch = (body: Record<string, unknown>) =>
+      fx.app.request(url, {
+        method: 'PATCH',
+        headers: headers(fx.alice.userId),
+        body: JSON.stringify(body),
+      });
+    expect(
+      (await patch(fullConfig({ enabled: true, maxAutoSymbols: 7, blacklist: ['KEEPUSDT'] })))
+        .status,
+    ).toBe(200);
+    // One field. Writing the parsed body whole turned this into a reset of everything else, which switched discovery off and emptied the blacklist.
+    const res = await patch({ maxAutoSymbols: 3 });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      config: { enabled: boolean; maxAutoSymbols: number; blacklist: string[] };
+    };
+    expect(body.config).toMatchObject({
+      enabled: true,
+      maxAutoSymbols: 3,
+      blacklist: ['KEEPUSDT'],
+    });
+    // A list it does send is the whole new list, not an addition, so an entry can be removed by omission.
+    const cleared = (await (await patch({ blacklist: [] })).json()) as {
+      config: { blacklist: string[]; maxAutoSymbols: number };
+    };
+    expect(cleared.config).toMatchObject({ blacklist: [], maxAutoSymbols: 3 });
+  });
+
   // `enterOnAdd` and the `entryGuard` block reach a strategy only through the discovery entry-hint bundle. On a strategy that declares no such bundle they saved cleanly and then did nothing — an operator arming an anti-chase guard got a 200 and no guard. These four cases pin the whole gate: the flag is read off the plugin's own capability declaration, the refusal names the knobs, an off-everywhere payload still saves, and a strategy that DOES read the hint is untouched.
   const momentumProfile = async (id: string, discoveryConfig?: Record<string, unknown>) => {
     const momentum = buildStrategyRegistry().get('momentum');
@@ -517,6 +547,27 @@ describeIfInfra('discovery router', () => {
     };
     expect(body.config.enterOnAdd).toBe(true);
     expect(body.entryModeSupported).toBe(true);
+  });
+
+  it('PATCH judges the rank band on the merged config, not on the default of the field it omits', async () => {
+    const url = `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/discovery-config`;
+    const patch = (body: Record<string, unknown>) =>
+      fx.app.request(url, {
+        method: 'PATCH',
+        headers: headers(fx.alice.userId),
+        body: JSON.stringify(body),
+      });
+    expect((await patch(fullConfig({ rankTopPercent: 60, rankExcludeTopPercent: 0 }))).status).toBe(
+      200,
+    );
+    // 40 is above the default rankTopPercent of 30, but below the stored 60. Checking the band on the body alone refused this valid one-field edit.
+    const widened = await patch({ rankExcludeTopPercent: 40 });
+    expect(widened.status).toBe(200);
+    expect(
+      ((await widened.json()) as { config: { rankExcludeTopPercent: number } }).config,
+    ).toMatchObject({ rankExcludeTopPercent: 40 });
+    // The band is still enforced, on the merged config: 70 against the stored 60 is inverted.
+    expect((await patch({ rankExcludeTopPercent: 70 })).status).toBe(422);
   });
 
   it('PATCH rejects a malformed config (422 from the body validator)', async () => {

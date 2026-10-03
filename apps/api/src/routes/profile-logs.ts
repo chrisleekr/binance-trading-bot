@@ -48,6 +48,14 @@ const EXPORT_MAX_ROWS = 500_000;
  */
 const DEFAULT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Entries one `XREVRANGE` reads while a symbol-filtered trace page is being filled. */
+const TRACE_SCAN_BATCH = 200;
+
+/**
+ * Most raw entries one symbol-filtered trace page examines before it answers short. The stream interleaves every symbol of the profile, so a pair that ticks rarely can sit thousands of entries back, and an unbounded scan of a stream capped at 100,000 entries would read the whole buffer on one request. A short page still carries `oldestStreamId`, so the caller resumes the scan from where it stopped instead of concluding the symbol never ticked.
+ */
+const TRACE_SCAN_MAX = 2_000;
+
 const parseCursor = (raw: string | undefined): ActionLogCursor | null => {
   if (raw === undefined) return null;
   // The contract's regex already proved the shape, so the split cannot fail
@@ -284,29 +292,42 @@ export const profileLogsRouter = (di: DI): ApiHono => {
     const { symbol, limit, before } = c.req.valid('query');
     const p = await scopeOf(c, di, profileId);
     const key = auditStreamKey(p.scope.accountId, p.scope.profileId);
-    // XREVRANGE, not XREAD: this is a read-only window over entries the drainer
-    // owns, and it must not touch the consumer group's delivery state. `(` makes
-    // the bound exclusive so paging cannot repeat the entry it resumed from.
-    const end = before === undefined ? '+' : `(${before}`;
     const redis = di.redis.raw();
-    const [entries, streamLen, retention] = await Promise.all([
-      redis.xrevrange(key, end, '-', 'COUNT', limit),
+    const [streamLen, retention] = await Promise.all([
       redis.xlen(key),
       repo.retentionConfig.get(di.db),
     ]);
-    const raw = entries as [string, string[]][];
-    const all = raw
-      .map(([id, fields]) => parseTraceEntry(id, fields))
-      .filter((e): e is NonNullable<typeof e> => e !== null);
-    // Symbol filtering is applied after the read because the stream interleaves
-    // every symbol of the profile; a filtered page is therefore shorter than
-    // `limit` without meaning the stream ended.
-    const items = symbol ? all.filter((e) => e.symbol === symbol) : all;
-    const oldest = raw.at(-1)?.[0] ?? null;
+    // `limit` counts entries returned, not entries read. Filtering one read of `limit` entries instead answered a symbol query with whatever share of the newest window that pair happened to own, usually nothing on a profile trading a dozen pairs. Unfiltered, the first read already holds `limit` entries, so the loop runs once.
+    const budget = symbol ? TRACE_SCAN_MAX : limit;
+    const items: z.infer<typeof TickTraceResponse>['items'] = [];
+    // The last entry EXAMINED, not the last one returned, so the next page resumes after everything this one already looked at rather than re-reading the entries it filtered out.
+    let oldest: string | null = null;
+    let scanned = 0;
+    // Set when a read came back short, which means it reached the start of the stream: there is nothing older to resume into, so the cursor is withheld rather than inviting a page that can only be empty.
+    let exhausted = false;
+    while (items.length < limit && scanned < budget) {
+      const count = symbol ? Math.min(TRACE_SCAN_BATCH, budget - scanned) : limit;
+      // XREVRANGE, not XREAD: this is a read-only window over entries the drainer owns, and it must not touch the consumer group's delivery state. `(` makes the bound exclusive so paging cannot repeat the entry it resumed from.
+      const end = oldest !== null ? `(${oldest}` : before === undefined ? '+' : `(${before}`;
+      const raw = (await redis.xrevrange(key, end, '-', 'COUNT', count)) as [string, string[]][];
+      for (const [id, fields] of raw) {
+        scanned += 1;
+        oldest = id;
+        const entry = parseTraceEntry(id, fields);
+        if (entry !== null && (!symbol || entry.symbol === symbol)) items.push(entry);
+        if (items.length === limit) break;
+      }
+      // A full page stops the scan before the rest of this read was examined, so only a short read whose entries were all examined has reached the start of the stream.
+      if (items.length === limit) break;
+      if (raw.length < count) {
+        exhausted = true;
+        break;
+      }
+    }
     return c.json(
       {
         items,
-        oldestStreamId: oldest,
+        oldestStreamId: exhausted ? null : oldest,
         // The stream sitting at its configured cap is what proves older entries
         // were dropped — that is a different fact from "nothing happened then",
         // and conflating them would have an operator conclude the bot was idle

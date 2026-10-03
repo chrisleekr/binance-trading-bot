@@ -62,8 +62,10 @@ describe.skipIf(!HAS_INFRA)('MCP protected-resource metadata', () => {
     expect(body.resource).toBe(RESOURCE);
   });
 
-  it('serves the authorization-server metadata the resource document points at', async () => {
-    const { status } = await fetchDocument('/.well-known/oauth-authorization-server');
+  it('serves the authorization-server metadata the resource document points at, offering offline_access there', async () => {
+    const { status, body } = await fetchDocument('/.well-known/oauth-authorization-server');
     expect(status).toBe(200);
+    // The resource document above deliberately omits it; the refresh-token scope belongs to the authorization server.
+    expect(body.scopes_supported).toContain('offline_access');
   });
 });

@@ -151,6 +151,7 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
       'findById',
       'setEnabled',
       'setDiscoveryConfig',
+      'mergeDiscoveryConfig',
       'setRiskConfig',
       'update',
       'switchStrategy',

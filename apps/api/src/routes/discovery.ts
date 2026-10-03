@@ -7,6 +7,7 @@ import {
   type DiscoveryActivityEntry,
   asDecimalString,
   type BundleProvider,
+  DiscoveryConfigPatch,
   DiscoveryConfigSchema,
   DiscoveryDashboardResponse,
   type DiscoveryHolding,
@@ -410,7 +411,8 @@ const patchRoute = createRoute({
   tags: ['discovery'],
   request: {
     params: ProfileIdParam,
-    body: { content: { 'application/json': { schema: DiscoveryConfigSchema } } },
+    // The fields without the rank-band check: a one-field patch would be judged against the other field's default. The merged config is checked under the row lock.
+    body: { content: { 'application/json': { schema: DiscoveryConfigPatch } } },
   },
   responses: {
     200: {
@@ -507,11 +509,22 @@ export const discoveryRouter = (di: DI): ApiHono => {
   // editing the blocklist both flow through here.
   app.openapi(patchRoute, async (c) => {
     const profileId = asProfileId(c.req.valid('param').profileId);
-    const body = c.req.valid('json');
+    // A PATCH has to mean patch. `c.req.valid('json')` is the zod-PARSED body with a default filled in for every field the caller omitted, so writing it whole turned a one-field save into a reset of every other setting, `enabled` and the blacklist included. The caller's RAW keys are merged over the stored config instead, as the risk route does. The validator has already read and cached the body, so this re-read resolves from Hono's body cache; the catch mirrors the validator, which treats a non-json body as `{}`.
+    const patch = (await c.req.json().catch(() => ({}))) as Partial<StoredDiscoveryConfig>;
     // The row, not just the scope: the entry-mode gate is decided by this profile's strategy and by what it already has stored, both of which live on it.
     const { p, profile } = await requireOwnedProfile(c, di, profileId);
-    assertEntryModeAllowed(di, profile, body);
-    const updated = await p.profile.setDiscoveryConfig(body);
+    // An unparseable stored config merges as all-defaults, the same reading the dashboard gives it, so a bad stored value never blocks the save that repairs it. The merge is one level deep: a top-level key replaces its whole value, so `blacklist` is the complete new list and `entryGuard` a whole block. Deep-merging instead would make a list entry or a nested field impossible to remove by omission.
+    // Merged from the config read under a row lock, so two concurrent PATCHes cannot both merge from one snapshot and drop each other's change; a refused entry mode throws inside and rolls back.
+    const updated = await p.profile.mergeDiscoveryConfig((current) => {
+      const stored = DiscoveryConfigSchema.safeParse(current ?? {});
+      const merged = DiscoveryConfigSchema.parse({
+        ...(stored.success ? stored.data : {}),
+        ...patch,
+      });
+      // Judged against the config read under the lock: the pre-lock snapshot could still hold a value a concurrent PATCH just switched off, and re-sending it would pass as an unchanged re-save.
+      assertEntryModeAllowed(di, { ...profile, discoveryConfig: current }, merged);
+      return merged;
+    });
     if (!updated) throw new HttpError('NOT_FOUND', 'profile');
     c.set('auditEvent', { event: 'set-discovery-config', payload: { profileId } });
     return c.json(await buildDashboard(di, p, updated), 200);

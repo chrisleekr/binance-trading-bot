@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { profileKey } from '@app/db';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
 /**
@@ -151,5 +152,42 @@ describeIfInfra('dashboard router — entry-blocker enrichment', () => {
     } finally {
       querySpy.mockRestore();
     }
+  });
+  it('keeps only held assets and the quote asset when balances=held, and every asset by default', async () => {
+    const scope = { accountId: fx.alice.accountId, profileId: fx.alice.profileId };
+    const quote = (
+      (await (
+        await fx.app.request(
+          `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/dashboard`,
+          { headers: headers(fx.alice.userId) },
+        )
+      ).json()) as { quoteAsset: string }
+    ).quoteAsset;
+    await fx.di.redis.raw().set(
+      profileKey(scope, 'accountInfo'),
+      JSON.stringify({
+        balances: {
+          [quote]: { free: '0.00000000', locked: '0.00000000' },
+          FREEONLY: { free: '0.1', locked: '0' },
+          LOCKEDONLY: { free: '0.00000000', locked: '0.5' },
+          EMPTY: { free: '0.00000000', locked: '0.00000000' },
+          BAREZERO: { free: '0', locked: '0.0' },
+        },
+      }),
+    );
+    const read = async (query: string): Promise<string[]> => {
+      // The projection caches for 5s, so each read recomputes from the account info set above.
+      await fx.di.redis.raw().del(profileKey(scope, 'dashboardCache'));
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/dashboard${query}`,
+        { headers: headers(fx.alice.userId) },
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { balances: { asset: string }[] };
+      return body.balances.map((b) => b.asset).sort();
+    };
+    expect(await read('?balances=held')).toEqual([quote, 'FREEONLY', 'LOCKEDONLY'].sort());
+    expect(await read('')).toEqual([quote, 'BAREZERO', 'EMPTY', 'FREEONLY', 'LOCKEDONLY'].sort());
+    expect(await read('?balances=all')).toEqual(await read(''));
   });
 });

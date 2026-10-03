@@ -401,14 +401,26 @@ export const MCP_TOOLS: readonly McpTool[] = [
     description: 'One profile including its live strategy configuration and run state.',
     shape: profileArgs,
   }),
-  readTool({
-    name: 'get_dashboard',
-    signature: `GET ${PROFILE}/dashboard`,
-    description:
-      'The main situational-awareness read: open positions, unrealised P/L, wallet balances, per-symbol state, and whether the profile-wide kill switch is on. Check killSwitch before concluding a quiet profile is simply waiting: with it set, nothing enters a position no matter what the per-symbol flags say.',
-    shape: profileArgs,
-    hints: LARGE_READ_HINTS,
-  }),
+  {
+    ...readTool({
+      name: 'get_dashboard',
+      signature: `GET ${PROFILE}/dashboard`,
+      description:
+        'The main situational-awareness read: open positions, unrealised P/L, wallet balances, per-symbol state, and whether the profile-wide kill switch is on. Check killSwitch before concluding a quiet profile is simply waiting: with it set, nothing enters a position no matter what the per-symbol flags say. Balances list only held assets plus the quote asset unless balances=all is passed.',
+      shape: {
+        ...profileArgs,
+        balances: z
+          .enum(['held', 'all'])
+          .optional()
+          .describe(
+            'held (default): assets with a free or locked amount, plus the quote asset. all: every asset Binance lists, about 800 rows, mostly zero.',
+          ),
+      },
+      hints: LARGE_READ_HINTS,
+    }),
+    // Defaults to held here, not in the route: the route default stays `all` for the SPA, while an agent pays for every row in its context, and the zero rows carry nothing.
+    plan: (args) => planFrom(`GET ${PROFILE}/dashboard`, { balances: 'held', ...args }),
+  },
   readTool({
     name: 'get_closed_trades',
     signature: `GET ${PROFILE}/closed-trades`,
@@ -539,7 +551,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
       name: 'get_logs',
       // Three routes with three different filter sets behind one tool, and the flattened schema cannot say which argument belongs to which kind, so the description has to. A filter the selected route does not declare is now refused instead of dropped, and a caller that has not been told the split reads that refusal as the tool being broken.
       description:
-        'Diagnostics. kind=profile returns the profile log, kind=symbol the log for one symbol, kind=tick-trace the per-tick decision trace that explains why a strategy did or did not act. The three read different filters and anything outside the selected set is refused rather than silently ignored. kind=profile takes from, to, levels, symbols, q, limit and cursor. kind=symbol takes symbol, and REQUIRES both from and to. kind=tick-trace takes symbol and limit only: it cannot be paged through this tool, so widen limit rather than asking for the next page.',
+        'Diagnostics. kind=profile returns the profile log, kind=symbol the log for one symbol, kind=tick-trace the per-tick decision trace that explains why a strategy did or did not act. The three read different filters and anything outside the selected set is refused rather than silently ignored. kind=profile takes from, to, levels, symbols, q, limit and cursor. kind=symbol takes symbol, and REQUIRES both from and to. kind=tick-trace takes symbol, limit and before: with symbol set it scans back up to 2000 entries for that pair, and a page shorter than limit with a non-null oldestStreamId means the scan stopped there, so pass oldestStreamId as before to keep reading; a null oldestStreamId means the read reached the start of the stream.',
       shape: {
         ...profileArgs,
         symbol: z
@@ -565,17 +577,23 @@ export const MCP_TOOLS: readonly McpTool[] = [
         q: z.string().optional().describe('Free-text filter. kind=profile only.'),
         limit: pageArgs.limit.describe('Rows to return. Not read by kind=symbol.'),
         cursor: pageArgs.cursor.describe('Page token from a previous answer. kind=profile only.'),
+        before: z
+          .string()
+          .optional()
+          .describe(
+            'oldestStreamId from a previous tick-trace answer, to read entries older than it. kind=tick-trace only.',
+          ),
       },
       hints: LARGE_READ_HINTS,
     },
     {
-      // Read off each route's own query schema. `profile` is the action-log filter set, `symbol` is a required time range and nothing else, and the tick trace pages by a Redis stream id this tool does not expose, which is why `cursor` is not one of its arguments.
+      // Read off each route's own query schema. `profile` is the action-log filter set, `symbol` is a required time range and nothing else, and the tick trace pages by a Redis stream id passed as `before`, never by the action-log `cursor`.
       profile: {
         route: `GET ${PROFILE}/logs`,
         args: ['from', 'to', 'levels', 'symbols', 'q', 'limit', 'cursor'],
       },
       symbol: { route: `GET ${SYMBOL}/logs`, args: ['from', 'to'] },
-      'tick-trace': { route: `GET ${PROFILE}/tick-trace`, args: ['symbol', 'limit'] },
+      'tick-trace': { route: `GET ${PROFILE}/tick-trace`, args: ['symbol', 'limit', 'before'] },
     },
   ),
   consolidatedRead(
@@ -827,14 +845,14 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: 'update_risk_config',
     signature: `PATCH ${PROFILE}/risk-config`,
     description:
-      'Set the risk breakers. Widening a limit can lift a halt that is currently stopping this profile from trading: the worker re-reads these values every cycle, so a raised daily loss limit resumes trading on the next one. This REPLACES the whole risk configuration rather than patching it, so a breaker you leave out reverts to its default instead of being kept, which can widen a guard you never meant to touch. Read get_risk first and send every current value back with your change applied. Narrow deliberately, widen very deliberately.',
+      'Set the risk breakers. Widening a limit can lift a halt that is currently stopping this profile from trading: the worker re-reads these values every cycle, so a raised daily loss limit resumes trading on the next one. Fields you leave out keep their stored values, but a block you send replaces that whole block: sending drawdown with only maxDrawdownQuote resets its lookbackHours and pauseHours to their defaults. Read get_risk first and send every field of any block you change. Narrow deliberately, widen very deliberately.',
     shape: { ...profileArgs, ...riskConfigArgs },
   }),
   writeTool({
     name: 'update_discovery_config',
     signature: `PATCH ${PROFILE}/discovery-config`,
     description:
-      'Set automatic symbol discovery: whether it runs, how often, the blocklist, the volume, spread and rank bounds, and how many symbols it may bind. This REPLACES the whole discovery configuration rather than patching it: any setting you leave out reverts to its default instead of being kept. Read get_discovery first and send every current value back with your change applied.',
+      'Set automatic symbol discovery: whether it runs, how often, the blocklist, the volume, spread and rank bounds, and how many symbols it may bind. Fields you leave out keep their stored values, but a field you send replaces its whole value: blacklist is the complete new list, not an addition, and a nested block such as entryGuard or trendConfirm is replaced whole. Read get_discovery first and send the full value of anything you change.',
     shape: { ...profileArgs, ...discoveryConfigArgs },
   }),
   writeTool({

@@ -13,7 +13,7 @@ import { currentAuthRequestContext } from './auth/request-context.js';
 import type { SecurityEventRecorder } from './auth/security-events.js';
 import type { SingleSignOnConfig } from './auth/single-sign-on.js';
 import { fetchClientMetadataResource } from './lib/cimd-transport.js';
-import { MCP_SCOPES } from './mcp/scopes.js';
+import { MCP_AUTHORIZATION_SCOPES, MCP_REFRESH_TOKEN_TTL_SECONDS } from './mcp/scopes.js';
 
 /**
  * Structural shape Better Auth needs from a logger. Kept as a local interface
@@ -75,7 +75,8 @@ const mcpPlugins = (resource: string | undefined): NonNullable<BetterAuthOptions
     loginPage: '/login',
     consentPage: '/consent',
     resource,
-    scopes: [...MCP_SCOPES],
+    scopes: [...MCP_AUTHORIZATION_SCOPES],
+    refreshTokenExpiresIn: MCP_REFRESH_TOKEN_TTL_SECONDS,
     // Dynamic client registration stays off: an open `POST /oauth2/register` on a host holding plaintext Binance keys is a registration surface nobody is watching, and the MCP revision this targets deprecates it in favour of the metadata documents cimd() reads.
     allowDynamicClientRegistration: false,
     allowUnauthenticatedClientRegistration: false,
