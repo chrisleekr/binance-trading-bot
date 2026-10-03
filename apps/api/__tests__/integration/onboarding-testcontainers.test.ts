@@ -34,6 +34,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { errorCodeToStatus } from '@app/contracts';
 
 import { createAuth } from '../../src/auth.js';
+import { createSecurityServices } from '../../src/auth/security.js';
+import { createWebSocketSessionWatch } from '../../src/ws/session-watch.js';
 import type { DI } from '../../src/di.js';
 import { audit } from '../../src/middleware/audit.js';
 import { errorEnvelope, HttpError } from '../../src/middleware/error.js';
@@ -145,13 +147,32 @@ const buildHarness = async (): Promise<Harness> => {
     quit: async () => 'OK' as const,
   };
 
-  const auth = createAuth({
+  const metrics = createMetricsRegistry({ service: 'api-onboarding-test' });
+  // Held so shutdown can close it; an unclosed connection keeps the event loop alive and delays teardown.
+  const securityRedis = new Redis(redis.redisUrl);
+  // The real Redis limiter: this journey signs up once and then uses the header shim, so no limit is reached.
+  const security = createSecurityServices({
     db,
-    webOrigins: ['http://localhost:5173'],
-    authSecret: 'x'.repeat(32),
-    isProduction: false,
+    redis: securityRedis,
+    queue,
     logger,
+    registry: metrics.registry,
+    secret: 'x'.repeat(32),
+    singleSignOn: null,
+    passwordSignIn: true,
   });
+  const rebuildAuth = () =>
+    createAuth({
+      db,
+      webOrigins: ['http://localhost:5173'],
+      authSecret: 'x'.repeat(32),
+      isProduction: false,
+      logger,
+      passwordSignIn: security.passwordSignIn,
+      securityEpoch: async () => (await repo.authSecuritySettings.get(db)).securityEpoch,
+      events: security.events,
+    });
+  const auth = rebuildAuth();
 
   const di: DI = {
     env: {
@@ -169,6 +190,9 @@ const buildHarness = async (): Promise<Harness> => {
       GIT_SHA: 'testsha',
       LIVE_DEMO: false,
       MCP_ENABLED: false,
+      PASSWORD_SIGN_IN_ENABLED: true,
+      SINGLE_SIGN_ON_ENABLED: false,
+      SINGLE_SIGN_ON_BUTTON_LABEL: 'Single sign-on',
     },
     pool,
     db,
@@ -180,9 +204,13 @@ const buildHarness = async (): Promise<Harness> => {
     diagnosisQueue,
     logger,
     auth,
+    security,
+    rebuildAuth,
+    // No subscriber: this journey opens its sockets through the registry, not the upgrade route.
+    websocketSessions: createWebSocketSessionWatch({ db, subscriber: null, security, logger }),
     strategies,
     notifyProviders,
-    metrics: createMetricsRegistry({ service: 'api-onboarding-test' }),
+    metrics,
     // Deliberately unwired, like `_helpers.ts`: nothing in the onboarding journey reads market data, and a real REST client would let this suite reach Binance over the network.
     marketData: {
       getKlines: unwiredMarketData,
@@ -203,6 +231,7 @@ const buildHarness = async (): Promise<Harness> => {
       await backtestQueue.close();
       await advisorQueue.close();
       await diagnosisQueue.close();
+      await securityRedis.quit();
       await pool.end();
     },
   };

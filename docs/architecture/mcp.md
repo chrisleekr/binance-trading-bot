@@ -39,11 +39,15 @@ flowchart TB
   classDef deny fill:#8a1c1c,color:#ffffff
 ```
 
-**Client ID Metadata Documents, not dynamic registration.** A client identifies itself by an HTTPS URL that serves its own metadata; the server fetches that document and registers the client from it. `POST /api/auth/oauth2/register` refuses every caller: `allowDynamicClientRegistration` and `allowUnauthenticatedClientRegistration` are both false (`apps/api/src/auth.ts`).
+**Client ID Metadata Documents, not dynamic registration.** A client identifies itself by an HTTPS URL that serves its own metadata; the server fetches that document and registers the client from it. `POST /api/auth/oauth2/register` is not on the auth gateway's allow-list (`apps/api/src/auth/gateway.ts`), so it answers 404; behind that, `allowDynamicClientRegistration` and `allowUnauthenticatedClientRegistration` are both false (`apps/api/src/auth.ts`).
 
 Fetching an attacker-supplied URL from inside that trust boundary is the obvious hazard, so the transport in `apps/api/src/lib/cimd-transport.ts` refuses anything but `https`, resolves the hostname exactly once, refuses every RFC 6890 special-use address, pins the approved address while leaving TLS identity bound to the hostname, allows only GET and HEAD, and refuses redirects. It replaces `@better-auth/cimd`'s Node-only transport, which Bun cannot use.
 
 **The token never touches the REST API.** It is verified once, at `/api/mcp`, and the identity it resolves to is injected into a second in-process mount of the same routers. `sessionResolver` reads only the Better Auth session cookie, so a stolen access token replayed against `GET /api/backup` is simply unauthenticated.
+
+**Signing in to approve an agent is ordinary sign-in.** `/oauth2/authorize` sends the browser to `/login` with a signed query; after a password or single sign-on login the web app replays that query to `/oauth2/authorize` and lands on `/consent`. Single sign-on proves who the operator is and nothing more: Better Auth stays the only authorization server agents talk to, and every sign-in limit and security event applies unchanged. The authorize, consent, token and revoke endpoints sit behind the auth gateway's allow-list and its own rate limits ([Auth](auth.md)).
+
+**Revocation has to beat a token nobody stores.** Access tokens are JWTs the resource server verifies by signature alone, so deleting grant rows would leave an issued token working until it expires (an hour by default). `repo.authIdentity.revokeAgentAccess` therefore also stamps `auth_security_settings.agent_access_not_before`, and `/api/mcp` refuses any token issued at or before it. The route reads that cutoff from the row on every verified call rather than from the 30-second settings cache, because the reset command revokes from another process and a scaled deployment runs several api replicas. Revoke agent access, password change, the reset command, sign-out-everywhere and restore all go through that function.
 
 **Discovery documents live at the origin root.** RFC 9728 and RFC 8414 locate them at `/.well-known/<name>` on the origin, optionally followed by the resource path. `apps/api/src/routes/well-known.ts` forwards `oauth-protected-resource` to Better Auth unchanged and rewrites `oauth-authorization-server` and `openid-configuration` to `/api/auth/.well-known/<name>`.
 
@@ -91,7 +95,7 @@ That split holds only while no order route answers 4xx after taking effect. The 
 | Variable | Effect |
 | --- | --- |
 | `MCP_ENABLED` | Off, `/api/mcp` is **not mounted at all** and no metadata is published. There is no surface to secure rather than a guarded one to trust. |
-| `MCP_RESOURCE_URL` | The canonical identifier tokens are audience-bound to. It must be the URL an agent actually reaches; an internal address produces a 401 that explains nothing. Required when the flag is on. Boot refuses anything but `https` except on a loopback host, and refuses a query string, fragment or embedded credentials. This URL's origin also becomes Better Auth's `baseURL`, so it is the authorization server's origin. |
+| `MCP_RESOURCE_URL` | The canonical identifier tokens are audience-bound to. It must be the URL an agent actually reaches; an internal address produces a 401 that explains nothing. Required when the flag is on. Boot refuses anything but `https` except on a loopback host, and refuses a query string, fragment or embedded credentials. When `PUBLIC_BASE_URL` is set it must be this URL's origin; when it is not, this URL's origin becomes Better Auth's `baseURL`, the authorization server's origin. |
 
 `LIVE_DEMO` and `MCP_ENABLED` are mutually exclusive at boot: `apps/api/src/env.ts` refuses to start with both set. A demo box treats every anonymous caller as the operator, so an MCP endpoint there would be an anonymous trading control plane. The route also answers 403 under `LIVE_DEMO`.
 

@@ -5,6 +5,8 @@ import type { DI } from './di.js';
 export interface Variables {
   requestId: string;
   userId?: UserId;
+  // The Better Auth session behind `userId`, set only for a real signed-in session (not the live-demo identity or a test header). The WebSocket upgrade records it so the socket closes when the session ends.
+  sessionId?: string;
   // Mutated by audit middleware after a successful state-changing handler
   // returns; the middleware reads this and writes one audit_logs row.
   auditEvent?: { event: string; payload?: unknown; alreadyApplied?: boolean };

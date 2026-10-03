@@ -13,6 +13,7 @@ import {
   createPool,
   migrate,
   profileKey,
+  repo,
   type ScopedRedis,
 } from '@app/db';
 import { Pool } from 'pg';
@@ -23,6 +24,9 @@ import { pino as createPino } from 'pino';
 import { afterAll } from 'vitest';
 import { createMetricsRegistry } from '@app/observability';
 import { createAuth } from '../src/auth.js';
+import { createSecurityServices } from '../src/auth/security.js';
+import { createUnlimitedRateLimiter } from '../src/auth/rate-limit.js';
+import { createWebSocketSessionWatch } from '../src/ws/session-watch.js';
 import { authRouter } from '../src/routes/auth.js';
 import { mountApiRouters } from '../src/routes/mount.js';
 import { audit } from '../src/middleware/audit.js';
@@ -168,7 +172,11 @@ const unwiredMarketData = (): never => {
   throw new Error('di.marketData is not wired in the api test fixture');
 };
 
-const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
+const createTestDI = (
+  logger: pino.Logger,
+  infra: ResolvedInfra,
+  opts: SetupAppOptions = {},
+): DI => {
   const pool = createPool({ kind: 'api', connectionString: infra.databaseUrl });
   const db = createDb(pool);
   const connection = createBullMQConnection({ url: infra.redisUrl });
@@ -218,11 +226,37 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
   // sign-up / sign-in / change-password / reset-password flows end-to-end.
   // Cheap to construct (no I/O until $context is awaited); the prior `{}`
   // placeholder existed only because no test exercised auth via this fixture.
-  const auth = createAuth({
+  const metrics = createMetricsRegistry({ service: 'api-test' });
+  // The always-allow limiter by default: suites about orders or accounts sign in repeatedly from one address and are not testing limits. Suites that ARE about limits pass `realLimiter`, which leaves the production Redis limiter in place.
+  const security = createSecurityServices({
     db,
-    webOrigins: ['http://localhost:5173'],
-    authSecret: 'x'.repeat(32),
-    isProduction: false,
+    redis: scopedRedis,
+    queue,
+    logger,
+    registry: metrics.registry,
+    secret: 'x'.repeat(32),
+    singleSignOn: null,
+    passwordSignIn: true,
+    ...(opts.realLimiter === true ? {} : { limiter: createUnlimitedRateLimiter() }),
+  });
+  const rebuildAuth = () =>
+    createAuth({
+      db,
+      webOrigins: ['http://localhost:5173'],
+      authSecret: 'x'.repeat(32),
+      isProduction: false,
+      passwordSignIn: security.passwordSignIn,
+      // Uncached, like production: a session stamped from a stale cached epoch is refused once the cache refreshes.
+      securityEpoch: async () => (await repo.authSecuritySettings.get(db)).securityEpoch,
+      events: security.events,
+    });
+  const auth = rebuildAuth();
+  // Its own subscriber connection, owned and closed by the watcher: a subscribed connection accepts no other command, so it cannot be the shared one.
+  const websocketSessions = createWebSocketSessionWatch({
+    db,
+    subscriber: scopedRedis.duplicate(),
+    security,
+    logger,
   });
   return {
     env: {
@@ -240,6 +274,9 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
       GIT_SHA: 'testsha',
       LIVE_DEMO: false,
       MCP_ENABLED: false,
+      PASSWORD_SIGN_IN_ENABLED: true,
+      SINGLE_SIGN_ON_ENABLED: false,
+      SINGLE_SIGN_ON_BUTTON_LABEL: 'Single sign-on',
     },
     pool,
     db,
@@ -253,7 +290,7 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
     auth,
     strategies: createApiStrategyRegistry(buildStrategyRegistry()),
     notifyProviders,
-    metrics: createMetricsRegistry({ service: 'api-test' }),
+    metrics,
     // Deliberately unwired: no api suite drives the market-data endpoints in `routes/orders.ts`, and a real REST client here would let a test reach Binance over the network. Throwing names the gap the moment a suite needs it, instead of the `undefined.getKlines` TypeError this fixture used to produce.
     marketData: {
       getKlines: unwiredMarketData,
@@ -270,7 +307,11 @@ const createTestDI = (logger: pino.Logger, infra: ResolvedInfra): DI => {
     gitSha: 'testsha',
     bootedAt: '2026-01-01T00:00:00.000Z',
     demoOperatorId: null,
+    security,
+    rebuildAuth,
+    websocketSessions,
     shutdown: async () => {
+      await websocketSessions.stop();
       await backtestQueue.close();
       await advisorQueue.close();
       await diagnosisQueue.close();
@@ -416,6 +457,8 @@ export const resetDatabase = async (pool: Pool, opts: SetupAppOptions = {}): Pro
  */
 export interface SetupAppOptions {
   readonly seed?: boolean;
+  /** True to keep the production Redis rate limiter. Defaults to always-allow, because most suites sign in repeatedly from one address and are not about limits. */
+  readonly realLimiter?: boolean;
 }
 
 // Serialises the global truncate+seed across all setupApp calls in a process.
@@ -427,7 +470,7 @@ let resetChain: Promise<void> = Promise.resolve();
 export const setupApp = async (opts: SetupAppOptions = {}): Promise<ApiFixture> => {
   const infra = await resolveInfra();
   const logger = createPino({ level: 'silent' });
-  const di = createTestDI(logger, infra);
+  const di = createTestDI(logger, infra, opts);
   // All fixtures share one container DB and the reset is global. Sibling
   // describe beforeAll hooks (vitest runs same-suite hooks in parallel) can
   // otherwise interleave one fixture's truncate between another's seed and its

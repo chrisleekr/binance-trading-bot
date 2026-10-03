@@ -117,6 +117,12 @@ export const NON_SECRET_NAME_ALLOWLIST: Readonly<Record<string, string>> = {
     'a path or origin bundled into the browser and visible in the page; no userinfo',
   MCP_RESOURCE_URL:
     'the public MCP endpoint identifier; the protected-resource metadata document publishes this exact value to unauthenticated callers by RFC 9728, so it cannot be a secret',
+  PASSWORD_SIGN_IN_ENABLED:
+    'an on/off flag; "PASSWORD" names the sign-in method it toggles, the value is never a password',
+  SINGLE_SIGN_ON_ISSUER_URL:
+    'the identity provider issuer, which the provider publishes to anyone in its OpenID discovery document and stamps into every ID token',
+  PUBLIC_BASE_URL:
+    'the origin the browser already shows in its address bar; the schema refuses userinfo, so it cannot carry a credential',
 };
 
 /**
@@ -132,7 +138,7 @@ const normaliseName = (name: string): string => name.toUpperCase().replace(/-/g,
  * floor turns an import or catalogue regression into a failure. Sits a margin
  * below the real count so ordinary removals do not red it.
  */
-export const ENV_CONTRACT_FLOOR: number = 36;
+export const ENV_CONTRACT_FLOOR: number = 42;
 
 /**
  * True when the name alone is enough to conclude the value is credential

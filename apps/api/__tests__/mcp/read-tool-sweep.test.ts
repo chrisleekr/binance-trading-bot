@@ -63,7 +63,7 @@ const pathParamsOf = (tool: McpTool, kind: unknown): readonly string[] => {
  *
  * Only required fields are filled, plus whatever {@link ARG_OVERRIDES} names. An optional field left out is the call an agent makes when it has nothing to say about it, and it is the case most likely to be wrong, since a route that silently requires an "optional" argument fails exactly there.
  *
- * Path parameters are the one exception, filled whether the tool marks them optional or not. An unfilled one resolves to an empty segment, no `:param` route matches an empty segment, and the call then 404s at the router with nothing in this file able to tell that from a route answering honestly. `lint_config` declares both of its ids optional and was swept that way, against a path no route could ever serve.
+ * Path parameters are the one exception, filled whether the tool marks them optional or not. An unfilled one is refused while the call is planned, so it never reaches a route or its validator, and this sweep would learn nothing about the route. `lint_config` declares both of its ids optional and was once swept that way, against a path no route could ever serve.
  *
  * @param tool - Tool being swept, supplying its shape, its routes and its overrides.
  * @param fx - Fixture supplying real owned ids, so the call reaches validation rather than stopping at ownership.

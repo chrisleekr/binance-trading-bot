@@ -1,107 +1,70 @@
 import { readFileSync } from 'node:fs';
 
-import type { ScopedRedis } from '@app/db';
-import { OpenAPIHono } from '@hono/zod-openapi';
 import type { Context } from 'hono';
-import { Redis } from 'ioredis';
-import { pino } from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { clientIp } from '../src/middleware/client-ip.js';
-import { errorEnvelope } from '../src/middleware/error.js';
-import { loginRateLimit } from '../src/middleware/login-rate-limit.js';
-import type { Env } from '../src/types.js';
 
 import { HAS_INFRA, setupApp, type ApiFixture } from './_helpers.js';
 
-// Minimal Context stub exposing only `req.header`, the sole surface clientIp reads.
+// Minimal Context stub exposing only `req.raw.headers`, the sole surface clientIp reads.
 const ctx = (headers: Record<string, string>): Context =>
-  ({
-    req: { header: (name: string): string | undefined => headers[name.toLowerCase()] },
-  }) as unknown as Context;
+  ({ req: { raw: { headers: new Headers(headers) } } }) as unknown as Context;
 
 /**
- * Issue #688 — the API must derive the client IP from the RIGHTMOST X-Forwarded-For
- * hop (one trusted proxy), not the client-controlled leftmost hop.
+ * The API derives the client IP from the RIGHTMOST X-Forwarded-For hop (one trusted proxy), never the client-controlled leftmost hop. A leftmost-hop key would let an attacker mint a fresh sign-in allowance per request by rotating the prefix (C1/C2), and would put attacker text in the audit row (C3). C4 locks the no-header fallback so it cannot regress into a 500.
  *
- * These are start-state (RED) tests against the current leftmost-hop code:
- *   - the login throttle buckets on the wrong IP, so a rotating leftmost prefix
- *     never trips the per-IP cap (C1/C2);
- *   - the audit middleware stores the whole raw header string instead of the
- *     single trusted hop (C3).
- * C4 locks the no-header fallback so a fix cannot regress it into a 500.
- *
- * Redis + Postgres come from the shared testcontainers stack via setupApp, so the
- * suite runs hermetically under TESTCONTAINERS=1 (unlike login-throttle.test.ts,
- * which only runs when REDIS_TEST_URL is set).
+ * Runs against the real sign-in route with the production Redis limiter, so the per-IP allowance under test is the one the operator configures (default 3 attempts per 5 minutes).
  */
 const describeIfInfra = HAS_INFRA ? describe : describe.skip;
 
-// Same ScopedRedis shim login-throttle.test.ts uses: the middleware only ever
-// calls `.raw()`, so the other members throw to catch accidental use.
-const wrapRedis = (r: Redis): ScopedRedis =>
-  ({
-    raw: () => r,
-    forProfile: () => {
-      throw new Error('not used');
-    },
-    forGlobal: () => {
-      throw new Error('not used');
-    },
-    quit: async () => 'OK' as const,
-  }) as unknown as ScopedRedis;
-
-// Minimal app fronting the REAL loginRateLimit middleware, mirroring
-// login-throttle.test.ts. The handler always answers 200 so nothing but the
-// per-IP layer can produce a 429.
-const buildRateLimitApp = (redis: ScopedRedis): OpenAPIHono<Env> => {
-  const app = new OpenAPIHono<Env>();
-  app.use('*', errorEnvelope(pino({ level: 'silent' })));
-  app.use('/api/auth/sign-in', loginRateLimit(redis));
-  app.post('/api/auth/sign-in', (c) => c.text('ok', 200));
-  return app;
-};
+const signIn = (
+  fx: ApiFixture,
+  headers: Record<string, string>,
+  email: string,
+): Promise<Response> =>
+  Promise.resolve(
+    fx.app.request('/api/auth/sign-in/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...headers },
+      body: JSON.stringify({ email, password: 'not-the-password' }),
+    }),
+  );
 
 describeIfInfra('client IP derivation (#688)', () => {
   let fx: ApiFixture;
 
   beforeAll(async () => {
-    fx = await setupApp();
+    fx = await setupApp({ realLimiter: true });
   });
   afterAll(async () => {
     await fx.cleanup();
   });
 
-  it('C1/C2: per-IP throttle buckets on the rightmost hop — 6th request 429s despite a rotating leftmost', async () => {
-    const r = new Redis(fx.redisUrl);
-    await r.flushdb();
-    const app = buildRateLimitApp(wrapRedis(r));
-
-    // Rightmost (trusted proxy) is constant; leftmost (client-controlled) rotates
-    // every request. Bucketing on the rightmost hop means all 6 share one counter.
-    const fire = async (leftmost: string): Promise<Response> =>
-      app.fetch(
-        new Request('http://test.local/api/auth/sign-in', {
-          method: 'POST',
-          headers: {
-            'x-forwarded-for': `${leftmost}, 203.0.113.9`,
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({ email: 'c1@b.c', password: 'x' }),
-        }),
+  it('C1/C2: the per-IP allowance keys on the rightmost hop, so a rotating leftmost prefix is still refused after 3 attempts', async () => {
+    // Distinct emails keep the per-email allowance (5) out of the way, so only the per-IP one can refuse.
+    for (let i = 1; i <= 3; i += 1) {
+      const res = await signIn(
+        fx,
+        { 'x-forwarded-for': `${i}.${i}.${i}.${i}, 203.0.113.9` },
+        `c1-${i}@example.test`,
       );
-
-    for (let i = 1; i <= 5; i += 1) {
-      const res = await fire(`${i}.${i}.${i}.${i}`);
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(401);
     }
-    // RED now: current code keys on the rotating leftmost hop, so each request
-    // hits a distinct `auth:rl:ip:<leftmost>` bucket and this stays 200.
-    const blocked = await fire('6.6.6.6');
+    const blocked = await signIn(
+      fx,
+      { 'x-forwarded-for': '6.6.6.6, 203.0.113.9' },
+      'c1-4@example.test',
+    );
     expect(blocked.status).toBe(429);
-    expect(blocked.headers.get('Retry-After')).toBeTruthy();
-
-    await r.quit();
+    expect(Number(blocked.headers.get('Retry-After'))).toBeGreaterThan(0);
+    // A different trusted hop has its own allowance, which proves the refusal above is per address rather than global.
+    const other = await signIn(
+      fx,
+      { 'x-forwarded-for': '6.6.6.6, 203.0.113.10' },
+      'c1-5@example.test',
+    );
+    expect(other.status).toBe(401);
   });
 
   it('C3: audit row records the rightmost hop, not the raw X-Forwarded-For string', async () => {
@@ -126,22 +89,9 @@ describeIfInfra('client IP derivation (#688)', () => {
   });
 
   it('C4: sign-in with no X-Forwarded-For and no X-Real-IP does not 500 (fallback holds)', async () => {
-    const r = new Redis(fx.redisUrl);
-    await r.flushdb();
-    const app = buildRateLimitApp(wrapRedis(r));
-
-    const res = await app.fetch(
-      new Request('http://test.local/api/auth/sign-in', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: 'c4@b.c', password: 'x' }),
-      }),
-    );
-    // Fallback to the 'unknown' bucket must keep the throttle functioning.
-    expect(res.status).not.toBe(500);
-    expect(res.status).toBe(200);
-
-    await r.quit();
+    const res = await signIn(fx, {}, 'c4@example.test');
+    // The shared 'unknown' bucket keeps the limiter working; a wrong password is an ordinary 401.
+    expect(res.status).toBe(401);
   });
 });
 
@@ -179,16 +129,15 @@ describe('clientIp helper (#688)', () => {
     expect(clientIp(ctx({ 'x-real-ip': '   ' }))).toBe('unknown');
   });
 
-  it('C6 structural: no leftmost-hop derivation remains; both middlewares route through clientIp', () => {
-    const rl = readFileSync(
-      new URL('../src/middleware/login-rate-limit.ts', import.meta.url),
-      'utf8',
-    );
+  it('C6 structural: no leftmost-hop derivation remains; the address helper and the audit middleware both take the rightmost hop', () => {
+    const address = readFileSync(new URL('../src/auth/client-address.ts', import.meta.url), 'utf8');
     const au = readFileSync(new URL('../src/middleware/audit.ts', import.meta.url), 'utf8');
-    // The bug was `split(',')[0]` (leftmost) in login-rate-limit and a raw
-    // x-forwarded-for read in audit. Neither may reappear.
-    expect(rl).not.toMatch(/split\(\s*','\s*\)\s*\[\s*0\s*\]/);
-    expect(rl).toMatch(/clientIp\(/);
+    const routes = readFileSync(new URL('../src/routes/auth.ts', import.meta.url), 'utf8');
+    // The original bug was `split(',')[0]` (leftmost) in the limiter and a raw x-forwarded-for read in audit. Neither may reappear.
+    expect(address).not.toMatch(/split\(\s*','\s*\)\s*\[\s*0\s*\]/);
+    expect(address).toMatch(/export const clientIpFromHeaders/);
+    expect(routes).toMatch(/clientIpFromHeaders\(/);
+    expect(routes).not.toMatch(/'x-forwarded-for'/);
     expect(au).not.toMatch(/header\(\s*'x-forwarded-for'\s*\)/);
     expect(au).toMatch(/clientIp\(/);
   });

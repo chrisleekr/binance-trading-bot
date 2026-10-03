@@ -87,8 +87,23 @@ export const errorResponse = (code: ErrorCode, message: string, details: unknown
   });
 };
 
+/**
+ * Recognises the two refusals the request validators throw before a handler runs: hono's validator answers a body that is not valid JSON with 400, and `@hono/zod-openapi` answers a body whose content type the route does not declare with 415. Both are the caller's mistake, yet without this they fell through to the `unhandled` branch, so any anonymous request could produce a 500 and an error-level log line at will. Duck-typed on `status` and `getResponse` for the same reason as the checks above; the class sets no `name` of its own.
+ *
+ * @param err - Anything the chain threw.
+ * @returns True for an HTTPException carrying 400 or 415.
+ */
+const isMalformedRequestShape = (err: unknown): err is { status: number; message: string } =>
+  typeof err === 'object' &&
+  err !== null &&
+  typeof (err as { getResponse?: unknown }).getResponse === 'function' &&
+  ((err as { status?: unknown }).status === 400 || (err as { status?: unknown }).status === 415) &&
+  typeof (err as { message?: unknown }).message === 'string';
+
 const buildResponse = (err: unknown, logger: Logger, path: string): Response => {
   if (isHttpErrorShape(err)) return errorResponse(err.code, err.message, err.details);
+  if (isMalformedRequestShape(err))
+    return errorResponse('VALIDATION_FAILED', err.message || 'invalid request', undefined);
   if (isZodErrorShape(err))
     return errorResponse('VALIDATION_FAILED', 'invalid request', err.issues);
   if (err instanceof ProfileNotOwnedError || isProfileNotOwnedShape(err)) {

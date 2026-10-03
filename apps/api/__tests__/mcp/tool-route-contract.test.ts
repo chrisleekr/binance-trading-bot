@@ -20,6 +20,7 @@ interface JsonSchemaNode {
   readonly type?: string;
   readonly enum?: readonly unknown[];
   readonly properties?: Readonly<Record<string, JsonSchemaNode>>;
+  readonly required?: readonly string[];
   readonly additionalProperties?: unknown;
 }
 
@@ -27,6 +28,7 @@ interface Operation {
   readonly parameters?: readonly {
     readonly name: string;
     readonly in: string;
+    readonly required?: boolean;
     readonly schema?: JsonSchemaNode;
   }[];
   readonly requestBody?: {
@@ -72,6 +74,43 @@ const acceptedArgs = (op: Operation): Map<string, readonly unknown[] | null> => 
   }
   return accepted;
 };
+
+/**
+ * The arguments one route refuses a call without, path parameters aside: every path parameter is required by construction, and the dispatcher refuses an omitted one by name before any route is reached.
+ *
+ * @param op - The route's OpenAPI operation.
+ * @returns Required query parameter and request-body property names.
+ */
+const requiredArgs = (op: Operation): string[] => [
+  ...(op.parameters ?? [])
+    .filter((p) => p.in === 'query' && p.required === true)
+    .map((p) => p.name),
+  ...(op.requestBody?.content?.['application/json']?.schema?.required ?? []),
+];
+
+/**
+ * Route body fields the OpenAPI document publishes with no type, and whether each route really refuses a call without it.
+ *
+ * A contract field declared `z.unknown()` is published as `{ nullable: true }` and never listed as required, whether or not the route refuses a call without it, so the document cannot answer the question for these fields and each one is decided here from the contract. `switch_strategy.config` was the case that slipped past the document: `z.unknown()` in `SwitchStrategyRequest`, refused when absent, and declared optional by the tool.
+ */
+const UNTYPED_ROUTE_FIELDS: Readonly<Record<string, boolean>> = {
+  'preview_config.config': false,
+  'update_profile.config': false,
+  'update_symbol_config.overrideConfig': true,
+  'create_profile.config': true,
+  'switch_strategy.config': true,
+};
+
+/**
+ * Whether the document gave a body property no type, which is how it publishes a `z.unknown()` field.
+ *
+ * @param node - The property's JSON Schema.
+ * @returns True when nothing in the node constrains the value.
+ */
+const isUntyped = (node: JsonSchemaNode): boolean =>
+  node.type === undefined &&
+  node.enum === undefined &&
+  !['anyOf', 'oneOf', 'allOf', '$ref'].some((key) => key in node);
 
 /** Zod exposes an enum's members differently across wrappers; reading `.options` off the unwrapped schema covers the optional and defaulted forms the tool table uses. */
 const enumOptionsOf = (schema: z.ZodType): readonly unknown[] | null => {
@@ -184,5 +223,37 @@ describe('every MCP tool argument is one its route accepts', () => {
     }
     expect(declared.size).toBeGreaterThan(0);
     expect([...compared].sort()).toEqual([...declared].sort());
+  });
+
+  it('requires every argument its route requires', () => {
+    // The mirror of the orphan check above. A tool that declares a route-required argument optional publishes a schema an agent can follow exactly and still be refused every time, and nothing in the refusal says the schema was wrong. `disable_symbol` shipped this way, with the audit `reason` its route cannot do without.
+    const loose: string[] = [];
+    const compared: string[] = [];
+    const untyped: string[] = [];
+    for (const tool of MCP_TOOLS) {
+      // A consolidated read reaches several routes, so an argument one kind requires is optional for the others and cannot be required at the tool; its description carries that instead.
+      if (tool.routes.length !== 1) continue;
+      const [op] = operationsFor(tool);
+      const body = (op as Operation).requestBody?.content?.['application/json']?.schema;
+      const decided = Object.entries(body?.properties ?? {})
+        .filter(([, node]) => isUntyped(node))
+        .map(([name]) => {
+          untyped.push(`${tool.name}.${name}`);
+          return UNTYPED_ROUTE_FIELDS[`${tool.name}.${name}`] === true ? name : null;
+        })
+        .filter((name): name is string => name !== null);
+      for (const name of new Set([...requiredArgs(op as Operation), ...decided])) {
+        compared.push(`${tool.name}.${name}`);
+        const declared = tool.inputShape[name];
+        if (declared === undefined) loose.push(`${tool.name}.${name} is not declared`);
+        else if (declared.safeParse(undefined).success)
+          loose.push(`${tool.name}.${name} is optional, but ${tool.routes[0]} requires it`);
+      }
+    }
+    expect(loose).toEqual([]);
+    // Proves the walk reached the case that motivated it, so a document that stopped publishing `required` cannot turn this green by comparing nothing.
+    expect(compared).toContain('disable_symbol.reason');
+    // Equality, so a new untyped field has to be decided above rather than being treated as optional by default.
+    expect(untyped.sort()).toEqual(Object.keys(UNTYPED_ROUTE_FIELDS).sort());
   });
 });

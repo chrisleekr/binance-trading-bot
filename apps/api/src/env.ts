@@ -61,7 +61,28 @@ export interface Env {
    * Canonical RFC 8707 / RFC 9728 resource identifier for the MCP endpoint, for example `https://bot.example.com/api/mcp`. Access tokens are audience-bound to this exact string, so it must be the URL agents actually reach rather than an internal address. Must be `https` unless it points at a loopback host, and must carry no query, fragment or userinfo. Required when `MCP_ENABLED` is true; ignored otherwise.
    */
   MCP_RESOURCE_URL?: string | undefined;
+  /** Whether the email and password form is accepted. Off makes password sign-in and password sign-up refuse, and hides the form. */
+  PASSWORD_SIGN_IN_ENABLED: boolean;
+  /** Whether "Sign in with single sign-on" (OpenID Connect, for example Auth0) is offered. */
+  SINGLE_SIGN_ON_ENABLED: boolean;
+  /** The identity provider's issuer, for example `https://tenant.auth0.com/`. Must equal the `issuer` its discovery document publishes. */
+  SINGLE_SIGN_ON_ISSUER_URL?: string | undefined;
+  SINGLE_SIGN_ON_CLIENT_ID?: string | undefined;
+  SINGLE_SIGN_ON_CLIENT_SECRET?: string | undefined;
+  /** Text on the sign-in button. */
+  SINGLE_SIGN_ON_BUTTON_LABEL: string;
+  /** The public origin the app is reached at, for example `https://bot.example.com`. Single sign-on redirect addresses are built from it, never from request headers. */
+  PUBLIC_BASE_URL?: string | undefined;
 }
+
+/**
+ * Treats an empty string as unset. Compose passes `${NAME:-}` through as `""` when the operator left the variable out of `.env`, and without this an optional URL would fail boot on a value nobody wrote.
+ *
+ * @param schema - The optional schema that applies when a value is present.
+ * @returns The same schema, reached only for a non-empty value.
+ */
+const unsetWhenEmpty = <T extends z.ZodType>(schema: T): z.ZodPreprocess<T> =>
+  z.preprocess((v) => (v === '' ? undefined : v), schema);
 
 /** Parses a value zod already accepted as a URL, yielding null when the WHATWG parser disagrees so the predicates below fail closed instead of treating an unparseable string as unconstrained. */
 const parseUrl = (value: string): URL | null => {
@@ -138,6 +159,42 @@ const EnvSchema = z
       })
       .transform((u) => u.replace(/\/+$/, ''))
       .optional(),
+    // Parsed strictly because the default is on: a loose parser turns a typo such as `yes` into "off", and the only symptom is a missing form.
+    PASSWORD_SIGN_IN_ENABLED: z
+      .enum(['0', '1', 'true', 'false'])
+      .default('1')
+      .transform((v) => v === '1' || v === 'true'),
+    SINGLE_SIGN_ON_ENABLED: booleanEnvFlag(),
+    // Kept exactly as written (trailing slash included): it is compared byte-for-byte with the `iss` claim, and Auth0 issuers end in a slash.
+    SINGLE_SIGN_ON_ISSUER_URL: unsetWhenEmpty(
+      z
+        .string()
+        .trim()
+        .url()
+        .refine(isSecureResourceOrigin, {
+          message:
+            'SINGLE_SIGN_ON_ISSUER_URL must be an https URL; http is only allowed for a loopback host',
+        })
+        .optional(),
+    ),
+    SINGLE_SIGN_ON_CLIENT_ID: unsetWhenEmpty(z.string().trim().min(1).optional()),
+    SINGLE_SIGN_ON_CLIENT_SECRET: unsetWhenEmpty(z.string().min(1).optional()),
+    SINGLE_SIGN_ON_BUTTON_LABEL: z.string().trim().min(1).max(40).default('Single sign-on'),
+    PUBLIC_BASE_URL: unsetWhenEmpty(
+      z
+        .string()
+        .trim()
+        .url()
+        .refine(isSecureResourceOrigin, {
+          message: 'PUBLIC_BASE_URL must be an https URL; http is only allowed for a loopback host',
+        })
+        .refine((v) => parseUrl(v)?.origin === v.replace(/\/+$/, ''), {
+          message:
+            'PUBLIC_BASE_URL must be an origin only (scheme, host and port), with no path, query or credentials',
+        })
+        .transform((u) => u.replace(/\/+$/, ''))
+        .optional(),
+    ),
   })
   // The api boots two listeners (public on PORT, admin/healthz on ADMIN_PORT).
   // A collision would crash the second bind; surface the conflict at env-parse
@@ -156,7 +213,41 @@ const EnvSchema = z
     message:
       'MCP_ENABLED and LIVE_DEMO cannot both be true: the live demo injects the sole operator id for every anonymous request, so mounting the MCP control plane would publish an OAuth authorization server and its discovery documents in front of an identity no caller has to prove. Set one of them to 0.',
     path: ['MCP_ENABLED'],
-  });
+  })
+  .refine(
+    (env) =>
+      !env.SINGLE_SIGN_ON_ENABLED ||
+      (env.SINGLE_SIGN_ON_ISSUER_URL !== undefined &&
+        env.SINGLE_SIGN_ON_CLIENT_ID !== undefined &&
+        env.SINGLE_SIGN_ON_CLIENT_SECRET !== undefined &&
+        env.PUBLIC_BASE_URL !== undefined),
+    {
+      message:
+        'SINGLE_SIGN_ON_ISSUER_URL, SINGLE_SIGN_ON_CLIENT_ID, SINGLE_SIGN_ON_CLIENT_SECRET and PUBLIC_BASE_URL are required when SINGLE_SIGN_ON_ENABLED is true',
+      path: ['SINGLE_SIGN_ON_ENABLED'],
+    },
+  )
+  // With neither method on nobody can sign in, and the only way back is a redeploy. The live demo has no sign-in at all, so it is exempt.
+  .refine((env) => env.LIVE_DEMO || env.PASSWORD_SIGN_IN_ENABLED || env.SINGLE_SIGN_ON_ENABLED, {
+    message: 'At least one of PASSWORD_SIGN_IN_ENABLED or SINGLE_SIGN_ON_ENABLED must be true',
+    path: ['PASSWORD_SIGN_IN_ENABLED'],
+  })
+  // The demo injects an operator for anonymous callers; a single sign-on callback there would mint a real session on a box whose premise is that nobody signs in.
+  .refine((env) => !(env.SINGLE_SIGN_ON_ENABLED && env.LIVE_DEMO), {
+    message: 'SINGLE_SIGN_ON_ENABLED and LIVE_DEMO cannot both be true',
+    path: ['SINGLE_SIGN_ON_ENABLED'],
+  })
+  // Better Auth publishes one origin for both the agent authorization server and the single sign-on redirect; two different values would sign tokens under one issuer and verify them under another.
+  .refine(
+    (env) =>
+      env.PUBLIC_BASE_URL === undefined ||
+      env.MCP_RESOURCE_URL === undefined ||
+      parseUrl(env.MCP_RESOURCE_URL)?.origin === env.PUBLIC_BASE_URL,
+    {
+      message: 'PUBLIC_BASE_URL must be the same origin as MCP_RESOURCE_URL',
+      path: ['PUBLIC_BASE_URL'],
+    },
+  );
 
 export const loadEnv = (raw: NodeJS.ProcessEnv = process.env): Env =>
   parseEnvOrThrow(EnvSchema, raw, 'api');

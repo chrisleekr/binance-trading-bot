@@ -264,6 +264,106 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
       'Optional. Unset, notifications still send — just without a link. A trailing slash is trimmed automatically. Boot fails if the value is not a valid URL.',
   },
 
+  // ── Sign-in ────────────────────────────────────────────────────────────────
+  PASSWORD_SIGN_IN_ENABLED: {
+    group: 'Sign-in',
+    consumers: ['api'],
+    parsed: true,
+    kind: 'config',
+    values: '`1`, `true`, `0` or `false`; any other value fails boot',
+    def: 'on',
+    defNote: 'the flag parses to a boolean, so the schema default is `true`',
+    defParsed: 'true',
+    description: 'Whether the sign-in page offers the email and password form.',
+    when: 'Turn it off once single sign-on works and you want the identity provider, and the multi-factor authentication you turned on there, to be the only way in.',
+    expect:
+      'Off, the form is hidden and the password sign-in and sign-up endpoints answer 404. A mistyped value fails boot rather than silently turning the form off. At least one of this and `SINGLE_SIGN_ON_ENABLED` must be on. If single sign-on then cannot be reached at boot and no other method works, password sign-in is switched back on for that run and a security alert is sent, so the instance is never left with no way in. The `reset-password` command works either way.',
+  },
+  SINGLE_SIGN_ON_ENABLED: {
+    group: 'Sign-in',
+    consumers: ['api'],
+    parsed: true,
+    kind: 'config',
+    values: '`1` or `true` to enable; anything else is off',
+    def: 'off',
+    defNote: 'the flag parses to a boolean, so the schema default is `false`',
+    defParsed: 'false',
+    description:
+      'Offers "sign in with single sign-on" through an OpenID Connect identity provider such as Auth0.',
+    when: 'When you want your identity provider (and its multi-factor authentication) to guard sign-in.',
+    expect:
+      'On, it requires `SINGLE_SIGN_ON_ISSUER_URL`, `SINGLE_SIGN_ON_CLIENT_ID`, `SINGLE_SIGN_ON_CLIENT_SECRET` and `PUBLIC_BASE_URL`, and it is refused together with `LIVE_DEMO`. The provider is checked at boot with a 5-second limit; if it cannot be reached the app still starts with the button disabled, raises a security alert, and exits once the provider answers again so it restarts with the provider registered. That restart depends on the container restart policy (`restart: unless-stopped` in the prod and scale compose files); with no policy the api stays stopped. Only the identity that created the operator, or one linked later from Settings > Security, can sign in; nobody else can create an account through it.',
+  },
+  SINGLE_SIGN_ON_ISSUER_URL: {
+    group: 'Sign-in',
+    consumers: ['api'],
+    parsed: true,
+    kind: 'config',
+    values: 'an absolute `https` URL, written exactly as the provider publishes it',
+    def: null,
+    defNote: 'optional while `SINGLE_SIGN_ON_ENABLED` is off; required when it is on',
+    defParsed: null,
+    description: "The identity provider's issuer, for example `https://your-tenant.auth0.com/`.",
+    when: 'Whenever `SINGLE_SIGN_ON_ENABLED` is on.',
+    expect:
+      "It is compared character for character with the `issuer` in the provider's discovery document and with every ID token, so keep the trailing slash Auth0 uses. A mismatch disables single sign-on at boot. Plain `http` is accepted only for a loopback host.",
+  },
+  SINGLE_SIGN_ON_CLIENT_ID: {
+    group: 'Sign-in',
+    consumers: ['api'],
+    parsed: true,
+    kind: 'config',
+    values: 'the client ID of the application you created at the provider',
+    def: null,
+    defNote: 'optional while `SINGLE_SIGN_ON_ENABLED` is off; required when it is on',
+    defParsed: null,
+    description: 'Identifies this app to the identity provider.',
+    when: 'Whenever `SINGLE_SIGN_ON_ENABLED` is on.',
+    expect:
+      'A wrong value makes the provider refuse the sign-in; the app records the failure and the sign-in page shows a plain error.',
+  },
+  SINGLE_SIGN_ON_CLIENT_SECRET: {
+    group: 'Sign-in',
+    consumers: ['api'],
+    parsed: true,
+    kind: 'secret',
+    values: 'the client secret of the application you created at the provider',
+    def: null,
+    defNote: 'optional while `SINGLE_SIGN_ON_ENABLED` is off; required when it is on',
+    defParsed: null,
+    description: 'Proves to the identity provider that sign-in requests really come from this app.',
+    when: 'Whenever `SINGLE_SIGN_ON_ENABLED` is on.',
+    expect:
+      'Kept in the environment only, never in the database, so a stolen session cannot read or change it. Rotating it at the provider needs a restart with the new value.',
+  },
+  SINGLE_SIGN_ON_BUTTON_LABEL: {
+    group: 'Sign-in',
+    consumers: ['api'],
+    parsed: true,
+    kind: 'config',
+    values: '1 to 40 characters',
+    def: 'Single sign-on',
+    description: 'The text on the single sign-on button, for example `Sign in with Auth0`.',
+    when: 'When you want the button to name your provider.',
+    expect:
+      'Shown only when single sign-on is enabled. Boot fails if it is empty or longer than 40 characters.',
+  },
+  PUBLIC_BASE_URL: {
+    group: 'Sign-in',
+    consumers: ['api'],
+    parsed: true,
+    kind: 'config',
+    values:
+      'an origin only, for example `https://bot.example.com`: scheme, host and optional port, no path',
+    def: null,
+    defNote: 'optional while `SINGLE_SIGN_ON_ENABLED` is off; required when it is on',
+    defParsed: null,
+    description: 'The address you reach this app at, as the browser sees it.',
+    when: 'Whenever `SINGLE_SIGN_ON_ENABLED` is on. Register `<PUBLIC_BASE_URL>/api/auth/callback/oidc` as the callback URL at the provider.',
+    expect:
+      'The single sign-on callback address is built from it, never from request headers, so a proxy or a forged `Host` header cannot redirect a sign-in elsewhere. Must be `https` except on a loopback host, and must share its origin with `MCP_RESOURCE_URL` when both are set.',
+  },
+
   // ── HTTP and admin ports ───────────────────────────────────────────────────
   PORT: {
     group: 'HTTP and admin ports',

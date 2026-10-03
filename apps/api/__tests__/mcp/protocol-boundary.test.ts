@@ -12,6 +12,7 @@ import {
   CLIENT_INFO_META_KEY,
   PROTOCOL_VERSION_META_KEY,
 } from '@modelcontextprotocol/server';
+import { repo } from '@app/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createAuth, type Auth } from '../../src/auth.js';
 import type { DI } from '../../src/di.js';
@@ -551,5 +552,16 @@ describe.skipIf(!HAS_INFRA)('MCP protocol boundary over a real token', () => {
       supported: [PROTOCOL_REVISION],
       requested: LEGACY_REVISION,
     });
+  });
+  // Last on purpose: it revokes the token every case above shares.
+  it('refuses an already issued token once agent access is revoked, although the JWT itself is still unexpired', async () => {
+    const before = await rpc(fullToken, 'server/discover');
+    expect(before.status).toBe(200);
+    // Issued tokens are whole-second `iat`; step past the issuing second so the cutoff is strictly later, as it is in real use.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    await repo.authIdentity.revokeAgentAccess(fx.di.db, operatorId, new Date());
+    fx.di.security.settings.invalidate();
+    const after = await rpc(fullToken, 'server/discover');
+    expect(after.status).toBe(401);
   });
 });

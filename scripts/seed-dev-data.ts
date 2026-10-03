@@ -33,6 +33,7 @@ import {
   asAccountId,
   asProfileId,
   asUserId,
+  AuthSecuritySettings,
   TechnicalsSignalSchema,
   type AccountId,
   type ProfileId,
@@ -1037,6 +1038,13 @@ async function main(): Promise<void> {
         const scoped = await profileRepo(db, op.operatorId, op.accountId, asProfileId(profile.id));
         await scoped.profile.setEnabled(false);
       }
+      // Every Playwright project signs in from 127.0.0.1 within a minute, and the default of 3 password attempts per IP address per 5 minutes blocks the fourth. The loosest value the contract accepts keeps the limit armed while fitting the journey.
+      await repo.authSecuritySettings.setSettings(
+        db,
+        AuthSecuritySettings.parse({
+          signInAttemptsPerIpAddress: { maximumAttempts: 10, periodSeconds: 60 },
+        }),
+      );
       // Shell-sourceable so the harness can export these straight into
       // Playwright's environment, the same channel the Binance fixture uses.
       // Single-quoted, not JSON: the harness `source`s this file, and the shell

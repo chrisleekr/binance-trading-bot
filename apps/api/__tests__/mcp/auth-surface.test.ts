@@ -74,6 +74,24 @@ describe.skipIf(!HAS_INFRA)('MCP endpoint before authentication', () => {
     const res = await post({ authorization: 'Bearer not-a-real-token' });
     expect(res.status).toBe(401);
   });
+
+  it('records a refused token as a security event, but not the tokenless discovery request every client starts with', async () => {
+    const recorded = async (): Promise<number> =>
+      (
+        await fx.di.pool.query(
+          `select 1 from audit_logs where category = 'security' and event = 'agent-authentication-failed'`,
+        )
+      ).rowCount ?? 0;
+    // Aggregated events fold into one row per five-minute window, and the case above already opened this window; start a fresh one.
+    await fx.di.pool.query(`delete from audit_logs where category = 'security'`);
+    const redis = fx.di.redis.raw();
+    const windows = await redis.keys('auth:agg:agent-authentication-failed:*');
+    if (windows.length > 0) await redis.del(...windows);
+    expect((await post()).status).toBe(401);
+    expect(await recorded()).toBe(0);
+    expect((await post({ authorization: 'Bearer forged-token' })).status).toBe(401);
+    expect(await recorded()).toBe(1);
+  });
 });
 
 describe.skipIf(!HAS_INFRA)('dynamic client registration', () => {

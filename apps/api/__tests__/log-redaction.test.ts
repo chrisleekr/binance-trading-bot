@@ -81,3 +81,75 @@ describe('api logger redactor — smoke', () => {
     }
   });
 });
+
+describe('api logger redactor — sign-in material', () => {
+  it.each([
+    'currentPassword',
+    'idToken',
+    'accessToken',
+    'refreshToken',
+    'id_token',
+    'access_token',
+    'refresh_token',
+    'code_verifier',
+    'client_secret',
+    'oauth_query',
+  ])(
+    'strips a nested %s, which a single sign-on or agent authorization failure can carry',
+    (field) => {
+      const { logger, out } = buildLogger();
+      const SECRET = `sign-in-material-${field}-do-not-leak`;
+      logger.warn({ context: { [field]: SECRET } }, 'auth_failure');
+      expect(out.buffer).not.toContain(SECRET);
+      expect(out.buffer).toContain('[redacted]');
+    },
+  );
+
+  it.each([
+    'idToken',
+    'accessToken',
+    'refreshToken',
+    'tokens',
+    'id_token',
+    'access_token',
+    'refresh_token',
+    'code_verifier',
+    'client_secret',
+    'oauth_query',
+    'password',
+    'currentPassword',
+    'token',
+  ])('strips %s from an argument the Better Auth bridge logs inside its detail array', (field) => {
+    const { logger, out } = buildLogger();
+    const SECRET = `better-auth-${field}-do-not-leak`;
+    // The exact shape apps/api/src/auth.ts logs: Better Auth's extra arguments, as an array.
+    logger.warn({ betterAuth: true, detail: [{ [field]: SECRET }] }, 'better_auth_warning');
+    expect(out.buffer).not.toContain(SECRET);
+    expect(out.buffer).toContain('[redacted]');
+  });
+
+  it('strips the session cookie from a logged response', () => {
+    const { logger, out } = buildLogger();
+    const COOKIE = 'app.session_token=abc.sig; HttpOnly';
+    logger.info({ res: { headers: { 'set-cookie': COOKIE } } }, 'response');
+    expect(out.buffer).not.toContain('abc.sig');
+  });
+
+  it('keeps the single sign-on account email out of a security event line, and the rest of the line intact', () => {
+    const { logger, out } = buildLogger();
+    // The shape the security event recorder logs.
+    logger.info(
+      {
+        securityEvent: 'sign-in-succeeded',
+        method: 'singleSignOn',
+        reason: 'none',
+        ip: '198.51.100.7',
+        detail: { account: 'me@example.test' },
+      },
+      'security_event',
+    );
+    expect(out.buffer).not.toContain('me@example.test');
+    expect(out.buffer).toContain('"securityEvent":"sign-in-succeeded"');
+    expect(out.buffer).toContain('"account":"[redacted]"');
+  });
+});

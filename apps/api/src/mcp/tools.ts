@@ -90,7 +90,7 @@ const PATH_PARAM = /:([A-Za-z][A-Za-z0-9]*)/g;
 /**
  * Whether a path-parameter value stays inside the one segment its placeholder occupies.
  *
- * `encodeURIComponent` escapes a separator but leaves `.` alone, so a `..` argument reaches the URL intact and the URL parser removes the dot segment before any router sees the path, which is how a tool's own route silently becomes a shorter one the tool does not declare. Nothing is reachable that way today: the collapse always leaves a trailing slash and Hono's `strict` default answers 404 for `/x/` where it routes `/x`. That makes this defence in depth rather than a live bypass, and the reason to keep it is that the fail-closed partition otherwise rests entirely on a router default nothing in this repo asserts. An empty value is allowed through unchanged, because an omitted optional path argument already produces an empty segment and a 404, which is a call that was malformed rather than one trying to travel.
+ * `encodeURIComponent` escapes a separator but leaves `.` alone, so a `..` argument reaches the URL intact and the URL parser removes the dot segment before any router sees the path, which is how a tool's own route silently becomes a shorter one the tool does not declare. Nothing is reachable that way today: the collapse always leaves a trailing slash and Hono's `strict` default answers 404 for `/x/` where it routes `/x`. That makes this defence in depth rather than a live bypass, and the reason to keep it is that the fail-closed partition otherwise rests entirely on a router default nothing in this repo asserts. An empty value is not judged here; `planFrom` refuses it by name first.
  *
  * @param value - The argument as it would be substituted, before encoding.
  * @returns True when the value can only ever be one path segment.
@@ -124,6 +124,13 @@ const planFrom = (signature: string, args: Readonly<Record<string, unknown>>): M
   const path = template.replace(PATH_PARAM, (_match, name: string) => {
     consumed.add(name);
     const value = String(args[name] ?? '');
+    // A consolidated tool declares a path argument optional when only some of its kinds take it, so an omitted one reaches here. Filled in as an empty segment it matches no route, and the caller would get a bare 404 it could read as "nothing there" rather than as its own missing argument.
+    if (value === '') {
+      throw new HttpError(
+        'VALIDATION_FAILED',
+        `${name} is required for this call. Pass it and call again.`,
+      );
+    }
     if (!isSinglePathSegment(value)) {
       throw new HttpError(
         'VALIDATION_FAILED',
@@ -790,7 +797,11 @@ export const MCP_TOOLS: readonly McpTool[] = [
     shape: {
       ...symbolArgs,
       ttlSeconds: z.number().int().positive().max(604800),
-      reason: z.string().optional(),
+      reason: z
+        .string()
+        .min(1)
+        .max(256)
+        .describe('Why trading on this symbol is being stopped. Kept in the audit log.'),
     },
   }),
   writeTool({
@@ -873,12 +884,13 @@ export const MCP_TOOLS: readonly McpTool[] = [
   writeTool({
     name: 'switch_strategy',
     signature: `POST ${PROFILE}/switch-strategy`,
-    description: 'Replace the strategy plugin this profile runs, with a fresh configuration.',
+    description:
+      'Replace the strategy plugin this profile runs, with a fresh configuration. config is required and is the whole configuration for the new strategy, not a patch; list_strategies returns each strategy with its default configuration to start from.',
     shape: {
       ...profileArgs,
       strategyName: z.string().min(1),
       strategyVersion: z.string().min(1),
-      config: z.record(z.string(), z.unknown()).optional(),
+      config: z.record(z.string(), z.unknown()),
     },
   }),
   writeTool({
@@ -1001,6 +1013,20 @@ export const NO_TOOL_DENIED: readonly string[] = [
   'GET /api/auth/session',
   'POST /api/auth/change-password',
   'POST /api/auth/sign-up',
+  'POST /api/auth/sign-in/email',
+  'POST /api/auth/sign-out',
+  'POST /api/auth/single-sign-on/start',
+  'POST /api/auth/single-sign-on/link',
+  'POST /api/auth/single-sign-on/unlink',
+  'POST /api/auth/password',
+  'GET /api/auth/sessions',
+  'POST /api/auth/sessions/:sessionId/revoke',
+  'POST /api/auth/sessions/revoke-others',
+  'POST /api/auth/sign-out-everywhere',
+  'POST /api/auth/agent-access/revoke',
+  'GET /api/auth/security-settings',
+  'PATCH /api/auth/security-settings',
+  'GET /api/auth/security-events',
 ];
 
 /**

@@ -1,8 +1,25 @@
+import type { SecurityEvent } from '@app/contracts';
 import { repo } from '@app/db';
 import type { MiddlewareHandler } from 'hono';
 import { clientIp } from 'middleware/client-ip.js';
 import type { DI } from 'di.js';
 import type { Env } from 'types.js';
+
+/**
+ * Audit events that change what an intruder could steal or who hears about it. Each also becomes a security event, which reaches the Security page and raises an alert. Keyed here, at the one place every route's audit event passes, so a route cannot record the change and forget the alert.
+ */
+export const SENSITIVE_AUDIT_EVENTS: Readonly<Record<string, SecurityEvent>> = {
+  'backup-download': 'backup-downloaded',
+  restore: 'restore-performed',
+  'add-api-key': 'api-key-changed',
+  'replace-api-key': 'api-key-changed',
+  'delete-api-key': 'api-key-changed',
+  'notify-provider-save': 'notifier-changed',
+  'notify-provider-enabled': 'notifier-changed',
+  'set-ops-notify-config': 'ops-notify-settings-changed',
+  'set-retention-config': 'retention-settings-changed',
+  'set-ai-provider': 'ai-provider-changed',
+};
 
 // Best-effort audit middleware. Handler sets `c.var.auditEvent = { event, payload? }`
 // after a successful state-changing operation; we write one audit_logs row.
@@ -39,5 +56,15 @@ export const audit =
       });
     } catch (err) {
       di.logger.warn({ err, event: event.event, userId }, 'audit_write_failed');
+    }
+    const securityEvent = SENSITIVE_AUDIT_EVENTS[event.event];
+    if (securityEvent !== undefined) {
+      await di.security.events.record({
+        event: securityEvent,
+        actor,
+        ipAddress: clientIp(c),
+        userAgent: c.req.header('user-agent') ?? null,
+        detail: { change: event.event },
+      });
     }
   };

@@ -101,6 +101,17 @@ describeIfInfra('auth integration — sign-up → change-password → re-sign-in
       body: JSON.stringify({ email: EMAIL, password }),
     });
 
+  const getSession = async (cookie: string): Promise<Response> =>
+    app.request('/api/auth/session', { headers: { cookie } });
+
+  const securityEvents = async (event: string): Promise<number> =>
+    (
+      await fx.di.pool.query(
+        `select 1 from audit_logs where category = 'security' and event = $1`,
+        [event],
+      )
+    ).rowCount ?? 0;
+
   const changePassword = async (
     cookie: string,
     oldPassword: string,
@@ -164,7 +175,8 @@ describeIfInfra('auth integration — sign-up → change-password → re-sign-in
     expect(cookie).not.toBe('');
 
     const res = await changePassword(cookie, 'this-is-not-the-old-password', PW_NEW);
-    expect(res.status).toBe(401);
+    // Not 401: the session is fine, and the web client would treat a 401 as signed out.
+    expect(res.status).toBe(403);
     const body = (await res.json()) as { error: { code: string } };
     expect(body.error.code).toBe('INVALID_PASSWORD');
 
@@ -172,6 +184,9 @@ describeIfInfra('auth integration — sign-up → change-password → re-sign-in
     // have rotated the credential as a side effect.
     const stillOk = await signIn(PW_OLD);
     expect(stillOk.status).toBe(200);
+    // A wrong current password is a failed re-authentication, and no change is recorded.
+    expect(await securityEvents('reauthentication-failed')).toBe(1);
+    expect(await securityEvents('change-password')).toBe(0);
   });
 
   it('rotates the credential on a valid oldPassword and the new password authenticates', async () => {
@@ -179,8 +194,19 @@ describeIfInfra('auth integration — sign-up → change-password → re-sign-in
     expect(session.status).toBe(200);
     const cookie = extractCookie(session.headers.get('set-cookie'));
 
+    const other = await signIn(PW_OLD);
+    const otherCookie = extractCookie(other.headers.get('set-cookie'));
+
     const res = await changePassword(cookie, PW_OLD, PW_NEW);
     expect(res.status).toBe(204);
+    expect(await res.text()).toBe('');
+    // Better Auth replaces this browser's session; the new cookie must reach it or the operator is signed out by their own password change.
+    const renewed = extractCookie(res.headers.get('set-cookie'));
+    expect(renewed).toMatch(/session_token=/);
+    expect((await getSession(renewed)).status).toBe(200);
+    // Every other session is signed out.
+    expect((await getSession(otherCookie)).status).toBe(401);
+    expect(await securityEvents('change-password')).toBe(1);
 
     const withNew = await signIn(PW_NEW);
     expect(withNew.status).toBe(200);

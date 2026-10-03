@@ -139,6 +139,46 @@ describeIfInfra('requireNotDemo deny-list under LIVE_DEMO', () => {
   it('auth POST /sign-up/email is locked', async () => {
     await expect403('/api/auth/sign-up/email', 'POST', '{}');
   });
+  // Every sign-in, session and security surface: a demo visitor holds the injected operator identity, so any of these would let them sign the operator out, read the security trail, loosen the limits or revoke agent access.
+  it('auth POST /sign-up is locked', async () => {
+    await expect403('/api/auth/sign-up', 'POST', '{}');
+  });
+  it('auth POST /sign-in/email is locked', async () => {
+    await expect403('/api/auth/sign-in/email', 'POST', '{}');
+  });
+  it('auth POST /single-sign-on/start is locked', async () => {
+    await expect403('/api/auth/single-sign-on/start', 'POST', '{}');
+  });
+  it('auth POST /single-sign-on/link is locked', async () => {
+    await expect403('/api/auth/single-sign-on/link', 'POST', '{}');
+  });
+  it('auth GET /callback/oidc is locked', async () => {
+    await expect403('/api/auth/callback/oidc', 'GET');
+  });
+  it('auth POST /password is locked', async () => {
+    await expect403('/api/auth/password', 'POST', '{}');
+  });
+  it('auth GET /sessions is locked', async () => {
+    await expect403('/api/auth/sessions', 'GET');
+  });
+  it('auth POST /sessions/:id/revoke is locked', async () => {
+    await expect403('/api/auth/sessions/some-session/revoke', 'POST');
+  });
+  it('auth POST /sign-out-everywhere is locked', async () => {
+    await expect403('/api/auth/sign-out-everywhere', 'POST', '{}');
+  });
+  it('auth POST /agent-access/revoke is locked', async () => {
+    await expect403('/api/auth/agent-access/revoke', 'POST', '{}');
+  });
+  it('auth GET /security-settings is locked', async () => {
+    await expect403('/api/auth/security-settings', 'GET');
+  });
+  it('auth PATCH /security-settings is locked', async () => {
+    await expect403('/api/auth/security-settings', 'PATCH', '{}');
+  });
+  it('auth GET /security-events is locked', async () => {
+    await expect403('/api/auth/security-events', 'GET');
+  });
 
   // The provider surface reads and writes secrets and can fire the configured
   // webhook. One 403 assertion samples each operation.

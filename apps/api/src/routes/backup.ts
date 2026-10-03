@@ -4,6 +4,7 @@ import {
   BackupConfigResponse,
   type BackupFileInfo,
   ErrorEnvelope,
+  Reauthentication,
   RestoreResponse,
 } from '@app/contracts';
 import { PG_DUMP_ARGS } from '@app/core/backup';
@@ -15,11 +16,13 @@ import { join } from 'node:path';
 import { stream } from 'hono/streaming';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
+import { publishSessionRevocation } from 'auth/session-revocation.js';
 import { HttpError } from 'middleware/error.js';
 import { requireUser } from 'middleware/require-user.js';
 import { requireNotDemo } from 'middleware/require-not-demo.js';
 import { restoreBodyLimit } from 'middleware/body-limit.js';
 import { createApiHono, type ApiHono } from 'types.js';
+import { reauthenticateOperator } from './auth.js';
 
 const HOUR_MS = 3_600_000;
 const MAX_RECENT_BACKUPS = 20;
@@ -134,7 +137,14 @@ const restoreRoute = createRoute({
     body: {
       content: {
         'multipart/form-data': {
-          schema: z.object({ archive: z.any() }),
+          schema: z.object({
+            archive: z.any(),
+            reauthentication: z
+              .string()
+              .describe(
+                'JSON of the password or single sign-on confirmation, as the other credential-changing routes take.',
+              ),
+          }),
         },
       },
     },
@@ -172,6 +182,53 @@ const runChild = (
       child.stdin.end();
     }
   });
+
+/**
+ * Signs out every session and revokes agent access after a restore. The dump brings back its own sessions and its own security epoch, so without this a session revoked after the dump was taken would work again. This browser is signed out too; the operator signs in with the credentials the dump holds.
+ *
+ * @param di - The container.
+ * @param preRestoreEpoch - The live epoch read before the restore ran. The new epoch must exceed it, not just the dump's, or known-device cookies revoked after the dump was taken become valid again.
+ * @returns Nothing; throws when the database refuses, and the caller reports that the restore is not safe to use yet.
+ */
+export const signOutEverythingAfterRestore = async (
+  di: DI,
+  preRestoreEpoch: number,
+): Promise<void> => {
+  await di.db.transaction(async (raw) => {
+    const tx = raw as unknown as DI['db'];
+    await repo.authSecuritySettings.bumpSecurityEpoch(tx, preRestoreEpoch);
+    const operator = await repo.authIdentity.findSoleUser(tx);
+    if (operator !== null) {
+      await repo.authIdentity.deleteAllSessions(tx, operator.id);
+      await repo.authIdentity.revokeAgentAccess(tx, operator.id, new Date());
+    }
+  });
+  di.security.settings.invalidate();
+  await publishSessionRevocation(di, { sessionIds: [] });
+};
+
+/**
+ * Reads the re-authentication part of the restore form, which multipart carries as a JSON string.
+ *
+ * @param part - The raw `reauthentication` form value.
+ * @returns The parsed proof; throws VALIDATION_FAILED when it is missing or malformed.
+ */
+const parseReauthentication = (part: string | File | null): Reauthentication => {
+  let raw: unknown;
+  try {
+    raw = typeof part === 'string' ? JSON.parse(part) : undefined;
+  } catch {
+    raw = undefined;
+  }
+  const parsed = Reauthentication.safeParse(raw);
+  if (!parsed.success) {
+    throw new HttpError(
+      'VALIDATION_FAILED',
+      'Confirm it is you: send your password or a fresh single sign-on with the restore.',
+    );
+  }
+  return parsed.data;
+};
 
 export const backupRouter = (di: DI): ApiHono => {
   const app = createApiHono();
@@ -244,20 +301,50 @@ export const backupRouter = (di: DI): ApiHono => {
     if (!(file instanceof File)) {
       throw new HttpError('VALIDATION_FAILED', 'archive multipart part missing');
     }
+    // A restore replaces the password hash, the single sign-on identity and the security settings, then signs everyone out. Without re-authentication a stolen session could plant its own password and lock the operator out.
+    const proof = parseReauthentication(form.get('reauthentication'));
+    const refused = await reauthenticateOperator(di, c, proof);
+    if (refused !== null) return refused as never;
     const buf = Buffer.from(await file.arrayBuffer());
     const dir = await mkdtemp(join(tmpdir(), 'restore-'));
     const path = join(dir, 'backup.dump');
-    await writeFile(path, buf);
+    let preRestoreEpoch: number;
     try {
+      await writeFile(path, buf);
+      // Read before the restore overwrites it; the epoch after the restore must exceed this one.
+      preRestoreEpoch = (await repo.authSecuritySettings.get(di.db)).securityEpoch;
+      // --single-transaction: without it pg_restore continues past errors, so a failed restore leaves the dump's sessions and older epoch in place and the sign-out below never runs. With it a failure rolls back and changes nothing.
       await runChild(
         'pg_restore',
-        ['--clean', '--if-exists', '--no-owner', '--no-acl', '--dbname', di.env.DATABASE_URL, path],
+        [
+          '--single-transaction',
+          '--clean',
+          '--if-exists',
+          '--no-owner',
+          '--no-acl',
+          '--dbname',
+          di.env.DATABASE_URL,
+          path,
+        ],
         { ...process.env, PGSSLMODE: di.env.PGSSLMODE },
       );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
-    c.set('auditEvent', { event: 'restore', payload: { size: buf.byteLength } });
+    c.set('auditEvent', {
+      event: 'restore',
+      payload: { size: buf.byteLength },
+      alreadyApplied: true,
+    });
+    try {
+      await signOutEverythingAfterRestore(di, preRestoreEpoch);
+    } catch (err) {
+      di.logger.error({ err }, 'restore_session_invalidation_failed');
+      throw new HttpError(
+        'INTERNAL',
+        'The database was restored, but signing out existing sessions failed. Run the reset-password command before using the app.',
+      );
+    }
     return c.json({ restoredAt: new Date().toISOString() }, 200);
   });
 

@@ -1,5 +1,6 @@
 import { Writable } from 'node:stream';
-import { OpenAPIHono } from '@hono/zod-openapi';
+import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
+import { HTTPException } from 'hono/http-exception';
 import type { DestinationStream } from 'pino';
 import { describe, expect, it } from 'vitest';
 
@@ -116,6 +117,74 @@ describe('error handler: a database that cannot serve the request answers 503', 
 
     expect(res.status).toBe(500);
     expect(res.code).toBe('INTERNAL');
+    expect(res.logs).toEqual([
+      expect.objectContaining({ level: ERROR, msg: 'unhandled', path: '/boom' }),
+    ]);
+  });
+});
+
+describe('error handler: a request the validators refuse answers as the caller mistake it is', () => {
+  /** A real zod-openapi JSON route, so the refusals come from the library's own validators rather than a hand-built exception that could drift from what they throw. */
+  const send = async (
+    body: string,
+    contentType: string,
+  ): Promise<{ status: number; code: string; logs: LoggedLine[] }> => {
+    const out = new CaptureStream();
+    const app = new OpenAPIHono<Env>();
+    app.openapi(
+      createRoute({
+        method: 'post',
+        path: '/thing',
+        request: {
+          body: { content: { 'application/json': { schema: z.object({ n: z.number() }) } } },
+        },
+        responses: { 204: { description: 'ok' } },
+      }),
+      (c) => c.body(null, 204),
+    );
+    app.onError(errorHandler(createLogger({ level: 'debug', destination: out })));
+    const res = await app.request('/thing', {
+      method: 'POST',
+      headers: { 'content-type': contentType },
+      body,
+    });
+    const parsed = (await res.json()) as { error: { code: string } };
+    const logs = out.buffer
+      .split('\n')
+      .filter((line) => line.trim() !== '')
+      .map((line) => JSON.parse(line) as LoggedLine);
+    return { status: res.status, code: parsed.error.code, logs };
+  };
+
+  it('answers a body that is not JSON with 422 and logs no error', async () => {
+    const res = await send('{not json', 'application/json');
+    expect(res.status).toBe(422);
+    expect(res.code).toBe('VALIDATION_FAILED');
+    expect(res.logs.filter((l) => l.level >= ERROR)).toEqual([]);
+  });
+
+  it('answers a content type the route does not accept with 422 and logs no error', async () => {
+    const res = await send('{"n":1}', 'text/plain');
+    expect(res.status).toBe(422);
+    expect(res.code).toBe('VALIDATION_FAILED');
+    expect(res.logs.filter((l) => l.level >= ERROR)).toEqual([]);
+  });
+
+  it('does not relabel another error that merely carries a 400 status', async () => {
+    // An upstream client error (an exchange answering 400 to a request this server built) is this server's defect, not the caller's, so it must stay loud.
+    const res = await respondTo(
+      Object.assign(new Error('Filter failure: LOT_SIZE'), { status: 400 }),
+    );
+    expect(res.status).toBe(500);
+    expect(res.logs).toEqual([
+      expect.objectContaining({ level: ERROR, msg: 'unhandled', path: '/boom' }),
+    ]);
+  });
+
+  it('still reports an HTTPException with any other status as an internal error', async () => {
+    // Only the two validator refusals are the caller's fault; widening to every 4xx would relabel, say, an auth refusal thrown by a library as a validation failure.
+    const res = await respondTo(new HTTPException(401, { message: 'no' }));
+    expect(res.status).toBe(500);
     expect(res.logs).toEqual([
       expect.objectContaining({ level: ERROR, msg: 'unhandled', path: '/boom' }),
     ]);

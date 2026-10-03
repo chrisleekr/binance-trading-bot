@@ -50,11 +50,10 @@ describe('createAuth — onboarding hook', () => {
     // sign-up response.
     if (!hook) throw new Error('hook should be registered');
     await expect(hook(userArg as never, undefined as never)).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalledTimes(1);
-    const firstCall = warn.mock.calls[0];
-    if (!firstCall) throw new Error('warn should have been called');
-    const [logArg] = firstCall;
-    expect(logArg.betterAuthUserId).toBe('u_1');
+    // The logger also receives Better Auth's own warnings (it is bridged at warn level), so select the hook's line rather than counting every call.
+    const hookCalls = warn.mock.calls.filter((call) => call[1] === 'post_onboarding_hook_failed');
+    expect(hookCalls).toHaveLength(1);
+    expect(hookCalls[0]?.[0].betterAuthUserId).toBe('u_1');
   });
 });
 

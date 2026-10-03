@@ -211,7 +211,7 @@ describe('env contract: the allowlist', () => {
   it('has the allowlist at its shipped size, so the walks below are not vacuous', () => {
     // Exact, not a floor, for the same reason the rule lists are: a dropped
     // entry would keep every `it.each` below green while running one case less.
-    expect(allowlisted.length).toBe(3);
+    expect(allowlisted.length).toBe(6);
   });
 
   it.each(allowlisted)('%s carries a written reason', (name) => {
