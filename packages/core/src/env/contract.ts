@@ -115,6 +115,8 @@ export const NON_SECRET_NAME_ALLOWLIST: Readonly<Record<string, string>> = {
     'the operator-facing base URL notification links are built from; an origin with no userinfo',
   VITE_API_BASE_URL:
     'a path or origin bundled into the browser and visible in the page; no userinfo',
+  MCP_RESOURCE_URL:
+    'the public MCP endpoint identifier; the protected-resource metadata document publishes this exact value to unauthenticated callers by RFC 9728, so it cannot be a secret',
 };
 
 /**

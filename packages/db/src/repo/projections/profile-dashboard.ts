@@ -106,6 +106,8 @@ export const getProfileDashboard = async (
     symbols.length === 0
       ? [[] as (string | null)[], [] as (string | null)[]]
       : await Promise.all([redis.mget(...tickerKeys), redis.mget(...disableKeys)]);
+  // Presence semantics, matching the account rollup: the switch carries no value, only existence, so a `get` returning a body would be reading something this key never promises.
+  const killSwitch = (await redis.exists(profileKey(scope, 'killSwitch'))) > 0;
 
   const symbolStates = symbols.map((s, i) => {
     const lbp = lbpBySymbol.get(s.symbol) ?? null;
@@ -152,6 +154,7 @@ export const getProfileDashboard = async (
     })),
     totalProfit: '0' as DecimalString,
     deployedQuote: DecimalString.parse(deployedQuote),
+    killSwitch,
     symbols: symbolStates,
     cachedAt: new Date().toISOString(),
   };

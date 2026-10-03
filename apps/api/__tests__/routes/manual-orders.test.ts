@@ -77,6 +77,13 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
        values ($1, $2, 'halt-preflight', 'trailing-trade', $3, '{}', '{}')`,
       [TT_PROFILE, fx.alice.accountId, tt.version],
     );
+    // Bind the symbol the breaker cases act on. They are about which sentence the breaker answers with, so the rest of the request has to be one the route would otherwise accept: an unbound symbol is refused earlier and for a different reason, and these cases would then be asserting the breaker while never reaching it.
+    await fx.di.pool.query(
+      `insert into profile_symbols (profile_id, symbol, base_asset, source, pinned)
+       values ($1, 'BTCUSDT', 'BTC', 'manual', true)
+       on conflict do nothing`,
+      [TT_PROFILE],
+    );
   });
 
   afterAll(async () => {
@@ -497,6 +504,51 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
     );
     expect(res.status).toBe(422);
     expect((await errorBody(res)).error.code).toBe('VALIDATION_FAILED');
+  });
+
+  describe('symbol binding pre-flight', () => {
+    // Binding is where the shared-wallet invariants are enforced, and only there: whether the symbol is listed and TRADING, whether a live account may trade it, whether the order is feasible for this profile, and the three exclusivity rules that stop two profiles on one account from fighting over the same asset. Nothing downstream re-checks any of it. The override row and the tick job are keyed by symbol string, and the worker treats a missing binding as "no per-symbol override" rather than as a reason to stop, so an unbound symbol would tick against the profile's base config and could reach a real order having passed none of those checks.
+    const unboundPath = (suffix: string): string =>
+      `/api/accounts/${fx.alice.accountId}/profiles/${TT_PROFILE}/symbols/DOGEUSDT${suffix}`;
+
+    afterEach(async () => {
+      await fx.di.pool.query(`delete from override_actions where profile_id = $1`, [TT_PROFILE]);
+    });
+
+    for (const suffix of ['/trigger-buy', '/trigger-sell']) {
+      it(`refuses ${suffix} on a symbol this profile does not trade, writing no row`, async () => {
+        const res = await fx.app.request(unboundPath(suffix), {
+          method: 'POST',
+          headers: headers(fx.alice.userId),
+        });
+        expect(res.status).toBe(404);
+        expect((await errorBody(res)).error.message).toContain('not bound');
+        // The refusal has to land before `overrideActions.record`, or the row the tick would act on already exists and the status is cosmetic.
+        const { rows } = await fx.di.pool.query(
+          `select count(*)::int as n from override_actions where profile_id = $1`,
+          [TT_PROFILE],
+        );
+        expect(rows[0].n).toBe(0);
+      });
+    }
+
+    it('refuses a manual order on a symbol this profile does not trade', async () => {
+      const res = await fx.app.request(unboundPath('/manual-order'), {
+        method: 'POST',
+        headers: headers(fx.alice.userId),
+        body: JSON.stringify({ side: 'SELL', type: 'MARKET', quantity: '1' }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it('still accepts the same action on a symbol the profile does trade', async () => {
+      // The discriminating half. Without it every assertion above would pass just as well against a route that refused unconditionally, which would break the operator control entirely rather than narrow it.
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${TT_PROFILE}/symbols/BTCUSDT/trigger-sell`,
+        { method: 'POST', headers: headers(fx.alice.userId) },
+      );
+      expect(res.status).toBe(202);
+    });
   });
 });
 

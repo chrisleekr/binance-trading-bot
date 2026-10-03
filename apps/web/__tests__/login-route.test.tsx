@@ -170,6 +170,40 @@ describe('LoginPage', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('resumes a waiting authorization request instead of landing on the dashboard', async () => {
+    // The authorization endpoint sends an unauthenticated operator here carrying its own signed query, and that request is still open. Navigating into the app on success strands whatever asked for it: the operator signs in, sees their account, and the agent waits forever for a callback that never comes.
+    const search =
+      '?response_type=code&client_id=abc123&scope=mcp%3Aread+mcp%3Atrade' +
+      '&ba_param=client_id&ba_param=scope&ba_param=ba_param&sig=deadbeef';
+    Object.defineProperty(window, 'location', {
+      value: { href: '', search },
+      writable: true,
+    });
+    const { router } = setUp(`/login${search}`, () => json({ ok: true }, 200));
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/email/i), 'op@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'a-long-enough-password');
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+    // A full-page navigation, not a router push: the continuation is the server's redirect chain, and the SPA cannot follow a 302 it never sees.
+    await vi.waitFor(() => expect(window.location.href).toContain('/api/auth/oauth2/authorize'));
+    expect(window.location.href).toContain('sig=deadbeef');
+    expect(router.state.location.pathname).toBe('/login');
+  });
+
+  it('still lands in the app when no authorization request is waiting', async () => {
+    // The discriminating half. Without it the case above passes just as well on a page that always redirects to the authorization endpoint, which would break every ordinary sign-in.
+    Object.defineProperty(window, 'location', { value: { href: '', search: '' }, writable: true });
+    const { router } = setUp('/login', () => json({ ok: true }, 200));
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText(/email/i), 'op@example.com');
+    await user.type(screen.getByLabelText(/password/i), 'a-long-enough-password');
+    await user.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/'));
+    expect(window.location.href).toBe('');
+  });
+
   it('surfaces 401 as an inline invalid-credentials error', async () => {
     setUp('/login', () => json({ error: { code: 'UNAUTHENTICATED', message: 'bad creds' } }, 401));
     const user = userEvent.setup();

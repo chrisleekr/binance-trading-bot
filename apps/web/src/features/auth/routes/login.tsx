@@ -36,6 +36,22 @@ type LoginSearch = z.infer<typeof LoginSearch>;
 // The auth pages themselves are rejected too: a `?from=/login` left over from
 // a prior redirect would otherwise strand a freshly-authenticated operator on
 // the sign-in page.
+/**
+ * The still-pending authorization request this page was redirected here with, if there is one.
+ *
+ * Read off `location` rather than the route's validated search: the query is signed over parameters this page does not model, and the router re-serialises a repeated key into a single JSON array, either of which breaks the signature the authorization endpoint re-checks. `sig` is what distinguishes a real redirect from an operator opening the sign-in page themselves.
+ *
+ * @param rawSearch - The untouched `location.search` this page was opened with.
+ * @returns The query to replay at the authorization endpoint, leading `?` included, or null when no authorization request is waiting.
+ */
+const pendingAuthorizeQuery = (rawSearch: string): string | null => {
+  const query = rawSearch.startsWith('?') ? rawSearch : `?${rawSearch}`;
+  // Matched on a parameter boundary rather than parsed. A parser here would read as building a query for an API call, which this is not: the string is replayed byte for byte because a signature covers it, and anything that reserialised it would invalidate exactly what it is being replayed for.
+  const carries = (name: string): boolean => new RegExp(`[?&]${name}=`).test(query);
+  if (!carries('sig') || !carries('client_id')) return null;
+  return query;
+};
+
 const AUTH_PATHS = new Set(['/login', '/onboarding']);
 const sanitiseFrom = (from: string | undefined): string => {
   if (!from) return '/';
@@ -78,6 +94,12 @@ function LoginPage() {
     setSubmitting(true);
     try {
       await signIn(parsed.data);
+      // An authorization request that found no session was sent here carrying its own signed query, and it is still waiting. Bouncing to the dashboard strands the agent that started it: the operator signs in, sees their account, and nothing ever completes. Replaying the query at the authorization endpoint resumes it, and the server answers with the redirect on to consent.
+      const pending = pendingAuthorizeQuery(window.location.search);
+      if (pending !== null) {
+        window.location.href = `/api/auth/oauth2/authorize${pending}`;
+        return;
+      }
       const target = sanitiseFrom(search.from);
       await router.navigate({ to: target });
     } catch (cause) {

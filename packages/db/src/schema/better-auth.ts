@@ -43,7 +43,8 @@ export const account = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     providerId: text('providerId').notNull(),
-    issuer: text('issuer').notNull(),
+    // Nullable since Better Auth 1.7.3 stopped writing it, and migration 0096 relaxed the column to match. A NOT NULL here makes the adapter's own schema check refuse every insert into `account`, which is every sign-up. The column itself survives until the rollout that removes 1.7.2 from the fleet.
+    issuer: text('issuer'),
     accountId: text('accountId').notNull(),
     password: text('password'),
     accessToken: text('accessToken'),
@@ -56,7 +57,8 @@ export const account = pgTable(
     updatedAt: timestamp('updatedAt', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('account_issuer_accountId_uidx').on(t.issuer, t.accountId),
+    // Back to the 1.6 identity Better Auth 1.7.3+ recognises an account by.
+    uniqueIndex('account_provider_uniq').on(t.providerId, t.accountId),
     index('account_user_id_idx').on(t.userId),
   ],
 );

@@ -14,8 +14,15 @@ import type { Env } from 'types.js';
 // invent history. `alreadyApplied` is the handler's declaration that it did
 // happen anyway — a partial success that still answers 4xx, where the rows are
 // already gone and this row is the only surviving trace of the change.
+/**
+ * Best-effort audit writer.
+ *
+ * @param di - Container supplying the database handle and the warn logger the failure path uses.
+ * @param actor - Who the row attributes the action to. The default keeps every existing mount writing `user`; the MCP inner app passes `agent`, which is the only thing distinguishing an order an AI placed from one the operator clicked, since both arrive through the identical router set. The union is the enforcement: the column is free text and nothing downstream validates it, so a misspelling would attribute an agent's order to the operator and read as ordinary history forever.
+ * @returns Middleware that appends one `audit_logs` row after a handler declares an auditable event.
+ */
 export const audit =
-  (di: DI): MiddlewareHandler<Env> =>
+  (di: DI, actor: 'user' | 'agent' = 'user'): MiddlewareHandler<Env> =>
   async (c, next) => {
     await next();
     const event = c.get('auditEvent');
@@ -24,7 +31,7 @@ export const audit =
     if (c.res.status >= 400 && !event.alreadyApplied) return;
     try {
       await repo.auditLogs.append(di.db, userId, {
-        actor: 'user',
+        actor,
         event: event.event,
         ip: clientIp(c),
         userAgent: (c.req.header('user-agent') ?? null)?.slice(0, 256) ?? null,

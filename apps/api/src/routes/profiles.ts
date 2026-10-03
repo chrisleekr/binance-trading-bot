@@ -457,6 +457,11 @@ export const profilesRouter = (di: DI): ApiHono => {
     ) {
       await di.redis.raw().del(GLOBAL_KEYS.discoveryLastRun(unwrapId(profileId)));
     }
+    // Field names, not values: a `config` edit replaces the whole strategy config, and copying it into the row would make the audit trail as large as the profile table without telling a reader anything the profile row does not already hold. Which fields a caller touched is the part the row alone can answer later.
+    c.set('auditEvent', {
+      event: 'update-profile',
+      payload: { profileId, fields: Object.keys(body).sort() },
+    });
     return c.json(withDiagnostics(toResponse(updated, mode), saveDiagnostics), 200);
   });
 

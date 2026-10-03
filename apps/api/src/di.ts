@@ -162,6 +162,10 @@ export const createDI = (env: Env): DI => {
     authSecret: env.AUTH_SECRET,
     isProduction: env.NODE_ENV === 'production',
     logger,
+    // Passed only while the flag is on, so `MCP_ENABLED=0` leaves the authorization server unregistered rather than mounted and unused.
+    ...(env.MCP_ENABLED && env.MCP_RESOURCE_URL !== undefined
+      ? { mcpResource: env.MCP_RESOURCE_URL }
+      : {}),
   });
   // One keyless REST client per Binance host. Klines is unsigned, and the client
   // attaches the key to signed calls only, so empty credentials never reach the

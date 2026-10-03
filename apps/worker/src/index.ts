@@ -254,6 +254,10 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
       // Retires the profile's own metric children when a teardown lands, so a
       // stopped profile stops exporting a live-looking reading.
       metrics: ctx.metrics,
+      // The one dispatch chokepoint every notification goes through, including
+      // the live-demo kill switch. The api cannot send on its own, so an agent
+      // action reaches the operator only by arriving here as a job.
+      accountNotify: ctx.accountNotify,
     });
 
     // Consumer for the deferred position-repair jobs the decision handlers and

@@ -11,6 +11,7 @@ import { securityHeaders } from './middleware/security-headers.js';
 import { requestBodyLimit } from './middleware/body-limit.js';
 import { healthRouter, type HealthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
+import { mountMcpRoutes } from './routes/mcp.js';
 import { mountApiRouters, ACCOUNT_BASE } from './routes/mount.js';
 import { createWsRouter } from './routes/ws.js';
 import { mountDocs } from './routes/docs.js';
@@ -74,6 +75,13 @@ export const createApp = (di: DI): AppHandle => {
 
   // /api/auth/*
   app.route('/api/auth', authRouter(di));
+
+  // The MCP control plane and the discovery documents that let a client find it.
+  // Mounted ONLY when the operator enabled it: off, there is no route to guard,
+  // no metadata to publish, and nothing an agent can reach. The guard inside the
+  // route is defence in depth for a box that turns the flag on later, not the
+  // switch itself.
+  mountMcpRoutes(app, di);
 
   // Every /api router, shared with the integration-test harness so the two can
   // never drift. Public status, operator-global routers, then the account-scoped

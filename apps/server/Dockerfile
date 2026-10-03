@@ -55,6 +55,8 @@ COPY --from=build --chown=1000:1000 /app/dist /app/dist
 COPY --from=build --chown=1000:1000 /app/apps/web/dist /app/web
 # Migration files read at runtime by /app/dist/migrate.js via import.meta.url.
 COPY --chown=1000:1000 packages/db/migrations /app/migrations
+# The documentation pages the MCP control plane publishes as resources. The reader walks up from its own module to find a `docs` directory, so the bundle at /app/dist finds this one, and without it every `resources/read` answers "unknown resource" and the agent loses the only surface that explains what a setting MEANS.
+COPY --chown=1000:1000 docs /app/docs
 COPY --chown=1000:1000 apps/server/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 

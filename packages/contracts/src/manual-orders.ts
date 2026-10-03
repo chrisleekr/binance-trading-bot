@@ -113,6 +113,8 @@ export type ManualOrderAllRequest = z.infer<typeof ManualOrderAllRequest>;
  */
 export const ManualOrderAllResponse = z.object({
   scheduled: z.number().int().nonnegative(),
+  /** Symbols whose order could not be enqueued, named so the caller can retry or exit them by hand. A count alone cannot say which positions are still open, and the fan-out is asynchronous, so "failed" and "not yet ticked" are indistinguishable from outside. Required rather than defaulted because the route is the only producer and always sends it, so a default would buy nothing. It is not that a response schema cannot carry one: `ProfileDashboardResponse.killSwitch` does, and needs it, because that schema is also parsed back out of a cache blob written before the field existed. This one is only ever serialised. */
+  failedSymbols: z.array(z.string()),
   firstFireAt: z.iso.datetime(),
   lastFireAt: z.iso.datetime(),
 });

@@ -78,6 +78,26 @@ const en: Readonly<Record<string, string>> = {
   'login.error.rate_limited.no_retry': 'Too many attempts. Try again later.',
   'login.error.invalid_email': 'Enter a valid email address.',
   'login.error.password_required': 'Password is required.',
+  'consent.title': 'Authorize this AI agent',
+  'consent.subtitle':
+    'It is asking for access to your bot. Approve only a client you started yourself.',
+  'consent.unknown_client': 'Unidentified client',
+  'consent.client.from_label': 'Request from',
+  'consent.client.claimed_name': 'Calls itself “{name}”',
+  'consent.client.address_hint':
+    'The web address above is the only part your bot can check. The name is whatever this client says about itself, so treat it as a claim, not proof.',
+  'consent.allow': 'Allow',
+  'consent.deny': 'Deny',
+  'consent.scope.mcp_read.title': 'Read everything',
+  'consent.scope.mcp_read.body':
+    'Accounts, profiles, positions, orders, balances, trade history, logs and strategy settings. It cannot place or cancel anything with this alone.',
+  'consent.scope.mcp_trade.title': 'Trade and change settings with real funds',
+  'consent.scope.mcp_trade.body':
+    'Place and cancel real orders, switch symbols on and off, rewrite strategy configuration, and widen the risk limits that would otherwise stop it. On a live account this spends real money without asking again.',
+  'consent.error.failed':
+    'The authorization server rejected this decision. Start the flow again from your client.',
+  'consent.error.unsigned':
+    'This page was opened directly rather than by an authorization request, so there is nothing to approve.',
   'profile.switcher.label': 'Active profile',
   'profile.switcher.placeholder': 'Search profiles…',
   'profile.switcher.empty': 'No profiles found.',

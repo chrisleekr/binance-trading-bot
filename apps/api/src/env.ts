@@ -53,7 +53,45 @@ export interface Env {
    * Public "Live demo" mode. When true, the api injects the sole demo operator id for every anonymous request (no login), locks credential, notifier, backup/restore, account-creation, account-rename/delete, retention-change, diagnosis-start, fee-reconciliation, and archive-backfill routes behind `requireNotDemo`, and refuses to boot if any account is live. Trading remains interactive on Binance testnet. A separate deployment concern; the operator's real instance always leaves this false. See `docs/architecture/auth.md`.
    */
   LIVE_DEMO: boolean;
+  /**
+   * Whether the authenticated MCP control plane is mounted at all. Off mounts no `/api/mcp` route and publishes no protected-resource metadata, so an operator who has not opted in has no agent surface to secure rather than a guarded one to trust.
+   */
+  MCP_ENABLED: boolean;
+  /**
+   * Canonical RFC 8707 / RFC 9728 resource identifier for the MCP endpoint, for example `https://bot.example.com/api/mcp`. Access tokens are audience-bound to this exact string, so it must be the URL agents actually reach rather than an internal address. Must be `https` unless it points at a loopback host, and must carry no query, fragment or userinfo. Required when `MCP_ENABLED` is true; ignored otherwise.
+   */
+  MCP_RESOURCE_URL?: string | undefined;
 }
+
+/** Parses a value zod already accepted as a URL, yielding null when the WHATWG parser disagrees so the predicates below fail closed instead of treating an unparseable string as unconstrained. */
+const parseUrl = (value: string): URL | null => {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+};
+
+/** Loopback per RFC 6761 and RFC 4291. `URL.hostname` keeps the brackets on an IPv6 literal, and the whole 127.0.0.0/8 block is loopback, not just 127.0.0.1. */
+const isLoopbackHost = (hostname: string): boolean =>
+  hostname === 'localhost' ||
+  hostname === '[::1]' ||
+  /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname);
+
+/** True when the transport carrying this resource's tokens and metadata cannot be read off the wire: `https` anywhere, or `http` whose bytes never leave the machine. */
+const isSecureResourceOrigin = (value: string): boolean => {
+  const url = parseUrl(value);
+  if (url === null) return false;
+  if (url.protocol === 'https:') return true;
+  return url.protocol === 'http:' && isLoopbackHost(url.hostname);
+};
+
+/** True when the value is usable as an RFC 8707 resource identifier: no query, no fragment, no embedded credentials. */
+const isBareResourceIdentifier = (value: string): boolean => {
+  const url = parseUrl(value);
+  if (url === null) return false;
+  return url.search === '' && url.hash === '' && url.username === '' && url.password === '';
+};
 
 const EnvSchema = z
   .object({
@@ -83,6 +121,23 @@ const EnvSchema = z
     AUTH_SECRET: z.string().min(32),
     WEB_DIST_DIR: z.string().default('apps/web/dist'),
     LIVE_DEMO: booleanEnvFlag(),
+    MCP_ENABLED: booleanEnvFlag(),
+    // Trailing slashes are trimmed because the audience check is an exact string compare: a token minted for `…/mcp` and a metadata document advertising `…/mcp/` would never match, and the failure reads as an unexplained 401 rather than a typo.
+    MCP_RESOURCE_URL: z
+      .string()
+      .trim()
+      .url()
+      // Zod's `url()` accepts any WHATWG-parseable URL, `ftp:` and plaintext `http:` included. This value is both the OAuth resource identifier and, via `authBaseUrlOption`, the Better Auth `baseURL`, so an `http` value would serve the issuer, the JWKS document and every authorization endpoint in the clear on a host that keeps Binance API keys in plaintext. The exemption keys on the HOST rather than on `NODE_ENV` because what makes plaintext acceptable is that the bytes never leave the machine: under a mode gate a real deployment that forgot `NODE_ENV=production` would silently get plaintext, and a developer running `NODE_ENV=production` locally would lose loopback.
+      .refine(isSecureResourceOrigin, {
+        message:
+          'MCP_RESOURCE_URL must be an https URL; http is only allowed for a loopback host (localhost, 127.0.0.0/8, [::1])',
+      })
+      // The resource identifier is compared as an exact string and is republished verbatim to unauthenticated callers in the protected-resource metadata. A query or fragment makes the audience check hinge on punctuation the operator has to reproduce byte-for-byte in every client, and userinfo would put a credential into that public document.
+      .refine(isBareResourceIdentifier, {
+        message: 'MCP_RESOURCE_URL must carry no query string, fragment or embedded credentials',
+      })
+      .transform((u) => u.replace(/\/+$/, ''))
+      .optional(),
   })
   // The api boots two listeners (public on PORT, admin/healthz on ADMIN_PORT).
   // A collision would crash the second bind; surface the conflict at env-parse
@@ -90,6 +145,17 @@ const EnvSchema = z
   .refine((env) => env.PORT !== env.ADMIN_PORT, {
     message: 'PORT and ADMIN_PORT must differ',
     path: ['ADMIN_PORT'],
+  })
+  // Booting the MCP plane without a resource identifier would mint tokens bound to the server's guessed base URL, which is the one value an operator behind a proxy will get wrong, and the symptom is a 401 that names nothing.
+  .refine((env) => !env.MCP_ENABLED || env.MCP_RESOURCE_URL !== undefined, {
+    message: 'MCP_RESOURCE_URL is required when MCP_ENABLED is true',
+    path: ['MCP_RESOURCE_URL'],
+  })
+  // The kill switch is documented as removing the MCP surface on a demo box, and only a boot refusal makes that true. The in-route 403 covers `/api/mcp` alone: with both flags on, `mountMcpRoutes` still publishes the discovery documents at the origin root and `createAuth` still stands up the whole OAuth authorization server (`/api/auth/oauth2/*`, `/api/auth/jwks`) on a box whose premise is that every anonymous request carries an injected operator identity. Refuse the combination here so the surface never exists; the in-route 403 stays as defence in depth.
+  .refine((env) => !(env.MCP_ENABLED && env.LIVE_DEMO), {
+    message:
+      'MCP_ENABLED and LIVE_DEMO cannot both be true: the live demo injects the sole operator id for every anonymous request, so mounting the MCP control plane would publish an OAuth authorization server and its discovery documents in front of an identity no caller has to prove. Set one of them to 0.',
+    path: ['MCP_ENABLED'],
   });
 
 export const loadEnv = (raw: NodeJS.ProcessEnv = process.env): Env =>

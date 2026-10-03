@@ -601,6 +601,135 @@ describe('pipeline-worker dispatch', () => {
     expect(repoMocks.binanceGetMyTrades).toHaveBeenCalledWith({ symbol: 'BTCUSDT', limit: 1000 });
   });
 
+  it('archive-grid-trade: bounds the window by the newest fill, not by this process clock', async () => {
+    // The defect this pins, observed on a live testnet round trip. `closed_at` is stamped from the exchange's `transactTime`, and the handler used to bound both reads by `Date.now()` here. With the exchange running 58ms ahead, the closing SELL's `closed_at` sat ABOVE that bound and fell out of the window, so a completed buy/sell cycle archived as buys only: `profit = 0`, `total_sell_quote = 0`, and no `missingCostBasis` marker, because that marker counts uncosted SELLs INSIDE the window and this SELL was outside it. The realised P/L stayed stranded on the order row.
+    //
+    // Asserted on the arguments rather than the returned rows: the repo is mocked here, so the filtering the bound would have caused cannot be observed in its output. The bound itself is the defect, so the bound is what is checked.
+    const sellClosedAt = new Date(1_700_000_000_058); // 58ms AHEAD of the harness clock.
+    const h = buildHarness();
+    repoMocks.profilesFindById.mockResolvedValueOnce({ binanceMode: 'test' });
+    h.redis.get.mockResolvedValueOnce(
+      JSON.stringify({ symbol: 'BTCUSDT', baseAsset: 'BTC', quoteAsset: 'USDT' }),
+    );
+    repoMocks.tradeArchiveLatestArchivedAt.mockResolvedValueOnce(null);
+    repoMocks.tradeArchiveListClosedSince.mockResolvedValueOnce([
+      {
+        id: 'sell',
+        binanceOrderId: 2n,
+        clientOrderId: 'c2',
+        intent: 'manual',
+        side: 'SELL',
+        status: 'FILLED',
+        baseCommissionNetted: null,
+        meta: null,
+        closedAt: sellClosedAt,
+        raw: { executedQty: '1', cummulativeQuoteQty: '110' },
+      },
+      {
+        id: 'buy',
+        binanceOrderId: 1n,
+        clientOrderId: 'c1',
+        intent: 'manual',
+        side: 'BUY',
+        status: 'FILLED',
+        baseCommissionNetted: null,
+        meta: null,
+        closedAt: new Date(1_699_999_940_000),
+        raw: { executedQty: '1', cummulativeQuoteQty: '100' },
+      },
+    ]);
+    repoMocks.tradeArchiveSummarizeArchiveSince.mockResolvedValueOnce({
+      totalBuyQuote: '100',
+      totalSellQuote: '110',
+      breakdown: { 'manual:BUY': '100', 'manual:SELL': '110' },
+      profit: '10',
+      orderCount: 2,
+      missingCostBasis: 0,
+    });
+    repoMocks.tradeArchiveInsert.mockResolvedValueOnce({ id: 'archive-skew' });
+    repoMocks.profileSymbolsFindForSymbol.mockResolvedValueOnce({
+      symbol: 'BTCUSDT',
+      source: 'manual',
+    });
+    repoMocks.binanceGetMyTrades.mockResolvedValueOnce([]);
+
+    await h.invoke('archive-grid-trade', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    // The rows are read with no ceiling, because the ceiling has to be learned from them.
+    const listArgs = repoMocks.tradeArchiveListClosedSince.mock.calls[0];
+    expect(listArgs?.[2]).toBeNull();
+    // The totals are then pinned to the newest fill actually read, in the same clock as the column they are compared against. Under the old behaviour this was the harness clock, which is BELOW the sell and would have dropped it.
+    const summarizeArgs = repoMocks.tradeArchiveSummarizeArchiveSince.mock.calls[0];
+    expect(summarizeArgs?.[2]).toEqual(sellClosedAt);
+    const inserted = repoMocks.tradeArchiveInsert.mock.calls[0]?.[0] as {
+      archivedAt: Date;
+      cycleEnd: Date;
+      profit: string;
+    };
+    expect(inserted.cycleEnd).toEqual(sellClosedAt);
+    // `archivedAt` is the write time and nothing more, even though the exchange clock here reads ahead of it: the next archive's `since` comes off `cycleEnd`, so dragging this value up to the newest fill would only misplace the row in the operator's archive list, which sorts on it.
+    expect(inserted.archivedAt.getTime()).toBe(1_700_000_000_000);
+    expect(inserted.profit).toBe('10');
+    // The discriminating half of the no-SELL warning: this window DOES hold a SELL, so the line must stay silent. Its sibling below only proves the warning fires when the SELL is missing, which a handler that dropped the negation from its guard would also satisfy while warning on every ordinary profitable archive, and a line that fires every cycle is one the operator stops reading.
+    expect(h.warnings.map((w) => w.msg)).not.toContain(
+      'pipeline_archive_grid_trade_no_sell_in_window',
+    );
+  });
+
+  it('archive-grid-trade: warns when the window closes with no SELL in it', async () => {
+    // Legitimate when an operator archives a cycle they are abandoning before it ever exits, so this warns rather than refusing. It is also the exact shape the clock-domain defect produced, and that shape was previously silent: a zero-profit row on the dashboard with nothing anywhere saying a sell had gone missing.
+    const h = buildHarness();
+    repoMocks.profilesFindById.mockResolvedValueOnce({ binanceMode: 'test' });
+    h.redis.get.mockResolvedValueOnce(
+      JSON.stringify({ symbol: 'BTCUSDT', baseAsset: 'BTC', quoteAsset: 'USDT' }),
+    );
+    repoMocks.tradeArchiveLatestArchivedAt.mockResolvedValueOnce(null);
+    repoMocks.tradeArchiveListClosedSince.mockResolvedValueOnce([
+      {
+        id: 'buy',
+        binanceOrderId: 1n,
+        clientOrderId: 'c1',
+        intent: 'manual',
+        side: 'BUY',
+        status: 'FILLED',
+        baseCommissionNetted: null,
+        meta: null,
+        closedAt: new Date(1_699_999_940_000),
+        raw: { executedQty: '1', cummulativeQuoteQty: '100' },
+      },
+    ]);
+    repoMocks.tradeArchiveSummarizeArchiveSince.mockResolvedValueOnce({
+      totalBuyQuote: '0',
+      totalSellQuote: '0',
+      breakdown: { 'manual:BUY': '100' },
+      profit: '0',
+      orderCount: 1,
+      missingCostBasis: 0,
+    });
+    repoMocks.tradeArchiveInsert.mockResolvedValueOnce({ id: 'archive-buyonly' });
+    repoMocks.profileSymbolsFindForSymbol.mockResolvedValueOnce({
+      symbol: 'BTCUSDT',
+      source: 'manual',
+    });
+    repoMocks.binanceGetMyTrades.mockResolvedValueOnce([]);
+
+    await h.invoke('archive-grid-trade', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    expect(h.warnings.map((w) => w.msg)).toContain('pipeline_archive_grid_trade_no_sell_in_window');
+    // Still archived: refusing would break the operator abandoning a cycle on purpose.
+    expect(repoMocks.tradeArchiveInsert).toHaveBeenCalledTimes(1);
+  });
+
   it('archive-grid-trade: a null insert (concurrent consumer already archived) is a clean no-op', async () => {
     const h = buildHarness();
     h.redis.get.mockResolvedValueOnce(
@@ -914,6 +1043,8 @@ describe('pipeline-worker dispatch', () => {
       JSON.stringify({ symbol: 'BTCUSDT', baseAsset: 'BTC', quoteAsset: 'USDT' }),
     );
     repoMocks.tradeArchiveLatestArchivedAt.mockResolvedValueOnce(new Date('2026-05-13T00:00:00Z'));
+    // The rows are read first now, because the window's upper bound is learned from them. Nothing closed since the last archive, so the list is empty and the aggregate over the same predicate is null.
+    repoMocks.tradeArchiveListClosedSince.mockResolvedValueOnce([]);
     repoMocks.tradeArchiveSummarizeArchiveSince.mockResolvedValueOnce(null);
     await h.invoke('archive-grid-trade', {
       userId: ids.userId,
@@ -1113,6 +1244,8 @@ describe('pipeline-worker dispatch', () => {
       JSON.stringify({ symbol: 'BTCUSDT', baseAsset: 'BTC', quoteAsset: 'USDT' }),
     );
     repoMocks.tradeArchiveLatestArchivedAt.mockResolvedValueOnce(null);
+    // The archive reads its rows before it can bound the window; nothing has closed, so the aggregate over the same predicate is null and the handler routes without inserting.
+    repoMocks.tradeArchiveListClosedSince.mockResolvedValueOnce([]);
     repoMocks.tradeArchiveSummarizeArchiveSince.mockResolvedValueOnce(null);
     repoMocks.ordersListLiveForSymbol.mockResolvedValueOnce([]);
     repoMocks.avgEntryPricesRemove.mockResolvedValueOnce(undefined);

@@ -219,6 +219,36 @@ export const ENV_CATALOGUE: Readonly<Record<string, EnvVar>> = {
     expect:
       'Injects a demo operator for every anonymous request; blocks credential, notifier, backup/restore, account-creation, account-rename/delete, retention-change, diagnosis-start, fee-reconciliation, and archive-backfill routes; suppresses all notifier sending; and refuses to boot if any account is on live Binance. Trading remains interactive on Binance testnet. Only `1` or `true` enable it.',
   },
+  MCP_ENABLED: {
+    group: 'Runtime',
+    consumers: ['api'],
+    parsed: true,
+    kind: 'config',
+    values: '`1` or `true` to enable; anything else is off',
+    def: 'off',
+    defNote: 'the flag parses to a boolean, so the schema default is `false`',
+    defParsed: 'false',
+    description: 'Mounts the authenticated MCP control plane an AI agent drives the bot through.',
+    when: 'Only when you want Claude Code or ChatGPT to read and trade this instance. It is a public, internet-reachable trading surface, so leave it off until you have read the MCP architecture doc.',
+    expect:
+      'Off, no `/api/mcp` route is mounted at all and no protected-resource metadata is published, so there is no agent surface to secure rather than a guarded one to trust. On, the route is mounted behind OAuth 2.1 bearer authorization and requires `MCP_RESOURCE_URL`. It is refused outright while `LIVE_DEMO` is on, because that mode injects the operator id for anonymous callers.',
+  },
+  MCP_RESOURCE_URL: {
+    group: 'Runtime',
+    consumers: ['api'],
+    parsed: true,
+    kind: 'config',
+    values:
+      'an absolute `https` URL with no query string, fragment or embedded credentials, no trailing slash',
+    def: null,
+    defNote: 'optional while `MCP_ENABLED` is off; required when it is on',
+    defParsed: null,
+    description:
+      'Canonical resource identifier agents bind their access tokens to, normally `https://<your-host>/api/mcp`.',
+    when: 'Whenever `MCP_ENABLED` is true.',
+    expect:
+      'Must be the URL an agent actually reaches, not an internal or container address: tokens are audience-bound to this exact string, so a value that disagrees with the public hostname produces a 401 that explains nothing. A trailing slash is trimmed automatically. `https` is required because this value is also the auth base URL, so the issuer, the JWKS document and every authorization endpoint follow it; plain `http` is accepted only when the host is loopback (`localhost`, `127.0.0.0/8`, `[::1]`), where the bytes never leave the machine, which is what local development uses. Boot fails if it is missing while `MCP_ENABLED` is true, if it is not a valid URL, if it is plaintext `http` on a non-loopback host, or if it carries a query string, a fragment or userinfo.',
+  },
   PUBLIC_WEB_URL: {
     group: 'Runtime',
     consumers: ['worker'],

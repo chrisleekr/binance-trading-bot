@@ -703,15 +703,16 @@ export async function listClosedSince(
   scope: ProfileScope,
   symbol: string,
   since: Date | null,
-  until: Date,
+  until: Date | null,
 ): Promise<OrderRow[]> {
   const conditions = [
     eq(orders.profileId, scope.profileId),
     eq(orders.symbol, symbol),
     eq(orders.status, 'FILLED'),
     isNotNull(orders.closedAt),
-    lte(orders.closedAt, until),
   ];
+  // `until` is nullable because the archive handler has to learn the window's upper edge FROM the rows: `closed_at` is stamped from the exchange's clock, so any bound taken from this process's clock is a comparison between two clocks that are merely close, and the newest fill in a cycle is exactly the row that lands on the wrong side of it.
+  if (until !== null) conditions.push(lte(orders.closedAt, until));
   if (since !== null) conditions.push(gt(orders.closedAt, since));
   return scope.db
     .select()
@@ -721,19 +722,27 @@ export async function listClosedSince(
 }
 
 /**
- * Latest `archived_at` for `(profile, symbol)`. Drives the `since`
- * cutoff in {@link summarizeArchiveSince} and {@link listClosedSince}
- * so each archive captures only rows closed since the previous archive
- * (or all-time on the first archive).
+ * The watermark the next archive of `(profile, symbol)` starts from: the newest `cycle_end` among its archive rows, falling back to `archived_at` only on rows written before that column existed. Drives the `since` cutoff in {@link summarizeArchiveSince} and {@link listClosedSince}, so each archive captures exactly the rows closed since the previous one ended (or all-time on the first archive).
+ *
+ * The function name is the column it used to read, and that column is the bug. `archived_at` is the writer's wall clock stamped at INSERT, after the rows were read, the totals aggregated and the fee round trip completed, so it lands strictly above the window it closes; `cycle_end` is the newest `closed_at` in that window, stamped by the exchange, which is the clock `closed_at` is compared against on the next read. Returning the write time leaves the interval between the two bounded by neither archive: a fill closing in it is above this window's ceiling and below the next window's floor, so its realised P/L is dropped silently, with no `missingCostBasis` marker, because that marker only counts uncosted SELLs inside a window.
+ *
+ * @param scope - Ownership-proven profile scope; the read is filtered by its `profileId`.
+ * @param symbol - Exchange symbol whose archive watermark is wanted.
+ * @returns The newest coalesced `cycle_end`/`archived_at` for the pair, or null when the pair has never been archived.
  */
 export async function latestArchivedAt(scope: ProfileScope, symbol: string): Promise<Date | null> {
+  // Ordered by the same coalesced expression the value is taken from, never by `archived_at`: a backfill reconstructs an old round trip and writes it with today's `archived_at`, so ordering on the write time would elect that row's watermark over a later cycle's and rewind the cutoff past fills already archived.
+  const watermark = sql`coalesce(${tradeArchive.cycleEnd}, ${tradeArchive.archivedAt})`;
+  // Both columns are selected and coalesced here rather than projecting the SQL expression, because a bare `sql` expression carries no column metadata for drizzle to map the driver's timestamp text back through, and it would arrive as a string typed as a Date.
   const rows = await scope.db
-    .select({ archivedAt: tradeArchive.archivedAt })
+    .select({ archivedAt: tradeArchive.archivedAt, cycleEnd: tradeArchive.cycleEnd })
     .from(tradeArchive)
     .where(and(eq(tradeArchive.profileId, scope.profileId), eq(tradeArchive.symbol, symbol)))
-    .orderBy(desc(tradeArchive.archivedAt))
+    .orderBy(desc(watermark))
     .limit(1);
-  return rows[0]?.archivedAt ?? null;
+  const row = rows[0];
+  if (!row) return null;
+  return row.cycleEnd ?? row.archivedAt;
 }
 
 /** Per-(profile, symbol) outcome of one backfill attempt; drives the recover-vs-note split. */

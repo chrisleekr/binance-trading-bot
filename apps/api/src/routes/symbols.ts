@@ -1,5 +1,7 @@
 import {
   asProfileId,
+  ConfigPreviewRequest,
+  ConfigPreviewResponse,
   ErrorEnvelope,
   ProfileSymbolList,
   ProfileSymbolResponse,
@@ -8,8 +10,9 @@ import {
   type SymbolSource,
   isSymbolPermittedForAccount,
   parseAccountPermissions,
+  AccountInfoSnapshot,
 } from '@app/contracts';
-import { accountPermissionsKey, projections, repo } from '@app/db';
+import { accountPermissionsKey, GLOBAL_KEYS, profileKey, projections, repo } from '@app/db';
 import { mergeConfig } from '@app/strategy-core';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
@@ -25,7 +28,7 @@ import { wipeSymbolRedis } from 'redis-helpers.js';
 import { loadOrFetchExchangeInfo } from 'routes/exchange-info.js';
 import { createReconfigureEnqueue } from '@app/core/queue';
 import { requireOwnedProfile, scopeOf } from 'route-helpers.js';
-import type { AnyStrategy } from '@app/strategy-core';
+import type { AccountSnapshotWire, AnyStrategy, Candle, SymbolFilters } from '@app/strategy-core';
 import { createApiHono, type ApiHono } from 'types.js';
 
 // Cap on issue lines folded into a VALIDATION_FAILED message so a deeply
@@ -57,6 +60,80 @@ const validateOverride = (plugin: AnyStrategy, profileConfig: unknown, override:
   if (!merged.success) fail(merged.error);
 };
 
+/** The worker writes `{"price": "..."}` per symbol on every miniTicker event; a symbol nothing is streaming has no key, which is a normal state rather than an error. */
+const readCachedPrice = (raw: string | null): string | null => {
+  if (!raw) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const price = (parsed as { price?: unknown }).price;
+    return typeof price === 'string' ? price : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Exchange filters are optional preview input: without them a strategy projects price levels but cannot show the size it would place, nor round a level to the tick or clamp it to the price band. Absent is therefore degraded, not broken.
+ *
+ * The filters sit UNDER `filters` in the cached snapshot, which also carries the symbol, its assets and its listing status. Handing the envelope to a strategy instead types as `SymbolFilters` and reads as one at every site, with every field undefined: the projection then silently drops tick rounding, the percent-price band and the trailing-delta clamp while still looking like it had filters.
+ */
+const readCachedFilters = (raw: string | null): SymbolFilters | undefined => {
+  if (!raw) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const filters = (parsed as { filters?: unknown } | null)?.filters;
+    return filters != null && typeof filters === 'object' ? (filters as SymbolFilters) : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** The worker's wallet snapshot, which a strategy that clamps its order size to free cash reads. Absent for a stopped profile, which has no snapshot: the projection then shows unclamped sizes rather than none, which is the same degradation the operator's own view takes. */
+const readCachedAccount = (raw: string | null): AccountSnapshotWire | undefined => {
+  if (!raw) return undefined;
+  try {
+    const parsed = AccountInfoSnapshot.safeParse(JSON.parse(raw));
+    return parsed.success ? { balances: parsed.data.balances } : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Candle frames for the config's own decision window, matching what the operator's preview panel requests. */
+const PREVIEW_DECISION_FRAMES = 500;
+/** Ceiling on any one window the preview asks for, so a strategy declaring a large need cannot turn one preview into several paged kline calls. */
+const PREVIEW_MAX_FRAMES = 500;
+
+/**
+ * The candle windows this preview needs, deduplicated by interval.
+ *
+ * A projection that reads candles, such as a daily regime line, returns no rows at all when it is handed none, and returning a silently shorter answer is worse than returning none: the caller cannot tell a regime that is off from a regime whose history never arrived. The set is assembled the way the operator's preview panel assembles it, from the config's own decision interval plus whatever the strategy declares beyond it.
+ *
+ * @param plugin - Strategy whose optional `previewDataNeeds` declares history beyond the decision window.
+ * @param config - Effective parsed configuration the projection will run against.
+ * @returns One entry per interval, each with the largest frame count anything asked for.
+ */
+const previewCandleNeeds = (
+  plugin: AnyStrategy,
+  config: unknown,
+): { interval: string; frames: number }[] => {
+  const needs: { interval: string; frames: number }[] = [];
+  const push = (interval: unknown, frames: number): void => {
+    if (typeof interval !== 'string' || interval === '') return;
+    if (!Number.isFinite(frames) || frames <= 0) return;
+    const capped = Math.min(PREVIEW_MAX_FRAMES, Math.floor(frames));
+    const existing = needs.find((need) => need.interval === interval);
+    if (existing) {
+      if (capped > existing.frames) existing.frames = capped;
+      return;
+    }
+    needs.push({ interval, frames: capped });
+  };
+  push((config as { candleInterval?: unknown } | null)?.candleInterval, PREVIEW_DECISION_FRAMES);
+  for (const need of plugin.previewDataNeeds?.(config) ?? []) push(need.interval, need.frames);
+  return needs;
+};
+
 const ProfileIdParam = z.object({ profileId: z.uuid() });
 const ProfileSymbolParam = z.object({
   profileId: z.uuid(),
@@ -77,6 +154,27 @@ const toSymbolResponse = (row: {
   source: row.source,
   pinned: row.pinned,
   pinnedAt: row.pinnedAt?.toISOString() ?? null,
+});
+
+const previewConfigRoute = createRoute({
+  method: 'post',
+  path: '/profiles/{profileId}/symbols/{symbol}/preview-config',
+  tags: ['symbols'],
+  request: {
+    params: ProfileSymbolParam,
+    body: { content: { 'application/json': { schema: ConfigPreviewRequest } } },
+  },
+  responses: {
+    200: {
+      description: 'projected levels',
+      content: { 'application/json': { schema: ConfigPreviewResponse } },
+    },
+    404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
+    422: {
+      description: 'VALIDATION_FAILED',
+      content: { 'application/json': { schema: ErrorEnvelope } },
+    },
+  },
 });
 
 const listRoute = createRoute({
@@ -204,6 +302,124 @@ export const symbolsRouter = (di: DI): ApiHono => {
     const row = await p.profileSymbols.findForSymbol(symbol);
     if (!row) throw new HttpError('NOT_FOUND', 'symbol');
     return c.json(toSymbolResponse(row), 200);
+  });
+
+  app.openapi(previewConfigRoute, async (c) => {
+    const { profileId: profileIdRaw, symbol } = c.req.valid('param');
+    const profileId = asProfileId(profileIdRaw);
+    const candidate = c.req.valid('json').config;
+    const { p, profile } = await requireOwnedProfile(c, di, profileId);
+    const resolved = di.strategies.describeForProfile(
+      profile.strategyName,
+      profile.strategyVersion,
+    );
+    if (resolved.status === 'unknown') {
+      throw new HttpError('VALIDATION_FAILED', 'strategy not registered for profile');
+    }
+    const plugin = resolved.strategy;
+    // A candidate is an OVERRIDE, so it goes through the same two-stage check a stored one does. Previewing an override the write path would reject would show the operator levels for a configuration that can never run, which is worse than refusing: it is a confident wrong answer.
+    const stored = await p.profileSymbols.findForSymbol(symbol);
+    const override = candidate === undefined ? (stored?.overrideConfig ?? null) : candidate;
+    if (override != null && candidate !== undefined) {
+      validateOverride(plugin, profile.config, override);
+    }
+    const effectiveRaw = mergeConfig(profile.config, override);
+    // Parsed, not merged-and-hoped: `previewLevels` is documented to read its config defensively, but handing it an unparsed object would make every default silently absent and the projection quietly wrong rather than loudly refused.
+    const parsedConfig = plugin.configSchema.safeParse(effectiveRaw);
+    if (!parsedConfig.success) {
+      throw new HttpError('VALIDATION_FAILED', 'effective config is not valid for this strategy');
+    }
+    const binanceMode = (await repo.accounts.binanceModeById(di.db, p.scope.accountId)) ?? 'test';
+    const redis = di.redis.raw();
+    const [symbolState, ledger, tickerRaw, symbolInfoRaw, accountInfoRaw] = await Promise.all([
+      p.symbolStates.findBySymbol(symbol),
+      p.avgEntryPrices.findBySymbol(symbol),
+      redis.get(GLOBAL_KEYS.ticker(symbol)),
+      redis.get(GLOBAL_KEYS.symbolInfo(symbol, binanceMode)),
+      redis.get(profileKey(p.scope, 'accountInfo')),
+    ]);
+    const currentPrice = readCachedPrice(tickerRaw);
+    const entryPrice = ledger?.avgEntryPrice ?? null;
+    // Every strategy projects its levels relative to an entry, so a flat symbol handed a null entry projects nothing, which is exactly the moment a caller is deciding whether to enter. Both operator views resolve this the same way, by anchoring on the live price as the entry a first buy would fill at, and this route has to agree with them or the same configuration reads as empty here and populated there. The basis travels with the answer so a hypothetical is never mistaken for a held position.
+    const anchorPrice = entryPrice ?? currentPrice;
+    const anchorBasis: 'position' | 'current-price' | 'none' =
+      entryPrice !== null ? 'position' : currentPrice !== null ? 'current-price' : 'none';
+    const filters = readCachedFilters(symbolInfoRaw);
+    const account = readCachedAccount(accountInfoRaw);
+    // Best-effort: a projection missing one window is still worth returning, and an unreachable exchange must not turn a config question into a 502. The gap rides back with the answer instead of being swallowed, because a candle-reading projection emits no rows when handed none and the caller would otherwise read that as a guard being switched off. A window counts as present only when it actually carries candles: no rows and no response are indistinguishable downstream.
+    const nowMs = Date.now();
+    const needs = previewCandleNeeds(plugin, parsedConfig.data);
+    const windows = await Promise.all(
+      needs.map(async (need): Promise<{ interval: string; candles: Candle[] | null }> => {
+        try {
+          const klines = await di.marketData.getKlines(binanceMode, {
+            symbol,
+            interval: need.interval,
+            limit: need.frames,
+          });
+          // A window that resolves with no rows is the ordinary shape for a newly listed pair or an interval the exchange has no history for, and it reaches the projection identically to a window that was never fetched. Counting it as present would hand the caller back the very ambiguity this list exists to remove. Logged apart from the failure case because the two call for opposite operator action: nothing to wait for here, versus an exchange to chase.
+          if (klines.length === 0) {
+            di.logger.warn(
+              { symbol, interval: need.interval, frames: need.frames },
+              'preview_candle_window_empty',
+            );
+            return { interval: need.interval, candles: null };
+          }
+          return {
+            interval: need.interval,
+            candles: klines.map((k) => ({ ...k, isClosed: k.closeTimeMs <= nowMs })),
+          };
+        } catch (err) {
+          di.logger.warn(
+            { err, symbol, interval: need.interval, frames: need.frames },
+            'preview_candle_window_unavailable',
+          );
+          return { interval: need.interval, candles: null };
+        }
+      }),
+    );
+    // Flattened in `needs` order rather than completion order: `PreviewInput.candles` is one untagged flat array, so position is the only thing a consumer reading more than one interval could key on, and completion order is a race.
+    const candles: Candle[] = [];
+    const missingCandleWindows: string[] = [];
+    for (const window of windows) {
+      if (window.candles === null) missingCandleWindows.push(window.interval);
+      else candles.push(...window.candles);
+    }
+    let model;
+    try {
+      model = plugin.previewLevels({
+        config: parsedConfig.data,
+        state: symbolState?.state ?? null,
+        entryPrice: anchorPrice,
+        currentPrice,
+        quoteAsset: profile.quoteAsset,
+        ...(filters ? { filters } : {}),
+        ...(account ? { account } : {}),
+        ...(candles.length > 0 ? { candles } : {}),
+      });
+    } catch (err) {
+      // A strategy projection is a pure read and should never throw. If one does, the answer is an empty projection rather than a 500 that tells the caller nothing about their config, and the throw is logged so it is not mistaken for a config that projects no levels.
+      di.logger.warn(
+        { err, symbol, strategy: profile.strategyName, version: profile.strategyVersion },
+        'preview_levels_threw',
+      );
+      model = { sections: [] };
+    }
+    return c.json(
+      {
+        sections: model.sections.map((section) => ({
+          title: section.title,
+          rows: section.rows.map((row) => ({ ...row })),
+        })),
+        effectiveConfig: parsedConfig.data,
+        currentPrice,
+        entryPrice,
+        anchorPrice,
+        anchorBasis,
+        missingCandleWindows,
+      },
+      200,
+    );
   });
 
   app.openapi(createSymbolRoute, async (c) => {
@@ -425,6 +641,7 @@ export const symbolsRouter = (di: DI): ApiHono => {
     if (profile.enabled) {
       await createReconfigureEnqueue(di.queue)({ userId: operatorId, accountId, profileId });
     }
+    c.set('auditEvent', { event: 'remove-symbol', payload: { profileId, symbol } });
     return new Response(null, { status: 204 });
   });
 

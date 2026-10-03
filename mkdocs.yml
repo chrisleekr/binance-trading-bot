@@ -148,6 +148,7 @@ nav:
           - Database: architecture/database.md
           - Conditions & diagnosis: architecture/observability-conditions.md
           - Auth: architecture/auth.md
+          - MCP control plane: architecture/mcp.md
       - Extending:
           - Strategy plugin contract: architecture/extensibility.md
       - Contributing:
