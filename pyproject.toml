@@ -2,7 +2,7 @@
 name = "binance-trading-bot-docs"
 version = "0.0.0"
 description = "Documentation build env for binance-trading-bot. Not published."
-requires-python = ">=3.14.7"
+requires-python = ">=3.14.8"
 dependencies = []
 
 [dependency-groups]

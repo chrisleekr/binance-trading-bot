@@ -49,10 +49,10 @@
     "branch-name-lint": "~3.0.1",
     "husky": "~9.1.7",
     "lint-staged": "~17.6.0",
-    "oxlint": "1.86.0",
+    "oxlint": "1.87.0",
     "prettier": "~3.9.9",
     "prettier-plugin-tailwindcss": "~0.8.1",
-    "turbo": "^2.11.5",
+    "turbo": "^2.11.7",
     "typescript": "~7.0.2",
     "vitest": "~5.0.3"
   },
