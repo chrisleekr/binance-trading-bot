@@ -61,11 +61,7 @@ export const profitTrailEpoch = (oneMinuteCandles: readonly Candle[]): number | 
  * window. `max` is monotone, so folding the WHOLE window every tick is
  * idempotent and self-heals a worker outage that missed boundaries.
  *
- * The window is `market.candlesByInterval['1m']`, which the live worker feeds
- * for every symbol regardless of `candleInterval`. The backtest runner does NOT
- * supply it today — it publishes only a daily auxiliary window — so this leg is
- * inert in backtest unless the profile itself trades on 1m. Tuning the trail
- * against a backtest therefore proves nothing yet.
+ * The window is `market.candlesByInterval['1m']`, which the live worker feeds for every symbol regardless of `candleInterval`. A single-symbol backtest feeds it too, because momentum declares `exitsWithinCandle`: the runner ticks a held position on every 1-minute bar and hands it the bars closed since its previous tick, a slice rather than a rolling window, which folds to the same mark because the fold is a monotone max. A multi-symbol backtest, or one longer than the runner's 1-minute load cap, does not, so there this leg never arms, and the run says so in its warnings.
  *
  * Floored at `entryPrice` so a revived state can never produce a mark below the
  * position's own cost basis. Candles that opened before `sinceMs` (see

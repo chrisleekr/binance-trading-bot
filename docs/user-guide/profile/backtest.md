@@ -13,7 +13,7 @@ _The Configure tab: pick a window, tune the config, and run. Seeded demo data, n
 The Backtest section opens on its **Configure** sub-tab, where you set the window, costs, and strategy config, then run.
 
 - **Quick window (ending now)** — preset buttons `30d` · `90d` · `6m` · `1y`, or set **From** / **To** by hand. Arriving with no window set pre-fills the last 1 year — whether you followed a symbol page's Backtest link or opened the Backtest section directly; adjust it or pick a preset before running. A shared or auto-run link keeps its own window.
-- **Detail interval** — finer candles used to simulate price movement _inside_ each strategy candle, for more realistic fills. Must be the same as or finer than the strategy's Candle Interval.
+- **Detail interval** — finer candles used to simulate price movement _inside_ each strategy candle, for more realistic fills. Must be the same as or finer than the strategy's Candle Interval. A single-coin Momentum run uses 1-minute candles here, whatever you pick, so its profit trail can sell mid-day the way it does live; the results show this change as a warning. A Momentum run on more than one coin, or over more than about a year, cannot do this, so its profit trail never sells in that run, and the results warn about that too.
 - **Advanced — fees, slippage & realism** (collapsible) — the cost model:
 
 | Field | Meaning |

@@ -85,8 +85,8 @@ export function glossEntryBlocker(blocker: EntryBlocker): string {
     case 'loss-cooldown': {
       const minutesLeft = str(d, 'minutesLeft');
       return minutesLeft
-        ? `The bot took a loss on this coin and is waiting before buying back in, so it does not jump straight back into the drop. About ${minutesLeft} minute(s) left.`
-        : 'The bot took a loss on this coin and is waiting before buying back in, so it does not jump straight back into the drop.';
+        ? `The bot recently sold this coin at a loss or at break-even and is waiting before buying back in, so it does not jump straight back into the drop or the move that just stalled. About ${minutesLeft} minute(s) left.`
+        : 'The bot recently sold this coin at a loss or at break-even and is waiting before buying back in, so it does not jump straight back into the drop or the move that just stalled.';
     }
     case 'technicals-confirming': {
       const reads = str(d, 'reads');

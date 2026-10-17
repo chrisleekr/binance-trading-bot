@@ -43,11 +43,7 @@ export {
 export { computeTick } from './tick.js';
 
 /**
- * Momentum: the first non-trailing-trade strategy plugin. Enters long on a
- * fast/slow EMA cross-up and exits on a trailing-stop retrace or EMA
- * cross-down. Exercises the {@link PositionStateAdapter} capability and
- * deliberately omits `gridTrade` and all bundle providers — proof the plugin
- * contract holds for a strategy with a different shape from trailing-trade.
+ * Momentum: the first non-trailing-trade strategy plugin. Enters long on a fast/slow EMA cross-up, or while the fast EMA is above the slow under `entryTrigger: 'trend'` (one entry per candle), and exits on a trailing-stop retrace or EMA cross-down. Exercises the {@link PositionStateAdapter} capability and deliberately omits `gridTrade` and all bundle providers — proof the plugin contract holds for a strategy with a different shape from trailing-trade.
  */
 /** Coerce an unparsed-config leaf to a finite number, else 0. */
 const finiteNum = (v: unknown): number => {
@@ -103,11 +99,13 @@ export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> =
   version: '1.0.0',
   displayName: 'Momentum',
   description:
-    'EMA cross-up entry with a trailing-stop / cross-down exit. Single long position, no grid.',
+    'EMA trend entry (on the cross-up, or while the fast EMA is above the slow) with a trailing-stop / cross-down exit. Single long position, no grid.',
   capabilities: {
     candleIntervals: MOMENTUM_CANDLE_INTERVALS,
-    // The entry IS the cross of two EMAs over CLOSED candles of `config.candleInterval`, so a flat symbol gets exactly one entry decision per close of that interval and no more.
+    // The entry signal (the EMA cross, or the fast-above-slow state under `entryTrigger: 'trend'`) reads CLOSED candles of `config.candleInterval`, and one entry per candle is enforced, so a flat symbol gets at most one entry per close of that interval.
     entryOnCandleClose: true,
+    // The profit leg ratchets on 1-minute closes and the stop fires on the live price, so a held position can exit at any minute of a daily candle.
+    exitsWithinCandle: true,
     needsUserDataStream: true,
     needsMiniTicker: true,
     // Reads the operator-override slot so a force-sell can reach the tick.

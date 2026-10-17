@@ -329,6 +329,12 @@ export interface Capabilities {
    * Declared because the diagnosis ladder needs it and may not ask a plugin by name (invariant 1): `entry-signal-reach` divides a discovery hold window by the entry cadence to say how many chances a binding gets, and that arithmetic is meaningless — and its `degraded` finding wrong — for a strategy that can enter at any moment. Absent reads as false, so a strategy that has not thought about it makes the rung report `unknown` rather than assert a cadence nobody declared.
    */
   readonly entryOnCandleClose?: boolean;
+  /**
+   * Whether a held position's exit level moves on 1-minute closes inside one trading candle, as momentum's profit trail does. Live ticks on every price update and feeds the 1-minute window, so such an exit fires mid-candle. A backtest that ticks once per trading candle cannot reproduce it, so when this is true the backtest runner loads 1-minute bars and ticks the strategy on each one while it holds a position.
+   *
+   * Absent reads as false, which keeps a strategy that has not declared it on one tick per candle with an unchanged report.
+   */
+  readonly exitsWithinCandle?: boolean;
   readonly needsUserDataStream: boolean;
   readonly needsMiniTicker: boolean;
   /**

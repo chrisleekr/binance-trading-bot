@@ -115,7 +115,7 @@ export const trailingTradeNotes: FieldNotes = {
   'buy.lossCooldownMinutes': {
     when: 'Raise it when you see the strategy stopping out and immediately re-buying the same falling coin.',
     expect:
-      'After any exit taken below your average cost, this coin cannot be bought again for this long. It is the main brake on death-by-a-thousand-stop-outs. `0` removes the brake.',
+      'After a stop-loss, a break-even stop, or any other exit taken below your average cost, this coin cannot be bought again for this long. It is the main brake on death-by-a-thousand-stop-outs and on re-buying a move that just stalled. `0` removes the brake.',
   },
   'buy.firstBuyTriggerBasis': {
     when: 'Switch to `lowest-price` when you would rather wait for a better entry than get in as soon as the gates open.',
@@ -212,7 +212,7 @@ export const trailingTradeNotes: FieldNotes = {
   'sell.breakEven.enabled': {
     when: 'Turn it on when trades keep popping into small profit, stalling, and then running all the way down to the stop-loss.',
     expect:
-      'Once armed, a fallback to your entry exits the trade near flat instead of taking the full stop-loss. The cost is more exits that would have recovered.',
+      'Once armed, a fallback to your entry exits the trade near flat instead of taking the full stop-loss. Each such exit also starts the loss cooldown (`buy.lossCooldownMinutes`), so the coin is not re-bought for that long. The cost is more exits that would have recovered.',
   },
   'sell.breakEven.armAtPercentage': {
     when: 'Only when break-even protection is on. Raise it if the protection is arming on ordinary wiggle.',

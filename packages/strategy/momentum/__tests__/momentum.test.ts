@@ -250,11 +250,7 @@ describe('momentum.tick — entry', () => {
     expect(out.metrics).toEqual([{ name: 'momentum.entry', value: 1 }]);
   });
 
-  // One entry per cross. `crossUp` reads the last two CLOSED candles, so it stays
-  // true for the rest of the candle it fired on. A position stopped out inside
-  // that window leaves the state flat under a still-true signal; without the
-  // stamp the next tick buys straight back in at the price the stop just
-  // rejected, unbounded, reusing the filled order's clientOrderId.
+  // One entry per candle. The entry signal (cross-up, or fast above slow under `entryTrigger: 'trend'`) reads the last two CLOSED candles, so it stays true for the rest of the candle it fired on. A position stopped out inside that window leaves the state flat under a still-true signal; without the stamp the next tick buys straight back in at the price the stop just rejected, unbounded, reusing the filled order's clientOrderId.
   it('refuses a second entry on the candle it already entered on', () => {
     const out = momentum.tick(
       mkInput({
@@ -386,6 +382,94 @@ describe('momentum.tick — entry', () => {
         waitingFor: 'fall-back-then-cross-up',
       },
     });
+  });
+
+  // The cross-only trigger never fires on a symbol discovery admitted after its cross; `trend` enters on the same series the test above holds on.
+  it('enters a coin already above its threshold when entryTrigger is trend', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['8', '9', '10', '11']),
+        currentPrice: '11',
+        state: flat(),
+        config: cfg({ entryTrigger: 'trend' }),
+      }),
+    );
+    expect(out.decisions).toHaveLength(1);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+    expect(out.nextState.lastEntryCandleMs).toBe(LAST_CLOSE_MS);
+    expect(out.logs[0]?.message).toBe('momentum: entry with fast EMA above slow');
+  });
+
+  it('holds under entryTrigger trend while the fast EMA is not above the threshold', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(FLAT_SERIES),
+        currentPrice: '10',
+        state: flat(),
+        config: cfg({ entryTrigger: 'trend' }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({ waitingFor: 'cross-up' });
+  });
+
+  // Under `trend` the signal stays true for the whole trend, so the one-entry-per-candle stamp is the only thing between a same-candle stop-out and an immediate re-buy.
+  it('refuses a second trend entry on the candle it already entered on', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['8', '9', '10', '11']),
+        currentPrice: '11',
+        state: { ...flat(), lastEntryCandleMs: LAST_CLOSE_MS },
+        config: cfg({ entryTrigger: 'trend' }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.entryBlocker?.reason).toBe('already-entered-this-candle');
+  });
+
+  // The trend filter still vetoes a `trend` entry: the state-based signal must not bypass the below-trend sit-out.
+  it('suppresses a trend entry while price is below the trend line', () => {
+    // sma(3) of [9,10,11] = 10; live price 9 is below it.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['8', '9', '10', '11']),
+        currentPrice: '9',
+        state: flat(),
+        config: cfg({
+          entryTrigger: 'trend',
+          trendFilter: { enabled: true, maType: 'sma', period: 3 },
+        }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.metrics).toEqual([
+      { name: 'momentum.skip', value: 1, tags: { side: 'entry', reason: 'below-trend' } },
+    ]);
+    expect(out.nextState.entryBlocker?.reason).toBe('below-trend');
+  });
+
+  // `trend` reads fast against the margin band, not bare slow, so a fast EMA above slow but inside the band does not enter.
+  it('holds under entryTrigger trend while fast is above slow but inside the entry margin', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['8', '9', '10', '11']),
+        currentPrice: '11',
+        state: flat(),
+        config: cfg({ entryTrigger: 'trend', entryMarginPct: '0.5' }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({ waitingFor: 'cross-up' });
+  });
+
+  it('accepts entryTrigger in the config schema and rejects an unknown value', () => {
+    expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'trend' })).success).toBe(true);
+    expect(MomentumConfigSchema.safeParse({ ...cfg(), entryTrigger: 'breakout' }).success).toBe(
+      false,
+    );
   });
 
   it('clears a stale protective-stop blocker while flat with no entry signal', () => {
@@ -1944,12 +2028,7 @@ describe('momentumPositionAdapter', () => {
     // seed the mark with a peak this position never held. The adapter has no
     // candle window to derive a fresh one, so the next held tick establishes it.
     //
-    // `lastEntryCandleMs` SURVIVES, for the same reason the empty-fill case
-    // below keeps it: it is the one-entry-per-cross guard, and this adapter runs
-    // for the profile's own strategy entries as well as adopted ones. Clearing
-    // it would erase the stamp the placing tick just wrote and let the same
-    // cross re-enter after a stop-out. A stale stamp can only ever suppress an
-    // entry on a candle already past, which is the safe direction.
+    // `lastEntryCandleMs` SURVIVES, for the same reason the empty-fill case below keeps it: it is the one-entry-per-candle guard, and this adapter runs for the profile's own strategy entries as well as adopted ones. Clearing it would erase the stamp the placing tick just wrote and let the same candle re-enter after a stop-out. A stale stamp can only ever suppress an entry on a candle already past, which is the safe direction.
     expect(
       momentumPositionAdapter.applyFill(body({ lastEntryCandleMs: LAST_CLOSE_MS }), {
         kind: 'buy',
@@ -2353,6 +2432,8 @@ describe('strategy assembly', () => {
     expect(momentum.capabilities.bundleProviders).toEqual(['override']);
     expect(momentum.capabilities.needsUserDataStream).toBe(true);
     expect(momentum.capabilities.needsMiniTicker).toBe(true);
+    // The profit trail moves on 1-minute closes, so a backtest must replay a held position minute by minute.
+    expect(momentum.capabilities.exitsWithinCandle).toBe(true);
     expect(momentum.initialState(defaultMomentumConfig())).toEqual(initialMomentumState());
   });
 });

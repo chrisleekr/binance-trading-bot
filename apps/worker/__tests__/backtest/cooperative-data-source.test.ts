@@ -107,4 +107,16 @@ describe('throttleSleepMs', () => {
     expect(throttleSleepMs(50, 0.5)).toBe(50);
     expect(throttleSleepMs(30, 0.25)).toBe(90);
   });
+
+  it('paces with a passed yielder instead of building its own', async () => {
+    let calls = 0;
+    const out = await collect(
+      cooperativeDataSource(arrayMarketDataSource(series(5)), { everyN: 1 }, async () => {
+        calls += 1;
+      }),
+    );
+    expect(out).toHaveLength(5);
+    // One call per tick on the shared budget; a stream that ignored the yielder would leave this at 0.
+    expect(calls).toBe(5);
+  });
 });

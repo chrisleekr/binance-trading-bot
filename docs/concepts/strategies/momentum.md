@@ -4,13 +4,13 @@
 
 _The Momentum configuration form, as the profile's Strategy section renders it. Every field is documented in the table below. Seeded demo data, not a real account._
 
-Momentum buys a coin that is already moving up and rides it until the move ends. It enters on a confirmed upward **EMA crossover** and exits only through a stop — there is no upside price target. It trades less often than Trailing Trade and can sit in cash for long stretches waiting for a clean move.
+Momentum buys a coin that is already moving up and rides it until the move ends. It enters on a confirmed upward **EMA crossover** (or, with `entryTrigger: trend`, on any closed candle while the fast EMA is above the slow one) and exits only through a stop — there is no upside price target. It trades less often than Trailing Trade and can sit in cash for long stretches waiting for a clean move.
 
 This page is the canonical reference for the strategy — what it does, how each tick decides, every configuration knob, worked examples, the state it keeps, and its internals. It serves both an operator configuring a profile and a contributor reading the code (`packages/strategy/momentum/`).
 
 ## In one sentence
 
-When a fast moving average crosses above a slow one it buys; it then follows the price up with a trailing stop and sells when the price falls back through that stop or the fast average crosses back below the slow one.
+When a fast moving average crosses above a slow one (or, with `entryTrigger: trend`, while it sits above it) it buys, at most once per candle; it then follows the price up with a trailing stop and sells when the price falls back through that stop or the fast average crosses back below the slow one.
 
 ## How a tick decides
 
@@ -22,7 +22,7 @@ flowchart TD
     Warm{"Enough history<br/>for the slow EMA?"}:::gate
     Held{"Currently holding?"}:::gate
 
-    CrossUp{"Fast EMA crossed<br/>above slow EMA<br/>by the margin?"}:::gate
+    CrossUp{"Entry signal:<br/>fast crossed above slow EMA, or<br/>fast above slow under trend,<br/>by the margin?"}:::gate
     Gates["Entry gates:<br/>one entry per candle,<br/>trend filter, extension guard"]:::core
     Buy["Place a buy order"]:::act
 
@@ -56,7 +56,7 @@ Entry is deliberately slow and exit is deliberately quick: the entry cross must 
 
 ## Entry and exit, in detail
 
-**Entry.** A buy fires when the fast EMA was at or below the slow EMA on the previous closed candle and is now above it by `entryMarginPct` (default: bare cross). At most one entry per candle, so a stop-out inside the same candle cannot immediately re-buy. Optional gates can veto the entry: the **trend filter** (only enter while price is above a long-term moving average) and the **extension guard** (skip when price is stretched too far above its baseline). Exits are never gated. An opening buy is also refused with `entry-below-stop-notional` when, after the 0.1% trading fee and Binance's lot-size rounding, the coins bought would be worth less at the initial protective stop's stop-limit price than the minimum order size, the smallest order value Binance accepts. In `native-trail` mode the check is made at the stop's trigger instead, because a trail carries no limit price to be measured against — the same distinction the arm makes, so a marginal entry is not refused for an offset the resting order does not apply. Raise the entry budget or tighten the stop (move it closer to the entry price, so the coins are worth more when it fires); add-on buys into an existing position are not held to this floor.
+**Entry.** With `entryTrigger: cross` (the default), a buy fires when the fast EMA was at or below the slow EMA on the previous closed candle and is now above it by `entryMarginPct` (default: bare cross). With `entryTrigger: trend`, a buy fires on any closed candle where the fast EMA is above the slow EMA by `entryMarginPct`, crossed or not. Use `trend` with discovery: discovery admits coins that are already trending, which have crossed before they were added, so under `cross` they wait for a dip and a fresh cross that may not come before discovery drops them. At most one entry per candle, so a stop-out inside the same candle cannot immediately re-buy. Optional gates can veto the entry: the **trend filter** (only enter while price is above a long-term moving average) and the **extension guard** (skip when price is stretched too far above its baseline). Exits are never gated. An opening buy is also refused with `entry-below-stop-notional` when, after the 0.1% trading fee and Binance's lot-size rounding, the coins bought would be worth less at the initial protective stop's stop-limit price than the minimum order size, the smallest order value Binance accepts. In `native-trail` mode the check is made at the stop's trigger instead, because a trail carries no limit price to be measured against — the same distinction the arm makes, so a marginal entry is not refused for an offset the resting order does not apply. Raise the entry budget or tighten the stop (move it closer to the entry price, so the coins are worth more when it fires); add-on buys into an existing position are not held to this floor.
 
 **Exit.** Every exit is a stop — there is **no take-profit target**. A held position is sold when any of these fires:
 
@@ -200,7 +200,7 @@ Per (profile, symbol), between ticks (`MomentumStateSchema`, schema version `1.0
 | `highSinceEntry` | High-water mark that starts at the entry price and ratchets up on the closes of candles that closed after the entry candle; the hard leg measures retrace from this. |
 | `profitHigh` | High-water mark of bucketed closed 1-minute closes since entry, floored at the entry price; the profit leg measures retrace from this. `null` while `profitTrail` is off. |
 | `heldQuantity` | Authoritative held base for sell sizing (reconciled from fills). |
-| `lastEntryCandleMs` | Close time of the candle that opened the last entry; enforces one entry per cross. |
+| `lastEntryCandleMs` | Close time of the candle that opened the last entry; enforces one entry per candle. |
 | `profitTrailSinceMs` | Close instant of the newest 1-minute candle already closed when the position opened. The profit leg folds only candles that **open** at or after it, so the earliest close it can fold lands one minute later. Keeps a peak from before you were in the trade out of `profitHigh`. Stays `null` until a tick supplies a closed 1-minute window: a position reconciled from your wallet, or one whose entry was adopted from a fill, arrives without it and the next held tick stamps it. A caller with no 1-minute candles never stamps it and the profit leg stays inert. Stamping late can only ever fold FEWER closes, never a peak the position did not hold. |
 | `entryBlocker` | Why the last tick refused an entry (e.g. `below-trend`, `overextended`, `cap-reached`, `entry-below-stop-notional`). |
 | `protectiveStopBlocker` | Why the bot cannot arm or re-arm an exchange-side stop for a held position; when `detail.resting` is set, an older stop is still resting at its previous level and is deliberately left alone rather than cancelled, and `detail.guarded` says whether it still covers the whole position. On a minimum-order-value refusal `detail.checkedAt` is the price the minimum was measured against and `detail.checkedAtLeg` says which price that is — `limit` for the price a `STOP_LOSS_LIMIT` sells down to, `market` for a native trailing stop, which carries no price of its own and is judged at the market price, and `trigger` only on the fallback where no usable market price could be read — so it is not confused with `detail.stop`, the trigger the stop would have rested at. Cleared to `null` when the position closes, including a close the worker applies without a tick. A reset that clears the cost basis but leaves coins in your wallet keeps the warning. |

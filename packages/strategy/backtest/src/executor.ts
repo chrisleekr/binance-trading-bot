@@ -51,6 +51,8 @@ interface RestingOrder {
    */
   readonly originalQty: string;
   readonly filledQty: Decimal;
+  /** A stop-limit whose stop an earlier evaluation reached; passed back to the fill model, since Binance never disarms a triggered stop. */
+  readonly armed?: boolean;
 }
 
 /**
@@ -104,6 +106,8 @@ export class BacktestExecutor implements Executor {
   private readonly kv = new Map<string, unknown>();
   private restingOrders: RestingOrder[] = [];
   private pendingFills: DrainedFill[] = [];
+  // Symbols whose order the fill model refused since the last drain, per side. Live discards the tick's state when its order never executes; the run loop needs this to do the same.
+  private readonly rejected: Record<OrderSide, Set<string>> = { BUY: new Set(), SELL: new Set() };
   private nextOrderId = 1;
 
   constructor(
@@ -201,6 +205,17 @@ export class BacktestExecutor implements Executor {
     for (const f of this.pendingFills) (f.symbol === symbol ? taken : rest).push(f);
     this.pendingFills = rest;
     return taken;
+  }
+
+  /**
+   * Whether an order on this symbol and side was refused since the last call, clearing the flag.
+   *
+   * @param symbol - The symbol to check.
+   * @param side - The refused order's side.
+   * @returns True when the fill model rejected an order of that side for it, at placement or while resting.
+   */
+  drainRejected(symbol: string, side: OrderSide): boolean {
+    return this.rejected[side].delete(symbol);
   }
 
   getEvents(): readonly { eventType: string; payload: unknown }[] {
@@ -321,7 +336,9 @@ export class BacktestExecutor implements Executor {
     // model (ideal) always fully fills, so there is no remainder in practice.
     if (outcome.kind === 'rest') {
       this.rest(intent, params, ctx.clock.nowMs(), symbolInfo);
-    } else if (outcome.kind !== 'rejected') {
+    } else if (outcome.kind === 'rejected') {
+      this.rejected[intent.side].add(intent.symbol);
+    } else {
       for (const fill of outcome.fills)
         this.applyFill(intent.side, intent.reason, symbolInfo, fill);
     }
@@ -396,15 +413,19 @@ export class BacktestExecutor implements Executor {
         symbolInfo,
         clock,
         phase: 'resting',
+        armed: ord.armed === true,
       });
       if (outcome.kind === 'rest') {
         // Not filled: re-lock the same reservation and keep resting.
         this.lockUpTo(ord.reservedAsset, ord.reservedAmount);
-        next.push(ord);
+        next.push(outcome.armed === true ? { ...ord, armed: true } : ord);
         continue;
       }
       // Rejected: leave the reservation released — the funds return to free.
-      if (outcome.kind === 'rejected') continue;
+      if (outcome.kind === 'rejected') {
+        this.rejected[ord.intent.side].add(symbol);
+        continue;
+      }
       for (const fill of outcome.fills) {
         this.applyFill(ord.intent.side, ord.intent.reason, symbolInfo, fill);
       }
@@ -425,6 +446,8 @@ export class BacktestExecutor implements Executor {
           reservedAsset: asset,
           reservedAmount,
           filledQty: ord.filledQty.add(filledNow),
+          // A stop-limit only fills once armed, so its remainder stays armed.
+          armed: ord.armed === true || ord.params.type === 'STOP_LOSS_LIMIT',
         });
       }
       // Filled: the released reservation minus the actual fill cost stays in free.

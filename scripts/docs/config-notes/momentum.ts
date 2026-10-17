@@ -18,6 +18,11 @@ export const momentumNotes: FieldNotes = {
     expect:
       'Requiring a margin means fewer entries, later. You give up the earliest part of a move in exchange for skipping crosses that immediately reverse. `0` takes every bare cross.',
   },
+  entryTrigger: {
+    when: 'Switch to `trend` when discovery feeds the profile and the tick trace keeps saying `fall-back-then-cross-up`: discovery adds coins after they have crossed, so `cross` rarely gets a chance to buy them.',
+    expect:
+      '`trend` enters more often and later in a move, so the trend filter and extension guard do more of the filtering. Expect more stop-outs per entry than `cross`; at most one entry per candle still applies.',
+  },
   'entrySizing.mode': {
     when: 'Use `fixed` while you are learning what the strategy does — it makes every trade the same size and therefore easy to compare. Switch to `percentOfAccount` when you want position size to grow and shrink with the account.',
     expect:

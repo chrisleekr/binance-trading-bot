@@ -11,8 +11,8 @@ import type { ReasonAttribution } from '@app/strategy-core';
  */
 export const momentumReasonAttribution: ReasonAttribution = {
   'already-entered-this-candle': {
-    setting: 'One entry per cross',
-    note: 'a structural rate-limit, not a setting: momentum opens at most one long per EMA cross, so a stop-out inside the same candle cannot immediately re-buy',
+    setting: 'One entry per candle',
+    note: 'a structural rate-limit, not a setting: momentum opens at most one long per candle, so a stop-out inside the same candle cannot immediately re-buy',
     gloss: 'Already opened a position on this candle',
     kind: 'data',
   },

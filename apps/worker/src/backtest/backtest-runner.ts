@@ -54,6 +54,11 @@ export class BacktestCancelledError extends Error {
 // indicators are already warm. 200 covers the longest indicator period (EMA200).
 const WARMUP_CANDLES = 200;
 
+// The window live feeds every symbol whatever its trading interval, and the one momentum's profit trail ratchets on. A strategy declaring `exitsWithinCandle` is replayed on bars of this interval while it holds a position.
+const INTRA_CANDLE_INTERVAL = '1m' as const;
+// Longest span of 1-minute bars one within-candle run loads. Each bar is a `Candle` object held in the process that also trades live under ROLE=all (2 GiB limit): a year of them measured 108 MB of heap, and the row load briefly holds a few times that. 400 days covers a one-year range plus a daily strategy's 20-day head start before `fromMs`; a longer run ticks once per candle and says so.
+const MAX_INTRA_CANDLE_SPAN_MS = 400 * 86_400_000;
+
 // The daily regime candle is always materialised and fed into the strategy's
 // market snapshot, mirroring the live worker (subscriptions-manager subscribes
 // the daily candle for every symbol). Without it a daily-regime gate — TT's
@@ -111,42 +116,53 @@ export interface CooperativeYieldOptions {
 }
 
 /**
- * Wrap a {@link MarketDataSource} so the replay cedes the event loop whenever
- * the yield budget of wall-clock has elapsed since the last yield, OR every
- * `everyN` ticks as a fallback. At full speed (`cpuShare` >= 1) the yield is a
- * bare macrotask ({@link setImmediate}); under a throttle (`cpuShare` < 1) it
- * sleeps proportionally (see {@link throttleSleepMs}) so a CPU-bound study
- * replay leaves headroom for a co-resident api/live process in ROLE=all. Pure
- * scheduling: the same ticks stream in the same order (a yield never drops or
- * reorders a tick), so the engine's report and the golden replay are unchanged.
- * `Date.now()` is read at this worker seam, not inside the pure engine. Exported
- * for a focused unit test of the yield cadence.
+ * A throttled event-loop yield: each call counts one unit of replay work, and the call that exhausts the budget (`everyN` calls, or the wall-clock interval since the last yield) cedes the loop. At full speed (`cpuShare` >= 1) the yield is a bare macrotask ({@link setImmediate}); under a throttle (`cpuShare` < 1) it sleeps proportionally (see {@link throttleSleepMs}) so a CPU-bound replay leaves headroom for a co-resident api/live process in ROLE=all. `Date.now()` is read at this worker seam, not inside the pure engine.
+ *
+ * One instance can be shared by the candle stream and the engine's within-candle ticks, so both draw on one budget: a held day replays 1,440 minute ticks inside a single candle, and without a yield between them the live worker sharing the process would stall for seconds.
+ *
+ * @param options - The CPU share and the yield cadence; defaults match the replay stream's.
+ * @returns A function to await after each unit of work; it resolves immediately unless the budget is spent.
  */
-export function cooperativeDataSource(
-  inner: MarketDataSource,
-  options: CooperativeYieldOptions = {},
-): MarketDataSource {
+export function cooperativeYielder(options: CooperativeYieldOptions = {}): () => Promise<void> {
   const cpuShare = options.cpuShare ?? 1;
   const everyN = options.everyN ?? YIELD_EVERY_TICKS;
   const intervalMs =
     options.intervalMs ?? (cpuShare < 1 ? THROTTLED_YIELD_INTERVAL_MS : YIELD_INTERVAL_MS);
+  let sinceYield = 0;
+  let lastYieldMs = Date.now();
+  return async () => {
+    const now = Date.now();
+    if (++sinceYield < everyN && now - lastYieldMs < intervalMs) return;
+    const sleepMs = throttleSleepMs(now - lastYieldMs, cpuShare);
+    await (sleepMs > 0
+      ? new Promise<void>((resolve) => setTimeout(resolve, sleepMs))
+      : new Promise<void>((resolve) => setImmediate(resolve)));
+    sinceYield = 0;
+    // Re-read after the sleep so the next quantum measures work, not rest.
+    lastYieldMs = Date.now();
+  };
+}
+
+/**
+ * Wrap a {@link MarketDataSource} so the replay cedes the event loop whenever the yield budget of wall-clock has elapsed since the last yield, OR every `everyN` ticks as a fallback (see {@link cooperativeYielder}). Pure scheduling: the same ticks stream in the same order (a yield never drops or reorders a tick), so the engine's report and the golden replay are unchanged. Exported for a focused unit test of the yield cadence.
+ *
+ * @param inner - The stream to pace.
+ * @param options - The CPU share and cadence, used when no shared `yielder` is passed.
+ * @param yielder - A yielder shared with the engine's within-candle ticks, so the stream and those ticks spend one budget; omitted, each stream gets its own.
+ * @returns The same stream, ceding the event loop between ticks.
+ */
+export function cooperativeDataSource(
+  inner: MarketDataSource,
+  options: CooperativeYieldOptions = {},
+  yielder?: () => Promise<void>,
+): MarketDataSource {
   return {
     stream(req) {
       const upstream = inner.stream(req);
+      const pace = yielder ?? cooperativeYielder(options);
       async function* gen(): AsyncGenerator<MarketTick> {
-        let sinceYield = 0;
-        let lastYieldMs = Date.now();
         for await (const tick of upstream) {
-          const now = Date.now();
-          if (++sinceYield >= everyN || now - lastYieldMs >= intervalMs) {
-            const sleepMs = throttleSleepMs(now - lastYieldMs, cpuShare);
-            await (sleepMs > 0
-              ? new Promise<void>((resolve) => setTimeout(resolve, sleepMs))
-              : new Promise<void>((resolve) => setImmediate(resolve)));
-            sinceYield = 0;
-            // Re-read after the sleep so the next quantum measures work, not rest.
-            lastYieldMs = Date.now();
-          }
+          await pace();
           yield tick;
         }
       }
@@ -309,16 +325,30 @@ export async function runProfileBacktest(
   // strategy that declares no `candleInterval`.
   const strategyInterval =
     readConfigInterval(config) ?? (params.strategyInterval as CandleInterval);
-  const detailInterval = params.detailInterval as CandleInterval;
+  // A strategy whose held exit moves on 1-minute closes inside a candle is ticked on 1-minute bars while it holds, so the replay sells where live would. It needs a coarser trading interval to have anything inside the candle, and one symbol, because the engine cannot interleave two symbols' minute bars in time order. Those 1-minute bars double as the detail bars resting orders cross against, so the requested detail interval yields to them.
+  const exitsWithinCandle =
+    strategy.capabilities.exitsWithinCandle === true &&
+    intervalToMs(strategyInterval) > intervalToMs(INTRA_CANDLE_INTERVAL);
+  const warmupMs = WARMUP_CANDLES * intervalToMs(strategyInterval);
+  const loadFromMs = params.fromMs - warmupMs;
+  // Where the strategy series starts loading. A daily strategy shares the regime interval and so loads from the regime warm-up, which is longer than its own.
+  const strategyFromMs =
+    strategyInterval === REGIME_DAILY_INTERVAL
+      ? Math.min(loadFromMs, params.fromMs - REGIME_DAILY_WARMUP_MS)
+      : loadFromMs;
+  // Trading begins WARMUP_CANDLES candles into that series, which for a daily strategy is about 20 days before `fromMs`. The minute bars start one candle earlier, at the last warm-up candle, so the first traded candle has all of its bars.
+  const intraFromMs = strategyFromMs + warmupMs - intervalToMs(strategyInterval);
+  const intraSpanOk = params.toMs - intraFromMs <= MAX_INTRA_CANDLE_SPAN_MS;
+  const intraCandle = exitsWithinCandle && params.symbols.length === 1 && intraSpanOk;
+  const detailInterval = intraCandle
+    ? INTRA_CANDLE_INTERVAL
+    : (params.detailInterval as CandleInterval);
   const allIntervals = unique([
     strategyInterval,
     detailInterval,
     REGIME_DAILY_INTERVAL,
     ...tvIntervals,
   ]);
-
-  const warmupMs = WARMUP_CANDLES * intervalToMs(strategyInterval);
-  const loadFromMs = params.fromMs - warmupMs;
 
   // Raw consumers keep the historical replay horizon. Technicals keeps the
   // longer source needed to match the live 999-clock-bar normalization.
@@ -332,10 +362,13 @@ export async function runProfileBacktest(
       // The daily regime interval loads from a daily-appropriate horizon so a
       // long regime MA is warm at the window start; every other interval uses
       // the strategy-interval warmup.
+      // The within-candle bars are read only once trading starts, so they load from `intraFromMs` rather than across the whole warm-up: a 200-day warm-up of 1-minute bars is 288,000 rows nobody reads.
       const rawFromMs =
         interval === REGIME_DAILY_INTERVAL
           ? Math.min(loadFromMs, params.fromMs - REGIME_DAILY_WARMUP_MS)
-          : loadFromMs;
+          : intraCandle && interval === INTRA_CANDLE_INTERVAL
+            ? intraFromMs
+            : loadFromMs;
       const intervalFromMs = tvIntervalSet.has(interval)
         ? Math.min(
             rawFromMs,
@@ -383,13 +416,14 @@ export async function runProfileBacktest(
           deps.clock.nowMs(),
           intervalToMs(interval),
         );
-        if (tailComplete) {
-          deps.candleCache?.set(cacheKey, candles);
-        } else {
+        // A within-candle run's 1-minute window stays out of the cache: the cache is bounded by entry count, not bytes, and a year of minute bars is about 100 MB, so a handful of pinned windows would exhaust the process that also trades live.
+        if (!tailComplete) {
           deps.logger?.warn(
             { symbol, interval },
             'backtest: candle window stops before the last closed bar; not caching so a later run can refetch the tail',
           );
+        } else if (!(intraCandle && interval === INTRA_CANDLE_INTERVAL)) {
+          deps.candleCache?.set(cacheKey, candles);
         }
       }
       const key = `${symbol}|${interval}`;
@@ -431,6 +465,16 @@ export async function runProfileBacktest(
   if (detailInterval === strategyInterval) {
     dataWarnings.push(
       `detail interval equals strategy interval (${strategyInterval}); intra-candle fill ordering is assumed favorably, so grid round-trips inside one bar may be slightly optimistic — set a finer detail interval to remove the ambiguity`,
+    );
+  }
+  // Within-candle exit caveats. A basket, or a range too long to hold its minute bars, falls back to one tick per candle with no 1-minute window, so an exit that live takes on 1-minute prices is not replayed; the operator must know the replay is coarser than live. A single-symbol run that swaps the requested detail interval for 1-minute bars raises no warning: the bars are finer than asked, and any `dataWarnings` entry fails the live gate's data-coverage check.
+  if (exitsWithinCandle && params.symbols.length > 1) {
+    dataWarnings.push(
+      `this strategy exits within a candle (live sells on 1-minute prices), but a multi-symbol run ticks once per ${strategyInterval} candle with no 1-minute bars, so that exit is not replayed and results can differ from live — run one symbol to replay it minute by minute`,
+    );
+  } else if (exitsWithinCandle && !intraSpanOk) {
+    dataWarnings.push(
+      `this strategy exits within a candle (live sells on 1-minute prices), but the range needs more than ${MAX_INTRA_CANDLE_SPAN_MS / 86_400_000} days of 1-minute bars, so it ticks once per ${strategyInterval} candle and that exit is not replayed — shorten the range to replay it minute by minute`,
     );
   }
   // Frictionless-fill caveat: an unset spread/volume-cap makes fills more
@@ -502,12 +546,14 @@ export async function runProfileBacktest(
   // bundle's signal cursor, so per-tick cost is O(1) amortised, no lookahead.
   const regimeCursor = new Map<string, number>();
 
+  // One yield budget for the candle stream and the within-candle ticks, so a held day's minute ticks cede the event loop on the same cadence as candles do.
+  const pace = cooperativeYielder({
+    ...(deps.cpuShare !== undefined ? { cpuShare: deps.cpuShare } : {}),
+  });
   const report = await runBacktest({
     strategy: strategy as AnyStrategy,
     config,
-    dataSource: cooperativeDataSource(arrayMarketDataSource(tickSeries), {
-      ...(deps.cpuShare !== undefined ? { cpuShare: deps.cpuShare } : {}),
-    }),
+    dataSource: cooperativeDataSource(arrayMarketDataSource(tickSeries), {}, pace),
     fillModel: new OhlcvFillModel({
       makerBps: params.fees.makerBps,
       takerBps: params.fees.takerBps,
@@ -531,6 +577,9 @@ export async function runProfileBacktest(
     // heartbeat / lock renewal survives the gap after the last tick's yield.
     onBeforeMetrics: () => new Promise<void>((resolve) => setImmediate(resolve)),
     startupCandleCount: WARMUP_CANDLES,
+    ...(intraCandle
+      ? { intraCandle: { interval: INTRA_CANDLE_INTERVAL }, onIntraCandleTick: pace }
+      : {}),
     buildBundle: ({ symbol, window }) =>
       buildBundle(
         strategy,

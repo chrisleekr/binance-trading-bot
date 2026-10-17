@@ -51,6 +51,13 @@ export interface BacktestSignatureInput {
 }
 
 /**
+ * Revision of the replay semantics, hashed into every {@link backtestSignature}. Bump it whenever the engine, or a strategy's backtest-visible behaviour, changes what identical inputs produce, so the ledger dedup never hands back a result the current engine would not reproduce. A bump only forfeits reuse of earlier runs; it never changes a result.
+ *
+ * 2: within-candle ticking for `exitsWithinCandle` strategies (momentum's profit trail), and the TrailingTrade break-even exit starting the loss cooldown.
+ */
+export const BACKTEST_ENGINE_REVISION = 2;
+
+/**
  * A stable fingerprint of a WHOLE backtest (strategy + effective config +
  * market), used by the results ledger to recognise "we have already run exactly
  * this". Distinct salt from {@link configFingerprint} so the two key spaces
@@ -63,6 +70,7 @@ export interface BacktestSignatureInput {
 export const backtestSignature = (input: BacktestSignatureInput): string => {
   const json = JSON.stringify(
     canonical({
+      engine: BACKTEST_ENGINE_REVISION,
       strategyId: input.strategyId,
       config: input.config,
       market: input.market,

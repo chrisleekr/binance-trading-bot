@@ -212,6 +212,81 @@ describe('@app/strategy-trailing-trade loss-exit re-entry cooldown', () => {
     expect(out.nextState.lastLossExitReason).toBeNull();
   });
 
+  it('stamps lastLossExitAt on a break-even stop, even when the price reads as flat', () => {
+    const c = cfg();
+    const be = {
+      ...c,
+      sell: {
+        ...c.sell,
+        breakEven: { enabled: true, armAtPercentage: '1.01', floorPercentage: '1' },
+      },
+    } as TTConfig;
+    // Armed at +1% earlier; price is back at exactly the 100 entry, so the below-cost check would read it as no loss. The round-trip fees make it one, so the cooldown must still arm.
+    const state = {
+      ...trailingTrade.initialState(be),
+      avgEntryPrice: '100',
+      heldQuantity: '1',
+      breakEvenArmed: true,
+    } as TTState;
+    const out = trailingTrade.tick(
+      baseInput({
+        config: be,
+        state,
+        bundle: strongBuyBundle(be, NOW_MS),
+        nowMs: NOW_MS,
+        currentPrice: '100',
+        btcFree: '1',
+      }),
+    );
+    const sell = out.decisions.find((dd) => dd.type === 'place-order') as
+      { intent: { side: string; reason: string } } | undefined;
+    expect(sell?.intent.side).toBe('SELL');
+    expect(sell?.intent.reason).toBe('break-even-stop');
+    expect(out.nextState.lastLossExitAt).toBe(NOW_MS);
+    expect(out.nextState.lastLossExitReason).toBe('break-even-stop');
+  });
+
+  it('stamp→block chain: a break-even stop suppresses the next in-window entry', () => {
+    const c = cfg({ lossCooldownMinutes: 60 });
+    const be = {
+      ...c,
+      sell: {
+        ...c.sell,
+        breakEven: { enabled: true, armAtPercentage: '1.01', floorPercentage: '1' },
+      },
+    } as TTConfig;
+    const held = {
+      ...trailingTrade.initialState(be),
+      avgEntryPrice: '100',
+      heldQuantity: '1',
+      breakEvenArmed: true,
+    } as TTState;
+    const out1 = trailingTrade.tick(
+      baseInput({
+        config: be,
+        state: held,
+        bundle: strongBuyBundle(be, NOW_MS),
+        nowMs: NOW_MS,
+        currentPrice: '99.9',
+        btcFree: '1',
+      }),
+    );
+    expect(out1.nextState.lastLossExitReason).toBe('break-even-stop');
+    // The live churn this closes: a re-buy 32 minutes later, above the break-even sell.
+    const later = NOW_MS + 32 * MIN_MS;
+    const out2 = trailingTrade.tick(
+      baseInput({
+        config: be,
+        state: out1.nextState,
+        bundle: strongBuyBundle(be, later),
+        nowMs: later,
+        currentPrice: '100.2',
+      }),
+    );
+    expect(blockerView(out2)?.reason).toBe('loss-cooldown');
+    expect(out2.decisions.some((dd) => dd.type === 'place-order')).toBe(false);
+  });
+
   it('does NOT block re-entry once the cooldown window has lapsed', () => {
     const c = cfg({ lossCooldownMinutes: 60 });
     // Exited 61 minutes ago: window passed, a fresh BUY may fire.

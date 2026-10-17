@@ -1,6 +1,4 @@
-// Re-entry cooldown after a LOSS exit, shared across every first-entry path. A
-// stop-loss (always a loss) and a force-sell / regime-exit taken below cost
-// stamp `lastLossExitAt`; while the clock has not passed
+// Re-entry cooldown after a LOSS exit, shared across every first-entry path. A stop-loss (always a loss), a break-even stop (a stalled move, a loss once fees are paid at the default floor), and a force-sell / regime-exit taken below cost stamp `lastLossExitAt`; while the clock has not passed
 // `lastLossExitAt + lossCooldownMinutes`, a fresh first entry on the symbol is
 // suppressed so the strategy does not buy straight back into the dump it just
 // realised a loss into. The stamp deliberately survives the position close, so a

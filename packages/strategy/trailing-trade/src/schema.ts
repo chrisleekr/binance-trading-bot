@@ -431,7 +431,7 @@ export const TTBreakEvenSchema = withParsedDefault(
     floorPercentage: decimalString('breakEven.floorPercentage must be >= 1', { gte: 1 })
       .default('1')
       .describe(
-        '@ui:percent-above Once protection is on, sell if price slips back to this much above your buy price. 0 sells right at break-even; 0.2 locks in at least 0.2% profit. Keep it below the turn-on level above.',
+        '@ui:percent-above Once protection is on, sell if price slips back to this much above your buy price. 0 sells right at break-even; 0.2 locks in at least 0.2% profit. Keep it below the turn-on level above. Either way the sale starts the re-entry wait.',
       ),
   }),
 );
@@ -1041,8 +1041,7 @@ export const TTConfigSchema = z
         autoTriggerBuy: TTAutoTriggerBuySchema.describe(
           '@ui:advanced Automatically start a fresh buy a set time after a sell closes the position, so the bot keeps cycling. Off by default.',
         ),
-        // Re-entry cooldown after a LOSS exit (stop-loss, or a force-sell /
-        // regime-exit taken below cost). After such an exit, fresh first entries
+        // Re-entry cooldown after a LOSS exit (stop-loss, a break-even stop, or a force-sell / regime-exit taken below cost). After such an exit, fresh first entries
         // on this symbol are suppressed until the clock passes the stamped
         // deadline, so the strategy does not buy straight back into the dump it
         // just realised a loss into. A whole-minute count, not money, so `number`
@@ -1055,7 +1054,7 @@ export const TTConfigSchema = z
           .min(0)
           .default(60)
           .describe(
-            '@ui:advanced After a losing exit (a stop-loss, or a signal or trend exit taken below your average cost), wait this many minutes before buying this coin again, so the bot does not jump back into the same drop. Higher is more patient; 0 turns the wait off.',
+            '@ui:advanced After a stop-loss, a break-even stop, or a signal or trend exit taken below your average cost, wait this many minutes before buying this coin again, so the bot does not jump back into the same drop or the move that just stalled. A break-even stop counts even when its floor is set to lock in a small gain. Higher is more patient; 0 turns the wait off.',
           ),
         // First-buy trigger basis. 'immediate' (default) keeps the
         // current behaviour: level 0 fires from flat on the next eligible tick.
@@ -1525,8 +1524,7 @@ export const TTStateSchema = z.object({
   // every first-entry path skips while `now < forceSellCooldownUntilMs`. Same
   // default-null + normalize coercion rationale as the fields above.
   forceSellCooldownUntilMs: z.number().int().nullable().default(null),
-  // ms-timestamp of the most recent LOSS exit on this symbol (stop-loss, or a
-  // force-sell / regime-exit taken below cost), or null when none has occurred
+  // ms-timestamp of the most recent LOSS exit on this symbol (stop-loss, break-even stop, or a force-sell / regime-exit taken below cost), or null when none has occurred
   // or the cooldown has lapsed and a re-entry cleared it. Stamped at the loss
   // exit emit; every first-entry path skips while
   // `now < lastLossExitAt + lossCooldownMinutes * 60000`. Deliberately survives
@@ -1535,8 +1533,7 @@ export const TTStateSchema = z.object({
   // buy-back. Same default-null + normalize coercion rationale as the fields
   // above.
   lastLossExitAt: z.number().int().nullable().default(null),
-  // Reason code of the loss exit that set `lastLossExitAt` (e.g. 'grid-stop-loss',
-  // 'technicals-force-sell', 'regime-exit'), or null when no loss exit is in
+  // Reason code of the loss exit that set `lastLossExitAt` (e.g. 'grid-stop-loss', 'break-even-stop', 'technicals-force-sell', 'regime-exit'), or null when no loss exit is in
   // effect. Display-only context; the gate reads only `lastLossExitAt`. Survives
   // a flat position alongside it. Same default-null rationale.
   lastLossExitReason: z.string().nullable().default(null),

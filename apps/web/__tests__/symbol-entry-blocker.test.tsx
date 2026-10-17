@@ -93,7 +93,7 @@ describe('glossEntryBlocker', () => {
 
   it('renders the minutes remaining for loss-cooldown', () => {
     const sentence = glossEntryBlocker({ reason: 'loss-cooldown', detail: { minutesLeft: 30 } });
-    expect(sentence).toMatch(/took a loss/);
+    expect(sentence).toMatch(/at a loss or at break-even/);
     expect(sentence).toMatch(/30/);
   });
 

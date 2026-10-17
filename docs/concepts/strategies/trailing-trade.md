@@ -145,7 +145,7 @@ Trailing Trade ships as a mean-reversion strategy (grid averaging-down + fixed-%
 
 ### Break-even stop
 
-`sell.breakEven` sits between the hard stop-loss and the profit trail. It arms once a **closed candle** confirms price at `armAtPercentage × entry` (default `'1.01'`, +1%), then market-sells on a live retrace to `floorPercentage × entry` (default `'1'`, break-even). It only acts before the profit trail arms — once `triggerPercentage` arms the trail, the trail supersedes it, and the hard stop-loss still wins if both would fire together. It is the fix for a move that popped a little, stalled, then would otherwise ride the hard stop all the way down.
+`sell.breakEven` sits between the hard stop-loss and the profit trail. It arms once a **closed candle** confirms price at `armAtPercentage × entry` (default `'1.01'`, +1%), then market-sells on a live retrace to `floorPercentage × entry` (default `'1'`, break-even). It only acts before the profit trail arms — once `triggerPercentage` arms the trail, the trail supersedes it, and the hard stop-loss still wins if both would fire together. It is the fix for a move that popped a little, stalled, then would otherwise ride the hard stop all the way down. A break-even exit also starts the `lossCooldownMinutes` re-entry wait, like a stop-loss, whatever its result: at the default floor of `1` the fees make it a small loss, and with a higher floor it may be a small gain. Either way the move it exits has stalled, and without the wait the next first-entry signal can buy straight back in, often above the price it just sold at.
 
 ### General time-stop
 

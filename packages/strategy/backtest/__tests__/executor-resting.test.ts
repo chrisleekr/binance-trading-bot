@@ -112,6 +112,10 @@ describe('BacktestExecutor with a realistic (resting) fill model', () => {
     ex.setMarketContext(SYMBOL, new Decimal('100'), bar(60_000, '99', '101'));
     expect(ex.getTrades()).toHaveLength(0); // underfunded → rejected, no fill
     expect(ex.openOrders()).toHaveLength(0); // dropped from the book
+    // The run loop reads this to discard a position the strategy recorded for the refused BUY; it clears on read.
+    expect(ex.drainRejected(SYMBOL, 'SELL')).toBe(false);
+    expect(ex.drainRejected(SYMBOL, 'BUY')).toBe(true);
+    expect(ex.drainRejected(SYMBOL, 'BUY')).toBe(false);
   });
 
   it('tracks origQty and executedQty across a volume-cap partial fill', async () => {
@@ -161,6 +165,27 @@ describe('BacktestExecutor with a realistic (resting) fill model', () => {
     expect(ex.getTrades()).toHaveLength(1);
     expect(ex.getTrades()[0]).toMatchObject({ side: 'SELL', price: '94' });
     expect(ex.openOrders()).toHaveLength(0);
+  });
+
+  it('keeps a gapped-through stop-limit armed, so a later bar that recovers above the stop still fills it', async () => {
+    const ex = new BacktestExecutor(
+      new OhlcvFillModel({ makerBps: 0, takerBps: 0, slippageBps: 0 }),
+      { USDT: '10000', BTC: '1' },
+      [SYMBOL_INFO],
+    );
+    ex.setMarketContext(SYMBOL, new Decimal('105'), bar(0, '104', '106'));
+    await ex.apply(ctxAt(0), {
+      type: 'place-order',
+      intent: { symbol: SYMBOL, side: 'SELL', reason: 'stop-loss', clientOrderId: 's1' },
+      params: { type: 'STOP_LOSS_LIMIT', stopPrice: '100', price: '98', quantity: '1' },
+    });
+    // Arms (low 94 <= 100) but trades wholly below the 98 limit.
+    ex.setMarketContext(SYMBOL, new Decimal('96'), bar(60_000, '94', '97', '95', '96'));
+    expect(ex.getTrades()).toHaveLength(0);
+    // Recovers entirely above the stop: it would not re-arm, but the armed limit fills.
+    ex.setMarketContext(SYMBOL, new Decimal('101'), bar(120_000, '100.5', '101.5', '101', '101'));
+    expect(ex.getTrades()).toHaveLength(1);
+    expect(ex.getTrades()[0]).toMatchObject({ side: 'SELL', price: '98' });
   });
 
   it('only evaluates resting orders for the symbol whose context advanced', async () => {

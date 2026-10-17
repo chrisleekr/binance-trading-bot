@@ -53,11 +53,7 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
         // sees no candle window to derive a fresh one, so it clears the field and
         // the next held tick establishes it.
         //
-        // `lastEntryCandleMs` deliberately survives. It is the one-entry-per-cross
-        // guard, and this adapter runs for the profile's OWN strategy entries as
-        // well as adopted ones, so clearing it would erase the stamp the placing
-        // tick just wrote and let the same cross re-enter after a stop-out. A
-        // stale stamp only ever suppresses an entry on a candle already past.
+        // `lastEntryCandleMs` deliberately survives. It is the one-entry-per-candle guard, and this adapter runs for the profile's OWN strategy entries as well as adopted ones, so clearing it would erase the stamp the placing tick just wrote and let the same candle re-enter after a stop-out. A stale stamp only ever suppresses an entry on a candle already past.
         return {
           ...(body as unknown as MomentumState),
           entryPrice: fill.avgEntryPrice,

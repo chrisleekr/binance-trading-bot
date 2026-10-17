@@ -507,15 +507,14 @@ const sellGateBranch: BranchHandler = (ctx) => {
       // Optimistic state reset on emit. currentGridTradeIndex
       // resets in lockstep with avgEntryPrice so the next entry re-fires
       // level 0; heldQuantity is left to the fill-adopter (see above).
-      // The grid sell gate emits a stop-loss (always a loss), a trailing /
-      // ATR profit-take (grid-sell), or a discovery time-stop. Only the
-      // stop-loss arms the loss-exit cooldown — a profit-take must not, or it
-      // would block a fresh entry after a winning trade. The metric name is the
-      // sole carrier of the exit reason out of evaluateSellGate.
+      // The grid sell gate emits a stop-loss (always a loss), a break-even stop, a trailing / ATR profit-take (grid-sell), or a discovery time-stop. The stop-loss and the break-even stop arm the loss-exit cooldown; a profit-take must not, or it would block a fresh entry after a winning trade. The metric name is the sole carrier of the exit reason out of evaluateSellGate.
+      // A break-even stop arms it unconditionally, not through the below-cost price check. It exits a move that rose and stalled, not one that ran: at the default floor of 1 the fees make it a small loss the price check reads as flat, and even a floor set to lock in a small gain leaves a 5m first entry free to re-fire within minutes, often above the price it just sold at, paying the fees again on the same stalled move. A trailing profit-take is the exit that means the move worked, and it stays unstamped.
       const lossStamp =
         sellResult.metricName === 'tt_grid_stop_loss_emit'
           ? lossExitStamp('grid-stop-loss', market.currentPrice, state.avgEntryPrice, now)
-          : {};
+          : sellResult.metricName === 'tt_break_even_stop_emit'
+            ? { lastLossExitAt: now, lastLossExitReason: 'break-even-stop' }
+            : {};
       const postSellState: TTState = {
         ...state,
         ...clearedSellPosition(armAutoTriggerBuy(config, now)),
@@ -807,9 +806,7 @@ const buyAndSnapshotBranch: BranchHandler = (ctx) => {
   // existing position; the cooldown gates buying BACK into a closed one).
   const forceSellCooled = state.avgEntryPrice === null && forceSellCooldownActive(state, now);
 
-  // Loss-exit re-entry cooldown — the same idea for a prior LOSS exit (stop-loss
-  // or an underwater force-sell / regime exit). Independent of the force-sell
-  // cooldown above: a stop-loss arms only this one. Only consulted when flat.
+  // Loss-exit re-entry cooldown — the same idea for a prior LOSS exit (stop-loss, break-even stop, or an underwater force-sell / regime exit). Independent of the force-sell cooldown above: a stop-loss or break-even stop arms only this one. Only consulted when flat.
   const lossExitCooled = state.avgEntryPrice === null && lossExitCooldownActive(state, config, now);
 
   let skipReason: FirstBuySkipReason | EntrySizingSkip | null = null;
