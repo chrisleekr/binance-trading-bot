@@ -307,7 +307,7 @@ const descriptionFor = (action: Action, symbol: string): string => {
     case 'set-lbp':
       return `Sets the price you paid for the ${symbol} you hold, and the bot manages those coins from it. Its stops are measured again from this price, so if the market is already below where the stop would sit, the bot can sell on its next check.`;
     case 'delete-lbp':
-      return `Clears the price you paid. Until a price is set again, the bot may stop managing the ${symbol} you hold, and it will not buy more while those coins have no price.`;
+      return `Clears the price you paid. Until a price is set again, the bot may stop managing the ${symbol} you hold.`;
     case 'wipe':
       return `Removes ${symbol} from the profile entirely: its per-symbol configuration, the recorded average entry price, any pending override actions, and the cached open-orders list. The trade history is kept for audit. Live Binance orders are NOT cancelled — cancel them first if needed. The strategy stops touching ${symbol}. This is irreversible.`;
     default:

@@ -105,7 +105,9 @@ export const momentumPreviewLevels = (
     config.entryTrigger === 'breakout'
       ? breakoutLevel(candles, breakoutLookback(config.breakoutLookback))
       : null;
-  if (config.entryTrigger === 'breakout' && breakout === null) return { sections: [] };
+  // A window shorter than the lookback has no breakout level. Flat, every row projects from it, so show nothing; held, the stops and guards still read the position, so only the entry row goes.
+  const noBreakout = config.entryTrigger === 'breakout' && breakout === null;
+  if (noBreakout && flat) return { sections: [] };
   const band = breakout ?? slowEma.mul(new Decimal(1).plus(entryMargin(config)));
   const bandStr = band.toString();
 
@@ -135,7 +137,7 @@ export const momentumPreviewLevels = (
     null,
   ).stop;
 
-  const entryRows: PreviewRow[] = [buildEntryRow(input, bandStr, candles)];
+  const entryRows: PreviewRow[] = noBreakout ? [] : [buildEntryRow(input, bandStr, candles)];
   if (stopBase !== null) {
     entryRows.push({
       code: 'trail',
@@ -147,7 +149,8 @@ export const momentumPreviewLevels = (
     });
   }
 
-  const sections: PreviewSection[] = [{ title: 'Entry', rows: entryRows }];
+  const sections: PreviewSection[] =
+    entryRows.length > 0 ? [{ title: 'Entry', rows: entryRows }] : [];
 
   const protectiveRow = buildProtectiveStopRow(input, stopBase);
   const trendRow = buildTrendRow(config, candles);

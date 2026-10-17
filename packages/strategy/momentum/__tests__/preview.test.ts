@@ -431,6 +431,14 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
     expect(entry?.triggerWhen).toBeUndefined();
   });
 
+  // A window shorter than the lookback has no breakout level, but a held position's stops do not read it, so dropping every row would hide the stop the worker is guarding with.
+  it('keeps the held stop rows and drops only the entry row when the window is shorter than the breakout lookback', () => {
+    const config = cfg({ entryTrigger: 'breakout', breakoutLookback: 10 });
+    const model = momentumPreviewLevels(input(config, { state: held(), entryPrice: '100' }));
+    expect(row(model, 'entry')).toBeUndefined();
+    expect(row(model, 'trail')).toBeDefined();
+  });
+
   it('falls back to the projected band as the trail base when held with no high', () => {
     const model = momentumPreviewLevels(
       input(cfg({ entryMarginPct: '0' }), {
