@@ -45,7 +45,8 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
   // factor is a ratio — a *difference* of ratios is not (1.5→3.0 and 3.0→4.5
   // both read "+1.5" but mean very different things), so PF is shown side by
   // side without a delta.
-  const winDelta = liveWin !== null && btWin !== null ? liveWin - btWin : null;
+  // Differenced against the rounded backtest rate the tile shows, so two rates that read equal get `+0%`, not a red `-0%` from the hidden fraction.
+  const winDelta = liveWin !== null && btWin !== null ? liveWin - Math.round(btWin) : null;
 
   // Edge-decay verdict — shared with the overview health strip via one hook, so
   // the badge here and the strip's headline always agree. Advisory only.

@@ -548,6 +548,31 @@ describe('LiveVsBacktestCard', () => {
     expect(screen.queryByText('(+1.20)')).toBeNull();
   });
 
+  it('differences the win rate against the rounded backtest rate it shows', async () => {
+    // Backtest 75.4% displays as 75%, beside live 75%: the delta must read +0%, not a red -0% from the hidden 0.4.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        if (url.includes('/backtests/'))
+          return jsonOf({
+            ...runDetailBody,
+            result: { ...runDetailBody.result, metrics: { ...metrics, winRate: 75.4 } },
+          });
+        return jsonOf(profileBody(RUN_ID));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(/^75% → 75%/)).toBeInTheDocument();
+    expect(screen.getByText('(+0%)')).toHaveClass('text-up');
+  });
+
   it('surfaces a terminal notice when the pinned baseline run cannot be read', async () => {
     // A failed read must not sit on a pulsing skeleton forever: nothing is in
     // flight, so a placeholder there would claim data that never arrives.
