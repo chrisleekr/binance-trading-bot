@@ -55,6 +55,8 @@ Fetching an attacker-supplied URL from inside that trust boundary is the obvious
 
 ## Dispatch
 
+The endpoint serves both MCP protocol eras. A 2026-07-28 client sends the per-request envelope; a client still on a 2025 revision opens with `initialize` and is answered statelessly, by a fresh server from the same factory per request (`legacy: 'stateless'` in `apps/api/src/routes/mcp.ts`). Both pass the same bearer check, scopes and per-operator rate limit, and see the same tools. A JSON-RPC batch (which MCP dropped in 2025-06-18) is refused with 400 after the rate limit is charged, because the 2025 path would otherwise run up to 100 calls on one request's budget. No MCP session is kept, so a 2025 `GET` or `DELETE` gets 405.
+
 Tools do not re-implement anything. Each one resolves to an HTTP call and dispatches into a second mount of `mountApiRouters`, so an agent's order passes the identical `scopeAccount` ownership proof, the identical entry-halt and operator-action guards, and the identical strategy-schema validation. There is no second code path to keep honest.
 
 What differs from a browser request:

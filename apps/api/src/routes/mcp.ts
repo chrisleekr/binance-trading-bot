@@ -184,8 +184,8 @@ export const mcpRouter = (di: DI): ApiHono => {
       const clientContext = isClientContext(carried) ? carried : EMPTY_CLIENT_CONTEXT;
       return buildMcpServer(di, operatorId, grantedScopesOf(claims), clientContext);
     },
-    // Modern-only. The 2025-era stateless fallback would serve a second protocol surface with its own session semantics on a route that can place orders, for no gain: both clients this targets negotiate 2026-07-28.
-    { legacy: 'reject' },
+    // 2025-era clients (an `initialize` handshake) are served statelessly: a fresh server from this same factory per request, behind the same token check, scopes and rate limit, with no session kept. Batches are refused below so one request stays one call. Refused, a client not yet on 2026-07-28 gets an unsupported-protocol-version error it does not recover from, and cannot connect at all after a successful sign-in.
+    { legacy: 'stateless' },
   );
 
   const protectedHandler = requireMcpAuth(
@@ -228,7 +228,38 @@ export const mcpRouter = (di: DI): ApiHono => {
           },
         });
       }
+      // Parsed once here and handed to the library as `parsedBody`, so the batch check and the dispatch act on the same value rather than two parsers' readings of the same bytes. The global body limit has already bounded the read.
+      let parsedBody: unknown;
+      if (request.method === 'POST') {
+        try {
+          parsedBody = await request.json();
+        } catch {
+          return Response.json(
+            {
+              jsonrpc: '2.0',
+              id: null,
+              error: { code: -32700, message: 'Parse error: the request body is not valid JSON' },
+            },
+            { status: 400 },
+          );
+        }
+        // The 2025-era path would serve a JSON-RPC batch of up to 100 calls on the one unit charged above. MCP dropped batching in 2025-06-18, so a batch is refused rather than metered.
+        if (Array.isArray(parsedBody)) {
+          return Response.json(
+            {
+              jsonrpc: '2.0',
+              id: null,
+              error: {
+                code: -32600,
+                message: 'JSON-RPC batches are not supported by this endpoint',
+              },
+            },
+            { status: 400 },
+          );
+        }
+      }
       return handler.fetch(request, {
+        ...(parsedBody === undefined ? {} : { parsedBody }),
         authInfo: {
           token: '',
           clientId: String(claims.aud ?? ''),

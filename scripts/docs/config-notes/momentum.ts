@@ -66,7 +66,7 @@ export const momentumNotes: FieldNotes = {
   'atrTrailingStop.enabled': {
     when: 'Turn it on when one fixed percentage does not suit every coin the profile trades — a stop that is right for a stablecoin pair is far too tight for a small-cap.',
     expect:
-      "The stop distance follows the coin's own recent volatility instead of a fixed percent, and it replaces the fixed trailing stop. Unlike the fixed stop it can also move down when volatility spikes, which gives a violent move room instead of shaking you out.",
+      "The stop distance follows the coin's own recent volatility instead of a fixed percent, and it replaces the fixed trailing stop. Unlike the fixed stop it can also move down when volatility spikes, which gives a violent move room instead of shaking you out, but only while no priced protective stop is resting or when that stop clamps to the price band. Otherwise the resting stop’s trigger is a floor.",
   },
   'atrTrailingStop.period': {
     when: 'Only when the ATR stop is on. Shorten it to make the stop respond faster to a change in volatility.',
