@@ -11,6 +11,7 @@ import {
   resolveWalletFields,
 } from '../../src/boot/reconcile-held-quantity.js';
 import { Decimal } from '@app/money';
+import { buildStrategyRegistry } from '@app/strategy-registry';
 import { isPhantomLedgerRow } from '../../src/boot/revive-avg-entry-price.js';
 import {
   APPLY_SEED_GATE_STAND_DOWN_REASONS,
@@ -1834,6 +1835,48 @@ describe('pipeline-worker dispatch', () => {
     expect(finalWrite?.symbol).toBe('BTCUSDT');
     expect(finalWrite?.state).toMatchObject({ avgEntryPrice: '50', heldQuantity: '2' });
     expect(h.chainKeys).toContain(`${ids.profileId}:BTCUSDT`);
+  });
+
+  it('apply-avg-entry-price: adopts a wallet holding as a momentum position', async () => {
+    // Momentum declares the seed action so coins already in the wallet get a cost basis, a trailing stop and a protective stop instead of sitting unmanaged. Runs the real plugin so the adapter's field mapping (entryPrice, not avgEntryPrice) is what gets asserted.
+    const momentum = buildStrategyRegistry().get('momentum');
+    expect(momentum?.capabilities.operatorActions).toContain('avg-entry-price');
+    const h = buildHarness();
+    h.strategiesGet.mockReturnValue(momentum);
+    repoMocks.profilesFindById.mockResolvedValue({
+      id: ids.profileId,
+      enabled: true,
+      strategyName: 'momentum',
+      strategyVersion: momentum?.version,
+      config: {},
+    });
+    repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+      symbol: 'BTCUSDT',
+      avgEntryPrice: '82684',
+      quantity: '0.00145',
+    });
+    h.redis.get.mockImplementation(async (key: string) =>
+      key.includes('symbol-info')
+        ? JSON.stringify({ baseAsset: 'BTC', filters: { stepSize: '0.00001' } })
+        : null,
+    );
+    repoMocks.binanceGetAccount.mockResolvedValue({
+      balances: [{ asset: 'BTC', free: '0.00145', locked: '0' }],
+    });
+    repoMocks.symbolStatesFindBySymbol.mockResolvedValue(null);
+
+    await h.invoke('apply-avg-entry-price', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+      symbol: 'BTCUSDT',
+    });
+
+    expect(h.persistedSymbolStates.at(-1)?.state).toMatchObject({
+      entryPrice: '82684',
+      heldQuantity: '0.00145',
+      highSinceEntry: null,
+    });
   });
 
   it('apply-avg-entry-price: clears the position when the ledger row is absent (delete path)', async () => {

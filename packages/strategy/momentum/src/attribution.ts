@@ -16,6 +16,12 @@ export const momentumReasonAttribution: ReasonAttribution = {
     gloss: 'Already opened a position on this candle',
     kind: 'data',
   },
+  'held-without-basis': {
+    setting: 'Average entry price',
+    note: 'not a setting: the wallet holds coins this symbol has no cost basis for, so a new buy would double the exposure while nothing guards the coins already held; set an average entry price to hand them to the bot, or sell them',
+    gloss: 'Holding coins with no entry price, so not buying more',
+    kind: 'data',
+  },
   'insufficient-history': {
     setting: 'Trend filter window',
     note: 'not enough candles loaded yet to compute the trend line (or read its slope); this clears as more candles arrive, or lower the trend-filter period',

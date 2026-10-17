@@ -25,6 +25,7 @@ import {
 import { computeEntryQuantity, computeExitQuantity, entryStopFloor } from './quantity.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
 import { trendMaType, trendPeriod } from './trend-filter.js';
+import { breakoutLevel, breakoutLookback } from './breakout.js';
 import { profitLegDistance } from './profit-leg.js';
 import { profitTrailEpoch, ratchetProfitHigh, resolveStopLevel } from './stop-level.js';
 import { resolveEntryBudget } from './sizing.js';
@@ -46,6 +47,10 @@ const skipMetric = (side: 'entry' | 'exit' | 'sell', reason: string): MetricEntr
 
 // Unparsed state means the key may be absent on a row written before it existed.
 // Anything but a number reads as "never entered", so the guard fails open.
+// '0' is the idle "row exists, quantity zero" body the repo really produces, so only a positive quantity counts as coins held. An unparseable one stays held, so a corrupt body cannot unlock a buy.
+const holdsCoins = (quantity: string | null): boolean =>
+  quantity !== null && (decOrNull(quantity)?.gt(0) ?? true);
+
 const lastEntryCandle = (state: MomentumState): number | null =>
   typeof state.lastEntryCandleMs === 'number' ? state.lastEntryCandleMs : null;
 
@@ -185,8 +190,8 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
   // A position-scoped blocker explains something about a position that is OPEN; with the position gone it describes nothing, so it must not outlive it. Cleared here rather than inside the flat branch below because the warm-up return above that branch is itself a flat tick, and would otherwise carry a refusal forward for as long as the candle window stays short.
   //
   // Position-free means no cost basis AND no coins. A body carrying a held quantity with no basis is a real, unguarded holding, not a flat profile, and its stop refusal is the only trace of that exposure — the reconciler names this exact shape as the one where the strategy reads flat while still holding.
-  // Strict `=== null` on both, deliberately matching the entry/exit dispatch below and the held-quantity test in the exit path. A looser test here would call a body flat that those two then treat as held, so the tick would clear the blocker and walk into the exit path on the same state. Flatness has to mean one thing per file, and an absent key that this predicate declines to treat as flat merely keeps the warning, which is the safe direction and which the position adapter clears anyway.
-  const positionFree = input.state.entryPrice === null && input.state.heldQuantity === null;
+  // Flat means no basis (`entryPrice === null`) and no positive quantity (`holdsCoins`), the same two tests the entry/exit dispatch below uses: the dispatch sends a null basis to the entry branch, and `holdsCoins` there refuses a held-without-basis entry. A different test here would call a body flat that the dispatch then treats as held, clearing the blocker on a live holding. `'0'` reads as flat in both places, and an unparseable quantity reads as held, which keeps the warning, the safe direction.
+  const positionFree = input.state.entryPrice === null && !holdsCoins(input.state.heldQuantity);
   const state = positionFree ? clearPositionScopedFields(input.state) : input.state;
   // One name for the normalised input, allocated unconditionally rather than aliased back to `input` on the no-clear path: aliasing is only sound while this predicate matches the entry/exit dispatch below, and that coupling is invisible at the call site. `clearPositionScopedFields` already returns its argument when there is nothing to clear, so the inner allocation is still skipped on a steady flat tick.
   const scoped: MomentumInput = { ...input, state };
@@ -230,9 +235,35 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
   const crossUp = fastPrev.lte(slowPrev.mul(band)) && fastNow.gt(slowNow.mul(band));
   const crossDown = fastPrev.gte(slowPrev) && fastNow.lt(slowNow);
   // `trend` enters on the state (fast above the threshold) rather than the event, because discovery admits symbols that already crossed and for them the event does not recur while the trend lasts.
-  const entrySignal = config.entryTrigger === 'trend' ? fastNow.gt(slowNow.mul(band)) : crossUp;
+  const breakout =
+    config.entryTrigger === 'breakout'
+      ? breakoutLevel(windowPrev, breakoutLookback(config.breakoutLookback))
+      : null;
+  const entrySignal =
+    config.entryTrigger === 'trend'
+      ? fastNow.gt(slowNow.mul(band))
+      : config.entryTrigger === 'breakout'
+        ? breakout !== null && new Decimal(lastCandle.close).gt(breakout)
+        : crossUp;
 
   if (state.entryPrice === null) {
+    // Coins with no cost basis are an unguarded holding, not a flat symbol: the reconciler seeds a held quantity from the wallet, and deleting a basis keeps it. Entering here would place a second buy and overwrite `heldQuantity` with that order alone, dropping the original coins from tracking. Refuse and say so until the operator sets a basis or sells.
+    if (holdsCoins(state.heldQuantity)) {
+      // debug, not warn: this holds on every tick until the operator acts, and the entryBlocker change row already records it once.
+      const blocked = hold(
+        state,
+        [
+          log('debug', 'momentum: holding coins with no cost basis, entry suppressed', {
+            symbol: market.symbol,
+            heldQuantity: state.heldQuantity,
+          }),
+        ],
+        [skipMetric('entry', 'held-without-basis')],
+        { reason: 'held-without-basis' },
+      );
+      // A force-sell cannot be sized against a position the strategy does not hold, so decline it with the reason rather than the generic "did not act".
+      return forceSell ? { ...blocked, overrideDeclineReason: 'held-without-basis' } : blocked;
+    }
     if (entrySignal) {
       // One entry per candle. The signal (cross-up, or fast above slow under `trend`) reads the last CLOSED candles, so it stays true for the rest of the candle it fired on: a position stopped out inside that window would otherwise re-enter at the price the stop just rejected, unbounded. Checked before the trend gate so a repeat attempt does not report itself as a trend-filter veto.
       if (lastEntryCandle(state) === lastCandle.closeTimeMs) {
@@ -289,6 +320,7 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
       fastNow,
       slowNow,
       threshold: slowNow.mul(band),
+      breakout,
     });
   }
   return evaluateExit(scoped, state.entryPrice, crossDown, lastCandle, candles, forceSell);
@@ -299,9 +331,19 @@ const evaluateEntry = (
   entrySignal: boolean,
   candleCloseMs: number,
   candles: readonly Candle[],
-  signal: { fastNow: Decimal; slowNow: Decimal; threshold: Decimal },
+  signal: { fastNow: Decimal; slowNow: Decimal; threshold: Decimal; breakout: Decimal | null },
 ): MomentumOutput => {
   const { state, config, market, profile, account } = input;
+  if (!entrySignal && config.entryTrigger === 'breakout') {
+    // A null level means the window has not yet filled the lookback range, which a "waiting for a close above" line would misreport.
+    return hold(state, [
+      log('debug', 'momentum: flat, no breakout', {
+        symbol: market.symbol,
+        breakoutLevel: signal.breakout?.toFixed() ?? null,
+        waitingFor: signal.breakout === null ? 'breakout-history' : 'close-above-breakout-level',
+      }),
+    ]);
+  }
   if (!entrySignal) {
     // A bare "no signal" cannot tell an operator, or an agent reading the tick trace, whether the coin is about to cross or crossed weeks ago and must fall back first. The EMA values answer that without recomputing them from candles.
     const { fastNow, slowNow, threshold } = signal;
@@ -382,7 +424,9 @@ const evaluateEntry = (
         'info',
         config.entryTrigger === 'trend'
           ? 'momentum: entry with fast EMA above slow'
-          : 'momentum: entry on EMA cross-up',
+          : config.entryTrigger === 'breakout'
+            ? 'momentum: entry on breakout above the lookback high'
+            : 'momentum: entry on EMA cross-up',
         {
           symbol: market.symbol,
           price: market.currentPrice,

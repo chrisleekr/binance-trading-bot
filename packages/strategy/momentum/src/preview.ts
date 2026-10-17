@@ -18,6 +18,7 @@ import type {
   TrailingDeltaFilter,
 } from '@app/strategy-core';
 
+import { breakoutLevel, breakoutLookback } from './breakout.js';
 import { coerceInt } from './config-coerce.js';
 import type { MomentumConfig, MomentumState } from './schema.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
@@ -99,7 +100,15 @@ export const momentumPreviewLevels = (
   const slowEma = movingAverage('ema', candles, slow);
   if (slowEma === null) return { sections: [] };
 
-  const band = slowEma.mul(new Decimal(1).plus(entryMargin(config)));
+  // Under the breakout trigger the entry fires on a close above the lookback high, so that level, not the EMA band, is where the next entry sits.
+  const breakout =
+    config.entryTrigger === 'breakout'
+      ? breakoutLevel(candles, breakoutLookback(config.breakoutLookback))
+      : null;
+  // A window shorter than the lookback has no breakout level. Flat, every row projects from it, so show nothing; held, the stops and guards still read the position, so only the entry row goes.
+  const noBreakout = config.entryTrigger === 'breakout' && breakout === null;
+  if (noBreakout && flat) return { sections: [] };
+  const band = breakout ?? slowEma.mul(new Decimal(1).plus(entryMargin(config)));
   const bandStr = band.toString();
 
   // The exit trail measures from the position high when held, or from the
@@ -128,7 +137,7 @@ export const momentumPreviewLevels = (
     null,
   ).stop;
 
-  const entryRows: PreviewRow[] = [buildEntryRow(input, bandStr, candles)];
+  const entryRows: PreviewRow[] = noBreakout ? [] : [buildEntryRow(input, bandStr, candles)];
   if (stopBase !== null) {
     entryRows.push({
       code: 'trail',
@@ -140,7 +149,8 @@ export const momentumPreviewLevels = (
     });
   }
 
-  const sections: PreviewSection[] = [{ title: 'Entry', rows: entryRows }];
+  const sections: PreviewSection[] =
+    entryRows.length > 0 ? [{ title: 'Entry', rows: entryRows }] : [];
 
   const protectiveRow = buildProtectiveStopRow(input, stopBase);
   const trendRow = buildTrendRow(config, candles);
@@ -166,7 +176,7 @@ const buildEntryRow = (
   // drift-gate trigger. Marking it `trigger` would false-fail the replay gate.
   const base: PreviewRow = {
     code: 'entry',
-    label: 'Entry band',
+    label: input.config.entryTrigger === 'breakout' ? 'Breakout level' : 'Entry band',
     tone: 'entry',
     price: bandStr,
     chartLine: true,

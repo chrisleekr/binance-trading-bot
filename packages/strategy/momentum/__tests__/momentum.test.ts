@@ -250,6 +250,47 @@ describe('momentum.tick — entry', () => {
     expect(out.metrics).toEqual([{ name: 'momentum.entry', value: 1 }]);
   });
 
+  // Coins with no cost basis (seeded from the wallet, or left after the operator deleted the basis) are a real holding. Buying on a fresh cross would double the exposure and overwrite heldQuantity with the new order alone, so the coins already held would drop out of tracking with no stop.
+  it('refuses to enter while holding coins with no cost basis', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '14',
+        state: { ...flat(), heldQuantity: '3' },
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.metrics).toEqual([
+      { name: 'momentum.skip', value: 1, tags: { side: 'entry', reason: 'held-without-basis' } },
+    ]);
+    expect(out.nextState.heldQuantity).toBe('3');
+    expect(out.nextState.entryBlocker?.reason).toBe('held-without-basis');
+  });
+
+  it('keeps an unparseable held quantity blocked, so a corrupt body cannot unlock a buy', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '14',
+        state: { ...flat(), heldQuantity: 'not-a-number' },
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.nextState.entryBlocker?.reason).toBe('held-without-basis');
+  });
+
+  it('treats a zero held quantity as flat, so it still enters', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '14',
+        state: { ...flat(), heldQuantity: '0' },
+      }),
+    );
+    expect(out.decisions[0]?.type).toBe('place-order');
+    expect(out.nextState.entryBlocker).toBeNull();
+  });
+
   // One entry per candle. The entry signal (cross-up, or fast above slow under `entryTrigger: 'trend'`) reads the last two CLOSED candles, so it stays true for the rest of the candle it fired on. A position stopped out inside that window leaves the state flat under a still-true signal; without the stamp the next tick buys straight back in at the price the stop just rejected, unbounded, reusing the filled order's clientOrderId.
   it('refuses a second entry on the candle it already entered on', () => {
     const out = momentum.tick(
@@ -467,9 +508,84 @@ describe('momentum.tick — entry', () => {
 
   it('accepts entryTrigger in the config schema and rejects an unknown value', () => {
     expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'trend' })).success).toBe(true);
-    expect(MomentumConfigSchema.safeParse({ ...cfg(), entryTrigger: 'breakout' }).success).toBe(
+    expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'breakout' })).success).toBe(true);
+    expect(MomentumConfigSchema.safeParse({ ...cfg(), entryTrigger: 'pullback' }).success).toBe(
       false,
     );
+  });
+
+  // The range must fit the hard window with the judged candle on top, or it could never fill and every entry would be suppressed.
+  it('bounds breakoutLookback so lookback + 1 candles fit the candle window', () => {
+    const parse = (breakoutLookback: number) =>
+      MomentumConfigSchema.safeParse({ ...cfg(), breakoutLookback }).success;
+    expect(parse(998)).toBe(true);
+    expect(parse(999)).toBe(false);
+    expect(parse(1)).toBe(false);
+  });
+
+  it('enters under entryTrigger breakout when the last close clears the lookback high', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['10', '12', '11', '11', '13']),
+        currentPrice: '13',
+        state: flat(),
+        config: cfg({ entryTrigger: 'breakout', breakoutLookback: 3 }),
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+    // Five one-hour candles: the judged candle closes at the end of hour five.
+    expect(out.nextState.lastEntryCandleMs).toBe(5 * 3_600_000);
+    expect(out.logs[0]?.message).toBe('momentum: entry on breakout above the lookback high');
+  });
+
+  it('holds under entryTrigger breakout when the close only matches the lookback high', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['10', '12', '11', '11', '12']),
+        currentPrice: '12',
+        state: flat(),
+        config: cfg({ entryTrigger: 'breakout', breakoutLookback: 3 }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      breakoutLevel: '12',
+      waitingFor: 'close-above-breakout-level',
+    });
+  });
+
+  // Pins the range boundary: the candle just outside the lookback must not count, the one just inside must.
+  it('measures the breakout range over exactly the lookback candles before the last one', () => {
+    const tickWith = (breakoutLookback: number) =>
+      momentum.tick(
+        mkInput({
+          closes: mkCandles(['20', '10', '11', '12', '13']),
+          currentPrice: '13',
+          state: flat(),
+          config: cfg({ entryTrigger: 'breakout', breakoutLookback }),
+        }),
+      );
+    expect(tickWith(3).decisions[0]).toMatchObject({ type: 'place-order' });
+    expect(tickWith(4).decisions).toEqual([{ type: 'noop' }]);
+  });
+
+  it('reports breakout-history while the window is shorter than the lookback range', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['10', '11', '12', '13']),
+        currentPrice: '13',
+        state: flat(),
+        config: cfg({ entryTrigger: 'breakout', breakoutLookback: 10 }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      breakoutLevel: null,
+      waitingFor: 'breakout-history',
+    });
   });
 
   it('clears a stale protective-stop blocker while flat with no entry signal', () => {
@@ -1131,6 +1247,20 @@ describe('momentum.tick — operator force-sell', () => {
     expect(out.nextState.entryPrice).toBeNull();
     // The override was applied, so the worker must consume it, not re-arm it.
     expect(out.overrideDeferred).toBeUndefined();
+  });
+
+  it('declines a force-sell on coins with no cost basis, naming why', () => {
+    // No basis means no position to size the sell against; a generic "did not act" would hide that the coins need a price first.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['100', '100', '100', '100']),
+        currentPrice: '100',
+        state: { ...flat(), heldQuantity: '1' },
+        override: triggerSell,
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.overrideDeclineReason).toBe('held-without-basis');
   });
 
   it('stamps the override id on the force-sell exit it emits', () => {
@@ -2419,11 +2549,11 @@ describe('schema', () => {
 });
 
 describe('strategy assembly', () => {
-  it('declares force-sell + the override bundle, but no grid or manual buy', () => {
+  it('declares force-sell, cost-basis seeding and the override bundle, but no grid or manual buy', () => {
     expect(momentum.name).toBe('momentum');
     expect(momentum.position).toBe(momentumPositionAdapter);
-    // Force-sell only: the operator can flatten a held position, nothing else.
-    expect(momentum.capabilities.operatorActions).toEqual(['trigger-sell']);
+    // Flatten a held position, or adopt one already in the wallet; nothing else.
+    expect(momentum.capabilities.operatorActions).toEqual(['trigger-sell', 'avg-entry-price']);
     // No grid, no manual BUY: those actions are not declared.
     expect(momentum.capabilities.operatorActions).not.toContain('reset-grid');
     expect(momentum.capabilities.operatorActions).not.toContain('trigger-buy');

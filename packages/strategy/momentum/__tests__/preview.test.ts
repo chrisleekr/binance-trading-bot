@@ -97,6 +97,20 @@ const previewInput = (
 const STEP_CANDLES = mkCandles(['10', '11', '12', '13']);
 
 describe('momentumPreviewLevels — flat state with a configured entry', () => {
+  // The breakout trigger enters on a close above the lookback high, so the projected entry must sit there rather than at the EMA band, which this series puts at 10.2.
+  it('projects the breakout level, the highest high of the last lookback candles, under the breakout trigger', () => {
+    const config = cfg({ entryTrigger: 'breakout', breakoutLookback: 3 });
+    const model = momentumPreviewLevels(
+      previewInput(config, RICH_ACCOUNT_WIRE, mkCandles(['15', '11', '13', '12'])),
+    );
+    expect(row(model, 'entry')).toMatchObject({ price: '13', label: 'Breakout level' });
+  });
+
+  it('projects nothing under the breakout trigger while the window is shorter than the lookback', () => {
+    const config = cfg({ entryTrigger: 'breakout', breakoutLookback: 10 });
+    expect(momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE)).sections).toEqual([]);
+  });
+
   it('projects the entry band at slowEMA*(1+margin) as an informational row (no trigger)', () => {
     const config = cfg();
     const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE));
@@ -415,6 +429,23 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
     const entry = row(model, 'entry');
     expect(entry?.trigger).toBeUndefined();
     expect(entry?.triggerWhen).toBeUndefined();
+  });
+
+  // A window shorter than the lookback has no breakout level, but a held position's stops do not read it, so dropping every row would hide the stop the worker is guarding with.
+  it('keeps the held stop rows and drops only the entry row when the window is shorter than the breakout lookback', () => {
+    const config = cfg({ entryTrigger: 'breakout', breakoutLookback: 10 });
+    const model = momentumPreviewLevels(input(config, { state: held(), entryPrice: '100' }));
+    expect(row(model, 'entry')).toBeUndefined();
+    expect(row(model, 'trail')).toBeDefined();
+  });
+
+  it('drops the empty Entry section when held with no breakout level and no stop to project', () => {
+    const config = {
+      ...cfg({ entryTrigger: 'breakout', breakoutLookback: 10 }),
+      trailingStopPct: '1.5',
+    };
+    const model = momentumPreviewLevels(input(config, { state: held(), entryPrice: '100' }));
+    expect(model.sections.map((s) => s.title)).not.toContain('Entry');
   });
 
   it('falls back to the projected band as the trail base when held with no high', () => {
