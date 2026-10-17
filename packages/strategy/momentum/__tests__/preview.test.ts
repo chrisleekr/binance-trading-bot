@@ -97,6 +97,20 @@ const previewInput = (
 const STEP_CANDLES = mkCandles(['10', '11', '12', '13']);
 
 describe('momentumPreviewLevels — flat state with a configured entry', () => {
+  // The breakout trigger enters on a close above the lookback high, so the projected entry must sit there rather than at the EMA band, which this series puts at 10.2.
+  it('projects the breakout level, the highest high of the last lookback candles, under the breakout trigger', () => {
+    const config = cfg({ entryTrigger: 'breakout', breakoutLookback: 3 });
+    const model = momentumPreviewLevels(
+      previewInput(config, RICH_ACCOUNT_WIRE, mkCandles(['15', '11', '13', '12'])),
+    );
+    expect(row(model, 'entry')).toMatchObject({ price: '13', label: 'Breakout level' });
+  });
+
+  it('projects nothing under the breakout trigger while the window is shorter than the lookback', () => {
+    const config = cfg({ entryTrigger: 'breakout', breakoutLookback: 10 });
+    expect(momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE)).sections).toEqual([]);
+  });
+
   it('projects the entry band at slowEMA*(1+margin) as an informational row (no trigger)', () => {
     const config = cfg();
     const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE));

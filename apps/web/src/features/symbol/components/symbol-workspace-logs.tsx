@@ -30,11 +30,7 @@ export function WorkspaceLogsTab({
       <SymbolAdvancedDrawer
         profileId={profileId}
         symbol={symbol}
-        showGridActions={
-          operatorActions.has('archive-grid') ||
-          operatorActions.has('reset-grid') ||
-          operatorActions.has('avg-entry-price')
-        }
+        operatorActions={operatorActions}
         onWiped={onWiped}
       />
     </div>

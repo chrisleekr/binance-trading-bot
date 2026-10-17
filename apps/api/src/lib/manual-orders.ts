@@ -19,7 +19,7 @@ import { errorMessage } from '@app/core/error';
  * any override row is written or tick enqueued. Reads the generic
  * `capabilities.operatorActions` set off the registered strategy — it never
  * branches on a concrete strategy name, so adding a strategy needs no edit
- * here. A momentum force-buy (momentum declares no operator actions) 422s
+ * here. A momentum force-buy (momentum does not declare trigger-buy) 422s
  * instead of writing a row the tick would silently drop.
  */
 export const assertActionSupported = async (

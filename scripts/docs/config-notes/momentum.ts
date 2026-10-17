@@ -21,7 +21,12 @@ export const momentumNotes: FieldNotes = {
   entryTrigger: {
     when: 'Switch to `trend` when discovery feeds the profile and the tick trace keeps saying `fall-back-then-cross-up`: discovery adds coins after they have crossed, so `cross` rarely gets a chance to buy them.',
     expect:
-      '`trend` enters more often and later in a move, so the trend filter and extension guard do more of the filtering. Expect more stop-outs per entry than `cross`; at most one entry per candle still applies.',
+      '`trend` enters more often and later in a move, so the trend filter and extension guard do more of the filtering. Expect more stop-outs per entry than `cross`; at most one entry per candle still applies. `breakout` ignores the EMA entry signal and buys a close above the recent range high (`breakoutLookback`); pair it with `atrTrailingStop` so a failed breakout is cut quickly.',
+  },
+  breakoutLookback: {
+    when: 'Only with `entryTrigger: breakout`. Lengthen it if entries keep firing on small ranges that immediately fall back; shorten it if the bot only buys after most of a move has happened.',
+    expect:
+      'Counted in candles of `candleInterval`, so 400 is about 17 days on `1h`. A longer range means fewer entries that each start a bigger move. The window can hold at most 998 candles of range.',
   },
   'entrySizing.mode': {
     when: 'Use `fixed` while you are learning what the strategy does — it makes every trade the same size and therefore easy to compare. Switch to `percentOfAccount` when you want position size to grow and shrink with the account.',

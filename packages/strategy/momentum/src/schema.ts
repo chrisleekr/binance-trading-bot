@@ -459,10 +459,20 @@ export const MomentumConfigSchema = z.object({
     ),
   // What opens a position. Absent reads as `cross` so the unparsed worker config and existing golden replays are unchanged.
   entryTrigger: z
-    .enum(['cross', 'trend'])
+    .enum(['cross', 'trend', 'breakout'])
     .optional()
     .describe(
-      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle.',
+      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle. "Breakout" buys when a candle closes above the highest price of the previous `breakoutLookback` candles; the EMAs then only matter for the cross-down exit, and the entry margin is not applied.',
+    ),
+  // Read only under `entryTrigger: 'breakout'`. Capped so `lookback + 1` candles fit the hard window ceiling; a longer range could never fill and would suppress every entry.
+  breakoutLookback: z
+    .number()
+    .int()
+    .min(2)
+    .max(MAX_CANDLE_WINDOW - 1)
+    .optional()
+    .describe(
+      'Breakout trigger only: how many candles back the range runs that a close must clear. 400 on a 1h interval is about 17 days. Longer means fewer, stronger breakouts.',
     ),
   protectiveStop: MomentumProtectiveStopSchema.optional(),
   // Macro trend filter gating entries (exit logic untouched). Off by default so
@@ -570,6 +580,7 @@ export const MomentumStateSchema = z.object({
     .object({
       reason: z.enum([
         'already-entered-this-candle',
+        'held-without-basis',
         'insufficient-history',
         'below-trend',
         'falling-trend',

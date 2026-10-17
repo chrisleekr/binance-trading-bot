@@ -35,13 +35,15 @@ const setUp = (
       <SymbolAdvancedDrawer
         profileId={PROFILE_ID}
         symbol={SYMBOL}
-        showGridActions
+        operatorActions={TT_ACTIONS}
         onWiped={onWiped}
       />
     </QueryClientProvider>,
   );
   return { fetchMock };
 };
+
+const TT_ACTIONS: ReadonlySet<string> = new Set(['archive-grid', 'reset-grid', 'avg-entry-price']);
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -61,11 +63,11 @@ describe('SymbolAdvancedDrawer', () => {
     expect(screen.getByTestId('action-wipe')).toBeInTheDocument();
   });
 
-  it('hides the four grid actions when showGridActions is false (non-grid strategy)', async () => {
+  it('hides the four grid actions when the strategy declares none of them', async () => {
     const queryClient = createQueryClient();
     render(
       <QueryClientProvider client={queryClient}>
-        <SymbolAdvancedDrawer profileId={PROFILE_ID} symbol={SYMBOL} showGridActions={false} />
+        <SymbolAdvancedDrawer profileId={PROFILE_ID} symbol={SYMBOL} operatorActions={new Set()} />
       </QueryClientProvider>,
     );
     await userEvent.click(screen.getByTestId('advanced-toggle'));
@@ -77,6 +79,25 @@ describe('SymbolAdvancedDrawer', () => {
     expect(screen.queryByTestId('action-reset-grid')).not.toBeInTheDocument();
     expect(screen.queryByTestId('action-set-lbp')).not.toBeInTheDocument();
     expect(screen.queryByTestId('action-delete-lbp')).not.toBeInTheDocument();
+  });
+
+  it('offers cost-basis actions without grid actions when only avg-entry-price is declared', async () => {
+    // Momentum seeds a cost basis but runs no grid; the api would 422 an archive or reset.
+    const queryClient = createQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SymbolAdvancedDrawer
+          profileId={PROFILE_ID}
+          symbol={SYMBOL}
+          operatorActions={new Set(['trigger-sell', 'avg-entry-price'])}
+        />
+      </QueryClientProvider>,
+    );
+    await userEvent.click(screen.getByTestId('advanced-toggle'));
+    expect(screen.getByTestId('action-set-lbp')).toBeInTheDocument();
+    expect(screen.getByTestId('action-delete-lbp')).toBeInTheDocument();
+    expect(screen.queryByTestId('action-archive-grid')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('action-reset-grid')).not.toBeInTheDocument();
   });
 
   it('archive grid: confirm POSTs /archive-grid-trade', async () => {

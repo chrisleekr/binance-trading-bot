@@ -12,6 +12,25 @@ describe('momentumRequiredWindow', () => {
     expect(momentumRequiredWindow(cfg({ ema: { fast: 9, slow: 50 } }))).toBe(51);
   });
 
+  it('needs lookback + 1 candles under the breakout trigger, defaulting the lookback to 400', () => {
+    expect(
+      momentumRequiredWindow(
+        cfg({ ema: { fast: 9, slow: 50 }, entryTrigger: 'breakout', breakoutLookback: 600 }),
+      ),
+    ).toBe(601);
+    expect(
+      momentumRequiredWindow(cfg({ ema: { fast: 9, slow: 50 }, entryTrigger: 'breakout' })),
+    ).toBe(401);
+  });
+
+  it('ignores breakoutLookback when the trigger is not breakout', () => {
+    expect(
+      momentumRequiredWindow(
+        cfg({ ema: { fast: 9, slow: 50 }, entryTrigger: 'trend', breakoutLookback: 600 }),
+      ),
+    ).toBe(51);
+  });
+
   it('honours a trend-filter period above the EMA need', () => {
     const c = cfg({
       ema: { fast: 9, slow: 50 },

@@ -38,12 +38,8 @@ type Action =
 interface AdvancedDrawerProps {
   readonly profileId: string;
   readonly symbol: string;
-  /**
-   * Whether to show the trailing-trade grid actions (archive/reset grid,
-   * set/delete avg-entry-price). Set from the resolved StrategyView so a
-   * non-grid strategy sees only the strategy-agnostic reset-config + wipe.
-   */
-  readonly showGridActions: boolean;
+  /** Operator actions the profile's strategy declares. Each strategy-specific button shows only when its own action is declared, because the api refuses an undeclared one with a 422: a strategy that seeds a cost basis but runs no grid must not be offered archive or reset grid. */
+  readonly operatorActions: ReadonlySet<string>;
   /**
    * Called after `wipeSymbol` succeeds so the route can navigate away from
    * a now-deleted resource (the /state endpoint will 404 on next refetch
@@ -61,7 +57,7 @@ interface AdvancedDrawerProps {
 export function SymbolAdvancedDrawer({
   profileId,
   symbol,
-  showGridActions,
+  operatorActions,
   onWiped,
 }: AdvancedDrawerProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
@@ -163,29 +159,28 @@ export function SymbolAdvancedDrawer({
 
       {open ? (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="advanced-actions">
-          {/* Grid actions are trailing-trade concepts; hidden for strategies
-              without a grid. reset-config + wipe are strategy-agnostic. */}
-          {showGridActions ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                size="default"
-                onClick={() => setAction('archive-grid')}
-                data-testid="action-archive-grid"
-              >
-                Archive grid
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="default"
-                onClick={() => setAction('reset-grid')}
-                data-testid="action-reset-grid"
-              >
-                Reset grid
-              </Button>
-            </>
+          {/* reset-config + wipe are strategy-agnostic; the rest follow the strategy's declared actions. */}
+          {operatorActions.has('archive-grid') ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="default"
+              onClick={() => setAction('archive-grid')}
+              data-testid="action-archive-grid"
+            >
+              Archive grid
+            </Button>
+          ) : null}
+          {operatorActions.has('reset-grid') ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="default"
+              onClick={() => setAction('reset-grid')}
+              data-testid="action-reset-grid"
+            >
+              Reset grid
+            </Button>
           ) : null}
           <Button
             type="button"
@@ -196,7 +191,7 @@ export function SymbolAdvancedDrawer({
           >
             Reset config
           </Button>
-          {showGridActions ? (
+          {operatorActions.has('avg-entry-price') ? (
             <>
               <Button
                 type="button"
@@ -310,9 +305,9 @@ const descriptionFor = (action: Action, symbol: string): string => {
     case 'reset-config':
       return `Drops the per-symbol config override; ${symbol} falls back to the profile-level config on the next tick.`;
     case 'set-lbp':
-      return `Updates the operator's cost basis. The worker reads the on-balance quantity from the user-stream snapshot at apply time.`;
+      return `Sets the price you paid for the ${symbol} you hold, and the bot manages those coins from it. Its stops are measured again from this price, so if the market is already below where the stop would sit, the bot can sell on its next check.`;
     case 'delete-lbp':
-      return `Clears the avg-entry-price so the strategy stops sizing sells against it.`;
+      return `Clears the price you paid. Until a price is set again, the bot may stop managing the ${symbol} you hold, and it will not buy more while those coins have no price.`;
     case 'wipe':
       return `Removes ${symbol} from the profile entirely: its per-symbol configuration, the recorded average entry price, any pending override actions, and the cached open-orders list. The trade history is kept for audit. Live Binance orders are NOT cancelled — cancel them first if needed. The strategy stops touching ${symbol}. This is irreversible.`;
     default:

@@ -497,12 +497,7 @@ export const symbolsRouter = (di: DI): ApiHono => {
       // check that did not run.
       { symbols: [body.symbol], fundFromAccountValue: true, reportMissingPrice: true },
     );
-    // The manual-add path combines "add a coin I already hold" with a cost basis. A cost basis only
-    // means something to a strategy that manages a single position per symbol,
-    // so gate it the same way the dedicated avg-entry-price route does — a
-    // momentum/rebalance profile 422s here instead of silently seeding a ledger
-    // row its strategy ignores. Gate before any write so an unsupported add is
-    // rejected whole.
+    // The manual-add path combines "add a coin I already hold" with a cost basis, which only means something to a strategy that declares avg-entry-price, so gate it the same way the dedicated route does: an undeclaring strategy 422s here instead of silently seeding a ledger row it ignores. Gate before any write so an unsupported add is rejected whole.
     if (body.avgEntryPrice !== undefined) {
       await assertActionSupported(di, p, 'avg-entry-price');
     }

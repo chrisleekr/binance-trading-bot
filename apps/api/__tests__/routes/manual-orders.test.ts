@@ -32,10 +32,7 @@ interface SymbolStateBody {
 const stateBody = async (res: Response): Promise<SymbolStateBody> =>
   (await res.json()) as SymbolStateBody;
 
-// Owned by Alice; carries the momentum strategy, which declares ONLY
-// `trigger-sell` (force-sell). Every other operator route — trigger-buy,
-// reset-grid, manual-order — must still 422 against it, while force-eject
-// (which needs `trigger-sell`) is now permitted.
+// Owned by Alice; carries the momentum strategy, which declares `trigger-sell` and `avg-entry-price`. trigger-buy, reset-grid and manual-order must still 422 against it, while force-eject (which needs `trigger-sell`) and seeding a cost basis are permitted.
 const MOMENTUM_PROFILE = '00000000-0000-4000-8000-00000000a401';
 
 // A locally-seeded trailing-trade profile: the shared fixture's profile is not
@@ -411,7 +408,35 @@ describeIfInfra('manual-orders router — operator-action capability gate', () =
       },
     );
     expect(momRes.status).toBe(200);
-    expect((await stateBody(momRes)).strategy.operatorActions).toEqual(['trigger-sell']);
+    expect((await stateBody(momRes)).strategy.operatorActions).toEqual([
+      'trigger-sell',
+      'avg-entry-price',
+    ]);
+  });
+
+  it('admits a cost-basis seed on momentum and enqueues the worker job that adopts the holding', async () => {
+    // Momentum used to 422 here, which left coins bought outside the profile unmanaged with no stop. A ledger row supplies the quantity so the route needs no live wallet snapshot.
+    const symbol = 'ETHUSDT';
+    await fx.di.pool.query(
+      `insert into avg_entry_prices (profile_id, symbol, avg_entry_price, quantity)
+       values ($1, $2, '2400', '0.05')
+       on conflict (profile_id, symbol) do update set avg_entry_price = excluded.avg_entry_price`,
+      [MOMENTUM_PROFILE, symbol],
+    );
+    const addSpy = vi.spyOn(fx.di.queue, 'add').mockResolvedValue(undefined as never);
+    const res = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${MOMENTUM_PROFILE}/symbols/${symbol}/avg-entry-price`,
+      {
+        method: 'PUT',
+        headers: headers(fx.alice.userId),
+        body: JSON.stringify({ avgEntryPrice: '2500' }),
+      },
+    );
+    expect(res.status).toBe(204);
+    const applyCalls = addSpy.mock.calls.filter((c) => c[0] === 'apply-avg-entry-price');
+    expect(applyCalls).toHaveLength(1);
+    expect(applyCalls[0]?.[1]).toMatchObject({ profileId: MOMENTUM_PROFILE, symbol });
+    addSpy.mockRestore();
   });
 
   it('resolves a version-drifted profile to the live plugin (issue #407 regression)', async () => {

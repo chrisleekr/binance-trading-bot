@@ -16,6 +16,7 @@ import { computeTick } from './tick.js';
 import { extensionPeriod } from './extension.js';
 import { atrStopPeriod } from './trailing-stop.js';
 import { trendPeriod } from './trend-filter.js';
+import { breakoutLookback } from './breakout.js';
 import { momentumPositionAdapter } from './position-adapter.js';
 import { momentumReasonAttribution } from './attribution.js';
 import { momentumPreviewLevels, momentumPreviewDataNeeds } from './preview.js';
@@ -52,7 +53,7 @@ const finiteNum = (v: unknown): number => {
 };
 
 /**
- * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes, an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, and an enabled ATR trailing stop reads `period + 1` closes for its first true-range value. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
+ * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1` when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, and an enabled ATR trailing stop reads `period + 1` closes for its first true-range value. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
  *
  * The ATR term is a HARD need, not the trail's soft one. Risk-based entry sizing divides equity risk by the initial stop distance, and that distance is unresolvable on a short ATR window, so the entry is refused outright (`risk-sizing-unavailable`) rather than degraded. The exit trail's own shortfall behaviour is a fallback to the fixed `trailingStopPct`, which is why the term could be omitted here before entry sizing read it.
  */
@@ -67,8 +68,13 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
     };
     entryExtension?: { enabled?: unknown; period?: unknown };
     atrTrailingStop?: { enabled?: unknown; period?: unknown };
+    entryTrigger?: unknown;
+    breakoutLookback?: unknown;
   };
-  const emaNeed = finiteNum(c.ema?.slow) + 1;
+  // The breakout level reads `lookback` candles before the one being judged; folded into the EMA term since both are entry-signal needs.
+  const breakoutNeed = c.entryTrigger === 'breakout' ? breakoutLookback(c.breakoutLookback) + 1 : 0;
+  const crossNeed = finiteNum(c.ema?.slow) + 1;
+  const emaNeed = crossNeed > breakoutNeed ? crossNeed : breakoutNeed;
   const tf = c.trendFilter;
   let trendNeed = 0;
   if (tf?.enabled === true) {
@@ -99,10 +105,10 @@ export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> =
   version: '1.0.0',
   displayName: 'Momentum',
   description:
-    'EMA trend entry (on the cross-up, or while the fast EMA is above the slow) with a trailing-stop / cross-down exit. Single long position, no grid.',
+    'Trend entry (on the EMA cross-up, while the fast EMA is above the slow, or on a close above the recent range high) with a trailing-stop / cross-down exit. Single long position, no grid.',
   capabilities: {
     candleIntervals: MOMENTUM_CANDLE_INTERVALS,
-    // The entry signal (the EMA cross, or the fast-above-slow state under `entryTrigger: 'trend'`) reads CLOSED candles of `config.candleInterval`, and one entry per candle is enforced, so a flat symbol gets at most one entry per close of that interval.
+    // The entry signal (the EMA cross, the fast-above-slow state under `entryTrigger: 'trend'`, or the range breakout under `'breakout'`) reads CLOSED candles of `config.candleInterval`, and one entry per candle is enforced, so a flat symbol gets at most one entry per close of that interval.
     entryOnCandleClose: true,
     // The profit leg ratchets on 1-minute closes and the stop fires on the live price, so a held position can exit at any minute of a daily candle.
     exitsWithinCandle: true,
@@ -110,11 +116,8 @@ export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> =
     needsMiniTicker: true,
     // Reads the operator-override slot so a force-sell can reach the tick.
     bundleProviders: ['override'],
-    // Force-sell only: an operator can flatten a held position (`trigger-sell`),
-    // routed through the normal exit path so the protective stop is cancelled
-    // and state flattened. Momentum runs no grid and takes no manual BUY, so it
-    // declares none of the grid / avg-entry / trigger-buy actions.
-    operatorActions: ['trigger-sell'],
+    // `trigger-sell` flattens a held position through the normal exit path, so the protective stop is cancelled and state flattened. `avg-entry-price` lets the operator hand the strategy coins already in the wallet: momentum holds one position per symbol and its position adapter adopts a seeded basis like any fill, so without it a holding bought elsewhere sits unmanaged with no stop. Momentum runs no grid and its tick consumes no manual-order or trigger-buy override, so those stay undeclared.
+    operatorActions: ['trigger-sell', 'avg-entry-price'],
   },
   configSchema: MomentumConfigSchema,
   overrideConfigSchema: MomentumOverrideConfigSchema,
