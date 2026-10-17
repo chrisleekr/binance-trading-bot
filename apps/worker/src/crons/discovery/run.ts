@@ -496,18 +496,30 @@ export const runDiscoveryForProfile = async (
 
   let added = 0;
   let removed = 0;
+  // Slots this cycle's removals actually emptied: `not-found` was already unbound. The repo's flat-guard can still refuse a removal (`held` on an open order, `pinned`), which no input to the diff could predict.
+  let freed = 0;
   // Removals run before adds so the wallet verdict that cleared them is as fresh as possible: a faded symbol still ticks, and a buy that fills after the verdict but before the reap is the un-adopted fill the wallet guard exists for, which the repo's flat-guard alone cannot see.
   for (const symbol of diff.remove) {
     const outcome = await port.reapSymbol(symbol, nowMs);
     reapOutcomes[outcome] += 1;
     port.recordReapOutcome(outcome);
+    if (outcome === 'removed' || outcome === 'not-found') freed += 1;
     if (outcome === 'removed') {
       await port.emit(symbol, 'remove');
       await port.notify('removed', symbol);
       removed += 1;
     }
   }
-  for (const symbol of diff.add) {
+  // A refused removal still occupies the slot the diff counted as freed, so the adds are cut to what the cap leaves after the removals that landed; the lowest-ranked go first and are proposed again next cycle.
+  const addBudget = cfg.maxAutoSymbols - (rotatableSymbols.length - freed);
+  const adds = diff.add.slice(0, addBudget > 0 ? addBudget : 0);
+  if (adds.length < diff.add.length) {
+    port.logger.info(
+      { deferred: diff.add.slice(adds.length) },
+      'cron discovery: a removal was refused, so adds past the symbol cap wait for next cycle',
+    );
+  }
+  for (const symbol of adds) {
     // `diff.add` already excludes sibling-conflicted symbols (skipped in the add
     // loop above), so every symbol here is free to bind to this profile.
     const result = await port.addSymbol(symbol, nowMs);

@@ -1127,6 +1127,18 @@ describe('runDiscoveryForProfile — slot math sees the I/O verdicts', () => {
     expect(explainRowFor(port, 'OLDUSDT')?.disposition).toBe('faded-held');
   });
 
+  it('does not refill the slot of a faded symbol the repo flat-guard refuses to unbind', async () => {
+    // OLDUSDT passes the wallet guard (a resting buy holds quote, not base) but its open order makes the repo refuse the removal.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      reapSymbol: vi.fn(async () => 'held' as const),
+    });
+    const r = await runCycle(port, capOne(), 'USDT');
+    expect(port.reapSymbol).toHaveBeenCalledWith('OLDUSDT', NOW);
+    expect(port.addSymbol).not.toHaveBeenCalled(); // the one slot is still OLD's
+    expect(r).toEqual({ added: 0, removed: 0, reapOutcomes: reapTally({ held: 1 }) });
+  });
+
   it('hands a sibling-blocked candidate slot to the next-ranked candidate', async () => {
     const port = fakePort({
       getAllTickers: async () => [
