@@ -68,7 +68,7 @@ describe('resolveEntryBudget', () => {
         FIXED_STOP_CTX,
       ),
     ).toEqual({ budget: '140' });
-    // free cash 50 < desired 140 -> clamped to 50.
+    // free cash 50 < desired 140 -> clamped to 50 less the 0.5% fill cushion.
     expect(
       resolveEntryBudget(
         sizing({ mode: 'fixed', amount: '140' }),
@@ -76,11 +76,11 @@ describe('resolveEntryBudget', () => {
         'USDT',
         FIXED_STOP_CTX,
       ),
-    ).toEqual({ budget: '50' });
+    ).toEqual({ budget: '49.75' });
   });
 
   it('returns percent of equity, clamped by free cash', () => {
-    // equity = 200 cash + 800 deployed = 1000; 25% = 250; free cash 200 -> 200.
+    // equity = 200 cash + 800 deployed = 1000; 25% = 250; free cash 200 -> 199 after the 0.5% cushion.
     expect(
       resolveEntryBudget(
         sizing({ mode: 'percentOfAccount', percent: '0.25' }),
@@ -88,7 +88,7 @@ describe('resolveEntryBudget', () => {
         'USDT',
         FIXED_STOP_CTX,
       ),
-    ).toEqual({ budget: '200' });
+    ).toEqual({ budget: '199' });
   });
 
   it('downsizes to reserve-cap headroom', () => {
@@ -293,7 +293,7 @@ describe('resolveEntryBudget', () => {
   });
 
   it('still lets the free-cash clamp win below the risk cap', () => {
-    // equity stays 1000 (free 60 + deployed 940): desired 300, risk cap 100, free cash 60. The 60 proves the risk cap is one more `min` operand rather than a replacement for the free-cash clamp — an implementation that returned the cap instead of minimising with it would yield 100. It says NOTHING about which of the two runs first: `Decimal.min` is commutative, so 60 comes out under either order. The ordering that does matter, the reported skip reason, is pinned by the two precedence cases below.
+    // equity stays 1000 (free 60 + deployed 940): desired 300, risk cap 100, free cash 60 (59.7 after the 0.5% cushion). The 59.7 proves the risk cap is one more `min` operand rather than a replacement for the free-cash clamp — an implementation that returned the cap instead of minimising with it would yield 100. It says NOTHING about which of the two runs first: `Decimal.min` is commutative, so 59.7 comes out under either order. The ordering that does matter, the reported skip reason, is pinned by the two precedence cases below.
     expect(
       resolveEntryBudget(
         sizing({ mode: 'percentOfAccount', percent: '0.3' }, undefined, {
@@ -304,7 +304,7 @@ describe('resolveEntryBudget', () => {
         'USDT',
         FIXED_STOP_CTX,
       ),
-    ).toEqual({ budget: '60' });
+    ).toEqual({ budget: '59.7' });
   });
 
   it('still applies reserve-cap headroom below the risk cap', () => {

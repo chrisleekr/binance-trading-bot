@@ -27,6 +27,9 @@ const riskPct = (raw: unknown): Decimal => {
   return d.lt(1) ? d : new Decimal('0.01');
 };
 
+/** Share of the free quote balance an entry may spend. 0.5% covers a taker fee plus slippage when fees are charged in the quote, which is what the backtest models; live fees paid in BNB leave the whole margin as headroom. */
+export const FREE_CASH_CUSHION = new Decimal('0.995');
+
 /** Resolved entry budget (quote-asset, decimal-string) or a typed skip. */
 export type EntryBudget = { readonly budget: string } | { readonly skip: EntrySizingSkip };
 
@@ -35,7 +38,7 @@ export type EntryBudget = { readonly budget: string } | { readonly skip: EntrySi
  * risk cap, the free-cash clamp, and the reserve cap. A single
  * `min(desired, riskCap, freeCash, headroom)`:
  *   - desired   = a fixed amount, or `percent × equity`.
- *   - freeCash  = quote you can actually spend now.
+ *   - freeCash  = quote you can actually spend now, less {@link FREE_CASH_CUSHION}.
  *   - headroom  = `cap% × equity − deployed`; the cap downsizes the entry to fit
  *     rather than vetoing it (single-order entry, so shrinking is coherent).
  *
@@ -123,7 +126,8 @@ export const resolveEntryBudget = (
   // schema bounds (amount > 0, percent in (0,1], equity >= 0) keep `desired`
   // non-negative, but the floor makes the invariant local rather than a caller
   // contract — a negative budget would otherwise flow to a negative quantity.
-  let budget = Decimal.min(Decimal.max(desired, new Decimal(0)), freeCash);
+  // The free-cash clamp keeps a cushion: the entry is a MARKET buy sized at the last price, and the fill can cost a few basis points more by the time it lands. A budget equal to the whole free balance is then refused outright (Binance -2010, and the backtest's matching affordability check), and the tick re-derives the same order on every price update until one happens to fit.
+  let budget = Decimal.min(Decimal.max(desired, new Decimal(0)), freeCash.mul(FREE_CASH_CUSHION));
 
   const cap = config.accountCap;
   if (cap?.mode === 'percentOfAccount') {

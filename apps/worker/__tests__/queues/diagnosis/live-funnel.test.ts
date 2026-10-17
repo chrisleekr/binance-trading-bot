@@ -39,7 +39,7 @@ const primed = (
 const DEFAULT_PRIMED = primed([
   ['AAAUSDT', adm('AAA')],
   ['ETHUSDT', adm('ETH')],
-  ['BNBUSDT', adm('BNB')],
+  ['SOLUSDT', adm('SOL')],
 ]);
 
 const ticker = (over: Partial<Ticker24hrDto>): Ticker24hrDto => ({
@@ -170,6 +170,24 @@ describe('probeLiveFunnel', () => {
     expect(getKlines).toHaveBeenCalled();
   });
 
+  it('still returns null when only a correlation-peer window arrives', async () => {
+    // A held off-shortlist coin is fetched as a correlation peer when the cap is on. Its window scores nothing on the ladder, so it must not stand in for the shortlist windows that were all lost.
+    const getKlines = vi.fn(async (symbol: string) => {
+      if (symbol === 'ETHUSDT') throw new Error('binance down');
+      return [];
+    });
+    const deps = makeDeps({
+      getAllTickers: async () => [liquid('ETHUSDT')],
+      getKlines,
+      rotatableSymbols: ['HELDUSDT'],
+    });
+    const withCap = DiscoveryConfigSchema.parse({
+      correlation: { maxPairwise: '0.8', lookbackCandles: 30 },
+    });
+    expect(await probeLiveFunnel(deps, withCap, 'USDT')).toBeNull();
+    expect(getKlines.mock.calls.map((c) => c[0])).toContain('HELDUSDT'); // the peer was fetched
+  });
+
   it('still answers when only some windows are lost', async () => {
     // The partial case must stay a partial answer, not get swept into the
     // bail-out above: most of the picture still beats none of it.
@@ -178,7 +196,7 @@ describe('probeLiveFunnel', () => {
       return [];
     });
     const deps = makeDeps({
-      getAllTickers: async () => [liquid('ETHUSDT'), liquid('BNBUSDT')],
+      getAllTickers: async () => [liquid('ETHUSDT'), liquid('SOLUSDT')],
       getKlines,
     });
 

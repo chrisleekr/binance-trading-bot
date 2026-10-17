@@ -1110,3 +1110,118 @@ describe('runDiscoveryForProfile — the permission cut explains itself', () => 
     expect(warn).not.toHaveBeenCalled();
   });
 });
+
+describe('runDiscoveryForProfile — slot math sees the I/O verdicts', () => {
+  const capOne = () => DiscoveryConfigSchema.parse({ ...permissiveConfig(), maxAutoSymbols: 1 });
+
+  it('does not refill the slot of a faded symbol the wallet guard refuses to unbind', async () => {
+    // OLDUSDT left the feed (no longer tradable) and is past its hold, but the wallet still holds it. AAAUSDT qualifies.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      heldOnExchange: vi.fn(async () => true),
+    });
+    const r = await runCycle(port, capOne(), 'USDT');
+    expect(port.addSymbol).not.toHaveBeenCalled(); // the one slot is still OLD's
+    expect(port.reapSymbol).not.toHaveBeenCalled();
+    expect(r).toEqual({ added: 0, removed: 0, reapOutcomes: reapTally({ 'wallet-held': 1 }) });
+    expect(explainRowFor(port, 'OLDUSDT')?.disposition).toBe('faded-held');
+  });
+
+  it('does not refill the slot of a faded symbol the repo flat-guard refuses to unbind', async () => {
+    // OLDUSDT passes the wallet guard (a resting buy holds quote, not base) but its open order makes the repo refuse the removal.
+    const port = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT'],
+      reapSymbol: vi.fn(async () => 'held' as const),
+    });
+    const r = await runCycle(port, capOne(), 'USDT');
+    expect(port.reapSymbol).toHaveBeenCalledWith('OLDUSDT', NOW);
+    expect(port.addSymbol).not.toHaveBeenCalled(); // the one slot is still OLD's
+    expect(r).toEqual({ added: 0, removed: 0, reapOutcomes: reapTally({ held: 1 }) });
+  });
+
+  it('hands a sibling-blocked candidate slot to the next-ranked candidate', async () => {
+    const port = fakePort({
+      getAllTickers: async () => [
+        ticker({ symbol: 'AAAUSDT', priceChangePercent: '20' }),
+        ticker({ symbol: 'BBBUSDT', priceChangePercent: '10' }),
+      ],
+      siblingConflict: vi.fn(async (symbol: string) =>
+        symbol === 'AAAUSDT' ? ('sibling-owns-base' as const) : null,
+      ),
+    });
+    const r = await runCycle(port, capOne(), 'USDT');
+    expect(r.added).toBe(1);
+    expect(port.addSymbol).toHaveBeenCalledWith('BBBUSDT', NOW);
+    expect(port.addSymbol).not.toHaveBeenCalledWith('AAAUSDT', NOW);
+  });
+
+  it('records a wallet refusal even when the cycle later fails, and reaps before it adds', async () => {
+    const order: string[] = [];
+    const failing = fakePort({
+      listRotatableSymbols: async () => ['OLDUSDT', 'GONEUSDT'],
+      heldOnExchange: vi.fn(async (symbol: string) => symbol === 'OLDUSDT'),
+      addSymbol: vi.fn(async () => {
+        throw new Error('db down');
+      }),
+    });
+    await expect(runCycle(failing, permissiveConfig(), 'USDT')).rejects.toThrow('db down');
+    expect(recorded(failing)).toContain('wallet-held'); // decided before the failure, so not lost with it
+
+    const port = fakePort({
+      listRotatableSymbols: async () => ['GONEUSDT'],
+      reapSymbol: vi.fn(async () => {
+        order.push('reap');
+        return 'removed' as const;
+      }),
+      addSymbol: vi.fn(async () => {
+        order.push('add');
+        return { outcome: 'created' as const };
+      }),
+    });
+    await runCycle(port, permissiveConfig(), 'USDT');
+    expect(order).toEqual(['reap', 'add']);
+  });
+
+  it('fetches a window long enough for the indicators', async () => {
+    const getKlines = vi.fn(async () => eligibleKlines());
+    const stored = DiscoveryConfigSchema.parse({
+      ...permissiveConfig(),
+      minAgeDays: 1,
+      trendConfirm: { ...permissiveConfig().trendConfirm, emaPeriod: 200 },
+    });
+    await runCycle(fakePort({ getKlines }), stored, 'USDT');
+    const limits = getKlines.mock.calls.map((c) => (c as unknown as [string, number])[1]);
+    expect(limits.length).toBeGreaterThan(0);
+    expect(Math.min(...limits)).toBeGreaterThan(200);
+  });
+
+  it('fetches held off-shortlist symbols as correlation peers only when the cap is on, and a failed peer fetch does not stall the cycle', async () => {
+    const getKlines = vi.fn(async (symbol: string) => {
+      if (symbol === 'GONEUSDT') throw new Error('-1121 Invalid symbol');
+      return eligibleKlines();
+    });
+    const withCap = DiscoveryConfigSchema.parse({
+      ...permissiveConfig(),
+      correlation: { maxPairwise: '0.8', lookbackCandles: 30 },
+    });
+    const fetched = () => getKlines.mock.calls.map((c) => c[0]);
+
+    await runCycle(
+      fakePort({ getKlines, listRotatableSymbols: async () => ['GONEUSDT'] }),
+      permissiveConfig(),
+      'USDT',
+    );
+    expect(fetched()).not.toContain('GONEUSDT'); // cap off: not a peer, never fetched
+
+    getKlines.mockClear();
+    const port = fakePort({
+      getKlines,
+      listRotatableSymbols: async () => ['GONEUSDT'],
+      heldOnExchange: vi.fn(async () => true), // still held, so it stays bound
+    });
+    const r = await runCycle(port, withCap, 'USDT');
+    expect(fetched()).toContain('GONEUSDT');
+    expect(port.persistExplain).toHaveBeenCalled(); // the cycle completed despite the failed peer fetch
+    expect(r.reapOutcomes).toEqual(reapTally({ 'wallet-held': 1 }));
+  });
+});

@@ -2,6 +2,7 @@ import Decimal from 'decimal.js';
 import { oldEnough, trendConfirmed } from './filters.js';
 import {
   buildRankContext,
+  keepableSymbols,
   marketBreadthOk,
   resolveDiscovery,
   shortlistByTicker,
@@ -42,8 +43,9 @@ export type SiblingConflictDisposition = 'sibling-owns-base' | 'sibling-quotes-b
 
 /**
  * What the cycle did with a candidate. `added`/`kept` are in the live set;
- * `faded-held` is held past eligibility but within min-hold (a pending removal
- * the flat-guard still protects); `faded-removed` is proposed for reaping this
+ * `kept` stays bound because it is still eligible or still tradable;
+ * `faded-held` is no longer tradable but stays bound, within min-hold or because
+ * the wallet still holds the coin; `faded-removed` is proposed for reaping this
  * cycle; `cooldown`/`slot-capped`/`correlation-high` passed every filter but
  * were not rotated in; `sibling-owns-base`/`sibling-quotes-base` passed but
  * collide with a sibling on the shared wallet; `rejected` failed a filter (see
@@ -105,6 +107,8 @@ const evalFilters = (
 
 const dispositionOf = (s: {
   eligible: boolean;
+  // Current symbols keep their slot while eligible OR still tradable (see `keepableSymbols`), so `kept` and `eligible` differ for a held coin that stopped being a top gainer.
+  keeps: boolean;
   inCurrent: boolean;
   inAdd: boolean;
   inRemove: boolean;
@@ -119,7 +123,7 @@ const dispositionOf = (s: {
   if (s.siblingConflict !== undefined) return s.siblingConflict;
   if (s.inAdd) return 'added';
   if (s.inRemove) return 'faded-removed';
-  if (s.inCurrent) return s.eligible ? 'kept' : 'faded-held';
+  if (s.inCurrent) return s.keeps ? 'kept' : 'faded-held';
   if (!s.eligible) return 'rejected';
   return s.notAddedReason;
 };
@@ -136,10 +140,12 @@ const dispositionOf = (s: {
 export const explainDiscovery = (
   input: DiscoveryInput,
   // Account-level exclusivity overlay, keyed by symbol. Empty for the pure case.
-  // A conflicted symbol is removed from the effective add/desired sets and takes
-  // the conflict disposition, so the returned diff, the snapshot, and the
-  // per-candidate rows are one truth: it is never reported as added.
+  // A conflicted symbol is skipped in the add loop, so its slot goes to the next
+  // candidate, and takes the conflict disposition, so the returned diff, the
+  // snapshot, and the per-candidate rows are one truth: it is never reported as added.
   siblingConflictBySymbol: ReadonlyMap<string, SiblingConflictDisposition> = new Map(),
+  // Current symbols the caller will not unbind because the wallet still holds the coin. They read `faded-held` and keep their slot instead of reading `faded-removed` for a removal that will be refused.
+  unremovable: ReadonlySet<string> = new Set(),
 ): DiscoveryExplain => {
   const { tickers, klinesBySymbol, currentAuto, lastFlattenAtMsBySymbol, config, nowMs } = input;
   const shortlist = shortlistByTicker(tickers, config);
@@ -154,6 +160,8 @@ export const explainDiscovery = (
   // diff is byte-identical to `runDiscovery(input)` (same args), so the universe
   // breakdown can never drift from what the cron applied.
   const skipReasons = new Map<string, DiscoverySkipReason>();
+  const keepable = keepableSymbols(tickers, config);
+  // A sibling-conflicted symbol is skipped inside the add loop rather than subtracted afterwards, so the slot it would have taken goes to the next-ranked candidate.
   const diff = resolveDiscovery(
     shortlist,
     klinesBySymbol,
@@ -164,23 +172,12 @@ export const explainDiscovery = (
     pinnedMembers,
     allowAdds,
     skipReasons,
+    { keepable, unremovable, blocked: new Set(siblingConflictBySymbol.keys()) },
   );
 
-  // Subtract sibling-conflicted symbols from the add/desired sets so the diff the
-  // cron applies and the explain it persists agree. `remove` is untouched: a
-  // conflict only blocks a new add, never a reap.
-  const effectiveDiff: DiscoveryDiff =
-    siblingConflictBySymbol.size === 0
-      ? diff
-      : {
-          add: diff.add.filter((s) => !siblingConflictBySymbol.has(s)),
-          remove: diff.remove,
-          desired: diff.desired.filter((s) => !siblingConflictBySymbol.has(s)),
-        };
-
   const tickerBySymbol = new Map(tickers.map((t) => [t.symbol, t]));
-  const addSet = new Set(effectiveDiff.add);
-  const removeSet = new Set(effectiveDiff.remove);
+  const addSet = new Set(diff.add);
+  const removeSet = new Set(diff.remove);
   const currentSet = new Set(currentAuto.map((c) => c.symbol));
   // Pinned symbols are operator-protected, not discovery candidates:
   // exclude them from the universe so they never read as "slot-capped"/"rejected".
@@ -202,6 +199,7 @@ export const explainDiscovery = (
     }
     const disposition = dispositionOf({
       eligible,
+      keeps: eligible || keepable.has(symbol),
       inCurrent: currentSet.has(symbol),
       inAdd: addSet.has(symbol),
       inRemove: removeSet.has(symbol),
@@ -224,5 +222,5 @@ export const explainDiscovery = (
     return byGain !== 0 ? byGain : a.symbol.localeCompare(b.symbol);
   });
   scoreless.sort((a, b) => a.symbol.localeCompare(b.symbol));
-  return { diff: effectiveDiff, candidates: [...scored, ...scoreless] };
+  return { diff, candidates: [...scored, ...scoreless] };
 };

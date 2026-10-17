@@ -169,6 +169,18 @@ export interface DiscoveryDiff {
 }
 
 /**
+ * Caller-resolved facts {@link resolveDiscovery} cannot derive from candles alone. Each set is optional and an absent set changes nothing, so a direct caller that supplies none gets the bare rule: a current symbol keeps its slot only while it is still eligible.
+ */
+export interface DiscoveryOverlay {
+  /** Symbols that still pass the tradability stages (see `keepableSymbols`). A current symbol in this set keeps its slot after it stops being a top gainer, because dropping it the first quiet hour throws away the setup a slow entry rule is waiting for. Past min-hold it yields that slot to an eligible candidate, oldest first, so faded coins cannot hold every slot for good. */
+  readonly keepable?: ReadonlySet<string>;
+  /** Current symbols the caller will refuse to unbind because the wallet still holds a sellable balance of the coin (usually a position; possibly a fee float or dust the profile once traded). They keep their slot and are never proposed for removal, so the slot count matches what stays bound and the cap holds. */
+  readonly unremovable?: ReadonlySet<string>;
+  /** Candidates the caller will refuse to bind (a sibling profile on the same wallet trades or settles in the coin). Skipped in the add loop so the next-ranked candidate takes the slot instead of the slot going unused. */
+  readonly blocked?: ReadonlySet<string>;
+}
+
+/**
  * Why an eligible candidate the cycle did NOT add was skipped. `resolveDiscovery`
  * emits this as it walks its add-loop, so the explain layer reads the real
  * decision instead of replaying the loop a second time. `cooldown`,

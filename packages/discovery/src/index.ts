@@ -5,11 +5,13 @@ export type {
   DiscoveryConfig,
   DiscoveryDiff,
   DiscoveryInput,
+  DiscoveryOverlay,
   DiscoveryTicker,
   RankContext,
   TrendConfirmConfig,
 } from './types.js';
 export {
+  FEE_DISCOUNT_ASSET,
   heldLongEnough,
   inCooldown,
   isActive,
@@ -26,6 +28,8 @@ export {
 } from './filters.js';
 export {
   buildRankContext,
+  keepableSymbols,
+  klineWindowLimit,
   marketBreadthOk,
   resolveDiscovery,
   runDiscovery,

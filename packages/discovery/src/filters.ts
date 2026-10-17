@@ -19,14 +19,20 @@ export const matchesQuote = (t: DiscoveryTicker, cfg: DiscoveryConfig): boolean 
   t.quoteAsset === cfg.quoteAsset;
 
 /**
- * Filter 2 — asset policy: the base asset is not a stablecoin or a fiat currency. Non-configurable, and deliberately so. Discovery hunts 24h gainers, and a pegged asset has no gainer signal to read — its ordinary peg noise clears an inclusive `changeMinPercent >= 0` hurdle, so it enters on nothing and then sits there.
+ * Filter 2 — asset policy: the base asset is not a stablecoin, a fiat currency, or the fee-discount asset ({@link FEE_DISCOUNT_ASSET}). Non-configurable, and deliberately so. Discovery hunts 24h gainers, and a pegged asset has no gainer signal to read — its ordinary peg noise clears an inclusive `changeMinPercent >= 0` hurdle, so it enters on nothing and then sits there.
  *
  * The verdict is a fact the caller resolved from fresh Binance product metadata, not a rule evaluated here. This package holds no asset list: a code-owned registry is stale the day a new stablecoin lists, and no name or price heuristic can tell a peg from a coin that happens to trade near a dollar.
  *
- * @param t - The candidate ticker. Only `isStablecoinOrFiat` is read: the symbol text and the price are deliberately ignored, since neither can establish that an asset is pegged.
- * @returns Whether the coin is eligible to go on to the remaining stages — true for an ordinary asset, false when Binance currently classifies its base a stablecoin or a fiat currency.
+ * @param t - The candidate ticker. Only `isStablecoinOrFiat` and the caller-resolved `baseAsset` are read: the symbol text and the price are deliberately ignored, since neither can establish that an asset is pegged.
+ * @returns Whether the coin is eligible to go on to the remaining stages — true for an ordinary asset, false when Binance currently classifies its base a stablecoin or a fiat currency, or when the base is the fee-discount asset.
  */
-export const passesAssetPolicy = (t: DiscoveryTicker): boolean => !t.isStablecoinOrFiat;
+export const passesAssetPolicy = (t: DiscoveryTicker): boolean =>
+  !t.isStablecoinOrFiat && t.baseAsset !== FEE_DISCOUNT_ASSET;
+
+/**
+ * Binance's spot fee-discount asset. Excluded from discovery because an account paying fees in it holds a float of it that is not a position: fee deductions move the held quantity under the strategy, a strategy sell can spend the fee float, and the leftover float keeps the symbol from ever being reaped.
+ */
+export const FEE_DISCOUNT_ASSET = 'BNB';
 
 /** Filter 3 — blacklist: the operator never wants this symbol auto-added. Runs after the asset policy, so a symbol on the blocklist for an unrelated reason is still reported against the rung that actually disqualifies it. */
 export const notBlacklisted = (t: DiscoveryTicker, cfg: DiscoveryConfig): boolean =>

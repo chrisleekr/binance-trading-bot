@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Candle } from '@app/strategy-core';
 import {
+  klineWindowLimit,
   marketBreadthOk,
   resolveDiscovery,
   runDiscovery,
@@ -482,5 +483,212 @@ describe('tickerStageCounts (issue #636)', () => {
     ];
     const c = cfg({ blacklist: ['BLACKUSDT'] });
     expect(tickerStageCounts(tickers, c).changeBand).toBe(shortlistByTicker(tickers, c).length);
+  });
+});
+
+describe('resolveDiscovery — caller overlay', () => {
+  const pastHold = NOW - 300 * MIN_MS;
+
+  it('counts a faded symbol the caller cannot unbind against the cap instead of over-adding', () => {
+    const shortlist = ['C', 'D'];
+    const current: CurrentAutoSymbol[] = [
+      { symbol: 'A', addedAtMs: pastHold },
+      { symbol: 'B', addedAtMs: pastHold },
+    ];
+    const args = [
+      shortlist,
+      klinesFor(shortlist),
+      current,
+      {},
+      cfg({ maxAutoSymbols: 2 }),
+      NOW,
+    ] as const;
+    // Control: without the overlay both held symbols are assumed gone and both slots refill.
+    expect(resolveDiscovery(...args).add).toEqual(['C', 'D']);
+    const diff = resolveDiscovery(...args, [], true, undefined, {
+      unremovable: new Set(['A', 'B']),
+    });
+    expect(diff.add).toEqual([]);
+    expect(diff.remove).toEqual([]);
+  });
+
+  // One slot, T1 bound and no longer eligible but still tradable; N1 eligible.
+  const tradableKeep = (
+    shortlist: readonly string[],
+    current: readonly CurrentAutoSymbol[],
+    overlay: Parameters<typeof resolveDiscovery>[9],
+    max = 1,
+    allowAdds = true,
+  ) =>
+    resolveDiscovery(
+      shortlist,
+      klinesFor(shortlist),
+      current,
+      {},
+      cfg({ maxAutoSymbols: max }),
+      NOW,
+      [],
+      allowAdds,
+      undefined,
+      overlay,
+    );
+
+  it('keeps a still-tradable symbol that is no longer eligible while no candidate needs its slot', () => {
+    const diff = tradableKeep([], [{ symbol: 'T1', addedAtMs: pastHold }], {
+      keepable: new Set(['T1']),
+    });
+    expect(diff.remove).toEqual([]);
+    expect(diff.desired).toEqual(['T1']);
+  });
+
+  it('yields a still-tradable faded slot to an eligible candidate once past min-hold', () => {
+    const diff = tradableKeep(['N1'], [{ symbol: 'T1', addedAtMs: pastHold }], {
+      keepable: new Set(['T1']),
+    });
+    expect(diff.add).toEqual(['N1']);
+    expect(diff.remove).toEqual(['T1']);
+    expect(diff.desired).toEqual(['N1']);
+  });
+
+  it('does not yield inside min-hold, while the wallet holds the coin, or under breadth risk-off', () => {
+    const keepable = new Set(['T1']);
+    const fresh = tradableKeep(['N1'], [{ symbol: 'T1', addedAtMs: NOW - 10 * MIN_MS }], {
+      keepable,
+    });
+    expect([fresh.add, fresh.remove, fresh.desired]).toEqual([[], [], ['T1']]);
+    // A spare slot lets one add through; it must take the free slot, never evict T1 inside its hold.
+    const spare = tradableKeep(
+      ['N1', 'N2'],
+      [{ symbol: 'T1', addedAtMs: NOW - 10 * MIN_MS }],
+      { keepable },
+      2,
+    );
+    expect([spare.add, spare.remove]).toEqual([['N1'], []]);
+    const held = tradableKeep(['N1'], [{ symbol: 'T1', addedAtMs: pastHold }], {
+      keepable,
+      unremovable: new Set(['T1']),
+    });
+    expect([held.add, held.remove]).toEqual([[], []]);
+    const riskOff = tradableKeep(
+      ['N1'],
+      [{ symbol: 'T1', addedAtMs: pastHold }],
+      { keepable },
+      1,
+      false,
+    );
+    expect([riskOff.add, riskOff.remove, riskOff.desired]).toEqual([[], [], ['T1']]);
+  });
+
+  it('uses free slots before evicting, then evicts the oldest yielding symbol per extra add', () => {
+    const current: CurrentAutoSymbol[] = [
+      { symbol: 'T2', addedAtMs: pastHold },
+      { symbol: 'T1', addedAtMs: pastHold - MIN_MS }, // older
+      { symbol: 'T3', addedAtMs: pastHold + MIN_MS },
+    ];
+    const keepable = new Set(['T1', 'T2', 'T3']);
+    const oneFree = tradableKeep(['N1'], current, { keepable }, 4);
+    expect([oneFree.add, oneFree.remove]).toEqual([['N1'], []]);
+    const twoAdds = tradableKeep(['N1', 'N2'], current, { keepable }, 4);
+    expect([twoAdds.add, twoAdds.remove]).toEqual([['N1', 'N2'], ['T1']]);
+    expect(twoAdds.desired).toEqual(['N1', 'N2', 'T2', 'T3']);
+  });
+
+  it('gives a blocked candidate slot to the next-ranked candidate', () => {
+    const shortlist = ['B1', 'N1'];
+    const diff = resolveDiscovery(
+      shortlist,
+      klinesFor(shortlist),
+      [],
+      {},
+      cfg({ maxAutoSymbols: 1 }),
+      NOW,
+      [],
+      true,
+      undefined,
+      {
+        blocked: new Set(['B1']),
+      },
+    );
+    expect(diff.add).toEqual(['N1']);
+  });
+
+  it('vetoes a candidate correlated with a faded symbol that is still bound', () => {
+    const current: CurrentAutoSymbol[] = [{ symbol: 'F1', addedAtMs: NOW - 10 * MIN_MS }]; // within hold
+    const diff = resolveDiscovery(
+      ['N1'],
+      klinesFor(['N1', 'F1']), // F1 has a window but is not in the shortlist, so it is faded
+      current,
+      {},
+      cfg({ correlation: { maxPairwise: '0.8', lookbackCandles: 30 } }),
+      NOW,
+    );
+    expect(diff.add).toEqual([]);
+  });
+});
+
+describe('runDiscovery — keep rule', () => {
+  it('keeps a held symbol that stopped being a gainer but reaps one whose book dried up', () => {
+    const tickers = [
+      ticker({ symbol: 'COOLUSDT', priceChangePercent: '1' }), // below changeMinPercent 5: not addable, still tradable
+      ticker({ symbol: 'DRYUSDT', pairVolumeUsd: '0' }), // fails liquidity: not tradable
+    ];
+    const diff = runDiscovery({
+      tickers,
+      klinesBySymbol: {},
+      currentAuto: [
+        { symbol: 'COOLUSDT', addedAtMs: NOW - 300 * MIN_MS },
+        { symbol: 'DRYUSDT', addedAtMs: NOW - 300 * MIN_MS },
+      ],
+      lastFlattenAtMsBySymbol: {},
+      config: cfg(),
+      nowMs: NOW,
+    });
+    expect(diff.remove).toEqual(['DRYUSDT']);
+    expect(diff.desired).toEqual(['COOLUSDT']);
+  });
+});
+
+describe('rank universe excludes assets the policy cuts', () => {
+  it('marketBreadthOk does not count stablecoins or the fee asset', () => {
+    const tickers = [
+      ticker({ symbol: 'UPUSDT', priceChangePercent: '3' }),
+      ticker({ symbol: 'DOWNUSDT', priceChangePercent: '-3' }),
+      ticker({
+        symbol: 'USDCUSDT',
+        baseAsset: 'USDC',
+        isStablecoinOrFiat: true,
+        priceChangePercent: '0.01',
+      }),
+      ticker({ symbol: 'BNBUSDT', baseAsset: 'BNB', priceChangePercent: '2' }),
+    ];
+    // 1 of 2 counted = 50%; counting USDC and BNB would read 3 of 4 = 75%.
+    expect(marketBreadthOk(tickers, cfg({ marketBreadthMinPercent: '60' }))).toBe(false);
+    expect(marketBreadthOk(tickers, cfg({ marketBreadthMinPercent: '50' }))).toBe(true);
+  });
+});
+
+describe('klineWindowLimit', () => {
+  it('covers the longest indicator when the age floor is shorter', () => {
+    const limit = klineWindowLimit(
+      cfg({ minAgeDays: 1, trendConfirm: { emaPeriod: 400 } as never }),
+    );
+    expect(limit).toBeGreaterThan(400);
+    expect(uptrend(limit, 0).length).toBeGreaterThan(400);
+  });
+
+  it('follows the age floor when it is longer, capped at 1000', () => {
+    expect(klineWindowLimit(cfg({ minAgeDays: 30 }))).toBe(30 * 24 + 50);
+    expect(klineWindowLimit(cfg({ minAgeDays: 60 }))).toBe(1000);
+  });
+
+  it('covers twice the ADX period and the correlation lookback', () => {
+    expect(
+      klineWindowLimit(cfg({ minAgeDays: 0, trendConfirm: { adxPeriod: 100 } as never })),
+    ).toBe(201 + 50);
+    expect(
+      klineWindowLimit(
+        cfg({ minAgeDays: 0, correlation: { maxPairwise: '0.8', lookbackCandles: 300 } }),
+      ),
+    ).toBe(301 + 50);
   });
 });
