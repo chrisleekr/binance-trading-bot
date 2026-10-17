@@ -224,6 +224,29 @@ describe('OhlcvFillModel', () => {
     expect(out.kind).toBe('rest');
   });
 
+  it('gives the same stop-limit fill bar by bar as in one multi-bar evaluation', () => {
+    const params: OrderParams = {
+      type: 'STOP_LOSS_LIMIT',
+      stopPrice: '100',
+      price: '98',
+      quantity: '1',
+    };
+    const gap = bar('94', '97', '95', '96'); // arms, wholly below the limit
+    const recover = bar('100.5', '101.5', '101', '101'); // above the stop, through the limit
+    const whole = model.fill(input({ side: 'SELL', params, detail: [gap, recover] }));
+    expect(whole).toMatchObject({ kind: 'filled', fills: [{ price: new Decimal('98') }] });
+
+    const first = model.fill(input({ side: 'SELL', params, detail: [gap] }));
+    expect(first).toEqual({ kind: 'rest', armed: true });
+    const unarmed = model.fill(input({ side: 'SELL', params, detail: [recover] }));
+    expect(unarmed).toEqual({ kind: 'rest' });
+    const armed = model.fill({
+      ...input({ side: 'SELL', params, detail: [recover] }),
+      armed: true,
+    });
+    expect(armed).toMatchObject({ kind: 'filled', fills: [{ price: new Decimal('98') }] });
+  });
+
   it('rejects a sub-minNotional order', () => {
     const strict = { ...SYMBOL_INFO, filters: { ...SYMBOL_INFO.filters, minNotional: '1000' } };
     const out = model.fill(

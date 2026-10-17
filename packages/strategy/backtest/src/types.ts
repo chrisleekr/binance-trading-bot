@@ -106,6 +106,8 @@ export interface FillInput {
   readonly clock: Clock;
   /** Whether this is the placement evaluation or a resting re-evaluation. Defaults to `place`. */
   readonly phase?: FillPhase;
+  /** True once an earlier evaluation saw this STOP_LOSS_LIMIT's stop reached. Binance never disarms a triggered stop, so the order is then priced as its resting limit; without this, per-bar evaluation drops a fill that one multi-bar evaluation would take. */
+  readonly armed?: boolean;
 }
 
 export interface FillMarket {
@@ -146,7 +148,8 @@ export type FillOutcome =
   | { readonly kind: 'rejected'; readonly reason: FillRejectReason; readonly latencyMs: number }
   // The order did not fill on this candle but remains live — the executor
   // holds it on the resting book and re-evaluates it on later candles.
-  | { readonly kind: 'rest' };
+  // `armed` reports a stop-limit whose stop was reached, so the executor can pass it back.
+  | { readonly kind: 'rest'; readonly armed?: true };
 
 /** A single simulated execution recorded for the report and metrics. */
 export interface BacktestTrade {

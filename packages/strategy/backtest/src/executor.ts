@@ -51,6 +51,8 @@ interface RestingOrder {
    */
   readonly originalQty: string;
   readonly filledQty: Decimal;
+  /** A stop-limit whose stop an earlier evaluation reached; passed back to the fill model, since Binance never disarms a triggered stop. */
+  readonly armed?: boolean;
 }
 
 /**
@@ -410,11 +412,12 @@ export class BacktestExecutor implements Executor {
         symbolInfo,
         clock,
         phase: 'resting',
+        armed: ord.armed === true,
       });
       if (outcome.kind === 'rest') {
         // Not filled: re-lock the same reservation and keep resting.
         this.lockUpTo(ord.reservedAsset, ord.reservedAmount);
-        next.push(ord);
+        next.push(outcome.armed === true ? { ...ord, armed: true } : ord);
         continue;
       }
       // Rejected: leave the reservation released — the funds return to free.
@@ -442,6 +445,8 @@ export class BacktestExecutor implements Executor {
           reservedAsset: asset,
           reservedAmount,
           filledQty: ord.filledQty.add(filledNow),
+          // A stop-limit only fills once armed, so its remainder stays armed.
+          armed: ord.armed === true || ord.params.type === 'STOP_LOSS_LIMIT',
         });
       }
       // Filled: the released reservation minus the actual fill cost stays in free.

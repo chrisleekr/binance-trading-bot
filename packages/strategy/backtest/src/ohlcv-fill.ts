@@ -67,7 +67,7 @@ export interface OhlcvFillModelOptions {
  *            it (BUY: bar low < limit; SELL: bar high > limit), not on a mere
  *            touch — modelling maker queue non-fill; maker fee.
  *   - MARKET fills at the candle open shifted by slippage; taker fee.
- *   - STOP_LOSS_LIMIT arms once a detail bar reaches the stop (SELL: low <= stop; BUY: high >= stop). If the trigger price (the stop, or the arming bar's open when it gapped past the stop) is still marketable against the limit, it fills there shifted by slippage and the half-spread, never worse than the limit. Otherwise it rests as a LIMIT at `params.price`: it fills at the limit the first time a bar trades THROUGH it, and a bar that gaps PAST the limit leaves it resting UNFILLED, modelling the real tail risk that a protective stop can gap through its limit and never protect. The arm is not remembered across evaluations: each one re-checks the stop, so a gapped-through stop-limit fills on a later bar that is still at or past the stop and trades through the limit, while a bar that recovers entirely back past the stop does not re-arm it and it keeps resting where Binance's already-armed limit would have filled. Taker fee.
+ *   - STOP_LOSS_LIMIT arms once a detail bar reaches the stop (SELL: low <= stop; BUY: high >= stop). If the trigger price (the stop, or the arming bar's open when it gapped past the stop) is still marketable against the limit, it fills there shifted by slippage and the half-spread, never worse than the limit. Otherwise it rests as a LIMIT at `params.price`: it fills at the limit the first time a bar trades THROUGH it, and a bar that gaps PAST the limit leaves it resting UNFILLED, modelling the real tail risk that a protective stop can gap through its limit and never protect. The arm is remembered across evaluations (the executor passes `armed` back), so a gapped-through stop-limit fills on the first later bar that trades through the limit, even one that recovered back past the stop, as Binance's already-armed limit would. Taker fee.
  *
  * Every fill is then haircut by the half-spread (BUY pays up, SELL receives
  * less). Filters: stepSize/tickSize quantisation, minNotional and minQty are
@@ -141,8 +141,9 @@ export class OhlcvFillModel implements FillModel {
         ? market.detailCandles
         : [market.lastCandle];
 
-    const priced = this.resolveFillPrice(intent.side, params, bars, tick);
+    const priced = this.resolveFillPrice(intent.side, params, bars, tick, input.armed === true);
     if (priced === null) return { kind: 'rest' }; // not crossed yet — keep resting
+    if (priced === 'armed') return { kind: 'rest', armed: true };
     const { price, feeBps, bar } = priced;
 
     const minQty = new Decimal(symbolInfo.filters.minQty);
@@ -209,13 +210,21 @@ export class OhlcvFillModel implements FillModel {
    * Fill price, fee, and the bar that produced the fill (its volume bounds the
    * participation cap), or null if the order has not crossed. The half-spread
    * haircut is folded into the returned price.
+   *
+   * @param side - Order side; decides which bar bound reaches the stop and crosses the limit.
+   * @param params - The resting order's type and prices.
+   * @param bars - Detail bars of this evaluation, in time order.
+   * @param tick - Symbol tick size the stop and limit are rounded to.
+   * @param armed - Whether an earlier evaluation already reached this stop-limit's stop, which skips the arm check.
+   * @returns The fill, null when the order keeps resting unarmed, or `'armed'` when a stop-limit armed but its limit has not crossed.
    */
   private resolveFillPrice(
     side: OrderSide,
     params: FillInput['params'],
     bars: readonly Candle[],
     tick: Decimal,
-  ): { price: Decimal; feeBps: number; bar: Candle } | null {
+    armed: boolean,
+  ): { price: Decimal; feeBps: number; bar: Candle } | 'armed' | null {
     if (params.type === 'MARKET') {
       const bar = bars[0];
       const open = new Decimal(bar?.open ?? '0');
@@ -232,10 +241,15 @@ export class OhlcvFillModel implements FillModel {
       return { price: limit.mul(this.spreadFactor(side)), feeBps: this.makerBps, bar };
     }
 
-    // STOP_LOSS_LIMIT. On Binance the stop only ARMS a LIMIT order at `params.price`; the fill is then a plain limit, so a bar that gaps PAST the limit leaves it resting UNFILLED. Modelling it as a guaranteed stop-market fill hides the dominant tail risk: a protective stop that gaps through its limit never protects the position, and a grid stop-limit that gaps through never enters. Model both phases from the bar bounds: arm once a bar reaches the stop, then fill at the trigger when it is marketable, else at the limit the first time a bar (the arming bar included) trades THROUGH the limit; if none do, keep resting. The arm is not remembered, so the next evaluation re-checks the stop. A triggered stop pays the taker fee.
+    // STOP_LOSS_LIMIT. On Binance the stop only ARMS a LIMIT order at `params.price`; the fill is then a plain limit, so a bar that gaps PAST the limit leaves it resting UNFILLED. Modelling it as a guaranteed stop-market fill hides the dominant tail risk: a protective stop that gaps through its limit never protects the position, and a grid stop-limit that gaps through never enters. Model both phases from the bar bounds: arm once a bar reaches the stop, then fill at the trigger when it is marketable, else at the limit the first time a bar (the arming bar included) trades THROUGH the limit; if none do, keep resting armed. A later evaluation of an armed order skips the stop check and only looks for a bar trading through the limit, so evaluating bar by bar gives the same fill as one multi-bar evaluation. A triggered stop pays the taker fee.
     const stop = roundToTick(new Decimal(params.stopPrice ?? params.price ?? '0'), tick);
     const limit = roundToTick(new Decimal(params.price ?? params.stopPrice ?? '0'), tick);
     if (stop.lte(0) || limit.lte(0)) return null;
+    if (armed) {
+      const crossed = firstCrossBar(side, limit, bars);
+      if (crossed === null) return 'armed';
+      return { price: limit.mul(this.spreadFactor(side)), feeBps: this.takerBps, bar: crossed };
+    }
     const armBar = firstStopBar(side, stop, bars);
     if (armBar === null) return null; // stop not reached — keep resting
     // The armed limit is marketable whenever the trigger price is still on the right side of it, and a marketable limit executes at the book, not at its limit. Live protective stops fill at the stop price (a 1.54 stop with a 1.509 limit filled at 1.540), so filling at the limit charged every stop-out the whole limit offset. The trigger is the stop, or the arming bar's open when that bar gapped past the stop.
@@ -248,7 +262,7 @@ export class OhlcvFillModel implements FillModel {
       return { price: executed, feeBps: this.takerBps, bar: armBar };
     }
     const crossed = firstCrossBar(side, limit, bars.slice(bars.indexOf(armBar)));
-    if (crossed === null) return null; // gapped past the limit — rests unfilled
+    if (crossed === null) return 'armed'; // gapped past the limit — rests unfilled, armed
     return { price: limit.mul(this.spreadFactor(side)), feeBps: this.takerBps, bar: crossed };
   }
 
