@@ -19,6 +19,7 @@ import type {
   DiscoveryConfig,
   DiscoveryDiff,
   DiscoveryInput,
+  DiscoveryOverlay,
   DiscoverySkipReason,
   DiscoveryTicker,
   RankContext,
@@ -31,17 +32,22 @@ const byGainDesc = (a: DiscoveryTicker, b: DiscoveryTicker): number => {
 };
 
 /**
- * Rank every symbol of the quote universe by 24h change, 1 = biggest gainer.
- * The universe is the quote-matched set — the same one {@link marketBreadthOk}
- * measures — deliberately NOT the post-filter survivors: ranking against
- * survivors would make the change band depend on the volume and spread floors,
- * re-coupling knobs the split was meant to separate.
+ * The tickers discovery ranks and measures breadth over: quote-matched and allowed by the asset policy. Pegged assets are cut because they could never be candidates, yet sat near 0% in the ranking and diluted the breadth reading. The tunable floors stay out: ranking against their survivors would make the change band depend on the volume and spread knobs.
+ */
+const rankUniverse = (
+  tickers: readonly DiscoveryTicker[],
+  cfg: DiscoveryConfig,
+): DiscoveryTicker[] => tickers.filter((t) => matchesQuote(t, cfg) && passesAssetPolicy(t));
+
+/**
+ * Rank every symbol of the rank universe by 24h change, 1 = biggest gainer.
+ * The universe is the same one {@link marketBreadthOk} measures (see `rankUniverse`).
  */
 export const buildRankContext = (
   tickers: readonly DiscoveryTicker[],
   cfg: DiscoveryConfig,
 ): RankContext => {
-  const universe = tickers.filter((t) => matchesQuote(t, cfg)).sort(byGainDesc);
+  const universe = rankUniverse(tickers, cfg).sort(byGainDesc);
   const rankBySymbol = new Map(universe.map((t, i) => [t.symbol, i + 1]));
   return { rankBySymbol, universeSize: universe.length };
 };
@@ -81,6 +87,61 @@ export const shortlistByTicker = (
   const ctx = buildRankContext(tickers, cfg);
   const survivors = tickers.filter((t) => TICKER_STAGE_CHAIN.every(([, fn]) => fn(t, cfg, ctx)));
   return [...survivors].sort(byGainDesc).map((t) => t.symbol);
+};
+
+/** Binance's per-request kline cap. */
+const MAX_KLINES = 1000;
+
+/**
+ * How many 1h candles to fetch per candidate: enough to clear the age floor AND to warm every kline-stage indicator, capped at Binance's request limit. Sizing it from `minAgeDays` alone left a short-age, long-EMA config with a window the EMA could not fill, so every candidate failed the trend stage silently.
+ *
+ * @param cfg - The discovery config whose age floor, trend-confirm periods and correlation lookback set the need.
+ * @returns The candle count to request, at most 1000.
+ */
+export const klineWindowLimit = (cfg: DiscoveryConfig): number => {
+  const tc = cfg.trendConfirm;
+  // ADX needs two periods; every other indicator needs its own period. +1 is headroom over the strict minimum, since a window at exactly the minimum seeds the indicator on its last candle.
+  const warmup =
+    1 +
+    [tc.emaPeriod, tc.volSmaPeriod, 2 * tc.adxPeriod, cfg.correlation?.lookbackCandles ?? 0].reduce(
+      (a, b) => (b > a ? b : a),
+      0,
+    );
+  const ageCandles = cfg.minAgeDays * 24;
+  // The +50 margin is the original allowance for a window trimmed of its forming candle.
+  const need = (ageCandles > warmup ? ageCandles : warmup) + 50;
+  return need < MAX_KLINES ? need : MAX_KLINES;
+};
+
+/** The ticker stages a held symbol must keep passing to keep its slot: the tradability cuts. The change band is a selection cut, so a coin that stops being a top gainer is not dropped for it. */
+const KEEP_STAGES: ReadonlySet<TickerStageName> = new Set([
+  'quote',
+  'assetPolicy',
+  'blacklist',
+  'liquidity',
+  'activity',
+  'spread',
+]);
+
+/**
+ * Symbols still tradable this cycle, i.e. passing every {@link KEEP_STAGES} stage. A current auto symbol in this set keeps its slot even when it is no longer eligible to be added.
+ *
+ * @param tickers - This cycle's ticker universe.
+ * @param cfg - The discovery config the stages read.
+ * @returns The symbols a held auto symbol may stay bound as.
+ */
+export const keepableSymbols = (
+  tickers: readonly DiscoveryTicker[],
+  cfg: DiscoveryConfig,
+): Set<string> => {
+  const ctx = buildRankContext(tickers, cfg);
+  return new Set(
+    tickers
+      .filter((t) =>
+        TICKER_STAGE_CHAIN.every(([name, fn]) => !KEEP_STAGES.has(name) || fn(t, cfg, ctx)),
+      )
+      .map((t) => t.symbol),
+  );
 };
 
 /**
@@ -151,7 +212,7 @@ export const marketBreadthOk = (
 ): boolean => {
   const min = new Decimal(cfg.marketBreadthMinPercent);
   if (min.lte(0)) return true;
-  const universe = tickers.filter((t) => matchesQuote(t, cfg));
+  const universe = rankUniverse(tickers, cfg);
   if (universe.length === 0) return true;
   const positive = universe.filter((t) => new Decimal(t.priceChangePercent).gt(0)).length;
   const pct = new Decimal(positive).div(universe.length).mul(100);
@@ -221,13 +282,18 @@ export const maxPeerCorrelation = (
  * cap, the re-add cooldown, and the min-hold-before-reap rule.
  *
  * Rules:
- * - A current auto symbol that still qualifies KEEPS its slot (no churn), even
+ * - A current auto symbol that is still eligible KEEPS its slot (no churn), even
  *   if that pushes the live set over a since-lowered `maxAutoSymbols` — we never
  *   force-evict a still-good symbol; the cap only bounds NEW adds.
- * - A faded current symbol within its min-hold stays (not removed yet) and keeps
- *   occupying a slot; past min-hold it is proposed for removal.
+ * - A faded current symbol within its min-hold, or in `overlay.unremovable`,
+ *   stays (not removed) and keeps occupying a slot.
+ * - A faded symbol past min-hold that is still in `overlay.keepable` keeps its
+ *   slot only until an eligible candidate needs it, then yields, oldest first.
+ *   Without the yield, tradable coins that stopped qualifying fill every slot
+ *   for good and no new candidate is ever added.
+ * - Any other faded symbol is proposed for removal.
  * - New adds fill the remaining slots in rank order, skipping symbols on the
- *   flatten cooldown.
+ *   flatten cooldown and symbols in `overlay.blocked`.
  */
 export const resolveDiscovery = (
   shortlist: readonly string[],
@@ -246,6 +312,9 @@ export const resolveDiscovery = (
   // layer passes one instead of replaying this loop. The `add`/`remove`/`desired`
   // result is identical whether or not it is supplied.
   skipReasons?: Map<string, DiscoverySkipReason>,
+  // Caller-resolved keep / unremovable / blocked sets; see `DiscoveryOverlay`.
+  // Empty keeps the bare rule, so a caller that resolves none is unaffected.
+  overlay: DiscoveryOverlay = {},
 ): DiscoveryDiff => {
   const eligible = shortlist.filter((symbol) => {
     const klines = klinesBySymbol[symbol] ?? [];
@@ -258,34 +327,53 @@ export const resolveDiscovery = (
   // the add loop below needs to skip them.
   const pinnedSet = new Set(pinnedMembers);
 
-  // Faded current symbols (no longer eligible) split by min-hold: those still
-  // within it stay and hold their slot; those past it are reaped.
+  // Faded current symbols (not eligible) split by min-hold: those still within it, or
+  // still holding a position the caller will not unbind, stay and hold their
+  // slot. Counting an unremovable one as reaped would free a slot that never
+  // empties, and the cap would overshoot by one per such symbol. A reapable one
+  // that is still tradable yields its slot only to an add (see `yielding` below).
+  const kept = currentAuto.filter((c) => eligibleSet.has(c.symbol));
   const faded = currentAuto.filter((c) => !eligibleSet.has(c.symbol));
-  const protectedFaded = faded.filter((c) => !heldLongEnough(c.addedAtMs, cfg, nowMs));
-  const remove = faded.filter((c) => heldLongEnough(c.addedAtMs, cfg, nowMs)).map((c) => c.symbol);
+  const reapable = (c: CurrentAutoSymbol): boolean =>
+    heldLongEnough(c.addedAtMs, cfg, nowMs) && overlay.unremovable?.has(c.symbol) !== true;
+  const protectedFaded = faded.filter((c) => !reapable(c));
+  const yielding = faded
+    .filter((c) => reapable(c) && overlay.keepable?.has(c.symbol) === true)
+    .sort((a, b) => a.addedAtMs - b.addedAtMs);
+  const reaped = faded
+    .filter((c) => reapable(c) && overlay.keepable?.has(c.symbol) !== true)
+    .map((c) => c.symbol);
 
-  const keptCount = eligible.filter((s) => currentSet.has(s)).length;
   // No `Math` global in pure code (the RNG ban catches it); clamp by hand.
   // Breadth risk-off zeroes the add budget: no new symbols this cycle.
-  const rawSlots = allowAdds ? cfg.maxAutoSymbols - keptCount - protectedFaded.length : 0;
+  const rawSlots = allowAdds ? cfg.maxAutoSymbols - kept.length - protectedFaded.length : 0;
   const availableSlots = rawSlots < 0 ? 0 : rawSlots;
+  // Slots open without evicting a yielding symbol; adds beyond these evict one each.
+  const rawFree = rawSlots - yielding.length;
+  const freeSlots = rawFree < 0 ? 0 : rawFree;
 
   // Correlation cap (default-off): when armed (`maxPairwise > 0`), a candidate
   // whose returns track an already-desired symbol too closely is skipped so the
   // auto-set is not one beta factor held N times. Inert (and byte-identical)
-  // when absent or 0. `keptSurvivors` are the held symbols still eligible.
+  // when absent or 0. Peers are every current symbol that stays bound, faded or
+  // not: a held position is exposure whether or not it still qualifies.
   const corrMaxRaw = cfg.correlation ? new Decimal(cfg.correlation.maxPairwise) : new Decimal(0);
   const corrCfg = corrMaxRaw.gt(0) && cfg.correlation ? cfg.correlation : null;
   const corrMax = corrCfg ? corrMaxRaw : null;
-  const keptSurvivors = corrCfg ? eligible.filter((s) => currentSet.has(s)) : [];
+  // Yielding symbols count as peers: which of them an add evicts is only known after the loop, so the check stays conservative.
+  const reapedSet = new Set(reaped);
+  const stayingPeers = corrCfg
+    ? currentAuto.map((c) => c.symbol).filter((s) => !reapedSet.has(s))
+    : [];
 
   const add: string[] = [];
   for (const symbol of eligible) {
-    // Kept survivors and pinned symbols are not "candidates the cycle declined
-    // to add", so they get no skip reason. Order of these two guards before the
-    // slot/cooldown checks keeps `add` byte-identical to the prior break-loop.
+    // Kept survivors, pinned and blocked symbols are not "candidates the cycle
+    // declined to add", so they get no skip reason. Order of these guards before
+    // the slot/cooldown checks keeps `add` byte-identical to the prior break-loop.
     if (currentSet.has(symbol)) continue;
     if (pinnedSet.has(symbol)) continue;
+    if (overlay.blocked?.has(symbol) === true) continue;
     if (add.length >= availableSlots) {
       skipReasons?.set(symbol, 'slot-capped');
       continue;
@@ -296,10 +384,10 @@ export const resolveDiscovery = (
     }
     if (corrCfg && corrMax) {
       // Compare against the symbols that would be held alongside this add:
-      // kept survivors plus the adds already accepted this cycle.
+      // every current symbol that stays bound plus the adds already accepted.
       const corr = maxPeerCorrelation(
         symbol,
-        [...keptSurvivors, ...add],
+        [...stayingPeers, ...add],
         klinesBySymbol,
         corrCfg.lookbackCandles,
       );
@@ -311,9 +399,20 @@ export const resolveDiscovery = (
     add.push(symbol);
   }
 
+  const evictCount = add.length - freeSlots;
+  const evicted = evictCount > 0 ? yielding.slice(0, evictCount) : [];
+  const evictedSet = new Set(evicted.map((c) => c.symbol));
+  const remove = [...reaped, ...evicted.map((c) => c.symbol)];
   const addSet = new Set(add);
-  // Desired = kept survivors + new adds, in rank order.
-  const desired = eligible.filter((s) => currentSet.has(s) || addSet.has(s));
+  // Desired = kept symbols + new adds: the eligible ones in rank order, then the
+  // still-tradable faded ones that did not yield, in their current order.
+  const desired = [
+    ...eligible.filter((s) => currentSet.has(s) || addSet.has(s)),
+    ...currentAuto
+      .filter((c) => !eligibleSet.has(c.symbol) && overlay.keepable?.has(c.symbol) === true)
+      .filter((c) => !evictedSet.has(c.symbol))
+      .map((c) => c.symbol),
+  ];
   return { add, remove, desired };
 };
 
@@ -334,5 +433,7 @@ export const runDiscovery = (input: DiscoveryInput): DiscoveryDiff => {
     input.nowMs,
     input.pinnedMembers ?? [],
     allowAdds,
+    undefined,
+    { keepable: keepableSymbols(input.tickers, input.config) },
   );
 };

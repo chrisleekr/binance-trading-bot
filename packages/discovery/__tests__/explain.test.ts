@@ -96,7 +96,7 @@ describe('explainDiscovery', () => {
     expect(map['WINUSDT']?.failedAt).toBeNull();
   });
 
-  it('subtracts sibling-conflicted symbols from add/desired and labels them, leaving remove and clean adds intact', () => {
+  it('skips sibling-conflicted symbols in the add loop and labels them, leaving remove and clean adds intact', () => {
     // AAA + BBB + CCC all qualify to be added; GONE is a vanished held symbol
     // past its hold, so it reaps (a `remove`). The overlay marks AAA owned by a
     // sibling and BBB colliding with a sibling's quote; CCC is unconflicted.
@@ -145,6 +145,62 @@ describe('explainDiscovery', () => {
     expect(map['AAAUSDT']?.disposition).toBe('sibling-owns-base');
     expect(map['BBBUSDT']?.disposition).toBe('sibling-quotes-base');
     expect(map['CCCUSDT']?.disposition).toBe('added');
+  });
+
+  it('hands a sibling-conflicted candidate slot to the next-ranked candidate', () => {
+    const input: DiscoveryInput = {
+      tickers: [
+        ticker({ symbol: 'AAAUSDT', priceChangePercent: '22' }),
+        ticker({ symbol: 'CCCUSDT', priceChangePercent: '18' }),
+      ],
+      klinesBySymbol: { AAAUSDT: eligibleKlines, CCCUSDT: eligibleKlines },
+      currentAuto: [],
+      lastFlattenAtMsBySymbol: {},
+      config: cfg({ maxAutoSymbols: 1 }),
+      nowMs: NOW,
+    };
+    expect(explainDiscovery(input).diff.add).toEqual(['AAAUSDT']);
+    const { diff, candidates } = explainDiscovery(
+      input,
+      new Map([['AAAUSDT', 'sibling-owns-base']]),
+    );
+    expect(diff.add).toEqual(['CCCUSDT']);
+    expect(bySymbol(candidates)['AAAUSDT']?.disposition).toBe('sibling-owns-base');
+  });
+
+  it('labels a still-held faded symbol faded-held and keeps its slot instead of reporting a refused removal', () => {
+    const input: DiscoveryInput = {
+      tickers: [
+        ticker({ symbol: 'DRYUSDT', pairVolumeUsd: '0' }), // no longer tradable
+        ticker({ symbol: 'NEWUSDT', priceChangePercent: '20' }),
+      ],
+      klinesBySymbol: { NEWUSDT: eligibleKlines },
+      currentAuto: [{ symbol: 'DRYUSDT', addedAtMs: NOW - 600 * MIN }],
+      lastFlattenAtMsBySymbol: {},
+      config: cfg({ maxAutoSymbols: 1 }),
+      nowMs: NOW,
+    };
+    const pure = explainDiscovery(input);
+    expect(pure.diff.remove).toEqual(['DRYUSDT']);
+    expect(bySymbol(pure.candidates)['DRYUSDT']?.disposition).toBe('faded-removed');
+    const { diff, candidates } = explainDiscovery(input, new Map(), new Set(['DRYUSDT']));
+    expect(diff.remove).toEqual([]);
+    expect(diff.add).toEqual([]); // DRY still occupies the one slot
+    expect(bySymbol(candidates)['DRYUSDT']?.disposition).toBe('faded-held');
+    expect(bySymbol(candidates)['NEWUSDT']?.disposition).toBe('slot-capped');
+  });
+
+  it('labels a held symbol that stopped being a gainer but is still tradable as kept', () => {
+    const { diff, candidates } = explainDiscovery({
+      tickers: [ticker({ symbol: 'COOLUSDT', priceChangePercent: '1' })], // below changeMinPercent 5
+      klinesBySymbol: {},
+      currentAuto: [{ symbol: 'COOLUSDT', addedAtMs: NOW - 600 * MIN }],
+      lastFlattenAtMsBySymbol: {},
+      config: cfg(),
+      nowMs: NOW,
+    });
+    expect(diff.remove).toEqual([]);
+    expect(bySymbol(candidates)['COOLUSDT']?.disposition).toBe('kept');
   });
 
   it('slot-caps a fresh candidate when held symbols already exceed a lowered cap', () => {

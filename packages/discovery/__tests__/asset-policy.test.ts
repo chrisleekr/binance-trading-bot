@@ -27,6 +27,14 @@ describe('assetPolicy ticker stage', () => {
     expect(out).toEqual(['FDUSDUSDT']);
   });
 
+  it('rejects the fee-discount asset, which an account paying fees in it holds as a float rather than a position', () => {
+    const out = shortlistByTicker(
+      [t({ symbol: 'BNBUSDT', baseAsset: 'BNB' }), t({ symbol: 'BNBBUSDT', baseAsset: 'BNBB' })],
+      cfg(),
+    );
+    expect(out).toEqual(['BNBBUSDT']); // keyed on the resolved base asset, not a symbol prefix
+  });
+
   it('vetoes the base across every quote pairing it trades on', () => {
     for (const [quoteAsset, symbol] of [
       ['USDT', 'USDCUSDT'],

@@ -40,9 +40,12 @@ describe('backtestDiscovery', () => {
       },
       {
         nowMs: NOW + 20 * MIN, // past the 10-min min-hold
-        tickers: [tk('AAAUSDT', '110', '109.9', '110.1'), tk('BBBUSDT', '50', '49.97', '50.03')],
-        // AAA's window stops confirming -> faded -> removed (priced at 110);
-        // BBB still confirms -> kept (still open at window end, uncounted).
+        tickers: [
+          tk('AAAUSDT', '110', '109.9', '110.1', { pairVolumeUsd: '0' }),
+          tk('BBBUSDT', '50', '49.97', '50.03'),
+        ],
+        // AAA's book dried up -> no longer tradable -> removed (priced at 110);
+        // BBB is still tradable -> kept (still open at window end, uncounted).
         klinesBySymbol: { AAAUSDT: notElig, BBBUSDT: elig },
       },
     ];
@@ -63,7 +66,8 @@ describe('backtestDiscovery', () => {
       },
       {
         nowMs: NOW + 20 * MIN,
-        tickers: [tk('AAAUSDT', '100', '99.9', '100.1')], // no price move
+        // No price move; the book dried up, so it is no longer tradable and is removed.
+        tickers: [tk('AAAUSDT', '100', '99.9', '100.1', { pairVolumeUsd: '0' })],
         klinesBySymbol: { AAAUSDT: notElig },
       },
     ];

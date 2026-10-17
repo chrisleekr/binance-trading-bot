@@ -4,8 +4,10 @@
 // (config → quote-price → apply) keep this the hub and the leaves dependency-free.
 
 import type { Ticker24hrDto } from '@app/binance';
+import { Decimal } from '@app/money';
 import {
   explainDiscovery,
+  klineWindowLimit,
   marketBreadthOk,
   projectFunnel,
   shortlistByTicker,
@@ -93,7 +95,7 @@ const buildEntryHintValue = (
  * the shortlist (their klines decide keep-vs-fade, so the cap must never drop
  * them) plus the top-ranked add candidates, capped at `3 × maxAutoSymbols`. A
  * held symbol the ticker stage already rejected is not in the shortlist, so it
- * gets no window and fades for want of a passing candidate, never on the cap.
+ * gets no window here (see {@link correlationPeerTargets}).
  * A broad rally can pass dozens-to-hundreds of symbols through the ticker stage
  * but only `maxAutoSymbols` can ever be admitted, so 3× the admit cap is ample
  * headroom for candidates that fail the age/trend filter; lower-ranked ones
@@ -132,6 +134,26 @@ export const selectKlineTargets = (
     nonHeldCount += 1;
   }
   return targets;
+};
+
+/**
+ * Held symbols outside the shortlist whose windows the correlation cap needs as peers, or none when the cap is off. Fetched separately from {@link selectKlineTargets} and fail-open: these windows never decide keep or fade, and `maxPeerCorrelation` already treats a missing window as no veto, so a held coin whose klines keep failing (a delisted pair still held) must not stall the cycle.
+ *
+ * Exported for the same reason as {@link selectKlineTargets}: the diagnosis re-probe fetches the same set.
+ *
+ * @param shortlist - Symbols that passed the ticker stage this cycle.
+ * @param autoSymbols - The profile's rotatable (unpinned) bindings.
+ * @param correlation - The discovery correlation config; absent or a non-positive `maxPairwise` means the cap is off.
+ * @returns The held symbols to fetch as correlation peers, in their given order.
+ */
+export const correlationPeerTargets = (
+  shortlist: readonly string[],
+  autoSymbols: readonly string[],
+  correlation: { readonly maxPairwise: string } | undefined,
+): string[] => {
+  if (correlation === undefined || !new Decimal(correlation.maxPairwise).gt(0)) return [];
+  const inShortlist = new Set(shortlist);
+  return autoSymbols.filter((s) => !inShortlist.has(s));
 };
 
 /**
@@ -313,11 +335,11 @@ export const runDiscoveryForProfile = async (
     priceBySymbol[t.symbol] = t.lastPrice;
   }
   const shortlist = shortlistByTicker(tickers, cfg);
+  const shortlistSet = new Set(shortlist);
   const rotatableSymbols = await port.listRotatableSymbols();
   const pinnedSymbols = await port.listPinnedSymbols();
-  // Enough history to clear the age floor + feed ADX/EMA, capped at Binance's
-  // 1000-candle limit. getKlines reserves the flat klines weight (2).
-  const limit = Math.min(1000, cfg.minAgeDays * 24 + 50);
+  // getKlines reserves the flat klines weight (2).
+  const limit = klineWindowLimit(cfg);
   // Bound the expensive per-symbol kline walk to held symbols + top candidates.
   const klineTargets = selectKlineTargets(shortlist, rotatableSymbols, cfg.maxAutoSymbols);
   // Fetch klines concurrently, bounded. `fail-fast` preserves the serial loop's
@@ -330,8 +352,17 @@ export const runDiscoveryForProfile = async (
     async (symbol) => [symbol, await port.getKlines(symbol, limit)] as const,
     { concurrency: KLINE_CONCURRENCY, onError: 'fail-fast' },
   );
+  // Correlation peers only, fail-open: see `correlationPeerTargets`.
+  const peerResults = await fanOutBounded(
+    correlationPeerTargets(shortlist, rotatableSymbols, cfg.correlation),
+    async (symbol) => [symbol, await port.getKlines(symbol, limit)] as const,
+    { concurrency: KLINE_CONCURRENCY, onError: 'collect' },
+  );
   const klinesBySymbol: Record<string, readonly Candle[]> = Object.fromEntries(
-    klineResults.ok.map(([symbol, window]) => [symbol, dropFormingCandle(window, nowMs)]),
+    [...klineResults.ok, ...peerResults.ok].map(([symbol, window]) => [
+      symbol,
+      dropFormingCandle(window, nowMs),
+    ]),
   );
   const addedAt = await port.addedAtBySymbol();
   // Include the added-at-hash symbols in the flatten lookup so the membership-loss
@@ -353,21 +384,50 @@ export const runDiscoveryForProfile = async (
     config: cfg,
     nowMs,
   };
-  // Account-level exclusivity. Resolve sibling conflicts only for the symbols the
-  // cycle would actually add, then re-derive the explain so the diff the add-loop
-  // applies and the dispositions the dashboard shows stay one truth. The common
-  // case (no conflict) reuses the first pass; the second pass is pure CPU and runs
-  // only when a candidate collides with a sibling on the shared wallet.
-  const raw = explainDiscovery(explainInput);
+  // Two facts only I/O can answer feed back into the slot math, so they are resolved before anything is applied and the explain re-derived until stable:
+  // - a proposed add a sibling profile on the shared wallet blocks is skipped, and its slot passes to the next-ranked candidate;
+  // - a proposed removal the wallet guard will refuse stays bound, so it keeps its slot instead of freeing one that never empties (which let the bound set exceed `maxAutoSymbols`). It counts even when the balance is not a tracked position (a fee float, dust above the order minimum): the binding is real and keeps ticking, so the cap has to count it; the `faded-held` row and the `wallet-held` counter name it.
+  // Each pass can only grow one of the two sets and each symbol is asked once, so the loop ends within the candidate count. The common case (no conflict, nothing held) is a single pass.
+  // Every outcome present at zero, so a cycle that refused nothing still says so explicitly. The caller logs this map whole, and a sparse one would make "never happened" and "not tracked" the same absent key.
+  const reapOutcomes: Record<DiscoveryReapOutcome, number> = Object.fromEntries(
+    DISCOVERY_REAP_OUTCOMES.map((outcome) => [outcome, 0]),
+  ) as Record<DiscoveryReapOutcome, number>;
   const siblingConflictBySymbol = new Map<string, SiblingConflictDisposition>();
-  for (const symbol of raw.diff.add) {
-    const kind = await port.siblingConflict(symbol);
-    if (kind !== null) siblingConflictBySymbol.set(symbol, kind);
+  const reapRefusalBySymbol = new Map<string, 'wallet-held' | 'hold-unproven'>();
+  const askedSibling = new Set<string>();
+  const askedReap = new Set<string>();
+  let explained = explainDiscovery(explainInput);
+  for (;;) {
+    let changed = false;
+    for (const symbol of explained.diff.add) {
+      if (askedSibling.has(symbol)) continue;
+      askedSibling.add(symbol);
+      const kind = await port.siblingConflict(symbol);
+      if (kind !== null) {
+        siblingConflictBySymbol.set(symbol, kind);
+        changed = true;
+      }
+    }
+    for (const symbol of explained.diff.remove) {
+      if (askedReap.has(symbol)) continue;
+      askedReap.add(symbol);
+      const refusal = await reapRefusal(port, symbol, priceBySymbol[symbol] ?? null);
+      if (refusal !== null) {
+        reapRefusalBySymbol.set(symbol, refusal);
+        // Recorded the instant it is decided (see `recordReapOutcome`): a later failure in this cycle must not erase a refusal already made. Counted, not silently skipped, because its two cases are opposite facts: `wallet-held` is a balance held on evidence, `hold-unproven` is one nothing could establish either way, and an uncounted refusal makes a profile whose credentials stopped working look like one with nothing to rotate.
+        reapOutcomes[refusal] += 1;
+        port.recordReapOutcome(refusal);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+    explained = explainDiscovery(
+      explainInput,
+      siblingConflictBySymbol,
+      new Set(reapRefusalBySymbol.keys()),
+    );
   }
-  const { diff, candidates } =
-    siblingConflictBySymbol.size === 0
-      ? raw
-      : explainDiscovery(explainInput, siblingConflictBySymbol);
+  const { diff, candidates } = explained;
   // Persist the universe breakdown every cycle (even a no-op one) so the
   // dashboard always shows the latest scan, not just cycles that rotated.
   await port.persistExplain(candidates, nowMs);
@@ -393,14 +453,10 @@ export const runDiscoveryForProfile = async (
       diff,
       marketBreadthOk(tickers, cfg),
       tickerStageCounts(tickers, cfg),
-      // Only the candidates that actually got a window, the same expression the
-      // live re-probe uses. `candidates` is the shortlist UNION the held auto
-      // set, while `selectKlineTargets` walks the shortlist and caps non-held
-      // entries — so a held symbol that fell out of the shortlist, and anything
-      // past the cap, is a candidate that was never fetched. Counting those as
-      // probed inflates the ladder's own denominator, and `largestDrop` then
-      // charges the whole gap to the age cut below it.
-      candidates.filter((c) => Object.hasOwn(klinesBySymbol, c.symbol)).length,
+      // Only the shortlisted candidates that actually got a window, the same expression the live re-probe uses. `candidates` is the shortlist UNION the held auto set: a held symbol outside the shortlist is at most a correlation peer and never runs the age/trend stages, and anything past the candidate cap was never fetched. Counting either as probed inflates the ladder's own denominator, and `largestDrop` then charges the whole gap to the age cut below it.
+      candidates.filter(
+        (c) => shortlistSet.has(c.symbol) && Object.hasOwn(klinesBySymbol, c.symbol),
+      ).length,
     ),
     configDigest: {
       quoteAsset: cfg.quoteAsset,
@@ -440,13 +496,20 @@ export const runDiscoveryForProfile = async (
 
   let added = 0;
   let removed = 0;
-  // Every outcome present at zero, so a cycle that refused nothing still says so explicitly. The caller logs this map whole, and a sparse one would make "never happened" and "not tracked" the same absent key.
-  const reapOutcomes: Record<DiscoveryReapOutcome, number> = Object.fromEntries(
-    DISCOVERY_REAP_OUTCOMES.map((outcome) => [outcome, 0]),
-  ) as Record<DiscoveryReapOutcome, number>;
+  // Removals run before adds so the wallet verdict that cleared them is as fresh as possible: a faded symbol still ticks, and a buy that fills after the verdict but before the reap is the un-adopted fill the wallet guard exists for, which the repo's flat-guard alone cannot see.
+  for (const symbol of diff.remove) {
+    const outcome = await port.reapSymbol(symbol, nowMs);
+    reapOutcomes[outcome] += 1;
+    port.recordReapOutcome(outcome);
+    if (outcome === 'removed') {
+      await port.emit(symbol, 'remove');
+      await port.notify('removed', symbol);
+      removed += 1;
+    }
+  }
   for (const symbol of diff.add) {
-    // `diff.add` already excludes sibling-conflicted symbols (subtracted in the
-    // explain above), so every symbol here is free to bind to this profile.
+    // `diff.add` already excludes sibling-conflicted symbols (skipped in the add
+    // loop above), so every symbol here is free to bind to this profile.
     const result = await port.addSymbol(symbol, nowMs);
     if (result.outcome === 'created') {
       await port.emit(symbol, 'add');
@@ -458,44 +521,6 @@ export const runDiscoveryForProfile = async (
       added += 1;
     }
     // 'existing' → already bound; emit nothing, count nothing.
-  }
-  for (const symbol of diff.remove) {
-    // Authoritative held check against the exchange wallet, not just the local
-    // ledger. Fill adoption can lag a real buy (missed user-stream fill), so a
-    // symbol the wallet still holds must never be unsubscribed — that orphans a
-    // live, unmanaged position. `null` (balance unreadable) is treated as held:
-    // refuse to abandon when we cannot prove the symbol is flat.
-    // A balance alone is not that missed fill, though, and reading it as one pins the slot for the life of the account. Two questions narrow it to the fill this guard is actually about, and each disarms only itself: the guard's own value bound drops a balance the exchange would refuse to sell at all, and the never-traded check below drops one belonging to a symbol this profile never ordered and the account never filled on Binance.
-    const held = await port.heldOnExchange(symbol, priceBySymbol[symbol] ?? null);
-    if (held !== false) {
-      // The wallet says something, but the wallet is the ACCOUNT's and the guard's premise is about this PROFILE: only an unadopted fill of ours justifies keeping a symbol we have been told to drop. Asked only on the refusing path, so the ordinary reap still costs one query, and asked of the same profile scope the reap itself runs under.
-      //
-      // Asked ONLY of a `true` verdict, never of a `null` one. This arm may overrule a wallet verdict; it may not substitute for one that was never reached. Deferring instead costs one cycle: an unreadable wallet is transient by nature, and the next cycle reaps on a real verdict.
-      //
-      // An empty ledger alone is not proof the balance is foreign: a placement left `ambiguous` writes no `orders` row and its fill is never adopted (see `everTradedOnExchange`). So the override also needs Binance to report no fill on the symbol, asked only after the ledger says no so the signed call is spent on this rare arm alone.
-      const everTraded = held === true ? await port.everPlacedOrder(symbol) : null;
-      const exchangeTraded = everTraded === false ? await port.everTradedOnExchange(symbol) : null;
-      if (everTraded !== false || exchangeTraded !== false) {
-        // Counted, not silently skipped. This guard refuses more rotations than the repo's does, and its two cases are opposite facts: `true` is a position held on evidence, `null` is a position nothing could establish either way. Left as a bare `continue`, a profile whose credentials had stopped working simply stopped rotating, indistinguishably from one with nothing to rotate.
-        const walletOutcome = held === true ? 'wallet-held' : 'hold-unproven';
-        reapOutcomes[walletOutcome] += 1;
-        port.recordReapOutcome(walletOutcome);
-        continue;
-      }
-      // Never traded here, so the balance is not ours to protect. Logged rather than counted: the attempt's verdict is still whatever `reapSymbol` returns below, and a second tally entry for one attempt would make the outcome counts stop summing to the attempts. `removeUnpinnedIfFlat` remains the backstop: it refuses atomically on an open order or a positive tracked quantity.
-      port.logger.info(
-        { symbol },
-        'cron discovery: wallet holds this coin but the profile never ordered it and the account never traded it; reaping',
-      );
-    }
-    const outcome = await port.reapSymbol(symbol, nowMs);
-    reapOutcomes[outcome] += 1;
-    port.recordReapOutcome(outcome);
-    if (outcome === 'removed') {
-      await port.emit(symbol, 'remove');
-      await port.notify('removed', symbol);
-      removed += 1;
-    }
   }
   // Refresh the entry-hint for every desired symbol each cycle, not just on add.
   // This re-stamps a FRESH 24h high so a long-held discovery symbol's
@@ -521,4 +546,36 @@ export const runDiscoveryForProfile = async (
   }
   if (added > 0 || removed > 0) await port.enqueueResync();
   return { added, removed, reapOutcomes };
+};
+
+/**
+ * Why the wallet guard refuses to unbind a symbol discovery proposed for removal, or null when the removal may proceed to the repo's flat-guard.
+ *
+ * Authoritative held check against the exchange wallet, not just the local ledger. Fill adoption can lag a real buy (missed user-stream fill), so a symbol the wallet still holds must never be unsubscribed — that orphans a live, unmanaged position. `null` (balance unreadable) is treated as held: refuse to abandon when we cannot prove the symbol is flat. A balance alone is not that missed fill, though, and reading it as one pins the slot for the life of the account. Two questions narrow it to the fill this guard is actually about, and each disarms only itself: the guard's own value bound drops a balance the exchange would refuse to sell at all, and the never-traded check drops one belonging to a symbol this profile never ordered and the account never filled on Binance.
+ *
+ * The ledger is asked ONLY of a `true` wallet verdict, never of a `null` one: it may overrule a wallet verdict, not substitute for one that was never reached, and an unreadable wallet is transient, so deferring costs one cycle. An empty ledger alone is not proof the balance is foreign — a placement left `ambiguous` writes no `orders` row — so the override also needs Binance to report no fill, asked only after the ledger says no so the signed call is spent on this rare arm alone.
+ *
+ * @param port - The cycle's I/O port; reads the wallet, the profile's order ledger and the account's exchange fills.
+ * @param symbol - The symbol proposed for removal.
+ * @param referencePrice - Latest price for the pair, valuing the balance against the order-value floor, or null when absent from the ticker feed.
+ * @returns `wallet-held` when a position is held on evidence, `hold-unproven` when the wallet could not be read, or null when the removal may proceed.
+ */
+const reapRefusal = async (
+  port: DiscoveryProfilePort,
+  symbol: string,
+  referencePrice: string | null,
+): Promise<'wallet-held' | 'hold-unproven' | null> => {
+  const held = await port.heldOnExchange(symbol, referencePrice);
+  if (held === false) return null;
+  const everTraded = held === true ? await port.everPlacedOrder(symbol) : null;
+  const exchangeTraded = everTraded === false ? await port.everTradedOnExchange(symbol) : null;
+  if (everTraded !== false || exchangeTraded !== false) {
+    return held === true ? 'wallet-held' : 'hold-unproven';
+  }
+  // Never traded here, so the balance is not ours to protect. `removeUnpinnedIfFlat` remains the backstop: it refuses atomically on an open order or a positive tracked quantity.
+  port.logger.info(
+    { symbol },
+    'cron discovery: wallet holds this coin but the profile never ordered it and the account never traded it; reaping',
+  );
+  return null;
 };

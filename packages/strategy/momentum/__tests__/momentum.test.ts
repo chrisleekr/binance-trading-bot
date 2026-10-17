@@ -748,8 +748,8 @@ describe('momentum.tick — entry', () => {
   });
 
   it('clamps a percent-of-account entry to available free cash', () => {
-    // equity 1000 -> 50% desired = 500, but only 30 free cash -> spend 30.
-    // 30 / 14 = 2.142857 floored = 2.142.
+    // equity 1000 -> 50% desired = 500, but only 30 free cash -> spend 30 less the
+    // 0.5% fill cushion = 29.85. 29.85 / 14 = 2.132142 floored = 2.132.
     const out = momentum.tick(
       mkInput({
         closes: mkCandles(CROSS_UP),
@@ -760,7 +760,7 @@ describe('momentum.tick — entry', () => {
         deployedQuoteAcrossProfiles: '970',
       }),
     );
-    expect(out.decisions[0]).toMatchObject({ params: { quantity: '2.142' } });
+    expect(out.decisions[0]).toMatchObject({ params: { quantity: '2.132' } });
   });
 
   it('downsizes a fixed entry to fit the reserve cap headroom', () => {
