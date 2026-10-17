@@ -24,3 +24,23 @@ export function balanceUsdValue(balance: AssetBalance): number | null {
 export function totalUsdValue(balances: readonly AssetBalance[]): number {
   return balances.reduce((sum, b) => sum + (balanceUsdValue(b) ?? 0), 0);
 }
+
+/**
+ * Whether a balance row holds nothing, free or locked.
+ *
+ * @param balance - One wallet balance row.
+ * @returns True when both free and locked are zero.
+ */
+export function isZeroBalance(balance: AssetBalance): boolean {
+  return Number(balance.free) === 0 && Number(balance.locked) === 0;
+}
+
+/**
+ * How many held coins {@link totalUsdValue} leaves out for want of a price, so every surface showing that total can say it is partial.
+ *
+ * @param balances - The wallet's balance rows.
+ * @returns The count of non-zero balances with no usable price.
+ */
+export function unpricedNonZeroCount(balances: readonly AssetBalance[]): number {
+  return balances.filter((b) => !isZeroBalance(b) && balanceUsdValue(b) === null).length;
+}

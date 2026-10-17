@@ -194,7 +194,11 @@ describe('BacktestResultSchema', () => {
       ],
       perSymbol: [{ symbol: 'BTCUSDT', tradeCount: 3, pnlQuote: '100' }],
     };
-    expect(BacktestResultSchema.safeParse(result).success).toBe(true);
+    const parsed = BacktestResultSchema.safeParse(result);
+    expect(parsed.success).toBe(true);
+    // A run stored before modelNotes shipped carries neither list; both default empty so the gate and the banner read it as clean.
+    expect(parsed.data?.modelNotes).toEqual([]);
+    expect(parsed.data?.dataWarnings).toEqual([]);
   });
 
   it('allows nullable profitFactor / drawdown bounds for a zero-trade run', () => {

@@ -25,6 +25,7 @@ import { type CandleInterval } from '@/features/symbol/api/symbol';
 import { type StrategyView } from '@/features/symbol/strategies/types';
 
 import { isHeldPosition, type CandleList, type SymbolStateResponse } from '@app/contracts';
+import type { PreviewModel } from '@app/strategy-core';
 
 export function WorkspaceTradeTab({
   profileId,
@@ -39,6 +40,7 @@ export function WorkspaceTradeTab({
   state,
   stateLoading,
   currentPrice,
+  previewModel,
   view,
   operatorActions,
   onSymbolWiped,
@@ -55,6 +57,8 @@ export function WorkspaceTradeTab({
   state: SymbolStateResponse | undefined;
   stateLoading: boolean;
   currentPrice: string | null;
+  /** The strategy's projected levels, handed to the Signal panel so it can say what the bot is waiting for. */
+  previewModel: PreviewModel;
   view: StrategyView;
   operatorActions: ReadonlySet<string>;
   /** Navigate away after "stop tracking" wipes the symbol. */
@@ -90,6 +94,7 @@ export function WorkspaceTradeTab({
                 symbol={symbol}
                 state={state}
                 currentPrice={currentPrice}
+                previewModel={previewModel}
               />
             </Card>
           ) : null}

@@ -755,15 +755,19 @@ export function TradeArchivePanel({ profileId }: { profileId: string }): React.J
                       {row.pnl.available ? (
                         <>
                           <PnlValue value={row.pnl.pnl} unit={row.quoteAsset} />
-                          {/* Abbreviated because it sits in a numeric table column, but still a word rather than a tint: `title` carries the full sentence for anyone who stops on it, and a screen reader reads the abbreviation aloud instead of skipping a colour. */}
+                          {/* Abbreviated because it sits in a numeric table column, but still a word rather than a tint: `title` carries the full sentence for anyone who stops on it, a screen reader hears `estimated` in full instead of skipping a colour, and the real space before it keeps copied text from reading `USDTest`. */}
                           {row.pnl.estimated ? (
-                            <span
-                              className="ml-1 text-[11px] text-muted-fg"
-                              title="A commission in this total was reconstructed from Binance's rate table rather than the charge it reported."
-                              data-testid={`archive-pnl-estimated-${row.id}`}
-                            >
-                              est
-                            </span>
+                            <>
+                              {' '}
+                              <span
+                                className="text-[11px] text-muted-fg"
+                                title="A commission in this total was reconstructed from Binance's rate table rather than the charge it reported."
+                                data-testid={`archive-pnl-estimated-${row.id}`}
+                              >
+                                <span aria-hidden="true">est.</span>
+                                <span className="sr-only">estimated</span>
+                              </span>
+                            </>
                           ) : null}
                         </>
                       ) : (

@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/shared/components/ui/table';
-import { formatHoldDuration, formatPercent } from '@/shared/lib/format';
+import { formatHoldDuration } from '@/shared/lib/format';
 import { expectancy, formatExpectancy, winPct } from '@/shared/lib/rollup-stats';
 import {
   bucketPnl,
@@ -275,7 +275,7 @@ export function EdgeGrid<B extends EdgeBucket, V extends string>({
                     {b.tradeCount}
                   </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
-                    {b.netTradeCount === 0 ? withheld() : formatPercent(winPct(b))}
+                    {b.netTradeCount === 0 ? withheld() : `${winPct(b)}%`}
                   </TableCell>
                   <TableCell className="text-right font-mono tabular-nums">
                     {pnl === null ? (

@@ -12,6 +12,8 @@ The **Live gate** section is an **advisory** readiness check. It tells you wheth
     the dashboard, not a lock. You can go live with a failing or absent check — the gate
     just tells you whether the config has proven itself first.
 
+The top of the page states where the profile stands in plain words: whether its config cleared the backtest check (and, if not, which checks fell short), and which trades are being compared with which pinned backtest run.
+
 Unlike the strategy and risk sections, this panel is hand-built, so the fields below are listed by hand rather than generated. Labels and help are quoted from the panel.
 
 ## Backtest quality check
@@ -36,6 +38,8 @@ Rarely touched — trade-count, alpha, out-of-sample, age, and the live edge-dec
 ## Edge-decay monitor (while live)
 
 The bars above gate the _quality signal_ before going live; this keeps watching **after** you are live. It compares the profile's live profit factor against its pinned backtest baseline. The bot **never pauses buys** for edge decay — at most it flags the dashboard and sends a heads-up.
+
+Only trades recorded **since you pinned the baseline** count; a trade counts from when the bot recorded it, not when the exchange closed it. After changing the strategy or its settings, pin a backtest of the new config so its results are not judged by the old config's trades. A baseline pinned before pin times were recorded still uses every recorded trade until you pin it again.
 
 | Field | Default | What it does |
 | --- | --- | --- |

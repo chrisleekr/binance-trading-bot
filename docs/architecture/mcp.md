@@ -10,7 +10,7 @@ Every mounted `/api` route lands in exactly one of three buckets, and a test ass
 
 | Bucket | Meaning |
 | --- | --- |
-| `MCP_TOOLS` | 34 read tools on `mcp:read`, 34 write tools on `mcp:trade`. |
+| `MCP_TOOLS` | 34 read tools on `mcp:read`, 35 write tools on `mcp:trade`. |
 | `NO_TOOL_DENIED` | A tool here is a bug. Backup, backup config and restore, retention changes, account mutation, credential writes, the AI-provider test call, profile delete, trade-archive delete, notifier writes and every auth route. |
 | `NO_TOOL_NOT_SURFACED` | Safe but not worth the model's context. Exports, pin and unpin, operator-console reads. Promoting one is a one-line move. |
 
@@ -67,6 +67,7 @@ What differs from a browser request:
 - **Mode echo.** Every account-scoped result carries the resolved `binanceMode`. Testnet and live accounts share the same tables and the same tools, so without it a wrong-`accountId` call is silent.
 - **Symbols must be bound.** The order routes answer 404 for a symbol not bound to the profile (`assertSymbolBound` in `apps/api/src/lib/manual-orders.ts`), because binding is where the tradability and shared-wallet checks run. The browser only offers bound symbols; an agent can pass any string, so this check is what stops it.
 - **Notification.** Every completed `mcp:trade` call enqueues a `notify-agent-action` pipeline job. The api cannot send a notification itself; the worker's `dispatchNotify` is the only production chokepoint and also carries the live-demo kill switch. Mute the `agent-action` category in ops-notify settings to silence it — the action still runs.
+- **Baseline pins move the edge-decay window.** `set_backtest_baseline` places no order, but it can restart or turn off the edge-decay monitor's comparison: unpinning clears it, and pinning another run restarts the window at trades recorded from that moment. Like every `mcp:trade` write, each completed call notifies the operator.
 
 ### A tool argument is only real if its route takes it
 

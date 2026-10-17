@@ -9,6 +9,7 @@
 // from importing strategy packages, and these modules import types only.
 
 import type { SymbolStateResponse } from '@app/contracts';
+import type { PreviewModel } from '@app/strategy-core';
 
 export interface StrategyViewProps {
   readonly profileId: string;
@@ -16,6 +17,8 @@ export interface StrategyViewProps {
   readonly state: SymbolStateResponse;
   /** Latest close from the candle feed, or null before candles load. */
   readonly currentPrice: string | null;
+  /** The strategy's projected levels (the same model the chart's price lines come from), so a view can say in words what the bot is waiting for. Absent where the caller has none, e.g. the orders tab's side panel. */
+  readonly previewModel?: PreviewModel | undefined;
 }
 
 export interface StrategyView {

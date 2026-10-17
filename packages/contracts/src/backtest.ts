@@ -441,12 +441,12 @@ export const BacktestResultSchema = z.object({
   // stored JSONB result has no decisionBreakdown). Factory form so each parse
   // gets fresh arrays rather than sharing one mutable instance across results.
   decisionBreakdown: DecisionBreakdownSchema.default(() => ({ metrics: [], logs: [] })),
-  // Per-symbol data-quality warnings: a symbol whose candle coverage falls short
-  // of the requested range (delisting, halt, thin liquidity) makes its results
-  // unreliable, and a basket backtest silently survivor-biases toward the
-  // symbols that did trade the whole window. Surfaced, not silently dropped.
+  // Per-symbol data-quality warnings: a symbol whose candle coverage falls short of the requested range (delisting, halt, thin liquidity) makes its results unreliable, and a basket backtest silently survivor-biases toward the symbols that did trade the whole window. Surfaced, not silently dropped.
+  // Also carries order-feasibility findings: a config whose orders the exchange would refuse never places most of its buys, so its metrics are equally void.
   // Factory default keeps runs persisted before this field shipped parseable.
   dataWarnings: z.array(z.string()).default(() => []),
+  // How the replay was modeled where it departs from live: fills inside one bar assumed favourably, a within-candle exit not replayed, an unset spread or volume cap. These are honest caveats about the simulation, not missing data, so they sit apart from `dataWarnings`: the live gate fails a run on any `dataWarnings` entry, and mixing these in failed almost every run on "data coverage". Runs stored before this field shipped keep such caveats inside `dataWarnings` and default this to empty.
+  modelNotes: z.array(z.string()).default(() => []),
   // Performance split by market regime. Defaulted so runs persisted before this
   // field shipped still parse (empty = not computed / window too short to label).
   regimeBreakdown: z.array(RegimeSegmentSchema).default(() => []),

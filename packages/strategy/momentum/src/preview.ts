@@ -145,14 +145,15 @@ export const momentumPreviewLevels = (
       tone: 'trail',
       price: stopBase.toString(),
       triggerWhen: 'below',
-      chartLine: true,
+      // Flat, this is where the stop WOULD start after a buy: a chart line there reads as a live stop on a position that does not exist and crowds out the entry line.
+      ...(flat ? {} : { chartLine: true as const }),
     });
   }
 
   const sections: PreviewSection[] =
     entryRows.length > 0 ? [{ title: 'Entry', rows: entryRows }] : [];
 
-  const protectiveRow = buildProtectiveStopRow(input, stopBase);
+  const protectiveRow = buildProtectiveStopRow(input, stopBase, flat);
   const trendRow = buildTrendRow(config, candles);
   const extensionRow = buildExtensionRow(config, candles);
   const exitRows: PreviewRow[] = [];
@@ -232,9 +233,18 @@ const primaryNativeTrailNote = (
     : nativeTrailDistanceSentence(delta);
 };
 
+/**
+ * The exit-section row for the exchange-resting protective stop, shaped like the order the arm would actually send: a sentence for a trailing order that has no fixed trigger, a priced row otherwise.
+ *
+ * @param input - The preview input; its config's `protectiveStop` block and the symbol's trailing-delta filter decide which form the order takes.
+ * @param stopBase - The resolved stop trigger level, measured from the held position or, when flat, from the projected entry band; `null` when no level resolves.
+ * @param flat - True when no position is held; the row then omits `chartLine` because no stop rests yet, so a chart line would read as a live stop on a position that does not exist.
+ * @returns The row, or `null` when the protective stop is off, no stop level resolves, or the limit offset is unparseable or outside (0, 1).
+ */
 const buildProtectiveStopRow = (
   input: PreviewInput<MomentumConfig, MomentumState>,
   stopBase: Decimal | null,
+  flat: boolean,
 ): PreviewRow | null => {
   const ps = (input.config as { protectiveStop?: RawProtectiveStop }).protectiveStop;
   if (ps?.enabled !== true) return null;
@@ -303,7 +313,8 @@ const buildProtectiveStopRow = (
     price: stopBase.toString(),
     limitPrice: limit.toString(),
     triggerWhen: 'below',
-    chartLine: true,
+    // Same reason as the trail row: no resting stop exists while flat, so the level is panel-only.
+    ...(flat ? {} : { chartLine: true as const }),
   };
 };
 

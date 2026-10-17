@@ -78,6 +78,7 @@ const GATED_RESULT: BacktestResult = {
     ],
   },
   dataWarnings: [],
+  modelNotes: [],
   regimeBreakdown: [],
   outOfSample: null,
 };

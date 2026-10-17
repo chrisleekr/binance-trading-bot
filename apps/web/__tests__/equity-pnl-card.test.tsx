@@ -81,9 +81,19 @@ describe('EquityPnlCard benchmark selector', () => {
   });
 
   it('marks the headline when the plotted window rests on an unaccounted charge', async () => {
-    // The point is no longer withheld server-side, so this marker is the ONLY thing standing between a curve built on a total known to be short and a reader taking it as a certified Net P/L. It reuses the archive rollup's wording so the two surfaces mean the same thing by the same phrase.
+    // The point is no longer withheld server-side, so this marker is the ONLY thing standing between a curve built on a total known to be short and a reader taking it as a certified Net P/L. It says which way the error runs, because "fees not accounted" under a Net label read as the chart ignoring fees altogether.
     renderCard('btc', 'unknown');
-    expect(await screen.findByTestId('equity-fee-basis')).toHaveTextContent('fees not accounted');
+    expect(await screen.findByTestId('equity-fee-basis')).toHaveTextContent(
+      'some fees missing, so real profit is lower than shown',
+    );
+  });
+
+  it('marks a reconstructed commission as estimated, not as missing', async () => {
+    // An estimated charge is valued, so the missing-fees note would overstate the gap.
+    renderCard('btc', 'estimated');
+    const note = await screen.findByTestId('equity-fee-basis');
+    expect(note).toHaveTextContent('some fees estimated');
+    expect(note).not.toHaveTextContent('some fees missing');
   });
 
   it('leaves the headline unmarked when every plotted point is exact', async () => {

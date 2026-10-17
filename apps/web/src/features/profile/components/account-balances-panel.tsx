@@ -23,7 +23,12 @@ import {
   toFinite,
   unrealisedPnlOf,
 } from '@/features/profile/lib/unrealised-pnl';
-import { balanceUsdValue, totalUsdValue } from '@/features/profile/lib/balance-value';
+import {
+  balanceUsdValue,
+  isZeroBalance,
+  totalUsdValue,
+  unpricedNonZeroCount,
+} from '@/features/profile/lib/balance-value';
 import { PnlPercent, PnlValue } from '@/shared/components/pnl-value';
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
@@ -138,10 +143,6 @@ function BalanceRow({
   );
 }
 
-function isZero(balance: AssetBalance): boolean {
-  return Number(balance.free) === 0 && Number(balance.locked) === 0;
-}
-
 /**
  * Full-wallet balances card for the profile-detail page. Search filters by asset symbol; the hide-zero toggle drops empty assets by default; the sort select orders by estimated quote-asset value or asset name; and the fixed-height list keeps the card bounded.
  *
@@ -179,15 +180,12 @@ export function AccountBalancesPanel({
   // Operator-facing honesty: the estimate silently drops every asset with no
   // price. Counting them here lets the panel disclose how many non-zero
   // balances aren't reflected in the total.
-  const unpricedNonZero = useMemo(
-    () => balances.filter((b) => !isZero(b) && balanceUsdValue(b) === null).length,
-    [balances],
-  );
+  const unpricedNonZero = useMemo(() => unpricedNonZeroCount(balances), [balances]);
 
   const visible = useMemo(() => {
     const query = search.trim().toUpperCase();
     const rows = balances
-      .filter((b) => !hideZero || !isZero(b))
+      .filter((b) => !hideZero || !isZeroBalance(b))
       .filter((b) => query === '' || b.asset.toUpperCase().includes(query));
     return rows.slice().sort((a, b) => {
       if (sort === 'asset') return a.asset.localeCompare(b.asset);

@@ -106,6 +106,82 @@ describe('<PositionsOrdersPanel>', () => {
     expect(order).toHaveTextContent('120');
   });
 
+  it('describes a protective stop by where it fires, in words', async () => {
+    useSymbolRows.mockReturnValue(
+      merged([
+        row(
+          sym({
+            symbol: 'BTCUSDT',
+            avgEntryPrice: '82865.76',
+            currentPrice: '82867.00',
+            quantity: '0.00146',
+            openOrders: [
+              {
+                id: 'o-stop',
+                symbol: 'BTCUSDT',
+                side: 'SELL',
+                intent: 'protective-stop',
+                raw: {
+                  origQty: '0.00146',
+                  price: '80235.15',
+                  stopPrice: '81872.61',
+                  type: 'STOP_LOSS_LIMIT',
+                },
+              },
+            ],
+          }),
+        ),
+      ]),
+    );
+    await renderPanel();
+    const order = screen.getByTestId('money-order-o-stop');
+    // The trigger, not the limit leg the Price column would show.
+    expect(order).toHaveTextContent(
+      'Stop-loss sells 0.00146 if price falls to 81,872.61 (1.20% below now)',
+    );
+    expect(order).not.toHaveTextContent('80,235.15');
+  });
+
+  it.each([
+    {
+      name: 'a stop-limit names the limit its sell rests at',
+      raw: {
+        origQty: '0.00146',
+        price: '80235.15',
+        stopPrice: '81872.61',
+        type: 'STOP_LOSS_LIMIT',
+      },
+      text: 'Stop-loss triggered at 81,872.61; its sell is resting at 80,235.15 and may not fill if price keeps falling.',
+    },
+    {
+      name: 'a market stop says it sells at market',
+      raw: { origQty: '0.00146', price: '0', stopPrice: '81872.61', type: 'STOP_LOSS' },
+      text: 'Stop-loss triggered at 81,872.61; its sell goes out at market.',
+    },
+  ])('says a stop has triggered once price is at or below it: $name', async ({ raw, text }) => {
+    // Price at the trigger exactly: the stop has fired, so "sells if price falls to" would promise an exit a falling price can skip past.
+    useSymbolRows.mockReturnValue(
+      merged([
+        row(
+          sym({
+            symbol: 'BTCUSDT',
+            avgEntryPrice: '82865.76',
+            currentPrice: '81872.61',
+            quantity: '0.00146',
+            openOrders: [
+              { id: 'o-stop', symbol: 'BTCUSDT', side: 'SELL', intent: 'protective-stop', raw },
+            ],
+          }),
+        ),
+      ]),
+    );
+    await renderPanel();
+    const order = screen.getByTestId('money-order-o-stop');
+    expect(order).toHaveTextContent(text);
+    expect(order).not.toHaveTextContent('if price falls to');
+    expect(within(order).getByText('Stop-loss triggered')).toHaveClass('text-warning');
+  });
+
   it('omits a refused position seed while still listing its resting order', async () => {
     // "Your money now" means positions the strategy is actually running. The cost-basis row survives a refused seed by design and carries both an entry price and a quantity, so an unfiltered panel lists it here and prices it — a gain on something that will never be sold, beside the real ones. The order is the control: it is a live order on the exchange either way, so its presence proves the row reached the panel and only the POSITION was withheld.
     useSymbolRows.mockReturnValue(

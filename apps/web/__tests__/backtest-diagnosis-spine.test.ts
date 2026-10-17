@@ -46,6 +46,7 @@ const baseResult = (over: Partial<BacktestResult>): BacktestResult =>
     perSymbol: [],
     decisionBreakdown: { metrics: [], logs: [] },
     dataWarnings: [],
+    modelNotes: [],
     regimeBreakdown: [],
     outOfSample: null,
     ...over,

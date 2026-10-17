@@ -177,7 +177,11 @@ describe('<TradeArchivePanel> below the md breakpoint', () => {
     expect(screen.getByTestId('archive-card-profit-arch-win')).toHaveTextContent('9.00');
 
     // The caveat has to reach the PHONE, which is the whole point of this renderer: a mark only the desktop table carries is a mark most sessions never see. The `exact` row beside it anchors the negative, so a marker rendered on every row fails here too.
-    expect(screen.getByTestId('archive-card-pnl-estimated-arch-est')).toHaveTextContent('est');
+    const cardEstimated = screen.getByTestId('archive-card-pnl-estimated-arch-est');
+    // Visible `est.` for the eye, `estimated` for a screen reader, and a real space before it so the figure never reads `USDTest`.
+    expect(within(cardEstimated).getByText('est.')).toHaveAttribute('aria-hidden', 'true');
+    expect(within(cardEstimated).getByText('estimated')).toHaveClass('sr-only');
+    expect(screen.getByTestId('archive-card-arch-est').textContent).toMatch(/USDT est\./);
     expect(screen.queryByTestId('archive-card-pnl-estimated-arch-win')).not.toBeInTheDocument();
 
     const loss = screen.getByTestId('archive-card-arch-loss');

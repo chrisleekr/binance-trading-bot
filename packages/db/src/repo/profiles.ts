@@ -157,6 +157,7 @@ export async function update(
       | 'quoteAsset'
       | 'benchmarkMode'
       | 'baselineBacktestRunId'
+      | 'baselinePinnedAt'
       | 'enablementPolicy'
       | 'notifyEvents'
     >

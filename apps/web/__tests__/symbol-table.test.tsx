@@ -127,6 +127,36 @@ const renderTable = (
 
 afterEach(() => vi.unstubAllGlobals());
 
+const stopOrder = {
+  id: '00000000-0000-4000-8000-0000000000f1',
+  symbol: 'BTCUSDT',
+  side: 'SELL',
+  intent: 'protective-stop',
+  binanceOrderId: '1',
+  clientOrderId: 'c1',
+  status: 'NEW',
+  raw: {
+    type: 'STOP_LOSS_LIMIT',
+    origQty: '0.00146',
+    price: '80235.15',
+    stopPrice: '81872.61',
+  },
+  createdAt: '2026-06-04T00:00:00.000Z',
+  updatedAt: '2026-06-04T00:00:00.000Z',
+  closedAt: null,
+};
+
+/** One held BTCUSDT row with the protective stop resting, priced at `currentPrice`, plus any further open orders. */
+const heldWithStop = (currentPrice: string, extraOrders: unknown[] = []) =>
+  sym({
+    symbol: 'BTCUSDT',
+    avgEntryPrice: '82865.76',
+    currentPrice,
+    quantity: '0.00146',
+    openOrderCount: 1 + extraOrders.length,
+    openOrders: [stopOrder, ...extraOrders] as Sym['openOrders'],
+  });
+
 describe('<SymbolTable>', () => {
   it('flattens symbols across profiles into one sorted, clickable list', async () => {
     renderTable([row('pa', 'alpha'), row('pb', 'bravo')], (url) =>
@@ -150,6 +180,54 @@ describe('<SymbolTable>', () => {
     expect(screen.getByTestId('symbol-configure-pb-BTCUSDT')).toHaveAttribute(
       'href',
       `/accounts/${ACCOUNT_ID}/profiles/pb/symbols/BTCUSDT/config`,
+    );
+  });
+
+  it("names a held row's resting stop by its trigger, not a bare order count", async () => {
+    // A stop-limit carries two prices; `price` is the LIMIT, which sits below where it fires, so the column must read `stopPrice`.
+    renderTable([row('pa', 'alpha')], () =>
+      json(
+        dashboard([
+          sym({
+            symbol: 'BTCUSDT',
+            avgEntryPrice: '82865.76',
+            currentPrice: '82867.00',
+            quantity: '0.00146',
+            openOrderCount: 1,
+            openOrders: [stopOrder] as Sym['openOrders'],
+          }),
+        ]),
+      ),
+    );
+    const held = await screen.findByTestId('symbol-row-pa-BTCUSDT');
+    expect(held).toHaveTextContent('Stop 81,872.61 (-1.20%)');
+    expect(held).not.toHaveTextContent('80,235.15');
+    expect(within(held).queryByText(/1 order/)).not.toBeInTheDocument();
+    expect(within(held).getByTestId('symbol-row-orders')).not.toHaveClass('text-warning');
+  });
+
+  it('says a stop has triggered, in the warning colour, once price is at or below it', async () => {
+    // Price under the trigger means the stop-limit has fired and its sell may rest unfilled, so a distance like (+0.01%) would misread as "still waiting".
+    renderTable([row('pa', 'alpha')], () => json(dashboard([heldWithStop('81800.00')])));
+    const held = await screen.findByTestId('symbol-row-pa-BTCUSDT');
+    const orders = within(held).getByTestId('symbol-row-orders');
+    expect(orders).toHaveTextContent('Stop 81,872.61 triggered');
+    expect(orders).toHaveClass('text-warning');
+  });
+
+  it('counts the other resting orders beside the named stop', async () => {
+    const takeProfit = {
+      ...stopOrder,
+      id: '00000000-0000-4000-8000-0000000000f2',
+      intent: 'take-profit',
+      raw: { type: 'LIMIT', origQty: '0.00146', price: '90000' },
+    };
+    renderTable([row('pa', 'alpha')], () =>
+      json(dashboard([heldWithStop('82867.00', [takeProfit])])),
+    );
+    const held = await screen.findByTestId('symbol-row-pa-BTCUSDT');
+    expect(within(held).getByTestId('symbol-row-orders')).toHaveTextContent(
+      'Stop 81,872.61 (-1.20%) +1',
     );
   });
 

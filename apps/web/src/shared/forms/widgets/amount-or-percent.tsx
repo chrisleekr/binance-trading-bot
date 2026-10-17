@@ -5,7 +5,7 @@ import type { FormField } from '@app/contracts';
 
 import { Input } from '@/shared/components/ui/input';
 import { cn } from '@/shared/lib/cn';
-import { formatAmount } from '@/shared/lib/format';
+import { formatMoneyAmount } from '@/shared/lib/format';
 
 import { useFormEquity, type FormEquity } from '@/shared/forms/form-equity';
 import type { WidgetProps } from './types';
@@ -185,7 +185,7 @@ export function AmountOrPercentWidget({
                   className="text-xs font-medium text-fg"
                   data-testid={`amount-or-percent-${name}-preview`}
                 >
-                  ≈ {formatAmount(equityPreview.value)} {equityPreview.quoteAsset}
+                  ≈ {formatMoneyAmount(String(equityPreview.value))} {equityPreview.quoteAsset}
                 </p>
               ) : null}
             </>
@@ -202,7 +202,10 @@ export function AmountOrPercentWidget({
           {renderPercentPreview ? null : (
             <p className="text-xs text-muted-fg">
               % of account = your cash plus the value of coins you hold
-              {equity ? ` (${formatAmount(equity.equityQuote)} ${equity.quoteAsset} now)` : ''}.
+              {equity
+                ? ` (${formatMoneyAmount(String(equity.equityQuote))} ${equity.quoteAsset} now)`
+                : ''}
+              .
             </p>
           )}
         </div>

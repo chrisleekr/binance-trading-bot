@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { orderDisplayPrice, orderQty } from '../src/features/symbol/lib/order-raw.js';
+import {
+  distanceFromNow,
+  isStopTriggered,
+  orderDisplayPrice,
+  orderQty,
+  pctFromNow,
+  stopLimitPrice,
+  stopTriggerPrice,
+} from '../src/features/symbol/lib/order-raw.js';
 
 import type { OrderResponse } from '@app/contracts';
 
@@ -135,7 +143,7 @@ describe('orderDisplayPrice', () => {
   });
 
   it('handles sub-1 dust prices (e.g. SHIB) without dropping to bare MKT', () => {
-    // 2.8 / 100_000 = 2.8e-5 — sub-1 path uses up to 8 fraction digits.
+    // 2.8 / 100_000 = 2.8e-5. A sub-1 price keeps up to 8dp because exchange prices are tick-quantised and Binance quotes at most 8dp.
     const o = {
       ...base,
       status: 'FILLED',
@@ -147,5 +155,70 @@ describe('orderDisplayPrice', () => {
       },
     };
     expect(orderDisplayPrice(o)).toBe('MKT @ 0.000028');
+  });
+});
+
+describe('stopTriggerPrice', () => {
+  const stop = (raw: Record<string, unknown>, side: 'BUY' | 'SELL' = 'SELL'): OrderResponse => ({
+    ...base,
+    side,
+    intent: 'protective-stop',
+    raw,
+  });
+
+  it('reads the trigger of a stop-limit, not its limit leg', () => {
+    expect(
+      stopTriggerPrice(stop({ type: 'STOP_LOSS_LIMIT', price: '80235.15', stopPrice: '81872.61' })),
+    ).toBe('81872.61');
+  });
+
+  it('reads a fixed STOP_LOSS trigger', () => {
+    expect(stopTriggerPrice(stop({ type: 'STOP_LOSS', stopPrice: '90' }))).toBe('90');
+  });
+
+  it('returns null for an exchange trail, a buy stop, a zero trigger, and a plain limit', () => {
+    // A trail has no fixed trigger, and every caller words the result as "sells if price falls to".
+    expect(
+      stopTriggerPrice(stop({ type: 'STOP_LOSS', stopPrice: '90', trailingDelta: 100 })),
+    ).toBeNull();
+    expect(stopTriggerPrice(stop({ type: 'STOP_LOSS_LIMIT', stopPrice: '90' }, 'BUY'))).toBeNull();
+    expect(stopTriggerPrice(stop({ type: 'STOP_LOSS_LIMIT', stopPrice: '0.00000000' }))).toBeNull();
+    expect(stopTriggerPrice(stop({ type: 'LIMIT', price: '90', stopPrice: '90' }))).toBeNull();
+  });
+});
+
+describe('distance from now', () => {
+  it('says which side of the price a level is on', () => {
+    expect(distanceFromNow('99', '100')).toBe('1.00% below now');
+    expect(distanceFromNow('114', '100')).toBe('14.00% above now');
+    expect(pctFromNow('99', '100')).toBeCloseTo(-1);
+  });
+
+  it('returns null without a usable current price', () => {
+    expect(distanceFromNow('99', null)).toBeNull();
+    expect(distanceFromNow('99', '0')).toBeNull();
+    expect(pctFromNow('abc', '100')).toBeNull();
+  });
+});
+
+describe('triggered sell stop', () => {
+  it('reads triggered at or below the trigger, waiting above it, and undecided without a price', () => {
+    expect(isStopTriggered('100', '100')).toBe(true);
+    expect(isStopTriggered('100', '99.5')).toBe(true);
+    expect(isStopTriggered('100', '100.01')).toBe(false);
+    expect(isStopTriggered('100', null)).toBe(false);
+  });
+
+  it('names the limit only for a fixed-price sell stop-limit', () => {
+    const sell = { ...base, side: 'SELL' as const };
+    expect(
+      stopLimitPrice({ ...sell, raw: { type: 'STOP_LOSS_LIMIT', price: '95', stopPrice: '100' } }),
+    ).toBe('95');
+    expect(
+      stopLimitPrice({ ...sell, raw: { type: 'STOP_LOSS', price: '0', stopPrice: '100' } }),
+    ).toBeNull();
+    expect(
+      stopLimitPrice({ ...base, raw: { type: 'STOP_LOSS_LIMIT', price: '95', stopPrice: '100' } }),
+    ).toBeNull();
   });
 });

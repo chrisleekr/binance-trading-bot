@@ -24,7 +24,7 @@ import {
 import { Input } from '@/shared/components/ui/input';
 import { Label } from '@/shared/components/ui/label';
 import { errorMessage } from '@/shared/lib/api';
-import { formatAmount, formatBalanceAmount, formatMoneyAmount } from '@/shared/lib/format';
+import { formatAmount, formatBalanceAmount } from '@/shared/lib/format';
 import { fetchExchangeInfo } from '@/features/symbol/api/exchange-info';
 import {
   fetchProfileDashboard,
@@ -361,12 +361,8 @@ export function ManualTradePanel({ profileId, symbol }: SymbolTradePanelsProps):
                 className="font-mono text-fg"
                 title={`${formatBalance(availFree)}${availAsset ? ` ${availAsset}` : ''}`}
               >
-                {/* Cash (quote, BUY) reads as 2dp money; a base coin (SELL) keeps
-                    balance precision. Matches the price formatting elsewhere on
-                    the screen; full precision stays in the title. */}
-                {form.side === 'BUY'
-                  ? formatMoneyAmount(String(availFree))
-                  : formatBalanceAmount(String(availFree))}
+                {/* Available is what you can actually spend, so it keeps balance precision and never rounds up past the free amount. */}
+                {formatBalanceAmount(String(availFree))}
                 {availAsset ? ` ${availAsset}` : ''}
               </span>
             </span>

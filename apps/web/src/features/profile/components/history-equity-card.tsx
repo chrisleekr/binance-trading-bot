@@ -48,7 +48,9 @@ const CONFIG_EVENTS: readonly string[] = [
 const FEE_NOTE: Record<FeeBasis, string> = {
   exact: '',
   estimated: ' · fees partly estimated',
-  unknown: ' · fees not accounted',
+  // The tier spans the whole history, but the curve is rebased to the window start, so an older missing fee cancels out; the window may or may not be overstated.
+  unknown:
+    ' · a fee in this profile\u2019s history was never reported, so profit here may be lower than shown',
 };
 
 /** One operator action placed on the time axis. */

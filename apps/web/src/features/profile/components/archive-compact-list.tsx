@@ -93,15 +93,19 @@ export function ArchiveCompactList({
                         unit={row.quoteAsset}
                         testId={`archive-card-profit-${row.id}`}
                       />
-                      {/* The same caveat the table column carries, and it belongs here more than there: this is the renderer the operator actually reads at 375px, so a marker only the desktop table shows is a marker most sessions never see. A word rather than a tint, so a screen reader reads it aloud. */}
+                      {/* The same caveat the table column carries, and it belongs here more than there: this is the renderer the operator actually reads at 375px, so a marker only the desktop table shows is a marker most sessions never see. A word rather than a tint, after a real space so it never reads glued to the unit (`USDTest`), and spoken in full because `est.` is not a word a screen reader can expand. */}
                       {row.pnl.estimated ? (
-                        <span
-                          className="ml-1 text-[11px] text-muted-fg"
-                          title="A commission in this total was reconstructed from Binance's rate table rather than the charge it reported."
-                          data-testid={`archive-card-pnl-estimated-${row.id}`}
-                        >
-                          est
-                        </span>
+                        <>
+                          {' '}
+                          <span
+                            className="text-[11px] text-muted-fg"
+                            title="A commission in this total was reconstructed from Binance's rate table rather than the charge it reported."
+                            data-testid={`archive-card-pnl-estimated-${row.id}`}
+                          >
+                            <span aria-hidden="true">est.</span>
+                            <span className="sr-only">estimated</span>
+                          </span>
+                        </>
                       ) : null}
                     </>
                   ) : (

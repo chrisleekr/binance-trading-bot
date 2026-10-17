@@ -8,7 +8,44 @@ import { useTimezone } from '@/shared/context/timezone-context';
 import { mergeRollupBuckets } from '@/shared/lib/live-scorecard';
 
 /**
- * The live edge-decay verdict for one profile, computed with the same pure function the worker uses for its advisory notification. Returns null when the profile has no monitor policy or fee accounting is incomplete. Query keys match LiveVsBacktestCard's, so react-query dedupes the underlying fetches.
+ * The reads every live-vs-backtest surface is built from: the profile, the archive rollup over the comparison window, and the pinned baseline run. One hook, so the badge, the card and the gate page share one cache entry per read instead of three hand-spelled query keys that can drift apart and double a 60s poll.
+ *
+ * The window starts at the baseline's pin time when there is one, so trades recorded under an earlier config are not judged against a baseline pinned for the current one; without a pin time it is all time. The archive read waits for the profile, because firing it first would fetch the all-time window and then refetch the pinned one. That keeps the archive pending for as long as the profile is pending, and for good if the profile read fails, so a consumer must check `profile.isError` before `archive.isPending` and must not read an empty bucket or a null pin as fact until both have landed.
+ *
+ * @param profileId - Profile whose live archive and pinned baseline are read.
+ * @returns The three queries, plus the baseline run id and the window start (ISO, or null for all time) they were keyed on.
+ */
+export function useScorecardInputs(profileId: string) {
+  const timeZone = useTimezone();
+  const profile = useQuery({
+    queryKey: profileQueryKey(profileId),
+    queryFn: () => fetchProfile(profileId),
+  });
+  const baselineId = profile.data?.baselineBacktestRunId ?? null;
+  const pinnedAt = profile.data?.baselinePinnedAt ?? null;
+  const archive = useQuery({
+    queryKey: ['trade-archive', profileId, 'a', timeZone, 'rollup', 'scorecard', pinnedAt],
+    queryFn: () =>
+      fetchProfileArchive(profileId, {
+        period: 'a',
+        cursor: null,
+        tz: timeZone,
+        view: 'rollup',
+        from: pinnedAt ?? undefined,
+      }),
+    enabled: profile.data !== undefined,
+    refetchInterval: 60_000,
+  });
+  const baseline = useQuery({
+    queryKey: ['backtest', 'run', profileId, baselineId],
+    queryFn: () => fetchBacktestRun(profileId, baselineId as string),
+    enabled: baselineId !== null,
+  });
+  return { profile, archive, baseline, baselineId, pinnedAt };
+}
+
+/**
+ * The live edge-decay verdict for one profile, computed with the same pure function the worker uses for its advisory notification, over the same window (trades recorded since the baseline was pinned). Returns null when the profile has no monitor policy or fee accounting is incomplete.
  *
  * Feeds assessEdgeDecay the unrounded profit factor so the browser and worker advisory verdicts agree across the less-than-one net-losing floor.
  *
@@ -16,23 +53,7 @@ import { mergeRollupBuckets } from '@/shared/lib/live-scorecard';
  * @returns The current advisory assessment, or null when inputs are unavailable or incomplete.
  */
 export function useEdgeVerdict(profileId: string): ReturnType<typeof assessEdgeDecay> | null {
-  const timeZone = useTimezone();
-  const profile = useQuery({
-    queryKey: profileQueryKey(profileId),
-    queryFn: () => fetchProfile(profileId),
-  });
-  const archive = useQuery({
-    queryKey: ['trade-archive', profileId, 'a', timeZone, 'rollup', 'scorecard'],
-    queryFn: () =>
-      fetchProfileArchive(profileId, { period: 'a', cursor: null, tz: timeZone, view: 'rollup' }),
-    refetchInterval: 60_000,
-  });
-  const baselineId = profile.data?.baselineBacktestRunId ?? null;
-  const baseline = useQuery({
-    queryKey: ['backtest', 'run', profileId, baselineId],
-    queryFn: () => fetchBacktestRun(profileId, baselineId as string),
-    enabled: baselineId !== null,
-  });
+  const { profile, archive, baseline, baselineId } = useScorecardInputs(profileId);
 
   // Null while the profile query is still loading (profile.data undefined) and
   // for any profile lacking an edge-monitor policy — both mean "no edge verdict

@@ -456,6 +456,8 @@ export async function runProfileBacktest(
     params.toMs,
     intervalToMs(strategyInterval),
   );
+  // Modelling caveats below are not missing data: they say where the replay departs from live. They go to `modelNotes`, not `dataWarnings`, because the live gate fails a run on any `dataWarnings` entry and these fire on most runs.
+  const modelNotes: string[] = [];
   // Intra-candle fidelity caveat: with no finer detail bars than the strategy
   // interval, a resting BUY (low < limit) and SELL (high > limit) can both fill
   // within one candle regardless of the true tick order, so a grid can book a
@@ -463,18 +465,23 @@ export async function runProfileBacktest(
   // optimistic. Surface it rather than silently pricing it in; a finer
   // detailInterval removes the ambiguity.
   if (detailInterval === strategyInterval) {
-    dataWarnings.push(
+    modelNotes.push(
       `detail interval equals strategy interval (${strategyInterval}); intra-candle fill ordering is assumed favorably, so grid round-trips inside one bar may be slightly optimistic — set a finer detail interval to remove the ambiguity`,
     );
   }
-  // Within-candle exit caveats. A basket, or a range too long to hold its minute bars, falls back to one tick per candle with no 1-minute window, so an exit that live takes on 1-minute prices is not replayed; the operator must know the replay is coarser than live. A single-symbol run that swaps the requested detail interval for 1-minute bars raises no warning: the bars are finer than asked, and any `dataWarnings` entry fails the live gate's data-coverage check.
+  // Within-candle exit caveats. A basket, or a range too long to hold its minute bars, falls back to one tick per candle with no 1-minute window, so an exit that live takes on 1-minute prices is not replayed; the operator must know the replay is coarser than live. A single-symbol run replaces the requested detail interval with 1-minute bars, which the report notes since the run's params still show the requested one; a model note, not a data warning, because finer bars are not a gap and any `dataWarnings` entry fails the live gate's data-coverage check.
   if (exitsWithinCandle && params.symbols.length > 1) {
-    dataWarnings.push(
+    modelNotes.push(
       `this strategy exits within a candle (live sells on 1-minute prices), but a multi-symbol run ticks once per ${strategyInterval} candle with no 1-minute bars, so that exit is not replayed and results can differ from live — run one symbol to replay it minute by minute`,
     );
   } else if (exitsWithinCandle && !intraSpanOk) {
-    dataWarnings.push(
+    modelNotes.push(
       `this strategy exits within a candle (live sells on 1-minute prices), but the range needs more than ${MAX_INTRA_CANDLE_SPAN_MS / 86_400_000} days of 1-minute bars, so it ticks once per ${strategyInterval} candle and that exit is not replayed — shorten the range to replay it minute by minute`,
+    );
+  }
+  if (intraCandle && params.detailInterval !== INTRA_CANDLE_INTERVAL) {
+    modelNotes.push(
+      `detail interval set to ${INTRA_CANDLE_INTERVAL} instead of ${params.detailInterval}: this strategy exits within a candle, so the run ticks it on 1-minute bars while it holds a position`,
     );
   }
   // Frictionless-fill caveat: an unset spread/volume-cap makes fills more
@@ -485,12 +492,12 @@ export async function runProfileBacktest(
   // rosier number as clean. New form runs seed both, so this fires only on
   // legacy runs.
   if (params.spreadBps == null) {
-    dataWarnings.push(
+    modelNotes.push(
       'no spread haircut modeled (spreadBps unset); fills cross the bid/ask for free, so results are mildly optimistic vs a run with a spread — set spreadBps to model it',
     );
   }
   if (params.volumeCapPct == null) {
-    dataWarnings.push(
+    modelNotes.push(
       'no volume-participation cap (volumeCapPct unset); a single order can clear a thin bar whole at one price, which live liquidity would not allow — set volumeCapPct to model participation limits',
     );
   }
@@ -628,6 +635,7 @@ export async function runProfileBacktest(
       logs: [...report.decisionBreakdown.logs],
     },
     dataWarnings,
+    modelNotes,
     regimeBreakdown: report.regimeBreakdown.map((r) => ({ ...r })),
     outOfSample: report.outOfSample ? { ...report.outOfSample } : null,
     // The effective merged config this run executed, so the results UI attributes

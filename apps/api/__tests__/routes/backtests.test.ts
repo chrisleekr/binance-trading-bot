@@ -1058,6 +1058,7 @@ describeIfInfra('backtests routes', () => {
         perSymbol: [],
         decisionBreakdown: { metrics: [], logs: [] },
         dataWarnings: ['BTCUSDT: candle coverage 82% of requested window'],
+        modelNotes: ['MODEL_NOTE_MARKER: exits not replayed minute by minute'],
       });
 
       const res = await getPrompt(fresh, fresh.alice.profileId, fresh.alice.userId, run.id);
@@ -1072,6 +1073,9 @@ describeIfInfra('backtests routes', () => {
       // The data-coverage warning is surfaced, not silently dropped.
       expect(prompt).toContain('dataWarnings[');
       expect(prompt).toContain('candle coverage 82%');
+      // Modeling caveats travel separately so the advisor discounts them without treating them as bad data.
+      expect(prompt).toContain('modelNotes[');
+      expect(prompt).toContain('MODEL_NOTE_MARKER');
       // The honest baseline verdict is HOLD (lost to fee-free buy-and-hold).
       expect(prompt).toContain('recommend: hold');
       // Fill-model assumptions travel so the advisor can discount optimistic fills.

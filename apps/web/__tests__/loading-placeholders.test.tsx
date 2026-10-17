@@ -289,6 +289,7 @@ describe('symbol workspace TRADE tab', () => {
       onIntervalChange={() => undefined}
       state={undefined}
       currentPrice={null}
+      previewModel={{ sections: [] }}
       view={view}
       operatorActions={new Set<string>()}
       onSymbolWiped={() => undefined}

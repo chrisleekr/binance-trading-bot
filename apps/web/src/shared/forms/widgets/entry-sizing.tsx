@@ -1,6 +1,6 @@
 import { useWatch } from 'react-hook-form';
 
-import { formatAmount } from '@/shared/lib/format';
+import { formatMoneyAmount } from '@/shared/lib/format';
 import type { FormEquity } from '@/shared/forms/form-equity';
 import { AmountOrPercentWidget } from './amount-or-percent';
 import type { WidgetProps } from './types';
@@ -69,8 +69,8 @@ export function EntrySizingWidget({ name, fieldDef }: WidgetProps): React.JSX.El
     if (!hasStop) {
       return (
         <p className="text-xs text-muted-fg" data-testid={`entry-risk-preview-${name}`}>
-          No active stop-loss, so this just spends ≈ {formatAmount(risk)} {equity.quoteAsset} on the
-          entry. Set and enable a stop-loss to size by risk.
+          No active stop-loss, so this just spends ≈ {formatMoneyAmount(String(risk))}{' '}
+          {equity.quoteAsset} on the entry. Set and enable a stop-loss to size by risk.
         </p>
       );
     }
@@ -82,8 +82,8 @@ export function EntrySizingWidget({ name, fieldDef }: WidgetProps): React.JSX.El
     // cannot see (FormEquity exposes equity, not the free-cash split).
     return (
       <p className="text-xs font-medium text-fg" data-testid={`entry-risk-preview-${name}`}>
-        Risking ≈ {formatAmount(risk)} {equity.quoteAsset} per trade · position up to ≈{' '}
-        {formatAmount(position)} {equity.quoteAsset}
+        Risking ≈ {formatMoneyAmount(String(risk))} {equity.quoteAsset} per trade · position up to ≈{' '}
+        {formatMoneyAmount(String(position))} {equity.quoteAsset}
         {capped ? ' (capped at half your equity)' : ''}, subject to available cash.
       </p>
     );

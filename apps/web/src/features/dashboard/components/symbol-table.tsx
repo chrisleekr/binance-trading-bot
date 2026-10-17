@@ -24,7 +24,8 @@ import {
   unrealisedPnlOf,
 } from '@/features/profile/lib/unrealised-pnl';
 import { deriveQuote } from '@/shared/lib/symbol-quote';
-import { formatAmount, formatPrice } from '@/shared/lib/format';
+import { formatAmount, formatPercent, formatPrice } from '@/shared/lib/format';
+import { isStopTriggered, pctFromNow, stopTriggerPrice } from '@/features/symbol/lib/order-raw';
 import {
   blockerPositionGuarded,
   glossProtectiveStopBlocker,
@@ -46,9 +47,27 @@ function pnlString(sym: ProfileDashboardSymbol): string | null {
   return pnl == null ? null : String(pnl);
 }
 
+/**
+ * Compact "where the stop fires" readout for a held row, e.g. `Stop 81,872.61 (-1.20%)`, or `Stop 81,872.61 triggered` once price has reached it.
+ *
+ * @param sym - The symbol row; its first open sell stop is the one named.
+ * @returns The label and whether the stop has triggered (price at or below it, so its sell may be resting unfilled), or null when no fixed-price sell stop is resting.
+ */
+function stopLabel(sym: ProfileDashboardSymbol): { text: string; triggered: boolean } | null {
+  const trigger = sym.openOrders.map(stopTriggerPrice).find((p) => p !== null) ?? null;
+  if (trigger === null) return null;
+  if (isStopTriggered(trigger, sym.currentPrice))
+    return { text: `Stop ${formatPrice(trigger)} triggered`, triggered: true };
+  const pct = pctFromNow(trigger, sym.currentPrice);
+  return {
+    text: `Stop ${formatPrice(trigger)}${pct === null ? '' : ` (${formatPercent(pct, { sign: true })})`}`,
+    triggered: false,
+  };
+}
+
 /** Shared column template: dot · symbol · status · profile · position · orders · price · P/L · config. */
 const GRID_COLS =
-  '@3xl:grid @3xl:grid-cols-[10px_minmax(0,1.2fr)_6rem_minmax(0,1fr)_minmax(0,1fr)_4.5rem_7rem_9rem_4.5rem] @3xl:items-center @3xl:gap-x-3';
+  '@3xl:grid @3xl:grid-cols-[10px_minmax(0,1.2fr)_6rem_minmax(0,1fr)_minmax(0,1fr)_7rem_7rem_9rem_4.5rem] @3xl:items-center @3xl:gap-x-3';
 
 /**
  * Flat, filterable, one-click-per-row symbol grid across every profile. Fans
@@ -259,12 +278,20 @@ function SymbolListRow({ row }: { row: SymbolRow }) {
   // Only surface the open-order count when there is one — "· 0 orders" on every
   // flat row is noise. Singular/plural picked explicitly since the i18n shim
   // does no plural selection.
-  const ordersLabel =
+  const countLabel =
     sym.openOrderCount > 0
       ? t(sym.openOrderCount === 1 ? 'home.symbols.order' : 'home.symbols.orders', {
           count: sym.openOrderCount,
         })
       : null;
+  // A held coin's resting stop is the one order the operator scans this column for, so name its trigger instead of a bare "1 order".
+  const stop = held ? stopLabel(sym) : null;
+  const ordersLabel =
+    stop === null
+      ? countLabel
+      : sym.openOrderCount > 1
+        ? `${stop.text} +${sym.openOrderCount - 1}`
+        : stop.text;
   // Dot meaning, hover-titled so the colour is never a guess. Paused symbols get
   // a hollow ring, not red — "off by choice" is not an error.
   const dot = !sym.enabled
@@ -342,7 +369,13 @@ function SymbolListRow({ row }: { row: SymbolRow }) {
               <span aria-hidden="true" className="@3xl:hidden">
                 {' · '}
               </span>
-              <span className="@3xl:text-right @3xl:font-mono @3xl:text-xs @3xl:text-fg @3xl:tabular-nums">
+              <span
+                className={cn(
+                  '@3xl:text-right @3xl:font-mono @3xl:text-xs @3xl:text-fg @3xl:tabular-nums',
+                  stop?.triggered && 'font-semibold text-warning @3xl:text-warning',
+                )}
+                data-testid="symbol-row-orders"
+              >
                 {ordersLabel}
               </span>
             </>

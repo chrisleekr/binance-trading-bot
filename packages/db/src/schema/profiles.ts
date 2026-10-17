@@ -34,6 +34,8 @@ export const profiles = pgTable(
     // The FK + ON DELETE SET NULL lives in the migration, not a Drizzle
     // `.references()`, to avoid a profiles <-> backtest_runs import cycle.
     baselineBacktestRunId: uuid('baseline_backtest_run_id'),
+    // When the current baseline was pinned. The edge-decay monitor and the live scorecard judge only trades archived from this instant on, so results from an earlier config do not count against the pinned one. null = the all-time window (a pin made before this column existed). Meaningful only while baselineBacktestRunId is set: the FK's ON DELETE SET NULL clears the run id and cannot clear this column too.
+    baselinePinnedAt: timestamp('baseline_pinned_at', { withTimezone: true }),
     // Profile-scoped auto-discovery settings, stored OUTSIDE `config` so the
     // strategy schema never sees them (invariant #1 — the worker reads this
     // column directly; the strategy is discovery-agnostic). null = discovery

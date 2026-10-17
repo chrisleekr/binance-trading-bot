@@ -14,7 +14,13 @@ import { API_KEY_DESTINATION } from '@/features/account/lib/api-key-destination'
 import { useDemoMode } from '@/features/auth/api/auth';
 import { aggregatePositionPnl, type QuotePnl } from '@/features/dashboard/lib/aggregate-pnl';
 import { dashboardAggregateQueryOptions } from '@/features/dashboard/api/dashboard';
-import { EquityPnlCard } from '@/features/dashboard/components/equity-pnl-card';
+import { EquityPnlCard, useEquitySnapshots } from '@/features/dashboard/components/equity-pnl-card';
+import {
+  fetchProfileDashboard,
+  profileDashboardQueryKey,
+} from '@/features/profile/api/profile-dashboard';
+import { totalUsdValue, unpricedNonZeroCount } from '@/features/profile/lib/balance-value';
+import { formatMoneyAmount } from '@/shared/lib/format';
 import { ProfileHealthStrip } from '@/features/dashboard/components/profile-health-strip';
 import { PositionsOrdersPanel } from '@/features/dashboard/components/positions-orders-panel';
 import { ScopedBalances } from '@/features/dashboard/components/scoped-balances';
@@ -178,7 +184,7 @@ function OverviewPanel({
       {/* Single full-width column: the account band and market tape stack rather
           than sharing a row. Both are @container-aware, so their inner grids open
           up to the full page width instead of folding for a half-width cell. */}
-      <SummaryBand rows={visible} />
+      <SummaryBand rows={visible} focusedProfileId={focusedProfileId} />
       <MarketTrendCard />
 
       {/* Per-profile analytics, stacked full-width below the context band. The
@@ -207,13 +213,19 @@ function OverviewPanel({
 }
 
 /**
- * At-a-glance account band. Unrealised P/L is the headline the operator opens
- * the app to see; the open-position and open-order counts sit beside it. P/L is grouped per quote
- * asset (no fake cross-quote sum) and never combines test and live funds into
- * a single equity number — that honesty constraint is why there is no one
- * "account value" hero here.
+ * At-a-glance account band. Unrealised P/L is the headline the operator opens the app to see; the open-position and open-order counts sit beside it. P/L is grouped per quote asset (no fake cross-quote sum) and never combines test and live funds into a single equity number — that honesty constraint is why the account-wide view has no one "account value" hero. Focused on one profile there is exactly one wallet in one mode, so the band adds that wallet's value and the profile's closed-trade profit beside the P/L.
+ *
+ * @param rows - The aggregate rows in view.
+ * @param focusedProfileId - The profile the overview is narrowed to, or null for every profile of the account.
+ * @returns The band.
  */
-function SummaryBand({ rows }: { rows: readonly DashboardAggregateRow[] }) {
+function SummaryBand({
+  rows,
+  focusedProfileId,
+}: {
+  rows: readonly DashboardAggregateRow[];
+  focusedProfileId: string | null;
+}) {
   const openOrders = rows.reduce((sum, r) => sum + r.openOrderCount, 0);
   const positions = rows.reduce((sum, r) => sum + r.openPositionCount, 0);
   // Real money is the headline; testnet (practice) funds are never summed into
@@ -239,12 +251,19 @@ function SummaryBand({ rows }: { rows: readonly DashboardAggregateRow[] }) {
           reads as one bordered terminal band with hairline dividers (borders
           over whitespace), not three floating cards. */}
       <dl
-        className="grid grid-cols-2 gap-px border border-border bg-border @2xl:grid-cols-3"
+        className={cn(
+          'grid grid-cols-2 gap-px border border-border bg-border',
+          focusedProfileId === null ? '@2xl:grid-cols-3' : '@4xl:grid-cols-5',
+        )}
         data-testid="dashboard-order-stats"
       >
-        {/* The P/L hero spans the full row on phones and one column on desktop,
-            leaving positions + open-orders to fill the remaining pair. */}
-        <div className="col-span-2 flex flex-col gap-1 bg-bg-elevated p-3 @2xl:col-span-1">
+        {/* The P/L hero spans the full row on phones and one column on desktop, leaving the other tiles to fill the rows beneath it in pairs. */}
+        <div
+          className={cn(
+            'col-span-2 flex flex-col gap-1 bg-bg-elevated p-3',
+            focusedProfileId === null ? '@2xl:col-span-1' : '@4xl:col-span-1',
+          )}
+        >
           <dt className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
             {t('home.summary.unrealised')}
           </dt>
@@ -264,6 +283,7 @@ function SummaryBand({ rows }: { rows: readonly DashboardAggregateRow[] }) {
             </dd>
           ) : null}
         </div>
+        {focusedProfileId !== null ? <ProfileValueTiles profileId={focusedProfileId} /> : null}
         <Stat label={t('home.summary.positions')} testId="positions">
           {positions}
         </Stat>
@@ -275,17 +295,83 @@ function SummaryBand({ rows }: { rows: readonly DashboardAggregateRow[] }) {
   );
 }
 
-/** One summary tile: a muted label over a large mono value. */
+/**
+ * The focused profile's wallet value and closed-trade profit, as two summary tiles.
+ *
+ * Both read queries this page already runs (the Balances card's profile dashboard, the profit chart's equity snapshots), so they add no request. The wallet value is the Balances card's own estimate via `totalUsdValue`, so the two numbers cannot drift apart. Profit is the latest snapshot's cumulative realised net, which is what the profit chart plots; it can trail a just-closed trade by one snapshot interval.
+ *
+ * @param profileId - The focused profile.
+ * @returns Two `dl` groups for the summary band.
+ */
+function ProfileValueTiles({ profileId }: { profileId: string }) {
+  const dashboard = useQuery({
+    queryKey: profileDashboardQueryKey(profileId),
+    queryFn: () => fetchProfileDashboard(profileId),
+  });
+  const snapshots = useEquitySnapshots(profileId);
+  const quote = dashboard.data?.quoteAsset ?? snapshots.data?.quoteAsset ?? '';
+  const last = snapshots.data?.points.at(-1);
+  // A missing commission only ever flatters the total, so the tile says so instead of claiming "after fees".
+  const feesMissing = last !== undefined && (last.feeBasis ?? 'unknown') === 'unknown';
+  // The total counts an unpriced coin as zero, so "everything in the wallet" would overstate what the number covers.
+  const unpriced = dashboard.data ? unpricedNonZeroCount(dashboard.data.balances) : 0;
+  return (
+    <>
+      <Stat
+        label={t('home.summary.account_value')}
+        testId="account-value"
+        hint={
+          unpriced > 0
+            ? t(
+                unpriced === 1
+                  ? 'home.summary.account_value_unpriced_one'
+                  : 'home.summary.account_value_unpriced_other',
+                { count: unpriced },
+              )
+            : t('home.summary.account_value_hint')
+        }
+      >
+        {dashboard.data
+          ? `≈ ${formatMoneyAmount(String(totalUsdValue(dashboard.data.balances)))} ${quote}`
+          : '—'}
+      </Stat>
+      <Stat
+        label={t('home.summary.profit_so_far')}
+        testId="profit-so-far"
+        hint={t(
+          feesMissing
+            ? 'home.summary.profit_so_far_fees_missing'
+            : 'home.summary.profit_so_far_hint',
+        )}
+      >
+        {last !== undefined ? <PnlValue value={last.realizedNetQuote} unit={quote} /> : '—'}
+      </Stat>
+    </>
+  );
+}
+
+/**
+ * One summary tile: a muted label over a large mono value, with an optional plain-language line under it.
+ *
+ * @param props.label - The tile's uppercase caption.
+ * @param props.testId - Suffix for the value's `dashboard-stat-*` test id.
+ * @param props.children - The value itself.
+ * @param props.className - Extra classes for the tile box, e.g. a column span.
+ * @param props.hint - A plain-language line under the value saying what it covers or where it falls short; omitted renders no line.
+ * @returns The tile, as a `dt`/`dd` group inside the band's `dl`.
+ */
 function Stat({
   label,
   testId,
   children,
   className,
+  hint,
 }: {
   label: string;
   testId: string;
   children: React.ReactNode;
   className?: string;
+  hint?: string;
 }) {
   return (
     <div className={cn('flex flex-col gap-1 bg-bg-elevated p-3', className)}>
@@ -296,6 +382,7 @@ function Stat({
       >
         {children}
       </dd>
+      {hint !== undefined ? <dd className="text-xs text-muted-fg">{hint}</dd> : null}
     </div>
   );
 }

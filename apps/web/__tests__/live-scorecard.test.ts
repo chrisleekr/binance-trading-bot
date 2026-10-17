@@ -99,7 +99,7 @@ describe('mergeRollupBuckets', () => {
   });
 
   it('counts only the asked-for currency when a profile changed its quote', () => {
-    // The all-time rollup the scorecard requests spans every quote the profile has ever settled in. Magnitudes are orders of magnitude apart so a dropped filter cannot pass by coincidence.
+    // The rollup the scorecard requests covers the comparison window (from the baseline pin, or all time without one), which can span every quote the profile has settled in. Magnitudes are orders of magnitude apart so a dropped filter cannot pass by coincidence.
     const out = mergeRollupBuckets(
       [
         b({

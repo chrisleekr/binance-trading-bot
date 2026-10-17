@@ -20,7 +20,16 @@ import { useTimezone } from '@/shared/context/timezone-context';
 import { LoadingRows } from '@/shared/components/page-skeleton';
 import { Select } from '@/shared/components/ui/select';
 
-const useEquitySnapshots = (profileId: string) =>
+/** Headline caveat when a plotted point rests on a commission Binance never reported. Shared with the History chart so both say the same thing about the same fault. */
+export const FEES_MISSING_NOTE = ' · some fees missing, so real profit is lower than shown';
+
+/**
+ * The profile's equity-snapshot series, shared by this card and the overview's "Profit so far" tile so both read one cached request.
+ *
+ * @param profileId - The profile whose snapshots to read.
+ * @returns The React Query result for the default (unbounded) window.
+ */
+export const useEquitySnapshots = (profileId: string) =>
   useQuery({
     queryKey: ['equity-snapshots', profileId],
     queryFn: () => fetchEquitySnapshots(profileId),
@@ -78,9 +87,10 @@ export function EquityPnlCard({ profileId }: { profileId: string }): React.JSX.E
             >
               {formatMoneyAmount(String(latestNetPnl))} {quote}
             </span>
+            {/* The line already subtracts every fee it knows of. `unknown` means a charge was never reported, so the figure is too high, not "before fees": saying "fees not accounted" under a Net label read as the chart ignoring fees altogether. */}
             {feeBasis !== 'exact' ? (
               <span className="text-muted-fg" data-testid="equity-fee-basis">
-                {feeBasis === 'unknown' ? ' · fees not accounted' : ' · estimated'}
+                {feeBasis === 'unknown' ? FEES_MISSING_NOTE : ' · some fees estimated'}
               </span>
             ) : null}
             {holdWindowPct !== null ? (

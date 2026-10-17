@@ -139,6 +139,7 @@ const profileRow: Awaited<ReturnType<ProfileRepo['profile']['findById']>> = {
   quoteAsset: 'usdt',
   benchmarkMode: 'btc',
   baselineBacktestRunId: null,
+  baselinePinnedAt: null,
   discoveryConfig,
   riskConfig: null,
   enablementPolicy: null,

@@ -309,11 +309,11 @@ describe('ProfileConfigPanel', () => {
     await waitFor(
       () =>
         expect(screen.getByTestId('amount-or-percent-entrySizing-preview')).toHaveTextContent(
-          '≈ 400 USDT',
+          '≈ 400.00 USDT',
         ),
       { timeout: 5000 },
     );
-    expect(screen.getByText(/800 USDT now/)).toBeInTheDocument();
+    expect(screen.getByText(/800.00 USDT now/)).toBeInTheDocument();
   });
 
   it('Cancel on the strategy switch modal does not POST', async () => {
