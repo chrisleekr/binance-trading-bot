@@ -96,8 +96,8 @@ describe('MCP route rate limit', () => {
     // The discriminating half: a route that answered 429 to every verified call would satisfy the case above.
     const res = await call(diCounting(1));
     expect(res.status).not.toBe(429);
-    // A JSON-RPC envelope is only produced by the protocol handler, so this proves the call got past the limiter rather than being refused some other way. The request omits a protocol version, so the handler's own answer is an error, which is irrelevant here.
-    expect(((await res.json()) as { jsonrpc?: string }).jsonrpc).toBe('2.0');
+    // A JSON-RPC envelope is only produced by the protocol handler, so this proves the call got past the limiter rather than being refused some other way. The request names no protocol version, so it is served on the 2025 path, which may answer as an SSE event rather than a JSON body.
+    expect(await res.text()).toContain('"jsonrpc":"2.0"');
   });
 });
 

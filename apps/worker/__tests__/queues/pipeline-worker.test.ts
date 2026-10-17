@@ -17,7 +17,7 @@ import {
   APPLY_SEED_GATE_STAND_DOWN_REASONS,
   registerPipelineWorker,
 } from '../../src/queues/pipeline-worker.js';
-import { buildSymbolInfoKey } from '../../src/executor/redis-namespace.js';
+import { buildAccountInfoKey, buildSymbolInfoKey } from '../../src/executor/redis-namespace.js';
 import { createChainByKey } from '../../src/lib/chain-by-key.js';
 import type { ChainByKey } from '../../src/lib/chain-by-key.js';
 import {
@@ -2657,6 +2657,8 @@ describe('pipeline-worker dispatch', () => {
     });
     expect(h.disabled).toHaveBeenCalledWith(ids.profileId);
     expect(h.evictProfileContext).toHaveBeenCalledWith(ids.profileId);
+    // No cron or stream frame refreshes a stopped profile's balances, so the snapshot must go rather than serve pre-stop numbers.
+    expect(h.redis.del).toHaveBeenCalledWith(buildAccountInfoKey(ids.accountId, ids.profileId));
     // Kicks ownership so the departed profile's stream closes now (#579).
     expect(h.reconcileOwnership).toHaveBeenCalledTimes(1);
   });
@@ -2678,6 +2680,20 @@ describe('pipeline-worker dispatch', () => {
     });
     expect(h.disabled).toHaveBeenCalledWith(ids.profileId);
     expect(h.evictProfileContext).toHaveBeenCalledWith(ids.profileId);
+    expect(h.redis.del).toHaveBeenCalledWith(buildAccountInfoKey(ids.accountId, ids.profileId));
+  });
+
+  it('unsubscribe-profile: a failed balance-snapshot delete does not abort the teardown', async () => {
+    const h = buildHarness();
+    repoMocks.profilesFindById.mockResolvedValueOnce({ id: ids.profileId, enabled: false });
+    h.redis.del.mockRejectedValueOnce(new Error('redis down'));
+    await h.invoke('unsubscribe-profile', {
+      userId: ids.userId,
+      accountId: ids.accountId,
+      profileId: ids.profileId,
+    });
+    expect(h.evictProfileContext).toHaveBeenCalledWith(ids.profileId);
+    expect(h.reconcileOwnership).toHaveBeenCalledTimes(1);
   });
 
   it('unsubscribe-profile: rethrows a non-ownership repo error (so BullMQ retries, not silently evicts)', async () => {
@@ -2709,6 +2725,7 @@ describe('pipeline-worker dispatch', () => {
     });
     expect(h.disabled).not.toHaveBeenCalled();
     expect(h.evictProfileContext).not.toHaveBeenCalled();
+    expect(h.redis.del).not.toHaveBeenCalledWith(buildAccountInfoKey(ids.accountId, ids.profileId));
     expect(h.info.map((m) => m.msg)).toContain('pipeline_unsubscribe_skipped_still_enabled');
   });
 

@@ -4,6 +4,7 @@ import {
   BINANCE_KLINE_INTERVALS,
   ClosedTradesPeriod,
   DiscoveryConfigSchema,
+  QuoteAsset,
   RiskConfigSchema,
 } from '@app/contracts';
 import { z } from 'zod';
@@ -864,6 +865,9 @@ export const MCP_TOOLS: readonly McpTool[] = [
       ...profileArgs,
       name: z.string().optional(),
       config: z.record(z.string(), z.unknown()).optional(),
+      quoteAsset: QuoteAsset.optional().describe(
+        'The currency this profile trades against and holds as cash, for example USDT. Another profile on the account cannot bind a pair whose base is this currency, so moving a stopped profile off a coin is what frees that coin for a sibling. Refused with a conflict when this profile or any sibling on the account still trades a pair whose base is the new quote.',
+      ),
     },
   }),
   writeTool({

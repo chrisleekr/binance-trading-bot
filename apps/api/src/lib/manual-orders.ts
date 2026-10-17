@@ -172,7 +172,7 @@ export const balanceQuantityForSymbol = async (
     if (ledger && isPositiveQuantity(ledger.quantity)) return ledger.quantity;
     throw new HttpError(
       'UPSTREAM_FAILED',
-      'no live balance snapshot and no cost-basis ledger to size against — enable the profile (or let the bot reconcile) so a balance can be read',
+      'no live balance snapshot and no cost-basis ledger to size against. A stopped profile keeps no balance: turn on its kill switch (disable all symbols), start it, set the price, then re-enable the symbols. Starting it without the kill switch can open a new position on this symbol before the price lands.',
     );
   }
   if (!symbolInfoRaw) {

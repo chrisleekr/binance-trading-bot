@@ -29,7 +29,7 @@ import { HAS_INFRA, setupApp, TRAILING_TRADE_VERSION, type ApiFixture } from '..
 /** The revision this endpoint serves. Stated once here and asserted against what the server itself reports, so a drift shows up as a failure rather than as two literals agreeing with each other. */
 const PROTOCOL_REVISION = '2026-07-28';
 
-/** A revision from the 2025 era, used to prove `legacy: 'reject'` actually refuses one. */
+/** A revision from the 2025 era, which the endpoint still serves statelessly. */
 const LEGACY_REVISION = '2025-11-25';
 
 const OPERATOR_EMAIL = 'mcp-operator@example.test';
@@ -293,7 +293,7 @@ describe.skipIf(!HAS_INFRA)('MCP protocol boundary over a real token', () => {
   /**
    * Sends one JSON-RPC request over HTTP with the 2026-07-28 per-request envelope.
    *
-   * The envelope is what makes a request modern-era at all; without it `legacy: 'reject'` refuses the call before any handler sees it. The `Mcp-Method` and `Mcp-Name` headers are cross-checks the endpoint requires, and they are derived from the body here rather than passed in, so a case cannot accidentally send a disagreeing pair.
+   * The envelope is what makes a request modern-era at all; without it, and with the modern `MCP-Protocol-Version` header this helper sends, the endpoint rejects the call; only a request naming no modern revision is served on the 2025-era path. The `Mcp-Method` and `Mcp-Name` headers are cross-checks the endpoint requires, and they are derived from the body here rather than passed in, so a case cannot accidentally send a disagreeing pair.
    *
    * @param token - Bearer access token to present.
    * @param method - JSON-RPC method to invoke.
@@ -574,34 +574,109 @@ describe.skipIf(!HAS_INFRA)('MCP protocol boundary over a real token', () => {
     expect(asOperator.status, await asOperator.clone().text()).toBe(200);
   });
 
-  it("refuses a 2025-era request rather than serving it, which is what legacy: 'reject' buys", async () => {
-    // A legacy `initialize` with no modern envelope. Serving it would stand up a second protocol surface, with its own session semantics, on a route that can place orders.
+  /**
+   * Sends one 2025-era JSON-RPC request: no per-request envelope, no `Mcp-Method` header, the shape a client that still opens with `initialize` sends.
+   *
+   * @param token - Bearer access token to present, or null to send none.
+   * @param method - JSON-RPC method to invoke.
+   * @param params - Method parameters, sent as they are.
+   * @returns The HTTP status and the decoded JSON-RPC envelope; a stateless 2025 answer may arrive as one SSE `data:` event, which is unwrapped here.
+   */
+  const legacyRpc = async (
+    token: string | null,
+    method: string,
+    params: Record<string, unknown> = {},
+  ): Promise<RpcAnswer & { readonly sessionId: string | null }> => {
+    const res = await fetch(`${origin}/api/mcp`, {
+      method: 'POST',
+      headers: {
+        ...(token === null ? {} : { authorization: `Bearer ${token}` }),
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        ...(method === 'initialize' ? {} : { 'mcp-protocol-version': LEGACY_REVISION }),
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method, params }),
+    });
+    const text = await res.text();
+    const data = text.split('\n').find((line) => line.startsWith('data:'));
+    const json = data === undefined ? text : data.slice('data:'.length);
+    return {
+      status: res.status,
+      body: (json.trim() === '' ? {} : JSON.parse(json)) as JsonRpcEnvelope,
+      sessionId: res.headers.get('mcp-session-id'),
+    };
+  };
+
+  it('serves a 2025-era client the same tools, behind the same token and scopes', async () => {
+    // A client that has not moved to 2026-07-28 opens with `initialize`; refused, it cannot connect at all after a successful sign-in.
+    const init = await legacyRpc(fullToken, 'initialize', {
+      protocolVersion: LEGACY_REVISION,
+      capabilities: {},
+      clientInfo: { name: 'legacy-client', version: '1.0.0' },
+    });
+    expect(init.status, JSON.stringify(init.body)).toBe(200);
+    expect(init.body.result?.['protocolVersion']).toBe(LEGACY_REVISION);
+    // Stateless: no session is issued, so nothing is kept between requests and every call below stands alone.
+    expect(init.sessionId).toBeNull();
+
+    // The same factory builds both eras, but the 2025 path serves it through a different transport, so the hints that make a trade tool prompt (`annotations`, `_meta`) are compared too, not just names. Listing is not filtered by scope; a read-only token is refused at call time, pinned below.
+    const shape = (tools: ServedTool[]) =>
+      tools
+        .map(({ name, annotations, _meta }) => ({ name, annotations, _meta }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    const listed = await legacyRpc(fullToken, 'tools/list');
+    expect(listed.status).toBe(200);
+    expect(shape((listed.body.result?.['tools'] as ServedTool[] | undefined) ?? [])).toEqual(
+      shape(await servedTools(fullToken)),
+    );
+
+    // The tool runs as the token's operator: an empty identity would read no accounts at all.
+    const called = await legacyRpc(fullToken, 'tools/call', {
+      name: 'list_accounts',
+      arguments: {},
+    });
+    expect(called.status).toBe(200);
+    expect(called.body.result?.['isError']).not.toBe(true);
+    expect(firstText(called.body.result)).toContain(accountId);
+
+    // The token's scopes reach the 2025 path: a read-only token is refused a trade tool there too, and nothing dispatches.
+    const before = await auditCount();
+    const refused = await legacyRpc(readOnlyToken, 'tools/call', {
+      name: 'update_profile',
+      arguments: { accountId, profileId, name: 'legacy-should-not-apply' },
+    });
+    expect(refused.body.result?.['isError']).toBe(true);
+    expect(firstText(refused.body.result)).toContain(MCP_SCOPE_TRADE);
+    expect(await auditCount()).toBe(before);
+
+    // Still behind the bearer check: no token, no answer.
+    expect((await legacyRpc(null, 'tools/list')).status).toBe(401);
+  });
+
+  it('refuses a 2025-era JSON-RPC batch, so one request stays one rate-limited call', async () => {
+    // The 2025 path would run up to 100 calls from one array body on a single unit of the per-operator budget.
+    const before = await auditCount();
+    const call = (name: string) => ({
+      jsonrpc: '2.0',
+      id: ++rpcId,
+      method: 'tools/call',
+      params: { name: 'update_profile', arguments: { accountId, profileId, name } },
+    });
     const res = await fetch(`${origin}/api/mcp`, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${fullToken}`,
         'content-type': 'application/json',
         accept: 'application/json, text/event-stream',
+        'mcp-protocol-version': LEGACY_REVISION,
       },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: ++rpcId,
-        method: 'initialize',
-        params: {
-          protocolVersion: LEGACY_REVISION,
-          capabilities: {},
-          clientInfo: { name: 'legacy-client', version: '1.0.0' },
-        },
-      }),
+      body: JSON.stringify([call('batch-a'), call('batch-b')]),
     });
     expect(res.status).toBe(400);
-    const body = (await res.json()) as JsonRpcEnvelope;
-    expect(body.result).toBeUndefined();
-    // The refusal is self-describing: it names what the endpoint does serve, so a legacy client can discover the modern revision from the error alone instead of retrying blind.
-    expect(body.error?.data).toMatchObject({
-      supported: [PROTOCOL_REVISION],
-      requested: LEGACY_REVISION,
-    });
+    expect(((await res.json()) as JsonRpcEnvelope).error?.message).toMatch(
+      /batches are not supported/,
+    );
+    expect(await auditCount()).toBe(before);
   });
   it('issues a refresh token only for offline_access, and a refreshed access token works', async () => {
     // Without a refresh token the agent dies when its one-hour access token expires, and the operator re-authorizes by hand every hour.

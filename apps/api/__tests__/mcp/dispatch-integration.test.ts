@@ -202,6 +202,27 @@ describe.skipIf(!HAS_INFRA)('MCP dispatch through the real routers', () => {
     expect(rows.rows[0]?.payload).toMatchObject({ fields: ['name'] });
   });
 
+  it('changes the quote asset through update_profile', async ({ onTestFinished }) => {
+    // The fixture is shared across this file, and later tests trade USDT pairs on the same profile.
+    onTestFinished(async () => {
+      await fx.di.pool.query(`update profiles set quote_asset = 'USDT' where id = $1`, [
+        fx.alice.profileId,
+      ]);
+    });
+    // A stopped profile that settles in a coin blocks every sibling from trading that coin, and the operator surface is the only other way to move it. The route already guards the change, so the tool only has to carry the field through to the body.
+    const result = await dispatchMcpTool(depsFor(fx, [MCP_SCOPE_TRADE]), 'update_profile', {
+      accountId: fx.alice.accountId,
+      profileId: fx.alice.profileId,
+      quoteAsset: 'fdusd',
+    });
+    expect(result.isError).toBe(false);
+    const rows = await fx.di.pool.query<{ quote_asset: string }>(
+      `select quote_asset from profiles where id = $1`,
+      [fx.alice.profileId],
+    );
+    expect(rows.rows[0]?.quote_asset).toBe('FDUSD');
+  });
+
   it("names the calling agent's address and client in the audit row", async () => {
     // The inner request is built by this process, so it carries no headers unless they are forwarded deliberately. Without that the audit row records the address as the literal `unknown` and the client as null on the one surface reachable from anywhere, which is the weakest trail in the system sitting where it is least affordable. The forwarding header is passed through unparsed so `clientIp` stays the only place an address is derived: the value asserted here is the RIGHTMOST hop, because the leftmost entries are client-controlled and forgeable.
     const result = await dispatchMcpTool(

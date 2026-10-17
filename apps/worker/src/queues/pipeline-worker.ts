@@ -38,7 +38,7 @@ import type { ChainByKey } from 'lib/chain-by-key.js';
 import type { MetricsSink } from 'metrics/catalog.js';
 import type { StatePort } from 'state/state-port.js';
 import { mutateSymbolState, type MutateSymbolStateDeps } from 'state/version-aware-mutate.js';
-import { buildSymbolInfoKey } from 'executor/redis-namespace.js';
+import { buildAccountInfoKey, buildSymbolInfoKey } from 'executor/redis-namespace.js';
 import {
   ensureCostBasisFromTrades,
   reconcileHeldQuantity,
@@ -946,6 +946,10 @@ const handleUnsubscribe = async (
     return;
   }
   await deps.profileManager.disable(ids.profileId);
+  // Nothing refreshes a stopped profile's balance snapshot: the safety cron and the user-stream merge only reach active profiles. Left in place, the key keeps pre-stop balances for up to its TTL, so a manual sell right after cancelling the profile's stops is refused as unfundable against coins the cancel already freed. Dropping it makes the next read fall back to a fresh REST load. A tick already in flight can still write one cold-loaded snapshot back, which the TTL bounds. Best-effort like the ownership kick below: a self-expiring cache entry must not abort the rest of the teardown.
+  await deps.redis.del(buildAccountInfoKey(ids.accountId, ids.profileId)).catch((err: unknown) => {
+    deps.logger.warn({ ...ids, err: err }, 'pipeline_unsubscribe_account_info_del_failed');
+  });
   // Retire the profile's own gauge child. prom-client exports a child's last
   // value until it is removed, so a torn-down profile would keep reporting a
   // plausible weight reading and any alert over it could never resolve. Both

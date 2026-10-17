@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { periodWindow } from '../../src/lib/period-window.js';
 
 // June has no DST transition in any of the zones below, so the offsets are
-// stable: UTC+0, Sydney UTC+10, New York UTC-4 (EDT).
+// stable: UTC+0, Sydney UTC+10, New York UTC-4 (EDT). Each window starts at
+// local midnight, so a non-UTC zone's `from` is not 00:00Z.
 const iso = (d: Date): string => d.toISOString();
 
 describe('periodWindow', () => {
@@ -26,15 +27,15 @@ describe('periodWindow', () => {
       // 14:30Z is already the 21st in Sydney, still the 20th in UTC/New York.
       const now = new Date('2026-06-20T14:30:00Z');
       expect(iso(periodWindow('d', 'UTC', now).from)).toBe('2026-06-20T00:00:00.000Z');
-      expect(iso(periodWindow('d', 'Australia/Sydney', now).from)).toBe('2026-06-21T00:00:00.000Z');
-      expect(iso(periodWindow('d', 'America/New_York', now).from)).toBe('2026-06-20T00:00:00.000Z');
+      expect(iso(periodWindow('d', 'Australia/Sydney', now).from)).toBe('2026-06-20T14:00:00.000Z');
+      expect(iso(periodWindow('d', 'America/New_York', now).from)).toBe('2026-06-20T04:00:00.000Z');
     });
 
     it('cuts to the previous day for a zone still behind midnight', () => {
       // 02:30Z is 22:30 the previous evening in New York.
       const now = new Date('2026-06-20T02:30:00Z');
       expect(iso(periodWindow('d', 'UTC', now).from)).toBe('2026-06-20T00:00:00.000Z');
-      expect(iso(periodWindow('d', 'America/New_York', now).from)).toBe('2026-06-19T00:00:00.000Z');
+      expect(iso(periodWindow('d', 'America/New_York', now).from)).toBe('2026-06-19T04:00:00.000Z');
     });
   });
 
@@ -50,14 +51,14 @@ describe('periodWindow', () => {
       // tail of the 06-15 week in UTC.
       const now = new Date('2026-06-21T14:30:00Z');
       expect(iso(periodWindow('w', 'UTC', now).from)).toBe('2026-06-15T00:00:00.000Z');
-      expect(iso(periodWindow('w', 'Australia/Sydney', now).from)).toBe('2026-06-22T00:00:00.000Z');
+      expect(iso(periodWindow('w', 'Australia/Sydney', now).from)).toBe('2026-06-21T14:00:00.000Z');
     });
 
     it('stays in the previous week when the operator zone has not reached Monday', () => {
       // Monday 02:30Z is still Sunday 2026-06-21 in New York.
       const now = new Date('2026-06-22T02:30:00Z');
       expect(iso(periodWindow('w', 'UTC', now).from)).toBe('2026-06-22T00:00:00.000Z');
-      expect(iso(periodWindow('w', 'America/New_York', now).from)).toBe('2026-06-15T00:00:00.000Z');
+      expect(iso(periodWindow('w', 'America/New_York', now).from)).toBe('2026-06-15T04:00:00.000Z');
     });
   });
 
@@ -65,14 +66,51 @@ describe('periodWindow', () => {
     it('starts at the 1st of the operator-zone month', () => {
       const now = new Date('2026-06-20T14:30:00Z');
       expect(iso(periodWindow('m', 'UTC', now).from)).toBe('2026-06-01T00:00:00.000Z');
-      expect(iso(periodWindow('m', 'Australia/Sydney', now).from)).toBe('2026-06-01T00:00:00.000Z');
+      expect(iso(periodWindow('m', 'Australia/Sydney', now).from)).toBe('2026-05-31T14:00:00.000Z');
     });
 
     it('stays in the previous month when the operator zone has not rolled over', () => {
       // 2026-07-01 02:30Z is still 2026-06-30 in New York.
       const now = new Date('2026-07-01T02:30:00Z');
       expect(iso(periodWindow('m', 'UTC', now).from)).toBe('2026-07-01T00:00:00.000Z');
-      expect(iso(periodWindow('m', 'America/New_York', now).from)).toBe('2026-06-01T00:00:00.000Z');
+      expect(iso(periodWindow('m', 'America/New_York', now).from)).toBe('2026-06-01T04:00:00.000Z');
+    });
+  });
+
+  describe('daylight saving', () => {
+    it('starts the week at Sydney midnight under AEDT, not 00:00 UTC (the 11h-late window)', () => {
+      // Wed 2026-10-14 03:53Z; Sydney is UTC+11, so Monday 00:00 local is Sunday 13:00Z.
+      const now = new Date('2026-10-14T03:53:00Z');
+      expect(iso(periodWindow('w', 'Australia/Sydney', now).from)).toBe('2026-10-11T13:00:00.000Z');
+    });
+
+    it('uses the offset in force at local midnight on a switch day', () => {
+      // Sydney moves to AEDT at 02:00 on 2026-10-04: midnight that day is still AEST (UTC+10).
+      expect(
+        iso(periodWindow('d', 'Australia/Sydney', new Date('2026-10-04T05:00:00Z')).from),
+      ).toBe('2026-10-03T14:00:00.000Z');
+      // New York leaves EDT at 02:00 on 2026-11-01: midnight is still EDT (UTC-4), the evening is EST.
+      expect(
+        iso(periodWindow('d', 'America/New_York', new Date('2026-11-01T23:00:00Z')).from),
+      ).toBe('2026-11-01T04:00:00.000Z');
+    });
+
+    it('starts the day at 01:00 where DST skips midnight, not 23:00 the day before', () => {
+      // Santiago jumps from 00:00 to 01:00 on 2026-09-06, so the day's first instant is 01:00 CLST (UTC-3).
+      expect(
+        iso(periodWindow('d', 'America/Santiago', new Date('2026-09-06T12:00:00Z')).from),
+      ).toBe('2026-09-06T04:00:00.000Z');
+      // Havana jumps from 00:00 to 01:00 on 2026-03-08, so the day starts at 01:00 CDT (UTC-4).
+      expect(iso(periodWindow('d', 'America/Havana', new Date('2026-03-08T12:00:00Z')).from)).toBe(
+        '2026-03-08T05:00:00.000Z',
+      );
+    });
+
+    it('starts the day at the first midnight where clocks fall back onto it', () => {
+      // Gaza went from 01:00 back to 00:00 on 2020-10-24, so midnight happened at 21:00Z (UTC+3) and again at 22:00Z.
+      expect(iso(periodWindow('d', 'Asia/Gaza', new Date('2020-10-24T12:00:00Z')).from)).toBe(
+        '2020-10-23T21:00:00.000Z',
+      );
     });
   });
 });

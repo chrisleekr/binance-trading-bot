@@ -220,7 +220,7 @@ const MomentumAtrTrailingStopSchema = z.object({
     .boolean()
     .default(false)
     .describe(
-      'Scale the trailing stop to the coin’s own volatility (ATR) instead of a fixed percent, so a volatile coin gets a wider stop and a calm one a tighter stop. Unlike the fixed percent, this stop can also move DOWN when volatility spikes (it is not a one-way ratchet), giving a volatile move room rather than shaking you out.',
+      'Scale the trailing stop to the coin’s own volatility (ATR) instead of a fixed percent, so a volatile coin gets a wider stop and a calm one a tighter stop. Unlike the fixed percent, this stop can also move DOWN when volatility spikes, giving a volatile move room rather than shaking you out, but only while no priced protective stop is resting or when that stop’s onBandBlock is set to clamp. Otherwise the resting stop’s trigger is a floor it never drops below.',
     ),
   period: z
     .number()
