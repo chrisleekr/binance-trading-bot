@@ -256,6 +256,8 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
 
   // Converge the plugin's position state from the executor's fills, the engine's analogue of the live fill-adopter. Without this a stateful strategy (e.g. TT, which reads `state.avgEntryPrice`) never learns it holds a position and re-buys every candle. The prior position comes from a fills-only ledger, the analogue of live's durable avg-entry row, not from state: momentum writes its order quantity into state when it places the entry, so folding the fill onto state counted every entry twice.
   const positionLedger = new Map<string, PositionView | null>();
+  // The state a tick started from when it placed a SELL, so a refused SELL can restore it the way live discards a tick whose order never executes. Held only until the next tick, since a refusal is adopted before that tick runs.
+  const preSellStates = new Map<string, S>();
   const adoptFills = (symbol: string): void => {
     const position = strategy.position;
     if (!position) return; // strategy doesn't manage a position; nothing to converge
@@ -272,23 +274,20 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     if (buyRejected && prior === null && holdsPosition(symbol)) {
       states.set(symbol, position.applyFill(state, { kind: 'empty' }) ?? state);
     }
-    // The mirror case: a strategy that flattens when it places the exit (momentum) is left flat on coins the refused SELL never sold, so it stops guarding them and a re-entry folds onto them. Restore the ledger position so the next tick sees the holding and retries the exit, as live would. The restore adopts as a buy, so it resets the strategy's high-water marks and a trail exit re-arms from the next tick's price.
+    // The mirror case: a strategy that flattens when it places the exit (momentum) is left flat on coins the refused SELL never sold, so it stops guarding them and a re-entry folds onto them. Restore the state the exit tick started from, which keeps its trailing high-water marks so the next tick retries the exit against the same threshold, then pin the position to the ledger in case fills moved it since.
+    if (!sellRejected) return;
+    const before = preSellStates.get(symbol);
+    preSellStates.delete(symbol);
     const view = position.readPosition(state);
     if (
-      sellRejected &&
       prior !== null &&
       prior.avgEntryPrice !== null &&
       prior.heldQuantity !== null &&
       (view?.heldQuantity !== prior.heldQuantity || view.avgEntryPrice !== prior.avgEntryPrice)
     ) {
-      states.set(
-        symbol,
-        position.applyFill(state, {
-          kind: 'buy',
-          avgEntryPrice: prior.avgEntryPrice,
-          heldQuantity: prior.heldQuantity,
-        }) ?? state,
-      );
+      const base = before ?? state;
+      const held = position.setHeldQuantity(base, prior.heldQuantity) ?? base;
+      states.set(symbol, position.setAvgEntryPrice(held, prior.avgEntryPrice) ?? held);
     }
   };
 
@@ -425,6 +424,9 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     strategy.bundleSchema.parse(input.bundle);
     const out = strategy.tick(input);
     states.set(symbol, out.nextState);
+    if (out.decisions.some((d) => d.type === 'place-order' && d.intent.side === 'SELL'))
+      preSellStates.set(symbol, state);
+    else preSellStates.delete(symbol);
 
     for (const m of out.metrics) tallyMetric(m);
     for (const l of out.logs) tallyLog(l);

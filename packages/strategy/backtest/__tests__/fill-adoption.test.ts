@@ -86,15 +86,21 @@ describe('runBacktest — fill adoption converges position state', () => {
     expect(seen).toEqual([null, null, null]);
   });
 
-  // Momentum flattens its state when it places the exit. A refused SELL left it flat on coins it still held, so it stopped guarding them and a re-entry folded onto them.
-  it('restores the held position the strategy flattened for a SELL the fill model refused', async () => {
+  // Momentum flattens its state when it places the exit. A refused SELL left it flat on coins it still held, so it stopped guarding them and a re-entry folded onto them. Restoring by re-adopting a buy also reset the trailing high-water mark, so the retry trailed a newer, lower peak.
+  it('restores the pre-exit state, trailing mark included, for a SELL the fill model refused', async () => {
     const base = makePositionStrategy('0.01');
-    const seen: (string | null)[] = [];
+    type TrailState = Parameters<typeof base.tick>[0]['state'] & { high?: string };
+    const seen: [string | null, string | undefined][] = [];
     const flattening = {
       ...base,
       tick: (input: Parameters<typeof base.tick>[0]) => {
-        seen.push(input.state.heldQuantity);
-        if (input.state.heldQuantity === null) return base.tick(input);
+        const state = input.state as TrailState;
+        seen.push([state.heldQuantity, state.high]);
+        if (state.heldQuantity === null) return base.tick(input);
+        if (state.high === undefined) {
+          const marked: TrailState = { ...state, high: '105' };
+          return { nextState: marked, decisions: [], logs: [], metrics: [] };
+        }
         // Sell twice the holding, which the balance cannot cover, and flatten at placement as momentum does.
         return {
           nextState: { avgEntryPrice: null, heldQuantity: null },
@@ -119,11 +125,17 @@ describe('runBacktest — fill adoption converges position state', () => {
       ...baseOpts,
       strategy: flattening,
       fillModel: new IdealFillModel(),
-      dataSource: candleSource(flatCandles(4, '100')),
+      dataSource: candleSource(flatCandles(5, '100')),
     });
-    // One BUY, and every later tick still sees the 0.01 it holds instead of re-entering on top of it.
+    // One BUY. Every tick after the refused exit still sees the 0.01 it holds and the 105 mark the exit fired from, instead of re-entering on top of it.
     expect(report.summary.tradeCount).toBe(1);
-    expect(seen).toEqual([null, '0.01', '0.01', '0.01']);
+    expect(seen).toEqual([
+      [null, undefined],
+      ['0.01', undefined],
+      ['0.01', '105'],
+      ['0.01', '105'],
+      ['0.01', '105'],
+    ]);
   });
 });
 
