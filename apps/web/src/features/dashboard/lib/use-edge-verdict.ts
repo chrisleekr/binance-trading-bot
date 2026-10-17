@@ -60,8 +60,8 @@ export function useEdgeVerdict(profileId: string): ReturnType<typeof assessEdgeD
   // yet", so callers fall back to the gate headline / hide the edge badge.
   const monitor = profile.data?.enablementPolicy?.monitor;
   if (!monitor) return null;
-  // No archive yet (pending or failed): an empty sample would read as "0 live trades", which states a fact the page never loaded.
-  if (archive.data === undefined) return null;
+  // No archive yet (pending or failed): an empty sample would read as "0 live trades", which states a fact the page never loaded. A failed 60s refetch keeps the last good data, so `isError` is checked too, or a stale verdict would sit under the "couldn't load" line.
+  if (archive.data === undefined || archive.isError) return null;
 
   // The profile's own quote: a live profit factor built from two currencies added together is not a ratio of anything.
   const bucket = mergeRollupBuckets(archive.data.bySource, profile.data?.quoteAsset ?? '');

@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -352,6 +352,37 @@ describe('GateVerdictSummary', () => {
       ),
     );
     // An archive that never loaded is no sample, so no verdict may state "0 live trades".
+    expect(screen.queryByTestId('gate-verdict-edge-detail')).not.toBeInTheDocument();
+  });
+
+  it('drops the verdict when a later archive refetch fails, not only the first read', async () => {
+    let archiveDown = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/gate-status')) return jsonOf(gateBody);
+        if (url.includes('/trade-archive'))
+          return archiveDown ? new Response('down', { status: 503 }) : jsonOf(archiveBody);
+        if (url.includes('/backtests/')) return jsonOf(runDetailBody);
+        return jsonOf(profileBody);
+      }),
+    );
+    const client = createQueryClient();
+    render(
+      <QueryClientProvider client={client}>
+        <GateVerdictSummary profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('gate-verdict-edge-detail')).toBeInTheDocument();
+    // A failed refetch keeps the last good data, so the old verdict would otherwise sit under the "couldn't load" line.
+    archiveDown = true;
+    await act(() => client.refetchQueries());
+    await waitFor(() =>
+      expect(screen.getByTestId('gate-verdict-edge')).toHaveTextContent(
+        "Live vs backtest: couldn't load this profile's live trades.",
+      ),
+    );
     expect(screen.queryByTestId('gate-verdict-edge-detail')).not.toBeInTheDocument();
   });
 });
