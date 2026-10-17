@@ -100,6 +100,10 @@ describe('periodWindow', () => {
       expect(
         iso(periodWindow('d', 'America/Santiago', new Date('2026-09-06T12:00:00Z')).from),
       ).toBe('2026-09-06T04:00:00.000Z');
+      // Havana jumps from 00:00 to 01:00 on 2026-03-08, so the day starts at 01:00 CDT (UTC-4).
+      expect(iso(periodWindow('d', 'America/Havana', new Date('2026-03-08T12:00:00Z')).from)).toBe(
+        '2026-03-08T05:00:00.000Z',
+      );
     });
   });
 });
