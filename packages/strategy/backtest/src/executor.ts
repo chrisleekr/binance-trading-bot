@@ -106,8 +106,8 @@ export class BacktestExecutor implements Executor {
   private readonly kv = new Map<string, unknown>();
   private restingOrders: RestingOrder[] = [];
   private pendingFills: DrainedFill[] = [];
-  // Symbols whose BUY the fill model refused since the last drain. Live discards the tick's state when its order never executes; the run loop needs this to do the same.
-  private readonly rejectedBuys = new Set<string>();
+  // Symbols whose order the fill model refused since the last drain, per side. Live discards the tick's state when its order never executes; the run loop needs this to do the same.
+  private readonly rejected: Record<OrderSide, Set<string>> = { BUY: new Set(), SELL: new Set() };
   private nextOrderId = 1;
 
   constructor(
@@ -208,13 +208,14 @@ export class BacktestExecutor implements Executor {
   }
 
   /**
-   * Whether a BUY on this symbol was refused since the last call, clearing the flag.
+   * Whether an order on this symbol and side was refused since the last call, clearing the flag.
    *
    * @param symbol - The symbol to check.
-   * @returns True when the fill model rejected a BUY for it, at placement or while resting.
+   * @param side - The refused order's side.
+   * @returns True when the fill model rejected an order of that side for it, at placement or while resting.
    */
-  drainRejectedBuy(symbol: string): boolean {
-    return this.rejectedBuys.delete(symbol);
+  drainRejected(symbol: string, side: OrderSide): boolean {
+    return this.rejected[side].delete(symbol);
   }
 
   getEvents(): readonly { eventType: string; payload: unknown }[] {
@@ -336,7 +337,7 @@ export class BacktestExecutor implements Executor {
     if (outcome.kind === 'rest') {
       this.rest(intent, params, ctx.clock.nowMs(), symbolInfo);
     } else if (outcome.kind === 'rejected') {
-      if (intent.side === 'BUY') this.rejectedBuys.add(intent.symbol);
+      this.rejected[intent.side].add(intent.symbol);
     } else {
       for (const fill of outcome.fills)
         this.applyFill(intent.side, intent.reason, symbolInfo, fill);
@@ -422,7 +423,7 @@ export class BacktestExecutor implements Executor {
       }
       // Rejected: leave the reservation released — the funds return to free.
       if (outcome.kind === 'rejected') {
-        if (ord.intent.side === 'BUY') this.rejectedBuys.add(symbol);
+        this.rejected[ord.intent.side].add(symbol);
         continue;
       }
       for (const fill of outcome.fills) {

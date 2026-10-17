@@ -260,8 +260,9 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     const position = strategy.position;
     if (!position) return; // strategy doesn't manage a position; nothing to converge
     const drained = executor.drainFills(symbol);
-    const buyRejected = executor.drainRejectedBuy(symbol);
-    if (drained.length === 0 && !buyRejected) return;
+    const buyRejected = executor.drainRejected(symbol, 'BUY');
+    const sellRejected = executor.drainRejected(symbol, 'SELL');
+    if (drained.length === 0 && !buyRejected && !sellRejected) return;
     let state = states.get(symbol) ?? strategy.initialState(config);
     let prior = positionLedger.get(symbol) ?? null;
     for (const fill of drained) ({ state, prior } = adoptOne(position, state, prior, fill));
@@ -270,6 +271,24 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     // A strategy that records its position when it places the entry (momentum) is left claiming coins the refused BUY never bought. Live discards that tick's state, so flatten it here; otherwise the run carries a phantom position that blocks re-entry and arms stops against nothing. Only a claim no fill backs is cleared.
     if (buyRejected && prior === null && holdsPosition(symbol)) {
       states.set(symbol, position.applyFill(state, { kind: 'empty' }) ?? state);
+    }
+    // The mirror case: a strategy that flattens when it places the exit (momentum) is left flat on coins the refused SELL never sold, so it stops guarding them and a re-entry folds onto them. Restore the ledger position so the next tick sees the holding and retries the exit, as live would. The restore adopts as a buy, so it resets the strategy's high-water marks and a trail exit re-arms from the next tick's price.
+    const view = position.readPosition(state);
+    if (
+      sellRejected &&
+      prior !== null &&
+      prior.avgEntryPrice !== null &&
+      prior.heldQuantity !== null &&
+      (view?.heldQuantity !== prior.heldQuantity || view.avgEntryPrice !== prior.avgEntryPrice)
+    ) {
+      states.set(
+        symbol,
+        position.applyFill(state, {
+          kind: 'buy',
+          avgEntryPrice: prior.avgEntryPrice,
+          heldQuantity: prior.heldQuantity,
+        }) ?? state,
+      );
     }
   };
 

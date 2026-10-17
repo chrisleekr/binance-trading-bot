@@ -85,6 +85,46 @@ describe('runBacktest — fill adoption converges position state', () => {
     expect(report.summary.tradeCount).toBe(0);
     expect(seen).toEqual([null, null, null]);
   });
+
+  // Momentum flattens its state when it places the exit. A refused SELL left it flat on coins it still held, so it stopped guarding them and a re-entry folded onto them.
+  it('restores the held position the strategy flattened for a SELL the fill model refused', async () => {
+    const base = makePositionStrategy('0.01');
+    const seen: (string | null)[] = [];
+    const flattening = {
+      ...base,
+      tick: (input: Parameters<typeof base.tick>[0]) => {
+        seen.push(input.state.heldQuantity);
+        if (input.state.heldQuantity === null) return base.tick(input);
+        // Sell twice the holding, which the balance cannot cover, and flatten at placement as momentum does.
+        return {
+          nextState: { avgEntryPrice: null, heldQuantity: null },
+          decisions: [
+            {
+              type: 'place-order' as const,
+              intent: {
+                symbol: input.market.symbol,
+                side: 'SELL' as const,
+                reason: 'exit' as const,
+                clientOrderId: `bt-exit-${input.market.symbol}-${seen.length}`,
+              },
+              params: { type: 'MARKET' as const, quantity: '0.02' },
+            },
+          ],
+          logs: [],
+          metrics: [],
+        };
+      },
+    };
+    const report = await runBacktest({
+      ...baseOpts,
+      strategy: flattening,
+      fillModel: new IdealFillModel(),
+      dataSource: candleSource(flatCandles(4, '100')),
+    });
+    // One BUY, and every later tick still sees the 0.01 it holds instead of re-entering on top of it.
+    expect(report.summary.tradeCount).toBe(1);
+    expect(seen).toEqual([null, '0.01', '0.01', '0.01']);
+  });
 });
 
 describe('adoptOne — fill-to-position math (mirrors the live fill-adopter)', () => {
