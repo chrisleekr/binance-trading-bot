@@ -105,5 +105,12 @@ describe('periodWindow', () => {
         '2026-03-08T05:00:00.000Z',
       );
     });
+
+    it('starts the day at the first midnight where clocks fall back onto it', () => {
+      // Gaza went from 01:00 back to 00:00 on 2020-10-24, so midnight happened at 21:00Z (UTC+3) and again at 22:00Z.
+      expect(iso(periodWindow('d', 'Asia/Gaza', new Date('2020-10-24T12:00:00Z')).from)).toBe(
+        '2020-10-23T21:00:00.000Z',
+      );
+    });
   });
 });
