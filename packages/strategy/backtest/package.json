@@ -21,6 +21,6 @@
   },
   "devDependencies": {
     "@app/strategy-trailing-trade": "workspace:*",
-    "zod": "~4.6.5"
+    "zod": "~4.6.7"
   }
 }
