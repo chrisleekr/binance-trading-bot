@@ -351,5 +351,7 @@ describe('GateVerdictSummary', () => {
         "Live vs backtest: couldn't load this profile's live trades.",
       ),
     );
+    // An archive that never loaded is no sample, so no verdict may state "0 live trades".
+    expect(screen.queryByTestId('gate-verdict-edge-detail')).not.toBeInTheDocument();
   });
 });

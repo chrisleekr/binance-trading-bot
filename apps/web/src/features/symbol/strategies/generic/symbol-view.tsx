@@ -67,10 +67,11 @@ function GenericSignalPanel({
   const lbp = state.avgEntryPrice?.avgEntryPrice ?? null;
   const isHolding = lbp !== null;
   const rows = (previewModel?.sections ?? []).flatMap((s) => s.rows);
-  // The stop that fires first is the highest one, so it leads.
-  const ordered = isHolding
-    ? [...rows].sort((a, b) => Number(b.price ?? 0) - Number(a.price ?? 0))
-    : rows;
+  // The exit nearest the current price fires first in either direction (a take-profit above, a stop below), so it leads; before the price loads, the highest level leads, and a row with no price sinks.
+  const now = currentPrice === null ? Number.NaN : Number(currentPrice);
+  const rank = (r: (typeof rows)[number]): number =>
+    r.price == null ? Infinity : now > 0 ? Math.abs(Number(r.price) / now - 1) : -Number(r.price);
+  const ordered = isHolding ? [...rows].sort((a, b) => rank(a) - rank(b)) : rows;
   const sentences = ordered
     .map((r) => rowSentence(r, isHolding, currentPrice))
     .filter((s): s is string => s !== null);

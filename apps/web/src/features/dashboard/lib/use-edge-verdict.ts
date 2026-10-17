@@ -60,9 +60,11 @@ export function useEdgeVerdict(profileId: string): ReturnType<typeof assessEdgeD
   // yet", so callers fall back to the gate headline / hide the edge badge.
   const monitor = profile.data?.enablementPolicy?.monitor;
   if (!monitor) return null;
+  // No archive yet (pending or failed): an empty sample would read as "0 live trades", which states a fact the page never loaded.
+  if (archive.data === undefined) return null;
 
   // The profile's own quote: a live profit factor built from two currencies added together is not a ratio of anything.
-  const bucket = mergeRollupBuckets(archive.data?.bySource ?? [], profile.data?.quoteAsset ?? '');
+  const bucket = mergeRollupBuckets(archive.data.bySource, profile.data?.quoteAsset ?? '');
   // The same bar `edge-decay-monitor.cron.ts` applies before it sends the Slack alert, over the same window narrowed to the same quote: a badge on screen that the alert channel would never send is a disagreement the operator has no way to see. Only `unknown` withholds the verdict, because only `unknown` is missing a charge.
   if (bucket.feeBasis === 'unknown') return null;
   return assessEdgeDecay({

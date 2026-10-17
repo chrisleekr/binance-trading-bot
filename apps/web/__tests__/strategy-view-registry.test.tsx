@@ -208,8 +208,8 @@ describe('getStrategyView', () => {
     );
     const lines = screen.getAllByRole('listitem').map((li) => li.textContent);
     expect(lines).toEqual([
-      'Sells if price rises to 110.00 (10.00% above now). (Take profit)',
       'Sells if price falls to 99.00 (1.00% below now). (Hard stop)',
+      'Sells if price rises to 110.00 (10.00% above now). (Take profit)',
       'Protective stop (exchange trail): Trails 3%.',
     ]);
   });

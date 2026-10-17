@@ -368,7 +368,8 @@ function SymbolWorkspaceInner({
               profileId={profileId}
               symbol={symbol}
               candles={candles.data}
-              candlesLoading={candles.isLoading}
+              // `isPending`, not `isLoading`: the query waits disabled for the state read, and a disabled query with no data is not `isLoading`, so the chart would claim an empty window it never fetched.
+              candlesLoading={candles.isPending}
               candlesError={candles.error}
               overlays={overlays}
               filterTickSize={filterTickSize}
