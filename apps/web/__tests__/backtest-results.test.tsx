@@ -248,7 +248,7 @@ describe('BacktestResults', () => {
   it('shows modeling notes as a collapsed note, not a warning banner', () => {
     const noted: BacktestResult = {
       ...RESULT,
-      modelNotes: ['no spread haircut modeled (spreadBps unset)'],
+      modelNotes: ['detail interval equals strategy interval (1h)'],
     };
     render(<BacktestResults result={noted} loadChartModule={loadChartModule} />);
     // A modeling caveat is not a data fault, so it must never raise the unreliable-results warning.
@@ -257,7 +257,7 @@ describe('BacktestResults', () => {
     expect(notes.tagName).toBe('DETAILS');
     expect(notes).not.toHaveAttribute('open');
     expect(screen.getByText('How this run was modeled')).toBeInTheDocument();
-    expect(screen.getByText(/no spread haircut modeled/)).toBeInTheDocument();
+    expect(screen.getByText(/detail interval equals strategy interval/)).toBeInTheDocument();
   });
 
   it('shows a prefer-hold banner when the strategy lost to holding (negative alpha)', () => {

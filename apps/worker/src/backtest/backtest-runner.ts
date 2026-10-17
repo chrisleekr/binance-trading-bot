@@ -489,15 +489,14 @@ export async function runProfileBacktest(
   // (spreadFactor 1, no participation cap), so a run cloned or re-run from a
   // base serialised before these knobs existed prices no bid/ask cost and lets
   // one order clear a thin bar whole — surface it rather than reporting the
-  // rosier number as clean. New form runs seed both, so this fires only on
-  // legacy runs.
+  // rosier number as clean. A data warning, not a model note, so the live gate keeps refusing a run whose fills are free: the form seeds both, but an MCP or API caller can omit them.
   if (params.spreadBps == null) {
-    modelNotes.push(
+    dataWarnings.push(
       'no spread haircut modeled (spreadBps unset); fills cross the bid/ask for free, so results are mildly optimistic vs a run with a spread — set spreadBps to model it',
     );
   }
   if (params.volumeCapPct == null) {
-    modelNotes.push(
+    dataWarnings.push(
       'no volume-participation cap (volumeCapPct unset); a single order can clear a thin bar whole at one price, which live liquidity would not allow — set volumeCapPct to model participation limits',
     );
   }

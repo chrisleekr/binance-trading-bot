@@ -248,10 +248,9 @@ describe('runProfileBacktest within-candle exits', () => {
 });
 
 describe('runProfileBacktest modelling notes', () => {
-  it('keeps an unset spread out of dataWarnings so a gap-free run does not fail the data-coverage gate', async () => {
+  it('keeps an unset spread in dataWarnings so the live gate refuses a run whose fills are free', async () => {
     const { notes, dataWarnings } = await run(trailingTrade, ['BTCUSDT'], { spreadBps: null });
-    // Every candle is present, so nothing here is a data problem: the live gate fails a run on any dataWarnings entry.
-    expect(dataWarnings).toEqual([]);
-    expect(notes.some((n) => n.startsWith('no spread haircut modeled'))).toBe(true);
+    expect(dataWarnings.some((w) => w.startsWith('no spread haircut modeled'))).toBe(true);
+    expect(notes.some((n) => n.startsWith('no spread haircut modeled'))).toBe(false);
   });
 });
