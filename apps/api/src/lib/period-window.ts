@@ -1,3 +1,5 @@
+const DAY_MS = 86_400_000;
+
 /**
  * Offset of `tz` from UTC at instant `t`, in ms: the zone's wall clock read as if it were UTC, minus the instant.
  * @param tz - IANA zone, already validated by the caller's query schema.
@@ -23,19 +25,18 @@ const tzOffsetMs = (tz: string, t: number): number => {
 };
 
 /**
- * The instant local midnight starts on a `tz` calendar date. The offset is read more than once because the first read is taken at UTC midnight, which can sit on the other side of a DST switch from local midnight.
+ * The instant a `tz` calendar date starts. Midnight resolves against the offsets in force a day either side, since a DST switch on that date leaves at most those two.
  * @param tz - IANA zone.
  * @param y - Calendar year in `tz`.
  * @param m - Zero-based month in `tz`; out-of-range days roll over as `Date.UTC` does.
  * @param d - Day of month in `tz`.
- * @returns 00:00 local time on that date as a UTC instant, or the first instant of the day when DST skips midnight.
+ * @returns The first 00:00 local on that date as a UTC instant; when clocks fall back onto midnight (Gaza) the earlier one, and when DST skips midnight (Santiago, Havana) the first instant that exists.
  */
 const localMidnight = (tz: string, y: number, m: number, d: number): Date => {
   const wall = Date.UTC(y, m, d);
-  const guess = wall - tzOffsetMs(tz, wall);
-  const t1 = wall - tzOffsetMs(tz, guess);
-  // Where DST starts at midnight (Santiago, Havana) 00:00 does not exist and t1 lands an hour early on the previous day; the third read moves it to the first instant that does exist.
-  return new Date(Math.max(t1, wall - tzOffsetMs(tz, t1)));
+  const candidates = [wall - tzOffsetMs(tz, wall - DAY_MS), wall - tzOffsetMs(tz, wall + DAY_MS)];
+  const real = candidates.filter((t) => t + tzOffsetMs(tz, t) === wall);
+  return new Date(real.length > 0 ? Math.min(...real) : Math.max(...candidates));
 };
 
 /**
