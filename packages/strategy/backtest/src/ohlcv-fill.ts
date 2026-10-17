@@ -67,7 +67,7 @@ export interface OhlcvFillModelOptions {
  *            it (BUY: bar low < limit; SELL: bar high > limit), not on a mere
  *            touch — modelling maker queue non-fill; maker fee.
  *   - MARKET fills at the candle open shifted by slippage; taker fee.
- *   - STOP_LOSS_LIMIT arms once a detail bar reaches the stop (SELL: low <= stop; BUY: high >= stop). If the trigger price (the stop, or the arming bar's open when it gapped past the stop) is still marketable against the limit, it fills there shifted by slippage and the half-spread, never worse than the limit. Otherwise it rests as a LIMIT at `params.price`: it fills at the limit the first time a bar trades THROUGH it, and a bar that gaps PAST the limit leaves it resting UNFILLED, modelling the real tail risk that a protective stop can gap through its limit and never protect. The arm is remembered across evaluations (the executor passes `armed` back), so a gapped-through stop-limit fills on the first later bar that trades through the limit, even one that recovered back past the stop, as Binance's already-armed limit would. Taker fee.
+ *   - STOP_LOSS_LIMIT arms once a detail bar reaches the stop (SELL: low <= stop; BUY: high >= stop). If the trigger price (the stop, or the arming bar's open when it gapped past the stop) is still marketable against the limit, it fills there shifted by slippage and the half-spread, never worse than the limit less its half-spread. Otherwise it rests as a LIMIT at `params.price`: it fills at the limit the first time a bar trades THROUGH it, and a bar that gaps PAST the limit leaves it resting UNFILLED, modelling the real tail risk that a protective stop can gap through its limit and never protect. The arm is remembered across evaluations (the executor passes `armed` back), so a gapped-through stop-limit fills on the first later bar that trades through the limit, even one that recovered back past the stop, as Binance's already-armed limit would. Taker fee.
  *
  * Every fill is then haircut by the half-spread (BUY pays up, SELL receives
  * less). Filters: stepSize/tickSize quantisation, minNotional and minQty are
@@ -256,9 +256,10 @@ export class OhlcvFillModel implements FillModel {
     const open = new Decimal(armBar.open);
     const trigger = side === 'SELL' ? Decimal.min(stop, open) : Decimal.max(stop, open);
     if (side === 'SELL' ? trigger.gte(limit) : trigger.lte(limit)) {
-      // Cap after the half-spread: a Binance limit order never executes past its limit.
+      // A Binance limit order never executes past its limit. Cap at the limit after its half-spread, as every other limit fill here pays, so a clean trigger near its limit never beats one that gapped and later crossed.
       const raw = trigger.mul(this.slippageFactor(side)).mul(this.spreadFactor(side));
-      const executed = side === 'SELL' ? Decimal.max(limit, raw) : Decimal.min(limit, raw);
+      const floor = limit.mul(this.spreadFactor(side));
+      const executed = side === 'SELL' ? Decimal.max(floor, raw) : Decimal.min(floor, raw);
       return { price: executed, feeBps: this.takerBps, bar: armBar };
     }
     const crossed = firstCrossBar(side, limit, bars.slice(bars.indexOf(armBar)));

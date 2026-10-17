@@ -523,8 +523,8 @@ describe('OhlcvFillModel half-spread haircut', () => {
       expect(out.fills[0]?.feeBps).toBe(20); // taker
     }
   });
-  it('caps a marketable stop-limit at its limit after the half-spread, never past it', () => {
-    // Slippage and the half-spread together would push both fills past the limit; Binance never executes a limit order past its limit.
+  it('caps a marketable stop-limit at its spread-adjusted limit, the price a crossed limit fills at', () => {
+    // Slippage and the half-spread together would push both fills past the limit. The cap is the limit after its half-spread, the same price the crossing path charges, so a clean trigger never beats a gapped one.
     const both = new OhlcvFillModel({
       makerBps: 10,
       takerBps: 20,
@@ -539,7 +539,7 @@ describe('OhlcvFillModel half-spread haircut', () => {
       }),
     );
     expect(sell.kind).toBe('filled');
-    if (sell.kind === 'filled') expect(sell.fills[0]?.price.toString()).toBe('89.9');
+    if (sell.kind === 'filled') expect(sell.fills[0]?.price.toString()).toBe('89.4505'); // 89.9 x 0.995
     const buy = both.fill(
       input({
         side: 'BUY',
@@ -548,7 +548,7 @@ describe('OhlcvFillModel half-spread haircut', () => {
       }),
     );
     expect(buy.kind).toBe('filled');
-    if (buy.kind === 'filled') expect(buy.fills[0]?.price.toString()).toBe('110.2');
+    if (buy.kind === 'filled') expect(buy.fills[0]?.price.toString()).toBe('110.751'); // 110.2 x 1.005
   });
 });
 
