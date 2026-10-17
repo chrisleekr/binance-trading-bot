@@ -323,6 +323,89 @@ describe('edgeDecayMonitorHandler', () => {
     expect(marker).toMatchObject({ liveTradeCount: 6, windowTradeCount: 40 });
   });
 
+  it('judges only the trades recorded since the baseline was pinned', async () => {
+    // The production failure: a profile carried dozens of losing trades from an earlier config, and the monitor judged the newly pinned config by them. The archive stub honours `from` the way the repo does (archived_at >= from), so dropping the pin time from the call hands the losers back and the alert fires.
+    const pinnedAt = new Date('2026-10-10T00:00:00.000Z');
+    const row = (profit: string, archivedAt: string) => ({
+      quoteAsset: 'USDT',
+      source: 'manual',
+      profit,
+      feesQuote: '0',
+      feeBasis: 'exact',
+      archivedAt: new Date(archivedAt),
+    });
+    const archive = [
+      // Twelve losers under the old config, before the pin: on their own, live PF 0 and a breach.
+      ...Array.from({ length: 12 }, () => row('-10', '2026-09-01T00:00:00.000Z')),
+      // Twelve cycles after the pin, ten winners: PF 50 / 20 = 2.5, above the 1.8 baseline.
+      ...Array.from({ length: 12 }, (_, n) =>
+        row(n < 10 ? '5' : '-10', '2026-10-11T00:00:00.000Z'),
+      ),
+    ];
+    const listForProfileInRange = vi.fn(async (from: Date | null) =>
+      archive.filter((r) => from === null || r.archivedAt >= from),
+    );
+    const notify = vi.fn<EdgeDecayMonitorDeps['notify']>(async () => undefined);
+    dbMocks.binanceModeById.mockResolvedValueOnce('live');
+    dbMocks.profileRepo.mockResolvedValueOnce({
+      profile: {
+        findById: async () => ({
+          quoteAsset: 'USDT',
+          enablementPolicy: {
+            monitor: { mode: 'warn', minTrades: 10, warnFactor: 0.85, breachFactor: 0.6 },
+          },
+          baselineBacktestRunId: 'baseline-1',
+          baselinePinnedAt: pinnedAt,
+        }),
+      },
+      tradeArchive: { listForProfileInRange },
+      backtestRuns: { get: vi.fn(async () => baselineRun) },
+    });
+    const ctx = {
+      db: {},
+      logger: silent,
+      listActive: () => [{ operatorId: U, accountId: A, profileId: P }],
+      redis: { exists: vi.fn(async () => 0), set: vi.fn(), del: vi.fn() },
+      notifyEvent: notify,
+    } as unknown as BootContext;
+
+    await buildEdgeDecayMonitorCron(ctx).handler(job);
+
+    expect(listForProfileInRange).toHaveBeenCalledWith(pinnedAt);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('uses the all-time window when a pin time outlived its deleted run', async () => {
+    // Deleting the pinned run clears only the run id (FK ON DELETE SET NULL), so the pin time stays behind describing nothing; it must not narrow the window.
+    const listForProfileInRange = vi.fn(async () => []);
+    dbMocks.binanceModeById.mockResolvedValueOnce('live');
+    dbMocks.profileRepo.mockResolvedValueOnce({
+      profile: {
+        findById: async () => ({
+          quoteAsset: 'USDT',
+          enablementPolicy: {
+            monitor: { mode: 'warn', minTrades: 10, warnFactor: 0.85, breachFactor: 0.6 },
+          },
+          baselineBacktestRunId: null,
+          baselinePinnedAt: new Date('2026-10-10T00:00:00.000Z'),
+        }),
+      },
+      tradeArchive: { listForProfileInRange },
+      backtestRuns: { get: vi.fn(async () => null) },
+    });
+    const ctx = {
+      db: {},
+      logger: silent,
+      listActive: () => [{ operatorId: U, accountId: A, profileId: P }],
+      redis: { exists: vi.fn(async () => 0), set: vi.fn(), del: vi.fn() },
+      notifyEvent: vi.fn(async () => undefined),
+    } as unknown as BootContext;
+
+    await buildEdgeDecayMonitorCron(ctx).handler(job);
+
+    expect(listForProfileInRange).toHaveBeenCalledWith(null);
+  });
+
   it('abstains outright when the profile names no quote asset', async () => {
     // Fail-closed on the filter's own precondition. With no quote to match, every archive row is filtered away — and an EMPTY window folds to `exact` by identity, so the tier gate would wave through a summary of zero trades rather than decline to judge one. The visible cost of getting this wrong is small (no alert can fire on zero trades) but the shape is the fail-open one, and it is the shape that gets copied.
     const backtestGet = vi.fn(async () => null);

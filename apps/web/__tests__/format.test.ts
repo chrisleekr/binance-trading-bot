@@ -12,6 +12,7 @@ import {
   formatPercent,
   formatPrice,
   formatSignedAmount,
+  formatWinRate,
   signOf,
 } from '../src/shared/lib/format.js';
 
@@ -66,7 +67,20 @@ describe('formatMoneyAmount', () => {
     expect(formatMoneyAmount('1000')).toBe('1,000.00');
   });
 
-  it('keeps precision on a sub-unit value so it does not round to 0.00', () => {
+  it('reads a sub-unit value that rounds up to 1 as a whole amount', () => {
+    expect(formatMoneyAmount('0.99996')).toBe('1.00');
+    expect(formatMoneyAmount('-0.99999')).toBe('-1.00');
+    // 4 significant digits keep 0.996 below the whole-amount boundary.
+    expect(formatMoneyAmount('0.996')).toBe('0.996');
+    expect(formatPrice('0.999999999')).toBe('1.00');
+  });
+
+  it('reads a sub-unit value at 4 significant digits, never rounding it to 0.00', () => {
+    // The live readouts that prompted this: 8 fraction digits on a few cents of USDT.
+    expect(formatMoneyAmount('-0.0348491')).toBe('-0.03485');
+    expect(formatMoneyAmount('0.7293321')).toBe('0.7293');
+    expect(formatMoneyAmount('0.4567')).toBe('0.4567');
+    expect(formatMoneyAmount('0.00000306')).toBe('0.00000306');
     expect(formatMoneyAmount('0.002')).toBe('0.002');
     expect(formatMoneyAmount('0')).toBe('0');
   });
@@ -108,8 +122,18 @@ describe('formatPrice', () => {
     expect(formatPrice('76700.76')).toBe('76,700.76');
   });
 
-  it('keeps precision on a sub-1 price so a small-quote pair does not round to 0', () => {
+  it('keeps every tick of a sub-1 price up to 8dp, since exchange prices are tick-quantised', () => {
+    // ZECBTC ticks at 0.0000001; 4 significant digits read 0.01483 and collapsed adjacent order-book rows.
+    expect(formatPrice('0.0148267')).toBe('0.0148267');
+    expect(formatPrice('0.08584')).toBe('0.08584');
+    expect(formatPrice('0.00000545')).toBe('0.00000545');
     expect(formatPrice('0.00012345')).toBe('0.00012345');
+    expect(formatPrice('0.99999999')).toBe('0.99999999');
+    expect(formatPrice('0.10000000')).toBe('0.1');
+  });
+
+  it('returns a non-finite input unchanged', () => {
+    expect(formatPrice('n/a')).toBe('n/a');
   });
 
   it('pins the >= 1 boundary — 0.99 takes the sub-1 branch, 1 takes the 2dp branch', () => {
@@ -126,6 +150,11 @@ describe('formatSignedAmount', () => {
 
   it('rounds to a 2-digit money fraction', () => {
     expect(formatSignedAmount('13.15433931')).toBe('+13.15');
+  });
+
+  it('signs a sub-unit value at 4 significant digits', () => {
+    expect(formatSignedAmount('0.83690561')).toBe('+0.8369');
+    expect(formatSignedAmount('-0.61120068')).toBe('-0.6112');
   });
 
   it('leaves zero unsigned', () => {
@@ -197,6 +226,15 @@ describe('formatPercent', () => {
     expect(formatPercent(0, { sign: true })).toBe('0.00%');
     // A tiny negative that rounds to zero must not render as -0.00% or +0.00%.
     expect(formatPercent(-0.0001, { sign: true })).toBe('0.00%');
+  });
+});
+
+describe('formatWinRate', () => {
+  it('renders a 0..1 ratio as a whole percent', () => {
+    expect(formatWinRate(0.72)).toBe('72%');
+    expect(formatWinRate(0.6939)).toBe('69%');
+    expect(formatWinRate(0)).toBe('0%');
+    expect(formatWinRate(1)).toBe('100%');
   });
 });
 

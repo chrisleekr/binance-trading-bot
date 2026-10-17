@@ -234,12 +234,19 @@ export function evaluateBacktestGate(input: GateEvalInput): GateOutcome {
   return { ok: true, runId: matching.runId, matchedAtMs: matching.createdAtMs };
 }
 
+/**
+ * One line per failed threshold check, in the admission gate's phrasing.
+ *
+ * @param checks - Every evaluated check; passing ones are dropped.
+ * @returns The failed checks, e.g. `out-of-sample alpha vs hold -16.84% (need >= 0%)`.
+ */
+export function failedCheckLines(checks: readonly GateCheck[]): string[] {
+  return checks.filter((c) => !c.ok).map((c) => `${c.label} ${c.actual} (need ${c.need})`);
+}
+
 /** Join the failed threshold checks into the admission gate's `detail` phrasing. */
 export function failedChecksDetail(checks: readonly GateCheck[]): string {
-  return checks
-    .filter((c) => !c.ok)
-    .map((c) => `${c.label} ${c.actual} (need ${c.need})`)
-    .join('; ');
+  return failedCheckLines(checks).join('; ');
 }
 
 /** Minimal `backtest_runs` row shape {@link toGateCandidates} needs. */
@@ -313,5 +320,7 @@ export const GateStatusResponse = z.object({
   ok: z.boolean(),
   failure: z.enum(['no-matching-backtest', 'stale', 'unreadable-result', 'thresholds']).nullable(),
   detail: z.string(),
+  // The failed checks as separate lines, so a reader can count and list them without parsing `detail`, whose wording is free to change.
+  failedChecks: z.array(z.string()).default(() => []),
 });
 export type GateStatusResponse = z.infer<typeof GateStatusResponse>;

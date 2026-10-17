@@ -41,7 +41,7 @@ describe('<HistoryVerdict>', () => {
     // 28 net over 5 cycles, 4 of them ahead; winners 12 against losers 2 → PF 6, expectancy +2.00, fees 2 of the 14 the cycles produced.
     expect(screen.getByTestId('verdict-pnl-USDT')).toHaveTextContent('+28.00');
     expect(screen.getByTestId('verdict-trades-USDT')).toHaveTextContent('5');
-    expect(screen.getByTestId('verdict-winrate-USDT')).toHaveTextContent('80.00%');
+    expect(screen.getByTestId('verdict-winrate-USDT')).toHaveTextContent('80%');
     expect(screen.getByTestId('verdict-expectancy-USDT')).toHaveTextContent('+2.00');
     expect(screen.getByTestId('verdict-pf-USDT')).toHaveTextContent('6');
     expect(screen.getByTestId('verdict-fees-USDT')).toHaveTextContent('14.29%');

@@ -571,7 +571,10 @@ describe('<TradeArchivePanel> recovery nudge', () => {
     const estimated = within(screen.getByTestId('archive-profit-arch-est')).getByTestId(
       'archive-pnl-estimated-arch-est',
     );
-    expect(estimated.textContent).toBe('est');
+    // Visible `est.` for the eye, `estimated` for a screen reader, and a real space before it so the cell never reads `USDTest`.
+    expect(within(estimated).getByText('est.')).toHaveAttribute('aria-hidden', 'true');
+    expect(within(estimated).getByText('estimated')).toHaveClass('sr-only');
+    expect(screen.getByTestId('archive-profit-arch-est').textContent).toMatch(/USDT est\./);
     expect(estimated).toHaveAttribute('title', expect.stringMatching(/reconstructed/i));
     expect(screen.getByTestId('archive-profit-arch-est')).toHaveTextContent('9');
     expect(screen.queryByTestId('archive-pnl-estimated-arch-costed')).not.toBeInTheDocument();

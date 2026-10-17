@@ -220,6 +220,56 @@ describeIfInfra('profiles router — quoteAsset', () => {
     ).toBeNull();
   });
 
+  it('stamps the pin time on a new pin, keeps it on a re-pin, and clears it with the pin', async () => {
+    // The pin time is where the live comparison window starts. A retried pin of the same run must not move it, or the trades since the first pin silently drop out of the verdict.
+    const repo = await profileRepo(
+      fx.di.db,
+      asUserId(fx.alice.userId),
+      fx.alice.accountId,
+      asProfileId(fx.alice.profileId),
+    );
+    const run = await repo.backtestRuns.create({ symbols: ['BTCUSDT'], params: {} });
+    await repo.backtestRuns.markRunning(run.id);
+    await repo.backtestRuns.complete(run.id, {});
+    const patchBaseline = async (id: string | null) => {
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}`,
+        {
+          method: 'PATCH',
+          headers: headers(fx.alice.userId),
+          body: JSON.stringify({ baselineBacktestRunId: id }),
+        },
+      );
+      expect(res.status).toBe(200);
+      return ((await res.json()) as { baselinePinnedAt: string | null }).baselinePinnedAt;
+    };
+
+    const before = Date.now();
+    const pinnedAt = await patchBaseline(run.id);
+    expect(pinnedAt).not.toBeNull();
+    expect(Date.parse(pinnedAt as string)).toBeGreaterThanOrEqual(before);
+
+    expect(await patchBaseline(run.id)).toBe(pinnedAt);
+
+    // A pin made before the column existed has no time; re-pinning the same run is how the operator opts it into a window.
+    await repo.profile.update({ baselinePinnedAt: null });
+    expect(await patchBaseline(run.id)).not.toBeNull();
+
+    expect(await patchBaseline(null)).toBeNull();
+    expect((await repo.profile.findById())?.baselinePinnedAt).toBeNull();
+
+    // Pinning a different run restarts the window; an old stamp seeded on run A proves the time moved rather than relying on two calls landing in different milliseconds.
+    const runB = await repo.backtestRuns.create({ symbols: ['BTCUSDT'], params: {} });
+    await repo.backtestRuns.markRunning(runB.id);
+    await repo.backtestRuns.complete(runB.id, {});
+    await patchBaseline(run.id);
+    const OLD = new Date('2020-01-01T00:00:00.000Z');
+    await repo.profile.update({ baselinePinnedAt: OLD });
+    const beforeB = Date.now();
+    const pinnedB = await patchBaseline(runB.id);
+    expect(Date.parse(pinnedB as string)).toBeGreaterThanOrEqual(beforeB);
+  });
+
   it('clears the pin when the pinned backtest run is deleted (FK ON DELETE SET NULL)', async () => {
     const repo = await profileRepo(
       fx.di.db,
@@ -237,7 +287,21 @@ describeIfInfra('profiles router — quoteAsset', () => {
     });
     // Deleting the run must auto-unpin the profile, not orphan a dangling id.
     await fx.di.db.execute(sql`delete from backtest_runs where id = ${run.id}`);
-    expect((await repo.profile.findById())?.baselineBacktestRunId).toBeNull();
+    const row = await repo.profile.findById();
+    expect(row?.baselineBacktestRunId).toBeNull();
+    // The FK clears only the run id, so the pin time survives in the column; the API must not serve it as a live pin.
+    expect(row?.baselinePinnedAt).not.toBeNull();
+    const res = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}`,
+      { headers: headers(fx.alice.userId) },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      baselineBacktestRunId: string | null;
+      baselinePinnedAt: string | null;
+    };
+    expect(body.baselineBacktestRunId).toBeNull();
+    expect(body.baselinePinnedAt).toBeNull();
   });
 
   it('rejects pinning an unfinished or unknown backtest run', async () => {

@@ -56,7 +56,7 @@ function feeDragPct(bucket: VerdictBucket): number | null {
  * Module-level because `react/no-unstable-nested-components` is armed: a component declared in a render body remounts its subtree on every render, which on WebKit also clamps the page's scroll position.
  *
  * @param label - The figure's name, in the operator's words rather than the field's.
- * @param hint - Plain-language gloss of what the figure means, available to screen readers without turning the summary into a false control.
+ * @param hint - Plain-language gloss of what the figure means, shown as a muted sentence-case caption under the label.
  * @param testId - Identifies this tile; keyed by quote coin at the call site, since a period spanning two coins renders two of every tile.
  * @param children - The figure itself, or the withheld marker where the evidence cannot support one.
  * @param sub - The caveat line under the figure, e.g. the cycles it actually covers. Absent when the figure carries none.
@@ -70,7 +70,7 @@ function VerdictTile({
   sub,
 }: {
   readonly label: string;
-  /** Plain-language gloss of the term. The operator is not a finance professional, so the meaning must remain available to assistive technology. */
+  /** Plain-language gloss of the term, rendered visibly under the label. */
   readonly hint: string;
   readonly testId: string;
   readonly children: React.ReactNode;
@@ -81,9 +81,10 @@ function VerdictTile({
       data-testid={testId}
       className="flex min-h-11 flex-col items-start gap-0.5 rounded-md border border-border p-2 text-left"
     >
-      <dt className="text-[11px] tracking-wide text-muted-fg uppercase">
-        {label}
-        <span className="sr-only">. {hint}.</span>
+      <dt className="text-[11px] text-muted-fg">
+        <span className="tracking-wide uppercase">{label}</span>
+        {/* Visible and sentence-case: the operator is not a finance professional, so the gloss is part of the reading, not a screen-reader extra. Outside the uppercase span so it does not shout. */}
+        <span className="block">{hint}</span>
       </dt>
       <dd className="flex flex-col gap-0.5">
         <span className="font-mono text-sm tabular-nums">{children}</span>
@@ -210,7 +211,7 @@ export function HistoryVerdict({
                 hint="Share of cycles that finished ahead once their commission was taken off"
                 testId={`verdict-winrate-${quoteAsset}`}
               >
-                {valued ? formatPercent(winPct(merged)) : withheldTile()}
+                {valued ? `${winPct(merged)}%` : withheldTile()}
               </VerdictTile>
 
               <VerdictTile

@@ -96,6 +96,7 @@ const requiredArgs = (op: Operation): string[] => [
 const UNTYPED_ROUTE_FIELDS: Readonly<Record<string, boolean>> = {
   'preview_config.config': false,
   'update_profile.config': false,
+  'set_backtest_baseline.config': false,
   'update_symbol_config.overrideConfig': true,
   'create_profile.config': true,
   'switch_strategy.config': true,

@@ -43,7 +43,7 @@ import { errorMessage } from '@/shared/lib/api';
 import { formatAmount } from '@/shared/lib/format';
 import { fetchExchangeInfo } from '@/features/symbol/api/exchange-info';
 import { getStrategyView } from '@/features/symbol/strategies/registry';
-import { usePreviewModel } from '@/features/symbol/preview/use-preview-model';
+import { asCandleInterval, usePreviewModel } from '@/features/symbol/preview/use-preview-model';
 import { deriveChartLines } from '@/features/symbol/preview/preview-chart-lines';
 import { queryDefaults } from '@/shared/lib/query-client';
 import {
@@ -147,7 +147,14 @@ function SymbolWorkspaceInner({
 
   // Operator-selected candle interval (Binance-style tabs). Local state —
   // switching it re-keys the candles query below and refetches.
-  const [chartInterval, setChartInterval] = useState<CandleInterval>(SYMBOL_CANDLE_INTERVAL);
+  const [pickedInterval, setChartInterval] = useState<CandleInterval | null>(null);
+  // Until the operator picks one, open on the candles the strategy decides on: an hourly strategy's breakout and stop levels are invisible noise on a 1m chart.
+  const chartInterval: CandleInterval =
+    pickedInterval ??
+    asCandleInterval(
+      (state.data?.strategy.config as { candleInterval?: unknown } | undefined)?.candleInterval,
+    ) ??
+    SYMBOL_CANDLE_INTERVAL;
 
   // Compute the candle bucket once per render and pass the same value to both
   // the query key and the request URL. Without this, render and execution can
@@ -164,6 +171,8 @@ function SymbolWorkspaceInner({
     // The window is immutable within a bucket — a new bucket re-keys the query
     // anyway — so it stays fresh for the full interval span.
     staleTime: intervalSpanMs(chartInterval),
+    // Wait for the strategy's interval rather than fetching a 1m window that is replaced a moment later; a failed state read falls back to 1m.
+    enabled: pickedInterval !== null || !state.isPending,
     // Keep the prior bucket's bars on screen while the next bucket fetches.
     // Without this, every interval boundary (each minute on 1m) re-keys the
     // query to `data: undefined` / `isLoading: true`, which swaps ChartBody to
@@ -359,7 +368,8 @@ function SymbolWorkspaceInner({
               profileId={profileId}
               symbol={symbol}
               candles={candles.data}
-              candlesLoading={candles.isLoading}
+              // `isPending`, not `isLoading`: the query waits disabled for the state read, and a disabled query with no data is not `isLoading`, so the chart would claim an empty window it never fetched.
+              candlesLoading={candles.isPending}
               candlesError={candles.error}
               overlays={overlays}
               filterTickSize={filterTickSize}
@@ -368,6 +378,7 @@ function SymbolWorkspaceInner({
               state={state.data}
               stateLoading={state.isLoading}
               currentPrice={markPrice}
+              previewModel={previewModel}
               view={view}
               operatorActions={operatorActions}
               onSymbolWiped={() => void routeNavigate({ to: '/' })}

@@ -3,7 +3,7 @@
 // churn whenever Binance adds a property. These readers pull the fields the
 // UI shows, falling back to an em-dash when the payload is unexpected.
 
-import { formatPrice } from '@/shared/lib/format';
+import { formatPercent, formatPrice } from '@/shared/lib/format';
 
 import type { OrderResponse } from '@app/contracts';
 
@@ -42,6 +42,81 @@ export const isRawShape = (v: unknown): v is RawOrderShape => {
 /** Order quantity from the Binance `raw` payload, or an em-dash. */
 export const orderQty = (order: OrderResponse): string =>
   isRawShape(order.raw) ? (order.raw.origQty ?? '—') : '—';
+
+/**
+ * The price at which a resting SELL stop-loss fires, or null when the order is not a fixed-price sell stop.
+ *
+ * A `STOP_LOSS_LIMIT` carries two prices: `stopPrice` (the trigger) and `price` (the worst fill accepted once triggered). The Price column shows the limit, which sits below the trigger, so reading it as "where the stop is" puts the stop further away than it really is. An exchange trailing stop (`trailingDelta`) has no fixed trigger to name, so it returns null rather than a stale number.
+ *
+ * @param order - Any open order; buy-side and non-stop orders and unexpected payloads return null, because every caller words the result as "sells if price falls to".
+ * @returns The trigger price as Binance sent it (a decimal-string), or null.
+ */
+export const stopTriggerPrice = (order: OrderResponse): string | null => {
+  if (order.side !== 'SELL' || !isRawShape(order.raw)) return null;
+  const { type, stopPrice, trailingDelta } = order.raw;
+  if (type !== 'STOP_LOSS' && type !== 'STOP_LOSS_LIMIT') return null;
+  if (trailingDelta !== undefined || stopPrice === undefined || !(Number(stopPrice) > 0))
+    return null;
+  return stopPrice;
+};
+
+/**
+ * The limit a SELL stop-limit rests at once it fires, or null when the order has no limit leg.
+ *
+ * Once a `STOP_LOSS_LIMIT` triggers, Binance places its sell at `price`, and a price that keeps falling past that limit leaves the sell resting unfilled. A `STOP_LOSS` sells at market on trigger, so it has no limit to name.
+ *
+ * @param order - Any open order; only a fixed-price SELL `STOP_LOSS_LIMIT` (one {@link stopTriggerPrice} names) yields a value.
+ * @returns The limit price as Binance sent it (a decimal-string), or null.
+ */
+export const stopLimitPrice = (order: OrderResponse): string | null => {
+  if (stopTriggerPrice(order) === null || !isRawShape(order.raw)) return null;
+  const { type, price } = order.raw;
+  return type === 'STOP_LOSS_LIMIT' && price !== undefined && Number(price) > 0 ? price : null;
+};
+
+/**
+ * Whether the current price has reached a SELL stop's trigger, so the stop has fired (or is about to) rather than waiting below.
+ *
+ * @param trigger - The stop's trigger price, as a decimal-string.
+ * @param current - The current market price, or null before it loads.
+ * @returns True when the current price is at or below the trigger; false when it is above or either price is unusable.
+ */
+export const isStopTriggered = (trigger: string, current: string | null | undefined): boolean => {
+  const pct = pctFromNow(trigger, current);
+  return pct !== null && pct >= 0;
+};
+
+/**
+ * Percent a price sits from the current price (`-1.2` = 1.2% below).
+ *
+ * Display-only Number math (apps/web is barred from decimal.js and this never feeds an order).
+ *
+ * @param price - The level being described, as a decimal-string.
+ * @param current - The current market price, or null before it loads.
+ * @returns The signed percent, or null when either price is missing or unusable.
+ */
+export const pctFromNow = (price: string, current: string | null | undefined): number | null => {
+  const p = Number(price);
+  const c = Number(current);
+  if (current == null || !Number.isFinite(p) || !Number.isFinite(c) || c <= 0) return null;
+  return (p / c - 1) * 100;
+};
+
+/**
+ * {@link pctFromNow} in words, `1.20% below now`, so a reader never has to decode a sign.
+ *
+ * @param price - The level being described, as a decimal-string.
+ * @param current - The current market price, or null before it loads.
+ * @returns The phrase, or null when either price is missing or unusable.
+ */
+export const distanceFromNow = (
+  price: string,
+  current: string | null | undefined,
+): string | null => {
+  const pct = pctFromNow(price, current);
+  if (pct === null) return null;
+  return `${formatPercent(Math.abs(pct))} ${pct < 0 ? 'below' : 'above'} now`;
+};
 
 /**
  * Display string for the Price column. MARKET orders book at the trade fill

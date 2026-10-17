@@ -2,8 +2,8 @@
 //
 // Everything else in this directory checks decisions taken before a request is made. This file checks the one claim none of those can: that a tool call goes through the same `mountApiRouters` set the browser uses, carries the same ownership proof, and leaves the same kind of row behind — with `actor='agent'` as the only difference.
 
-import { AgentActionNotifyJob } from '@app/contracts';
-import { dashboardAggregateCacheKey, GLOBAL_KEYS, profileKey } from '@app/db';
+import { AgentActionNotifyJob, asProfileId, asUserId } from '@app/contracts';
+import { dashboardAggregateCacheKey, GLOBAL_KEYS, profileKey, profileRepo } from '@app/db';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { dispatchMcpTool, type McpDispatchDeps } from '../../src/mcp/dispatch.js';
 import {
@@ -221,6 +221,42 @@ describe.skipIf(!HAS_INFRA)('MCP dispatch through the real routers', () => {
       [fx.alice.profileId],
     );
     expect(rows.rows[0]?.quote_asset).toBe('FDUSD');
+  });
+
+  it('pins and unpins the backtest baseline through set_backtest_baseline', async () => {
+    // The tool shares the operator's PATCH, so the same run checks apply: an unfinished run is refused, and a pin stamps the time the live comparison window starts from.
+    const repo = await profileRepo(
+      fx.di.db,
+      asUserId(fx.alice.userId),
+      fx.alice.accountId,
+      asProfileId(fx.alice.profileId),
+    );
+    const { id: runId } = await repo.backtestRuns.create({ symbols: ['BTCUSDT'], params: {} });
+    const pin = (baselineBacktestRunId: string | null) =>
+      dispatchMcpTool(depsFor(fx, [MCP_SCOPE_TRADE]), 'set_backtest_baseline', {
+        accountId: fx.alice.accountId,
+        profileId: fx.alice.profileId,
+        baselineBacktestRunId,
+      });
+    const pinState = async () =>
+      (
+        await fx.di.pool.query<{ run: string | null; at: Date | null }>(
+          `select baseline_backtest_run_id as run, baseline_pinned_at as at from profiles where id = $1`,
+          [fx.alice.profileId],
+        )
+      ).rows[0];
+
+    const refused = await pin(runId);
+    expect(refused.isError).toBe(true);
+    expect(refused.text).toContain('not finished');
+
+    await repo.backtestRuns.markRunning(runId);
+    await repo.backtestRuns.complete(runId, {});
+    expect((await pin(runId)).isError).toBe(false);
+    expect(await pinState()).toMatchObject({ run: runId, at: expect.any(Date) });
+
+    expect((await pin(null)).isError).toBe(false);
+    expect(await pinState()).toEqual({ run: null, at: null });
   });
 
   it("names the calling agent's address and client in the audit row", async () => {

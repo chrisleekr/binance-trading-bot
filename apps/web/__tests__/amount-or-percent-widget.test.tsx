@@ -183,9 +183,9 @@ describe('amount-or-percent widget', () => {
     );
     // 0.5 × 800 equity = 400; the gloss carries the live equity figure.
     expect(screen.getByTestId('amount-or-percent-entrySizing-preview')).toHaveTextContent(
-      '≈ 400 USDT',
+      '≈ 400.00 USDT',
     );
-    expect(screen.getByText(/800 USDT now/)).toBeInTheDocument();
+    expect(screen.getByText(/800.00 USDT now/)).toBeInTheDocument();
   });
 
   it('recomputes the quote figure as the operator types a percent', async () => {
@@ -204,7 +204,7 @@ describe('amount-or-percent widget', () => {
     // 0.25 × 800 = 200.
     await waitFor(() =>
       expect(screen.getByTestId('amount-or-percent-entrySizing-preview')).toHaveTextContent(
-        '≈ 200 USDT',
+        '≈ 200.00 USDT',
       ),
     );
   });
@@ -312,7 +312,7 @@ describe('amount-or-percent widget', () => {
     // warning flags that it is rejected on save.
     await waitFor(() => {
       expect(screen.getByTestId('amount-or-percent-entrySizing-preview')).toHaveTextContent(
-        '≈ 1,200 USDT',
+        '≈ 1,200.00 USDT',
       );
       expect(screen.getByTestId('amount-or-percent-entrySizing-over-max')).toBeInTheDocument();
     });

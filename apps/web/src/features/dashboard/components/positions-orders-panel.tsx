@@ -10,7 +10,14 @@ import { Link } from '@tanstack/react-router';
 import { useSymbolRows } from '@/features/dashboard/lib/use-symbol-rows';
 import { useActiveAccountId } from '@/shared/lib/account-scope';
 import { isManagedPosition, managedUnrealisedPnlOf } from '@/features/profile/lib/unrealised-pnl';
-import { orderDisplayPrice, orderQty } from '@/features/symbol/lib/order-raw';
+import {
+  distanceFromNow,
+  isStopTriggered,
+  orderDisplayPrice,
+  orderQty,
+  stopLimitPrice,
+  stopTriggerPrice,
+} from '@/features/symbol/lib/order-raw';
 import { deriveQuote } from '@/shared/lib/symbol-quote';
 import { formatAmount, formatPrice } from '@/shared/lib/format';
 import { PnlValue } from '@/shared/components/pnl-value';
@@ -27,7 +34,12 @@ export function PositionsOrdersPanel({
   // A refused seed is not one of "your money now": nothing sellable backs it, so listing it here would put a position the strategy will never exit beside the ones it is running.
   const positions = merged.items.filter((r) => isManagedPosition(r.sym));
   const orders = merged.items.flatMap((r) =>
-    r.sym.openOrders.map((order) => ({ profileId: r.profileId, symbol: r.sym.symbol, order })),
+    r.sym.openOrders.map((order) => ({
+      profileId: r.profileId,
+      symbol: r.sym.symbol,
+      order,
+      currentPrice: r.sym.currentPrice,
+    })),
   );
 
   // Nothing in play → don't show an empty "your money" block.
@@ -91,39 +103,91 @@ export function PositionsOrdersPanel({
             <p className="text-xs text-muted-fg">None.</p>
           ) : (
             <ul className="space-y-1">
-              {orders.map(({ profileId, symbol, order }) => (
-                <li
-                  key={order.id}
-                  className="flex items-baseline gap-2 text-xs"
-                  data-testid={`money-order-${order.id}`}
-                >
-                  <Link
-                    to="/accounts/$accountId/profiles/$profileId/symbols/$symbol"
-                    params={{ accountId, profileId, symbol }}
-                    search={{ tab: 'orders' }}
-                    className="shrink-0 font-mono font-medium text-fg hover:text-accent"
+              {orders.map(({ profileId, symbol, order, currentPrice }) => {
+                const trigger = stopTriggerPrice(order);
+                const distance = trigger === null ? null : distanceFromNow(trigger, currentPrice);
+                return (
+                  <li
+                    key={order.id}
+                    className="flex items-baseline gap-2 text-xs"
+                    data-testid={`money-order-${order.id}`}
                   >
-                    {symbol}
-                  </Link>
-                  <span
-                    className={`shrink-0 font-semibold ${order.side === 'BUY' ? 'text-up' : 'text-down'}`}
-                  >
-                    {order.side}
-                  </span>
-                  {/* One coin can legitimately rest several orders at once — at
-                      most one per intent, so a take-profit sell and a protective
-                      stop coexist. Without the intent both render as a bare
-                      "SELL" and read as a duplicate bug. */}
-                  <span className="shrink-0 font-mono text-muted-fg">{order.intent}</span>
-                  <span className="flex-1 truncate text-right font-mono text-muted-fg tabular-nums">
-                    {formatAmount(orderQty(order))} @ {orderDisplayPrice(order)}
-                  </span>
-                </li>
-              ))}
+                    <Link
+                      to="/accounts/$accountId/profiles/$profileId/symbols/$symbol"
+                      params={{ accountId, profileId, symbol }}
+                      search={{ tab: 'orders' }}
+                      className="shrink-0 font-mono font-medium text-fg hover:text-accent"
+                    >
+                      {symbol}
+                    </Link>
+                    {trigger !== null && isStopTriggered(trigger, currentPrice) ? (
+                      // Price is at or below the trigger, so the stop has fired and a stop-limit's sell can rest unfilled under a falling price; "sells if price falls to" would promise an exit that may not happen.
+                      <StopTriggeredText trigger={trigger} limit={stopLimitPrice(order)} />
+                    ) : trigger !== null ? (
+                      // A stop-limit's Price column is its LIMIT, which sits below where it fires; the operator needs the trigger, said in words.
+                      <span className="min-w-0 flex-1 text-muted-fg" data-testid="money-order-stop">
+                        <span className="font-semibold text-down">Stop-loss</span> sells{' '}
+                        <span className="font-mono tabular-nums">
+                          {formatAmount(orderQty(order))}
+                        </span>{' '}
+                        if price falls to{' '}
+                        <span className="font-mono text-fg tabular-nums">
+                          {formatPrice(trigger)}
+                        </span>
+                        {distance !== null ? ` (${distance})` : null}
+                      </span>
+                    ) : (
+                      <>
+                        <span
+                          className={`shrink-0 font-semibold ${order.side === 'BUY' ? 'text-up' : 'text-down'}`}
+                        >
+                          {order.side}
+                        </span>
+                        {/* One coin can legitimately rest several orders at once — at most one per intent, so a take-profit sell and a protective stop coexist. Without the intent both render as a bare "SELL" and read as a duplicate bug. */}
+                        <span className="shrink-0 font-mono text-muted-fg">{order.intent}</span>
+                        <span className="flex-1 truncate text-right font-mono text-muted-fg tabular-nums">
+                          {formatAmount(orderQty(order))} @ {orderDisplayPrice(order)}
+                        </span>
+                      </>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * The stop row once price has reached the trigger: names where it fired and what the sell is doing now.
+ *
+ * @param props.trigger - The stop's trigger price, as a decimal-string.
+ * @param props.limit - The stop-limit's resting sell price, or null for a stop that sells at market on trigger.
+ * @returns The sentence, with the triggered state in the warning colour.
+ */
+function StopTriggeredText({
+  trigger,
+  limit,
+}: {
+  trigger: string;
+  limit: string | null;
+}): React.JSX.Element {
+  return (
+    <span className="min-w-0 flex-1 text-muted-fg" data-testid="money-order-stop">
+      <span className="font-semibold text-warning">Stop-loss triggered</span> at{' '}
+      <span className="font-mono text-fg tabular-nums">{formatPrice(trigger)}</span>
+      {limit !== null ? (
+        <>
+          ; its sell is resting at{' '}
+          <span className="font-mono text-fg tabular-nums">{formatPrice(limit)}</span> and may not
+          fill if price keeps falling.
+        </>
+      ) : (
+        '; its sell goes out at market.'
+      )}
+    </span>
   );
 }

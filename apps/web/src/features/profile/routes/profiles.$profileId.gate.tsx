@@ -7,6 +7,7 @@ import { createRoute } from '@tanstack/react-router';
 
 import { Page } from '@/shared/components/page';
 import { EnablementPolicyPanel } from '@/features/profile/components/enablement-policy-panel';
+import { GateVerdictSummary } from '@/features/profile/components/gate-verdict-summary';
 import { ProfilePageHeader } from '@/features/profile/components/profile-page-header';
 import { profileDetailRoute } from '@/features/profile/routes/profiles.$profileId';
 import { t } from '@/shared/lib/i18n';
@@ -16,6 +17,7 @@ function GatePage(): React.JSX.Element {
   return (
     <Page>
       <ProfilePageHeader profileId={profileId} title={t('edit.gate.title')} />
+      <GateVerdictSummary profileId={profileId} />
       <EnablementPolicyPanel profileId={profileId} />
     </Page>
   );

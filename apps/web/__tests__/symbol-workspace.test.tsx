@@ -206,7 +206,7 @@ const mountWorkspace = (path: string) => {
       />
     </QueryClientProvider>,
   );
-  return { router, queryClient };
+  return { router, queryClient, fetchMock };
 };
 
 const WORKSPACE_PATH = `/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}/symbols/BTCUSDT`;
@@ -293,6 +293,38 @@ describe('symbol workspace route', () => {
     // The header's own price agrees, and the candle-close mark is nowhere.
     expect(await screen.findByTestId('symbol-last-price')).toHaveTextContent('2,000.00');
     expect(within(strip).queryByText(/1,800/)).toBeNull();
+  });
+
+  it.each([
+    {
+      name: "opens on the strategy's own interval, never fetching 1m first",
+      configured: '1h',
+      expected: '1h',
+    },
+    {
+      name: 'falls back to 1m for an interval the candle endpoint does not serve',
+      configured: '7m',
+      expected: '1m',
+    },
+  ])('$name', async ({ configured, expected }) => {
+    // An hourly strategy's levels are noise on a 1m chart, and a 1m window fetched before the state lands is thrown away a moment later.
+    stateResponse = {
+      ...sampleState,
+      strategy: {
+        ...sampleState.strategy,
+        name: 'momentum',
+        config: { candleInterval: configured },
+      },
+    };
+    const { fetchMock } = mountWorkspace(WORKSPACE_PATH);
+    const candleIntervals = (): (string | null)[] =>
+      fetchMock.mock.calls
+        .map(([input]) => String(input))
+        .filter((url) => candlesRouteRe.test(url))
+        .map((url) => new URL(url, 'http://localhost').searchParams.get('interval'));
+
+    await waitFor(() => expect(candleIntervals()).toContain(expected));
+    expect(new Set(candleIntervals())).toEqual(new Set([expected]));
   });
 
   it('renders pause and stop-tracking on the trade tab', async () => {

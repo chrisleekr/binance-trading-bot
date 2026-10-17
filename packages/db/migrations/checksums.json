@@ -97,5 +97,6 @@
   "0096_better_auth_account_issuer_optional.sql": "b2f23fe09d2e709f51981ab3d7431e2bb3639b45ef8a12142932a7139b6f9ce9",
   "0097_single_auth_user.sql": "f51a7d8ed935c8f2a5d4366080a36b393605fe0787aa260a35d7ebcdbef04018",
   "0098_auth_security_hardening.sql": "5a02d0a4e9a79bc3242cfbeb6a3e97f7228553719d0f020770e9bbc1e662fb6f",
-  "0099_account_provider_email.sql": "0f3506b7cc7cfb1420488579d8ac5116dfa7d1a1ae41f2a8da1c3d5c51c30a44"
+  "0099_account_provider_email.sql": "0f3506b7cc7cfb1420488579d8ac5116dfa7d1a1ae41f2a8da1c3d5c51c30a44",
+  "0100_profile_baseline_pinned_at.sql": "3424b59dc9a8a009c21af6efc9f10fbe0a3f2ea7981f0df603d5ccab31f131bd"
 }

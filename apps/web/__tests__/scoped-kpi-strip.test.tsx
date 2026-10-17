@@ -114,9 +114,20 @@ const setUp = (
     gauge?: { deployedQuote: string; maxAccountExposureQuote: string; autoSymbolCount: number };
     /** Coverage of the 'd' scoreboard and of the 7-day cell. Equal counts mean the figures cover the whole window. */
     coverage?: Coverage;
+    /** The profile's auto-discovery switch; off replaces the Discovery band with one line. */
+    discoveryEnabled?: boolean;
+    /** Extra cache seeding run after the defaults, for reads a single case needs. */
+    seed?: (queryClient: ReturnType<typeof createQueryClient>) => void;
   } = {},
 ): void => {
-  const { seedScoreboard = true, feeBasis = 'exact', gauge, coverage = FULL } = opts;
+  const {
+    seedScoreboard = true,
+    feeBasis = 'exact',
+    gauge,
+    coverage = FULL,
+    discoveryEnabled = true,
+    seed,
+  } = opts;
   // Focus is URL-driven now: `all` stays on the account overview; a profile id
   // routes to the per-profile page where the scoped strip renders.
   const focusId = scope === 'all' ? null : scope;
@@ -139,16 +150,17 @@ const setUp = (
   // out so they resolve from cache instead of hitting the network. The ranged
   // scoreboard (realised/win-rate/trades) is its own query keyed by period
   // (#504); seed 'd' and 'w' with distinct counts so a toggle is observable.
-  queryClient.setQueryData(
-    discoveryDashboardQueryKey(PID),
-    gauge
-      ? discovery(feeBasis, gauge, coverage)
-      : discovery(
-          feeBasis,
-          { deployedQuote: '120', maxAccountExposureQuote: '500', autoSymbolCount: 2 },
-          coverage,
-        ),
-  );
+  const dash = gauge
+    ? discovery(feeBasis, gauge, coverage)
+    : discovery(
+        feeBasis,
+        { deployedQuote: '120', maxAccountExposureQuote: '500', autoSymbolCount: 2 },
+        coverage,
+      );
+  queryClient.setQueryData(discoveryDashboardQueryKey(PID), {
+    ...dash,
+    config: { ...dash.config, enabled: discoveryEnabled },
+  });
   const scoreboard = (
     period: string,
     tradeCount: number,
@@ -221,6 +233,7 @@ const setUp = (
   });
   queryClient.setQueryData(['closed-trades', PID, 'd', 'UTC'], closed('d'));
   queryClient.setQueryData(['closed-trades', PID, 'w', 'UTC'], closed('w'));
+  seed?.(queryClient);
 
   const profileStub = createRoute({
     getParentRoute: () => accountScopeRoute,
@@ -279,6 +292,126 @@ describe('Home KPI surface — scoped vs unscoped', () => {
     expect(screen.queryByTestId('profile-status-state')).toBeNull();
   });
 
+  it('replaces the Discovery band with one line when auto-discovery is off', async () => {
+    // Every tile in the band counts discovery's own coins, so with it off they read zero beside the real figures above: "Open positions 0" under "Open positions 2".
+    setUp(PID, { discoveryEnabled: false });
+    const off = await screen.findByTestId('scoped-discovery-off');
+    expect(off).toHaveTextContent('Auto-discovery is off');
+    expect(within(off).getByRole('link')).toHaveAttribute(
+      'href',
+      `/accounts/${ACCOUNT_ID}/profiles/${PID}/discovery`,
+    );
+    expect(screen.queryByTestId('scoped-kpi-holdings')).toBeNull();
+    expect(screen.queryByTestId('scoped-kpi-auto-symbols')).toBeNull();
+    // Deployed and the exposure cap are not discovery figures (account-wide cost basis, strategy-config cap), so they stay.
+    expect(screen.getByTestId('scoped-kpi-deployed')).toHaveTextContent('120');
+    expect(screen.getByTestId('scoped-kpi-exposure-cap')).toHaveTextContent('500');
+    // The by-source rows still switch on the P/L basis, so the toggle moves down beside them rather than vanishing with the band.
+    expect(
+      within(await screen.findByTestId('scoped-by-source')).getByTestId('pnl-basis-net'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the Discovery band, and no off line, while auto-discovery is on', async () => {
+    setUp(PID);
+    expect(await screen.findByTestId('scoped-kpi-holdings')).toBeInTheDocument();
+    expect(screen.queryByTestId('scoped-discovery-off')).toBeNull();
+  });
+
+  /**
+   * Seeds the focused profile's dashboard and equity snapshots so the two value tiles render without a fetch.
+   *
+   * @param balances - Extra wallet rows beside the priced USDT and BTC pair.
+   * @param feeBasis - The latest snapshot's fee tier; `null` omits the field, as a snapshot written before it existed does.
+   * @returns The seed callback for `setUp`.
+   */
+  const seedValueTiles =
+    (balances: unknown[] = [], feeBasis: string | null = 'exact') =>
+    (qc: ReturnType<typeof createQueryClient>) => {
+      qc.setQueryData(['profile-dashboard', PID], {
+        profileId: PID,
+        enabled: true,
+        binanceMode: 'live',
+        quoteAsset: 'USDT',
+        balances: [
+          { asset: 'USDT', free: '100', locked: '0', usdPrice: '1' },
+          { asset: 'BTC', free: '0.001', locked: '0.001', usdPrice: '88000' },
+          ...balances,
+        ],
+        totalProfit: '0',
+        enabledNotifierCount: 1,
+        symbols: [],
+        cachedAt: '2026-06-04T00:00:00.000Z',
+      });
+      qc.setQueryData(['equity-snapshots', PID], {
+        quoteAsset: 'USDT',
+        benchmarkMode: 'btc',
+        points: [
+          {
+            capturedAt: '2026-06-04T00:00:00.000Z',
+            netPnlQuote: '40',
+            realizedNetQuote: '35.13',
+            positionValueQuote: '0',
+            positionCostQuote: '0',
+            benchmarkAsset: 'BTC',
+            benchmarkPriceQuote: '88000',
+            ...(feeBasis === null ? {} : { feeBasis }),
+          },
+        ],
+      });
+    };
+
+  it('adds the wallet value and closed-trade profit to the band when focused on one profile', async () => {
+    setUp(PID, { seed: seedValueTiles() });
+    // 100 + 0.002 * 88000: the Balances card's own estimate, not a second valuation.
+    const value = await screen.findByTestId('dashboard-stat-account-value');
+    expect(value).toHaveTextContent('≈ 276.00 USDT');
+    expect(value.parentElement).toHaveTextContent('Everything in the wallet, priced now');
+    expect(screen.getByTestId('dashboard-stat-profit-so-far')).toHaveTextContent('35.13');
+    expect(screen.getByText('Closed trades, after fees')).toBeInTheDocument();
+  });
+
+  it('says the wallet value covers priced coins only when a held coin has no price', async () => {
+    // The total counts an unpriced coin as 0, so "everything in the wallet" would overstate it. A zero balance with no price is not held, so it is not counted.
+    setUp(PID, {
+      seed: seedValueTiles([
+        { asset: 'AAA', free: '5', locked: '0', usdPrice: null },
+        { asset: 'BBB', free: '0', locked: '2', usdPrice: null },
+        { asset: 'CCC', free: '0', locked: '0', usdPrice: null },
+      ]),
+    });
+    const value = await screen.findByTestId('dashboard-stat-account-value');
+    expect(value).toHaveTextContent('≈ 276.00 USDT');
+    expect(value.parentElement).toHaveTextContent('Priced coins only; 2 coins have no price');
+    expect(screen.queryByText('Everything in the wallet, priced now')).toBeNull();
+  });
+
+  it('uses the singular for one unpriced coin', async () => {
+    setUp(PID, { seed: seedValueTiles([{ asset: 'AAA', free: '5', locked: '0' }]) });
+    expect(await screen.findByText('Priced coins only; 1 coin has no price')).toBeInTheDocument();
+  });
+
+  it.each([
+    { name: "feeBasis 'unknown'", feeBasis: 'unknown' },
+    { name: 'no feeBasis on the snapshot', feeBasis: null },
+  ])('says some fees were never reported for $name', async ({ feeBasis }) => {
+    // A missing commission only flatters the total, so "after fees" would be a claim the snapshot cannot back.
+    setUp(PID, { seed: seedValueTiles([], feeBasis) });
+    expect(
+      await screen.findByText(
+        'Closed trades. Some fees were never reported, so the real figure is lower.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Closed trades, after fees')).toBeNull();
+  });
+
+  it('leaves the account-wide band without wallet or profit tiles', async () => {
+    // Across profiles there is no single wallet to value here, so the tiles stay off the account overview.
+    setUp('all');
+    expect(await screen.findByTestId('dashboard-order-stats')).toBeInTheDocument();
+    expect(screen.queryByTestId('dashboard-stat-account-value')).toBeNull();
+  });
+
   it('scoped to one profile renders the scoped KPI strip below the band', async () => {
     setUp(PID);
     // The cross-profile band is still present (byte-identical in 'all' scope is
@@ -290,7 +423,7 @@ describe('Home KPI surface — scoped vs unscoped', () => {
     expect(screen.getByTestId('scoped-kpi-exposure-cap')).toHaveTextContent('500');
     expect(screen.getByTestId('scoped-kpi-trades')).toHaveTextContent('4');
     // winRate 0.5 is a 0 to 1 ratio; the cell must scale it to a percent, not "0.50%".
-    expect(screen.getByTestId('scoped-kpi-win-rate')).toHaveTextContent('50.00%');
+    expect(screen.getByTestId('scoped-kpi-win-rate')).toHaveTextContent('50%');
     // The four discovery tiles added with the labelled Discovery section.
     expect(screen.getByTestId('scoped-kpi-auto-symbols')).toHaveTextContent('2');
     // The count is every UNPINNED binding, so a provenance label ("Auto symbols") misreports a coin the operator added and unpinned, or one the bot re-created to recover an untracked position. State rotation instead.
@@ -439,13 +572,13 @@ describe('Home KPI surface — scoped vs unscoped', () => {
     await screen.findByTestId('scoped-kpi-strip');
     // Day period seeded with 4 trades / 50% win.
     expect(screen.getByTestId('scoped-kpi-trades')).toHaveTextContent('4');
-    expect(screen.getByTestId('scoped-kpi-win-rate')).toHaveTextContent('50.00%');
+    expect(screen.getByTestId('scoped-kpi-win-rate')).toHaveTextContent('50%');
 
     await user.click(screen.getByTestId('realised-period-w'));
 
     // Week slot seeded with 9 trades / 25% win — the cards must follow the toggle.
     await vi.waitFor(() => expect(screen.getByTestId('scoped-kpi-trades')).toHaveTextContent('9'));
-    expect(screen.getByTestId('scoped-kpi-win-rate')).toHaveTextContent('25.00%');
+    expect(screen.getByTestId('scoped-kpi-win-rate')).toHaveTextContent('25%');
     // The "now" gauge cards stay put regardless of the period.
     expect(screen.getByTestId('scoped-kpi-deployed')).toHaveTextContent('120');
   });

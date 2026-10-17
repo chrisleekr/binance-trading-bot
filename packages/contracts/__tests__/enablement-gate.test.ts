@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   describeGateOutcome,
   evaluateBacktestGate,
+  failedCheckLines,
   failedChecksDetail,
   gateThresholdChecks,
   toGateCandidates,
@@ -186,6 +187,10 @@ describe('failedChecksDetail', () => {
       expect(failedChecksDetail(out.checks)).toBe(
         'profit factor 1.00 (need >= 1.1); closed trades 10 (need >= 30)',
       );
+      expect(failedCheckLines(out.checks)).toEqual([
+        'profit factor 1.00 (need >= 1.1)',
+        'closed trades 10 (need >= 30)',
+      ]);
     } else {
       throw new Error('expected thresholds failure');
     }

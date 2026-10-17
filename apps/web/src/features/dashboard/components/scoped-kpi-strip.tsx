@@ -1,9 +1,6 @@
 // Scoped KPI strip — the at-a-glance numbers for one profile, shown on Home
 // only when the top-bar scope is a single profile (not 'all'). Pairs the
-// realised-P/L card the profile header uses with a labelled "Discovery" tile
-// band (deployed cost, exposure cap, auto-symbol and holdings counts, realised
-// and 7-day P/L, win rate, trade count), so the operator gets the per-profile
-// auto-discovery readout without leaving the overview.
+// realised-P/L card the profile header uses with an always-on deployed-cost and exposure-cap pair and a labelled "Discovery" tile band (auto-symbol and holdings counts, realised and 7-day P/L, win rate, trade count), so the operator gets the per-profile auto-discovery readout without leaving the overview.
 //
 // One D/W/M/All toggle (owned here, rendered by the realised-P/L card) drives
 // both the realised-P/L card and the time-rangeable KPI cards — realised, win
@@ -159,6 +156,11 @@ function CoverageNote({
  * discovery dashboard resolves (or on error) so a slow/failed discovery read
  * never blanks the overview — the realised-P/L card still shows. The discovery
  * gauge supplies deployed cost basis, the exposure cap and the rotatable-coin count; the scoreboard supplies win rate and the trade count.
+ *
+ * With auto-discovery off the Discovery band is replaced by one line linking to its settings: every tile there counts discovery's own coins, so it would only show zeros that contradict the profile-wide figures above it. Deployed and the exposure cap sit outside the band and always show, because neither is a discovery figure: Deployed is the account-wide committed cost basis for this quote asset and the cap comes from the strategy config.
+ *
+ * @param profileId - The focused profile.
+ * @returns The strip.
  */
 export function ScopedKpiStrip({ profileId }: { readonly profileId: string }): React.JSX.Element {
   const accountId = useActiveAccountId() ?? '';
@@ -202,16 +204,7 @@ export function ScopedKpiStrip({ profileId }: { readonly profileId: string }): R
       <RealisedPnlCard profileId={profileId} period={period} onPeriodChange={setPeriod} />
       {data ? (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
-              {t('home.scoped.discovery_title')}
-            </h3>
-            <PnlBasisToggle basis={basis} onBasisChange={setBasis} />
-          </div>
-          <dl
-            className="grid grid-cols-2 gap-px border border-border bg-border @3xl:grid-cols-4"
-            aria-label={t('home.scoped.discovery_title')}
-          >
+          <dl className="grid grid-cols-2 gap-px border border-border bg-border">
             <KpiCell label={t('home.scoped.deployed')} testId="deployed" now dest={toRisk}>
               {formatBalanceMoney(data.gauge.deployedQuote)}
             </KpiCell>
@@ -220,105 +213,134 @@ export function ScopedKpiStrip({ profileId }: { readonly profileId: string }): R
                 ? formatBalanceMoney(data.gauge.maxAccountExposureQuote)
                 : '—'}
             </KpiCell>
-            {/* Counts every coin discovery may rotate out, which is every UNPINNED binding — a coin the operator added and then unpinned, or one the bot re-created to recover an untracked position, counts here too. The label therefore states rotation, never provenance; the tile links to Discovery, where the pinned set is listed separately. */}
-            <KpiCell
-              label={t('home.scoped.auto_symbols')}
-              testId="auto-symbols"
-              now
-              dest={toDiscovery}
-            >
-              {data.gauge.autoSymbolCount}
-            </KpiCell>
-            {/* Terminal by intent: the holdings this counts are listed further down
-                this same page, so a link would point at the page you are on. */}
-            <KpiCell label={t('home.scoped.holdings')} testId="holdings" now>
-              {data.holdings.length}
-            </KpiCell>
-            <KpiCell label={t('home.scoped.realised')} testId="realised" dest={toArchive}>
-              {scoreboard ? (
-                basis === 'net' && scoreboard.feeBasis === 'unknown' ? (
-                  <span className="text-sm text-muted-fg">Unavailable</span>
-                ) : (
-                  <>
-                    <PnlValue
-                      value={basis === 'net' ? scoreboard.netProfit : scoreboard.realizedProfit}
-                      unit={data.quoteAsset}
-                    />
-                    {/* Only under Net: the Recorded sum spans every cycle in the window, so it has no denominator to disclose. */}
-                    {basis === 'net' ? (
+          </dl>
+          {data.config.enabled ? (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
+                  {t('home.scoped.discovery_title')}
+                </h3>
+                <PnlBasisToggle basis={basis} onBasisChange={setBasis} />
+              </div>
+              <dl
+                className="grid grid-cols-2 gap-px border border-border bg-border @3xl:grid-cols-4"
+                aria-label={t('home.scoped.discovery_title')}
+              >
+                {/* Counts every coin discovery may rotate out, which is every UNPINNED binding — a coin the operator added and then unpinned, or one the bot re-created to recover an untracked position, counts here too. The label therefore states rotation, never provenance; the tile links to Discovery, where the pinned set is listed separately. */}
+                <KpiCell
+                  label={t('home.scoped.auto_symbols')}
+                  testId="auto-symbols"
+                  now
+                  dest={toDiscovery}
+                >
+                  {data.gauge.autoSymbolCount}
+                </KpiCell>
+                {/* Terminal by intent: the holdings this counts are listed further down this same page, so a link would point at the page you are on. */}
+                <KpiCell label={t('home.scoped.holdings')} testId="holdings" now>
+                  {data.holdings.length}
+                </KpiCell>
+                <KpiCell label={t('home.scoped.realised')} testId="realised" dest={toArchive}>
+                  {scoreboard ? (
+                    basis === 'net' && scoreboard.feeBasis === 'unknown' ? (
+                      <span className="text-sm text-muted-fg">Unavailable</span>
+                    ) : (
+                      <>
+                        <PnlValue
+                          value={basis === 'net' ? scoreboard.netProfit : scoreboard.realizedProfit}
+                          unit={data.quoteAsset}
+                        />
+                        {/* Only under Net: the Recorded sum spans every cycle in the window, so it has no denominator to disclose. */}
+                        {basis === 'net' ? (
+                          <CoverageNote
+                            covered={scoreboard.netTradeCount}
+                            total={scoreboard.tradeCount}
+                            testId="scoped-realised-coverage"
+                          />
+                        ) : null}
+                      </>
+                    )
+                  ) : (
+                    '—'
+                  )}
+                </KpiCell>
+                <KpiCell label={t('home.scoped.realised_7d')} testId="realised-7d" dest={toArchive}>
+                  {basis === 'net' && data.scoreboard.feeBasis7d === 'unknown' ? (
+                    <span className="text-sm text-muted-fg">Unavailable</span>
+                  ) : (
+                    <>
+                      <PnlValue
+                        value={
+                          basis === 'net'
+                            ? data.scoreboard.netProfit7d
+                            : data.scoreboard.realizedProfit7d
+                        }
+                        unit={data.quoteAsset}
+                      />
+                      {basis === 'net' ? (
+                        <CoverageNote
+                          covered={data.scoreboard.netTradeCount7d}
+                          total={data.scoreboard.tradeCount7d}
+                          testId="scoped-realised-7d-coverage"
+                        />
+                      ) : null}
+                    </>
+                  )}
+                </KpiCell>
+                <KpiCell label={t('home.scoped.win_rate')} testId="win-rate" dest={toArchive}>
+                  {/* The fee-valued count, not the window's: a win is a cycle that finished ahead AFTER commission, so an unvalued cycle cannot be classified either way and the rate was never taken over it. The coverage line follows the same denominator, and holds on both bases, because the classification reads the fee-adjusted money whatever amount is shown above it. */}
+                  {scoreboard && scoreboard.netTradeCount > 0 ? (
+                    <>
+                      {formatWinRate(scoreboard.winRate)}
                       <CoverageNote
                         covered={scoreboard.netTradeCount}
                         total={scoreboard.tradeCount}
-                        testId="scoped-realised-coverage"
+                        testId="scoped-win-rate-coverage"
                       />
-                    ) : null}
-                  </>
-                )
-              ) : (
-                '—'
-              )}
-            </KpiCell>
-            <KpiCell label={t('home.scoped.realised_7d')} testId="realised-7d" dest={toArchive}>
-              {basis === 'net' && data.scoreboard.feeBasis7d === 'unknown' ? (
-                <span className="text-sm text-muted-fg">Unavailable</span>
-              ) : (
-                <>
-                  <PnlValue
-                    value={
-                      basis === 'net'
-                        ? data.scoreboard.netProfit7d
-                        : data.scoreboard.realizedProfit7d
-                    }
-                    unit={data.quoteAsset}
-                  />
-                  {basis === 'net' ? (
-                    <CoverageNote
-                      covered={data.scoreboard.netTradeCount7d}
-                      total={data.scoreboard.tradeCount7d}
-                      testId="scoped-realised-7d-coverage"
-                    />
-                  ) : null}
-                </>
-              )}
-            </KpiCell>
-            <KpiCell label={t('home.scoped.win_rate')} testId="win-rate" dest={toArchive}>
-              {/* The fee-valued count, not the window's: a win is a cycle that finished ahead AFTER commission, so an unvalued cycle cannot be classified either way and the rate was never taken over it. The coverage line follows the same denominator, and holds on both bases, because the classification reads the fee-adjusted money whatever amount is shown above it. */}
-              {scoreboard && scoreboard.netTradeCount > 0 ? (
-                <>
-                  {formatWinRate(scoreboard.winRate)}
-                  <CoverageNote
-                    covered={scoreboard.netTradeCount}
-                    total={scoreboard.tradeCount}
-                    testId="scoped-win-rate-coverage"
-                  />
-                </>
-              ) : (
-                '—'
-              )}
-            </KpiCell>
-            <KpiCell label={t('home.scoped.trades')} testId="trades" dest={toArchive}>
-              {scoreboard ? scoreboard.tradeCount : '—'}
-            </KpiCell>
-          </dl>
-          {/* One note under the strip rather than a mark per cell: the cells hold a figure and a label with no room for a caveat, and the same reconstructed commission is behind both Realised readings, so a single sentence is the honest scope. Only under Net — the Recorded basis does not subtract fees, so no tier applies to it. */}
-          {basis === 'net' &&
-          (scoreboard?.feeBasis === 'estimated' || data.scoreboard.feeBasis7d === 'estimated') ? (
-            <p className="text-xs text-muted-fg" data-testid="scoped-fees-estimated">
-              A commission in these Net figures was reconstructed from Binance's rate table rather
-              than the charge it reported, so they are estimates.
+                    </>
+                  ) : (
+                    '—'
+                  )}
+                </KpiCell>
+                <KpiCell label={t('home.scoped.trades')} testId="trades" dest={toArchive}>
+                  {scoreboard ? scoreboard.tradeCount : '—'}
+                </KpiCell>
+              </dl>
+              {/* One note under the strip rather than a mark per cell: the cells hold a figure and a label with no room for a caveat, and the same reconstructed commission is behind both Realised readings, so a single sentence is the honest scope. Only under Net — the Recorded basis does not subtract fees, so no tier applies to it. */}
+              {basis === 'net' &&
+              (scoreboard?.feeBasis === 'estimated' ||
+                data.scoreboard.feeBasis7d === 'estimated') ? (
+                <p className="text-xs text-muted-fg" data-testid="scoped-fees-estimated">
+                  A commission in these Net figures was reconstructed from Binance's rate table
+                  rather than the charge it reported, so they are estimates.
+                </p>
+              ) : null}
+            </>
+          ) : (
+            // The Discovery band's tiles count discovery's own coins, so with it off they would read zero beside the real figures above (an "Open positions 0" under "Open positions 2"). One line says why they are gone; Deployed and the exposure cap above are not discovery figures and stay.
+            <p className="text-xs text-muted-fg" data-testid="scoped-discovery-off">
+              {t('home.scoped.discovery_off')}{' '}
+              <Link {...toDiscovery} className="text-accent underline-offset-2 hover:underline">
+                {t('home.scoped.discovery_off_link')}
+              </Link>
             </p>
-          ) : null}
+          )}
           {bySource.length > 0 ? (
             <section
               data-testid="scoped-by-source"
               aria-label={t('home.scoped.by_source_title')}
               className="space-y-2"
             >
-              <div>
-                <h3 className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
-                  {t('home.scoped.by_source_title')}
-                </h3>
-                <p className="text-xs text-muted-fg">{t('home.scoped.by_source_desc')}</p>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-[11px] font-semibold tracking-wider text-muted-fg uppercase">
+                    {t('home.scoped.by_source_title')}
+                  </h3>
+                  <p className="text-xs text-muted-fg">{t('home.scoped.by_source_desc')}</p>
+                </div>
+                {/* With discovery off its header (and the toggle in it) is gone, but these rows still switch on the basis. */}
+                {data.config.enabled ? null : (
+                  <PnlBasisToggle basis={basis} onBasisChange={setBasis} />
+                )}
               </div>
               <ul className="space-y-2 border border-border bg-bg-elevated p-3">
                 {bySource.map((b) => (

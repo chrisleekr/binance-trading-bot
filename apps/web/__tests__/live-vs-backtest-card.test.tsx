@@ -172,8 +172,54 @@ const renderCard = (baselineRunId: string | null): void => {
 describe('LiveVsBacktestCard', () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it('shows a placeholder, not "all time" or "no closed trades", while the profile loads', async () => {
+    // The archive read waits for the profile, so before either lands the card has no window and no count to state.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        return new Promise<Response>(() => {});
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() =>
+      expect(document.querySelectorAll('[data-skeleton-bar]').length).toBeGreaterThan(0),
+    );
+    expect(screen.queryByTestId('live-scorecard-window')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No closed trades yet/)).not.toBeInTheDocument();
+  });
+
+  it("says it couldn't load the profile rather than stating an empty window", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        // 503 is the one status the client never retries, so the error lands inside the wait window.
+        return new Response('down', { status: 503 });
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('live-scorecard-profile-error')).toHaveTextContent(
+      "Couldn't load this profile.",
+    );
+    expect(screen.queryByTestId('live-scorecard-window')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No closed trades yet/)).not.toBeInTheDocument();
+  });
+
   it('asks the archive for the rollup only, not a page of trades it never renders', async () => {
-    // This card and the edge-verdict badge beside it both read one field, `bySource`, over all time — and both poll it every 60s. The all-time archive page they ask for also builds a page of rows, a recoverable-coin scan and an unreconstructable-coin scan, none of which reach this render. The request has to say what it wants, or the server has no way to serve less.
+    // This card and the edge-verdict badge beside it both read one field, `bySource`, over the comparison window (from the baseline pin, or all time without one) — and both poll it every 60s. The archive page they ask for also builds a page of rows, a recoverable-coin scan and an unreconstructable-coin scan, none of which reach this render. The request has to say what it wants, or the server has no way to serve less.
     const urls: string[] = [];
     vi.stubGlobal(
       'fetch',
@@ -217,12 +263,76 @@ describe('LiveVsBacktestCard', () => {
       </QueryClientProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText('75.00%')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('75%')).toBeInTheDocument());
     expect(urls.filter((u) => u.includes('/trade-archive'))).toHaveLength(1);
   });
 
+  it('asks for the trades since the baseline was pinned, and says so', async () => {
+    // The production failure: trades from an earlier config stayed in an all-time window and the new config was judged by them. The pin time has to reach the request as `from`, or the server answers all time and the card cannot tell.
+    const PINNED_AT = '2026-10-10T03:00:00.000Z';
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        if (url.includes('/backtests/')) return jsonOf(runDetailBody);
+        return jsonOf({ ...profileBody(RUN_ID), baselinePinnedAt: PINNED_AT });
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('live-scorecard-window')).toHaveTextContent(
+        /^Live trades recorded since .*2026.*, when you pinned this baseline\.$/,
+      ),
+    );
+    // Drawdown is read from the whole equity curve, so under a pinned window it must say it is all time.
+    expect(screen.getByText('Worst peak-to-trough give-back, all time')).toBeInTheDocument();
+    const archiveUrls = urls.filter((u) => u.includes('/trade-archive'));
+    // One read, already windowed: the archive waits for the profile instead of fetching all time first.
+    expect(archiveUrls).toHaveLength(1);
+    expect(new URL(archiveUrls[0] as string, 'http://localhost').searchParams.get('from')).toBe(
+      PINNED_AT,
+    );
+  });
+
+  it('sends no window start when the baseline carries no pin time', async () => {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        if (url.includes('/backtests/')) return jsonOf(runDetailBody);
+        return jsonOf(profileBody(RUN_ID));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('live-scorecard-window')).toHaveTextContent(
+        /^Live trades from all time, because this baseline was pinned before/,
+      ),
+    );
+    const archiveUrl = urls.find((u) => u.includes('/trade-archive')) as string;
+    expect(new URL(archiveUrl, 'http://localhost').searchParams.has('from')).toBe(false);
+  });
+
   it('counts only the profile’s own quote when the rollup spans two currencies', async () => {
-    // The window these consumers ask for is all time, so a profile whose quote was changed gets one bucket per currency. Summing them would add a BTC figure into a USDT one and label the result with the current quote — the same defect the server aggregates were fixed for, and it shows no error.
+    // The window these consumers ask for is the comparison window (from the baseline pin, or all time without one), so a profile whose quote was changed inside it gets one bucket per currency. Summing them would add a BTC figure into a USDT one and label the result with the current quote — the same defect the server aggregates were fixed for, and it shows no error.
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -260,14 +370,14 @@ describe('LiveVsBacktestCard', () => {
     );
 
     // The USDT bucket alone: win 75% (3/4), PF 3.00 (60/20). Merging the BTC bucket in would read 97.73% and a PF with no losses at all.
-    await waitFor(() => expect(screen.getByText('75.00%')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('75%')).toBeInTheDocument());
     expect(screen.getByText('3.00')).toBeInTheDocument();
   });
 
   it('shows live win-rate / profit-factor / max-drawdown and a pin hint when no baseline is set', async () => {
     renderCard(null);
     // Win 75% (3/4), PF 3.00 (60/20).
-    await waitFor(() => expect(screen.getByText('75.00%')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('75%')).toBeInTheDocument());
     expect(screen.getByText('3.00')).toBeInTheDocument();
     expect(screen.getByText(/Pin a finished backtest/)).toBeInTheDocument();
   });
@@ -303,7 +413,7 @@ describe('LiveVsBacktestCard', () => {
       /No edge-decay verdict is issued/,
     );
     expect(screen.queryByTestId('edge-decay-badge')).not.toBeInTheDocument();
-    expect(screen.queryByText('75.00%')).not.toBeInTheDocument();
+    expect(screen.queryByText('75%')).not.toBeInTheDocument();
     expect(screen.queryByText(/→/)).not.toBeInTheDocument();
   });
 
@@ -350,7 +460,7 @@ describe('LiveVsBacktestCard', () => {
       '2 of 40 cycles',
     );
     // The figure itself still renders — a partial answer with a stated denominator beats no answer.
-    expect(screen.getByText('100.00%')).toBeInTheDocument();
+    expect(screen.getByText('100%')).toBeInTheDocument();
   });
 
   it('states no denominator when the live figures cover the whole window', async () => {
@@ -370,7 +480,7 @@ describe('LiveVsBacktestCard', () => {
         <LiveVsBacktestCard profileId={PROFILE_ID} />
       </QueryClientProvider>,
     );
-    await waitFor(() => expect(screen.getByText('75.00%')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('75%')).toBeInTheDocument());
     expect(screen.queryByTestId('live-scorecard-coverage')).not.toBeInTheDocument();
   });
 
@@ -420,8 +530,8 @@ describe('LiveVsBacktestCard', () => {
     );
     // Withheld is the other failure: the figures themselves must still be there.
     expect(screen.queryByTestId('live-scorecard-fees-incomplete')).not.toBeInTheDocument();
-    // 7 of 12 is 58.33, and `winPct` rounds to a whole percent before `formatPercent` pads it back to two places. Substring, not exact: with a baseline pinned the live win-rate renders inside the combined `bt -> live` cell rather than as a cell of its own.
-    expect(screen.getAllByText(/58\.00%/).length).toBeGreaterThan(0);
+    // 7 of 12 is 58.33, and `winPct` rounds to a whole percent. Substring, not exact: with a baseline pinned the live win-rate renders inside the combined `bt -> live` cell rather than as a cell of its own.
+    expect(screen.getAllByText(/58%/).length).toBeGreaterThan(0);
     // Awaited like the edge-weakening test below: the verdict needs the pinned baseline's run detail, which settles after the fee marker does.
     await waitFor(() => expect(screen.getByTestId('edge-decay-badge')).toBeInTheDocument());
   });
@@ -431,9 +541,36 @@ describe('LiveVsBacktestCard', () => {
     // Backtest win 60% → live 75% (+15pp); PF 1.80 → 3.00 shown without a delta.
     await waitFor(() => expect(screen.getByText(/vs pinned backtest/i)).toBeInTheDocument());
     expect(screen.getByText('(+15%)')).toBeInTheDocument();
+    // Whole percents on both sides: the backtest reports 60 (already a percent), live rounds 3/4 to 75.
+    expect(screen.getByText(/^60% → 75%/)).toBeInTheDocument();
     expect(screen.getByText('1.80 → 3.00')).toBeInTheDocument();
     // PF must NOT carry a misleading ratio-difference delta.
     expect(screen.queryByText('(+1.20)')).toBeNull();
+  });
+
+  it('differences the win rate against the rounded backtest rate it shows', async () => {
+    // Backtest 75.4% displays as 75%, beside live 75%: the delta must read +0%, not a red -0% from the hidden 0.4.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        if (url.includes('/backtests/'))
+          return jsonOf({
+            ...runDetailBody,
+            result: { ...runDetailBody.result, metrics: { ...metrics, winRate: 75.4 } },
+          });
+        return jsonOf(profileBody(RUN_ID));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(/^75% → 75%/)).toBeInTheDocument();
+    expect(screen.getByText('(+0%)')).toHaveClass('text-up');
   });
 
   it('surfaces a terminal notice when the pinned baseline run cannot be read', async () => {
@@ -538,7 +675,13 @@ describe('LiveVsBacktestCard', () => {
         const url = String(input);
         if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
         if (url.includes('/trade-archive'))
-          return jsonOf({ items: [], byIntent: [], bySource: [], nextCursor: null });
+          return jsonOf({
+            items: [],
+            byIntent: [],
+            bySource: [],
+            nextCursor: null,
+            ...ARCHIVE_WINDOW,
+          });
         return jsonOf(profileBody(null));
       }),
     );
@@ -549,5 +692,26 @@ describe('LiveVsBacktestCard', () => {
     );
     await waitFor(() => expect(screen.getByText(/No closed trades yet/)).toBeInTheDocument());
     expect(screen.queryByText('Win rate')).toBeNull();
+  });
+
+  it("says the live trades couldn't load rather than that there are none", async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return new Response('down', { status: 503 });
+        return jsonOf(profileBody(null));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('live-scorecard-archive-error')).toHaveTextContent(
+      "Couldn't load this profile's live trades.",
+    );
+    expect(screen.queryByText(/No closed trades yet/)).not.toBeInTheDocument();
   });
 });

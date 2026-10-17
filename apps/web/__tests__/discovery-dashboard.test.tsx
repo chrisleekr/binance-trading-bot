@@ -90,9 +90,8 @@ describe('DiscoveryDashboard', () => {
     setUp((url) => (url.endsWith('/profiles/p1/discovery') ? json(dashboard) : json({}, 404)));
     const board = await screen.findByTestId('discovery-scoreboard');
     expect(within(board).getByTestId('discovery-net-pl')).toHaveTextContent('+123.45');
-    // Win rate now renders via the shared formatWinRate (2-dp house style),
-    // matching the scoped KPI strip — was an ad-hoc integer round.
-    expect(within(board).getByText('75.00%')).toBeInTheDocument();
+    // Win rate renders via the shared formatWinRate (whole percent), matching the scoped KPI strip.
+    expect(within(board).getByText('75%')).toBeInTheDocument();
     const gauge = screen.getByTestId('discovery-gauge');
     expect(within(gauge).getByTestId('discovery-auto-count')).toHaveTextContent('3');
     // Same number as the Home strip and the same hazard: it counts unpinned bindings, not coins discovery found.
@@ -747,7 +746,7 @@ describe('DiscoveryDashboard money precision on a sub-unit quote asset', () => {
   it('keeps a sub-unit Net P/L and 7-day Net P/L legible, with their signs', async () => {
     setUp(btcResponder);
     const board = await screen.findByTestId('discovery-scoreboard');
-    expect(within(board).getByTestId('discovery-net-pl')).toHaveTextContent('+0.0045321');
+    expect(within(board).getByTestId('discovery-net-pl')).toHaveTextContent('+0.0045');
     expect(tileFor(board, '7-day Net P/L')).toHaveTextContent('-0.0012');
   });
 
@@ -763,7 +762,7 @@ describe('DiscoveryDashboard money precision on a sub-unit quote asset', () => {
   });
 
   it('keeps the gainer score at 2dp + % — it is a percent, not money', async () => {
-    // Characterization pin AND regression guard: the 2dp + `%` output was already correct, so this was green before the change. It exists to catch a blanket swap of the two local formatters onto the money helpers — `0.123456` is below 1, where a money formatter keeps up to 8 fraction digits, so a careless swap prints "+0.123456%" here.
+    // Characterization pin AND regression guard: the 2dp + `%` output was already correct, so this was green before the change. It exists to catch a blanket swap of the two local formatters onto the money helpers. The input must be one where the two disagree: below 1 the money formatter keeps 4 significant digits, so `0.0123456` reads `+0.01%` as a percent and `+0.01235` as money.
     const pct = {
       ...btcDashboard,
       universe: {
@@ -771,7 +770,7 @@ describe('DiscoveryDashboard money precision on a sub-unit quote asset', () => {
         candidates: [
           {
             symbol: 'PCTUSDT',
-            gainerScore: '0.123456',
+            gainerScore: '0.0123456',
             passed: ['quote'],
             failedAt: 'liquidity',
             disposition: 'rejected',
@@ -784,15 +783,15 @@ describe('DiscoveryDashboard money precision on a sub-unit quote asset', () => {
     };
     setUp((url) => (url.endsWith('/profiles/p1/discovery') ? json(pct) : json({}, 404)));
     const row = await screen.findByTestId('universe-PCTUSDT');
-    expect(within(row).getByText('+0.12%')).toBeInTheDocument();
-    expect(row.textContent).not.toContain('0.123456');
+    expect(within(row).getByText('+0.01%')).toBeInTheDocument();
+    expect(row.textContent).not.toContain('0.012');
   });
 
   it('pairs the win rate with its trade count, and withholds it when nothing has traded', async () => {
     setUp(btcResponder);
     const board = await screen.findByTestId('discovery-scoreboard');
     const winRate = tileFor(board, 'Win rate');
-    expect(winRate).toHaveTextContent('75.00%');
+    expect(winRate).toHaveTextContent('75%');
     // "75%" over 8 trades and over 2 trades mean very different things, so the denominator has to travel with the ratio rather than sit in a sibling tile.
     expect(winRate).toHaveTextContent('8');
   });

@@ -26,7 +26,13 @@ const EMPTY_MODEL: PreviewModel = { sections: [] };
 // period the operator sets fits; capped like the worker's daily ring (500).
 const DECISION_WINDOW_FRAMES = 500;
 
-const asCandleInterval = (v: unknown): CandleInterval | null =>
+/**
+ * Narrows a config's `candleInterval` (typed `unknown`, since each strategy owns its config shape) to an interval the web candle endpoint serves.
+ *
+ * @param v - The raw config value.
+ * @returns The interval, or null when the value is not one the endpoint serves.
+ */
+export const asCandleInterval = (v: unknown): CandleInterval | null =>
   typeof v === 'string' && (CANDLE_INTERVALS as readonly string[]).includes(v)
     ? (v as CandleInterval)
     : null;

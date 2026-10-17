@@ -120,9 +120,7 @@ export const ProfilePatch = z.object({
   /** Equity-benchmark mode. Optional so the operator can flip just the comparator. */
   benchmarkMode: BenchmarkMode.optional(),
   /**
-   * Backtest run pinned as the live scorecard's baseline. A uuid pins it (the
-   * run must belong to the profile and be finished), null clears it; absent
-   * leaves it unchanged.
+   * Backtest run pinned as the live scorecard's baseline. A uuid pins it (the run must belong to the profile and be finished), null clears it; absent leaves it unchanged. Pinning records the pin time, which starts the live comparison window; re-pinning the run already pinned keeps its time, so a retried call does not move the window. Clearing it clears that time too.
    */
   baselineBacktestRunId: z.uuid().nullable().optional(),
   /**
@@ -164,6 +162,10 @@ export const ProfileResponse = z.object({
   benchmarkMode: BenchmarkMode.default('btc'),
   /** Pinned baseline backtest run id, or null when none is set. */
   baselineBacktestRunId: z.uuid().nullable().default(null),
+  /**
+   * When the baseline was pinned. The live scorecard and the edge-decay monitor compare only trades recorded (archived) from this instant on, so trades recorded under an earlier config are not judged against this baseline. null = no baseline, or one pinned before the pin time was recorded, which keeps the all-time window. Defaulted so a response or fixture predating the field still parses.
+   */
+  baselinePinnedAt: z.iso.datetime().nullable().default(null),
   /**
    * Effective live-enablement gate policy. Defaulted so a response or fixture
    * predating this field still parses; the API always supplies it, filling the

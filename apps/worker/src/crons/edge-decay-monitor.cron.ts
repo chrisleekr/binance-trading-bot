@@ -1,6 +1,6 @@
 // edge-decay-monitor cron.
 //
-// The enablement gate proves an edge once, at enable-time. Nothing re-checked a profile AFTER it went live, so a config whose edge decayed kept deploying real capital until an operator happened to read the scorecard. This cron closes that hole with an ADVISORY heads-up: every 15 minutes it compares each live profile's realized net profit factor against the profit factor of its pinned baseline backtest (the same baseline the live-vs-backtest scorecard shows) and, on a breach, sends the operator a one-time Slack heads-up. It NEVER pauses buys — the bot's only auto-pauses are the three entry breakers (daily loss, loss streak, drawdown), all of which live in the portfolio-risk cron.
+// The enablement gate proves an edge once, at enable-time. Nothing re-checked a profile AFTER it went live, so a config whose edge decayed kept deploying real capital until an operator happened to read the scorecard. This cron closes that hole with an ADVISORY heads-up: every 15 minutes it compares each live profile's realized net profit factor, over the trades recorded since its baseline was pinned, against the profit factor of its pinned baseline backtest (the same baseline the live-vs-backtest scorecard shows) and, on a breach, sends the operator a one-time Slack heads-up. It NEVER pauses buys — the bot's only auto-pauses are the three entry breakers (daily loss, loss streak, drawdown), all of which live in the portfolio-risk cron.
 //
 // De-dup via the per-profile `edgeDecayNotified` Redis latch: set when we alert on
 // a breach, cleared when the edge recovers, so a single decay episode alerts once
@@ -185,8 +185,13 @@ export const buildEdgeDecayMonitorCron = (ctx: BootContext): CronDef =>
           : EnablementPolicy.parse({}).monitor;
         const baselineId =
           (row as { baselineBacktestRunId?: string | null }).baselineBacktestRunId ?? null;
+        // The window starts when the baseline was pinned and filters on `archived_at` (when the cycle was recorded, not its exchange close time), so trades recorded under an earlier config are not judged against a baseline pinned for the current one. No pin time (a pin older than the column) keeps the all-time window; a pin time without a run is left over from a deleted run and describes nothing.
+        const windowFrom =
+          baselineId === null
+            ? null
+            : ((row as { baselinePinnedAt?: Date | null }).baselinePinnedAt ?? null);
 
-        // Live realized summary over all closed trades, narrowed to the profile's own quote — the same window AND the same currency the live-vs-backtest scorecard uses, so alert and display agree. `useEdgeVerdict` folds through `mergeRollupBuckets(…, quoteAsset)`, which drops every other currency before it sums; without the same filter here a profile holding legacy rows in a quote it has since moved off would abstain in this alert while the screen issued a verdict, and neither surface could show the operator why.
+        // Live realized summary over the trades recorded since the pin, narrowed to the profile's own quote — the same window AND the same currency the live-vs-backtest scorecard uses, so alert and display agree. `useEdgeVerdict` folds through `mergeRollupBuckets(…, quoteAsset)`, which drops every other currency before it sums; without the same filter here a profile holding legacy rows in a quote it has since moved off would abstain in this alert while the screen issued a verdict, and neither surface could show the operator why.
         //
         // It is also what makes the ratio a ratio: `grossProfit` and `grossLoss` are decimal sums, so an unfiltered fold adds BTC magnitudes to USDT ones and `profitFactorFromGross` divides two numbers that are not denominated in anything.
         //
@@ -194,7 +199,7 @@ export const buildEdgeDecayMonitorCron = (ctx: BootContext): CronDef =>
         const quoteAsset = ((row as { quoteAsset?: string }).quoteAsset ?? '').toUpperCase();
         // Abstain rather than filter against nothing. A profile with no quote asset would match no row, and an empty window folds to `exact` by identity — so the tier gate below would wave through a summary of zero trades instead of declining to judge one.
         if (quoteAsset === '') return null;
-        const rows = (await repo.tradeArchive.listForProfileInRange(null)).filter(
+        const rows = (await repo.tradeArchive.listForProfileInRange(windowFrom)).filter(
           (r) => r.quoteAsset.toUpperCase() === quoteAsset,
         );
         const summary = summarizeClosedTrades(

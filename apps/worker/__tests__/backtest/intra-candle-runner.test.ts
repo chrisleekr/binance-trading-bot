@@ -3,7 +3,7 @@ import pino from 'pino';
 
 type GetRange = typeof import('@app/db').repo.candles.getRange;
 
-// Scope: proves the runner turns on within-candle ticking for a strategy that declares `exitsWithinCandle`, loads its 1-minute bars from one trading candle before the range rather than across the warm-up, and falls back to one tick per candle with a warning for a basket the engine cannot interleave.
+// Scope: proves the runner turns on within-candle ticking for a strategy that declares `exitsWithinCandle`, loads its 1-minute bars from one trading candle before the range rather than across the warm-up, and falls back to one tick per candle with a modelling note for a basket the engine cannot interleave. Also proves modelling caveats land in `modelNotes`, never in the gate-failing `dataWarnings`.
 
 const runBacktest = vi.hoisted(() => vi.fn());
 vi.mock('@app/strategy-backtest', async (importOriginal) => {
@@ -123,6 +123,7 @@ async function run(
     readonly toMs?: number;
     readonly candleCache?: unknown;
     readonly logger?: pino.Logger;
+    readonly spreadBps?: number | null;
   } = {},
 ) {
   const fromMs = opts.fromMs ?? FROM;
@@ -143,7 +144,7 @@ async function run(
         toMs,
         fees: { makerBps: 0, takerBps: 0 },
         slippageBps: 0,
-        spreadBps: 0,
+        spreadBps: opts.spreadBps === undefined ? 0 : opts.spreadBps,
         volumeCapPct: 10,
         initialQuoteBalance: '1000',
         discoveryMode: false,
@@ -156,26 +157,31 @@ async function run(
     } as never,
   );
   if (!captured) throw new Error('runBacktest was never invoked');
-  return { captured, warnings: result.dataWarnings as readonly string[] };
+  return {
+    captured,
+    notes: result.modelNotes as readonly string[],
+    dataWarnings: result.dataWarnings as readonly string[],
+  };
 }
 
-describe('runProfileBacktest within-candle exits', () => {
-  beforeEach(() => {
-    repoMocks.getRange.mockReset();
-    repoMocks.getRange.mockImplementation(
-      async (_db, symbol, interval, from, to) => rowsFor(symbol, interval, from, to) as never,
-    );
-  });
+beforeEach(() => {
+  repoMocks.getRange.mockReset();
+  repoMocks.getRange.mockImplementation(
+    async (_db, symbol, interval, from, to) => rowsFor(symbol, interval, from, to) as never,
+  );
+});
 
-  it('ticks a single-symbol run on 1-minute bars without a data warning', async () => {
-    const { captured, warnings } = await run(withinCandle, ['BTCUSDT']);
+describe('runProfileBacktest within-candle exits', () => {
+  it('ticks a single-symbol run on 1-minute bars and notes the detail interval changed', async () => {
+    const { captured, notes, dataWarnings } = await run(withinCandle, ['BTCUSDT']);
     expect(captured.intraCandle).toEqual({ interval: '1m' });
     // A yield hook is wired for the minute ticks; the shared budget itself is pinned by the cooperative-data-source tests.
     expect(typeof captured.onIntraCandleTick).toBe('function');
     expect(captured.request.intervals).toContain('1m');
     expect(captured.request.intervals).not.toContain('5m');
-    // Finer bars than requested are not a gap; any warning here would fail the live gate's data-coverage check on every default momentum run.
-    expect(warnings).toEqual([]);
+    expect(notes.some((w) => w.startsWith('detail interval set to 1m instead of 5m'))).toBe(true);
+    // Finer bars than requested are not a gap, so the swap is a model note; a data warning would fail the live gate's data-coverage check on every default momentum run.
+    expect(dataWarnings).toEqual([]);
   });
 
   it('loads the minute bars of an hourly strategy from one candle before the range, not across the warm-up', async () => {
@@ -196,15 +202,15 @@ describe('runProfileBacktest within-candle exits', () => {
     expect((minuteLoads[0]?.[3] as Date).getTime()).toBe(fromMs - 21 * DAY);
   });
 
-  it('falls back to one tick per candle with a warning when the minute bars would exceed the cap', async () => {
+  it('falls back to one tick per candle with a note when the minute bars would exceed the cap', async () => {
     const fromMs = 300 * DAY;
-    const { captured, warnings } = await run(withinCandle, ['BTCUSDT'], {
+    const { captured, notes } = await run(withinCandle, ['BTCUSDT'], {
       fromMs,
       toMs: fromMs + 401 * DAY,
     });
     expect(captured.intraCandle).toBeUndefined();
     expect(repoMocks.getRange.mock.calls.some((call) => call[2] === '1m')).toBe(false);
-    expect(warnings.some((w) => w.includes('more than 400 days of 1-minute bars'))).toBe(true);
+    expect(notes.some((w) => w.includes('more than 400 days of 1-minute bars'))).toBe(true);
   });
 
   it('keeps the minute window out of the shared candle cache', async () => {
@@ -220,25 +226,31 @@ describe('runProfileBacktest within-candle exits', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('does not warn a basket whose strategy already trades on 1-minute candles', async () => {
-    const { warnings } = await run(withinCandle, ['BTCUSDT', 'ETHUSDT'], { candleInterval: '1m' });
-    expect(warnings.some((w) => w.includes('exits within a candle'))).toBe(false);
+  it('does not note a basket whose strategy already trades on 1-minute candles', async () => {
+    const { notes } = await run(withinCandle, ['BTCUSDT', 'ETHUSDT'], { candleInterval: '1m' });
+    expect(notes.some((w) => w.includes('exits within a candle'))).toBe(false);
   });
 
-  it('falls back to one tick per candle with a warning for a basket', async () => {
-    const { captured, warnings } = await run(withinCandle, ['BTCUSDT', 'ETHUSDT']);
+  it('falls back to one tick per candle with a note for a basket', async () => {
+    const { captured, notes } = await run(withinCandle, ['BTCUSDT', 'ETHUSDT']);
     expect(captured.intraCandle).toBeUndefined();
     expect(captured.request.intervals).toContain('5m');
-    expect(warnings.some((w) => w.includes('a multi-symbol run ticks once per 1h candle'))).toBe(
-      true,
-    );
+    expect(notes.some((w) => w.includes('a multi-symbol run ticks once per 1h candle'))).toBe(true);
   });
 
   it('leaves a strategy that does not declare the capability on its requested detail interval', async () => {
-    const { captured, warnings } = await run(trailingTrade, ['BTCUSDT']);
+    const { captured, notes } = await run(trailingTrade, ['BTCUSDT']);
     expect(captured.intraCandle).toBeUndefined();
     expect(captured.request.intervals).toContain('5m');
     expect(captured.request.intervals).not.toContain('1m');
-    expect(warnings.some((w) => w.includes('exits within a candle'))).toBe(false);
+    expect(notes.some((w) => w.includes('exits within a candle'))).toBe(false);
+  });
+});
+
+describe('runProfileBacktest modelling notes', () => {
+  it('keeps an unset spread in dataWarnings so the live gate refuses a run whose fills are free', async () => {
+    const { notes, dataWarnings } = await run(trailingTrade, ['BTCUSDT'], { spreadBps: null });
+    expect(dataWarnings.some((w) => w.startsWith('no spread haircut modeled'))).toBe(true);
+    expect(notes.some((n) => n.startsWith('no spread haircut modeled'))).toBe(false);
   });
 });

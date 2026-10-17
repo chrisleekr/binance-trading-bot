@@ -654,12 +654,29 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
     expect(row(model, 'entry')?.skip).toBe('cap-reached');
   });
 
-  it('marks the entry, trail, and protective-stop rows as chart lines but not the trend', () => {
-    const model = momentumPreviewLevels(previewInput(cfg(), RICH_ACCOUNT_WIRE));
+  it('marks the entry, trail, and protective-stop rows as chart lines while held, but not the trend', () => {
+    const model = momentumPreviewLevels(
+      input(cfg(), { state: held(), entryPrice: '100', currentPrice: '110' }),
+    );
     expect(row(model, 'entry')?.chartLine).toBe(true);
     expect(row(model, 'trail')?.chartLine).toBe(true);
     expect(row(model, 'protective-stop')?.chartLine).toBe(true);
     expect(row(model, 'trend')?.chartLine).toBeUndefined();
+  });
+
+  // Flat, both stops are where a stop WOULD start after a buy. Drawn on the chart they read as live stops on a position that does not exist, and they bury the entry line, which is the one level that matters while flat.
+  it('draws only the entry line while flat; the stop rows stay in the panel without a chart line', () => {
+    const model = momentumPreviewLevels(previewInput(cfg(), RICH_ACCOUNT_WIRE));
+    expect(row(model, 'entry')?.chartLine).toBe(true);
+    expect(row(model, 'trail')).toBeDefined();
+    expect(row(model, 'trail')?.chartLine).toBeUndefined();
+    expect(row(model, 'protective-stop')?.price).toBeDefined();
+    expect(row(model, 'protective-stop')?.chartLine).toBeUndefined();
+    expect(
+      rows(model)
+        .filter((r) => r.chartLine === true)
+        .map((r) => r.code),
+    ).toEqual(['entry']);
   });
 });
 

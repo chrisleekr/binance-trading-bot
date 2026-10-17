@@ -304,6 +304,7 @@ describeIfInfra('save-time order-feasibility diagnostics', () => {
         'quoteAsset',
         'benchmarkMode',
         'baselineBacktestRunId',
+        'baselinePinnedAt',
         'enablementPolicy',
         'notifyEvents',
         'createdAt',

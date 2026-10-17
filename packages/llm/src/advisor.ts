@@ -304,12 +304,11 @@ export const buildImproveInput = (
         config: baseConfig,
         params,
         metrics: result.metrics,
-        // The live-gate checklist this run must clear (per-check pass/fail under
-        // the profile's policy) and its data-quality warnings. The gate decides
-        // go-live on these bars only; a non-empty `dataWarnings` means the
-        // metrics are computed on patchy candle data and are not trustworthy.
+        // The live-gate checklist this run must clear (per-check pass/fail under the profile's policy) and its data-quality warnings. The gate decides go-live on these bars only; a non-empty `dataWarnings` means the metrics rest on patchy candle data or on orders the exchange would refuse, and are not trustworthy.
         gateChecks,
         dataWarnings: result.dataWarnings ?? [],
+        // Where the replay departs from live (an exit not replayed minute by minute). Not a data fault, but the advisor should still discount results these flatter.
+        modelNotes: result.modelNotes ?? [],
         // Honest trade-or-hold baseline and the fill-model assumptions, so the
         // advisor discounts optimistic profits and does not over-tune a no-edge run.
         tradeOrHold,

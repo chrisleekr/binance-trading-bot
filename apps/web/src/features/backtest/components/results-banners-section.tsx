@@ -4,10 +4,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/aler
 import { blockReasonLabel, dominantLog, pct } from './results-format';
 
 /**
- * The run's up-front verdict banners: patchy-history warning, the zero-trade
- * (never entered / still holding) banner, and the "holding beat this strategy"
- * banner. Rendered above the comparison strip and metrics so the operator reads
- * the headline caveat before the numbers.
+ * The run's up-front verdict banners: the unreliable-data warning, the collapsed modeling notes, the zero-trade (never entered / still holding) banner, and the "holding beat this strategy" banner. Rendered above the comparison strip and metrics so the operator reads the headline caveat before the numbers.
+ * @param props.result - The finished run; `dataWarnings` drives the warning banner and `modelNotes` the collapsed note.
+ * @returns The banners that apply to this run, possibly none.
  */
 export function ResultsBannersSection({
   result,
@@ -27,13 +26,14 @@ export function ResultsBannersSection({
 
   return (
     <>
+      {/* dataWarnings mixes missing candles with orders the exchange would refuse, so the title names the shared consequence rather than claiming either cause. */}
       {result.dataWarnings.length > 0 && (
         <Alert variant="warning" data-testid="backtest-data-warnings">
-          <AlertTitle>Patchy price history</AlertTitle>
+          <AlertTitle>These results may be unreliable</AlertTitle>
           <AlertDescription>
             <p>
-              Some symbols are missing candles for parts of this window, so these results may be
-              unreliable:
+              Gaps in the price history or orders the exchange would refuse make these numbers hard
+              to trust, and the live gate will not accept this run:
             </p>
             <ul className="mt-1 list-disc pl-5">
               {result.dataWarnings.map((w) => (
@@ -42,6 +42,23 @@ export function ResultsBannersSection({
             </ul>
           </AlertDescription>
         </Alert>
+      )}
+      {/* Modeling caveats are normal simulation limits, not a data fault, so they sit collapsed and muted instead of in a warning banner. */}
+      {result.modelNotes.length > 0 && (
+        <details className="text-xs text-muted-fg" data-testid="backtest-model-notes">
+          <summary className="cursor-pointer font-medium hover:text-fg">
+            How this run was modeled
+          </summary>
+          <p className="mt-1">
+            Where this replay differs from live trading. These are normal simulation limits, not
+            missing data:
+          </p>
+          <ul className="mt-1 list-disc pl-5">
+            {result.modelNotes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        </details>
       )}
       {noClosedTrades && (
         <Alert variant="warning" data-testid="zero-trade-banner">

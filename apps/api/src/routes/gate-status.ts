@@ -8,6 +8,7 @@ import {
   asProfileId,
   DEFAULT_ENABLEMENT_POLICY,
   describeGateOutcome,
+  failedCheckLines,
   EnablementPolicy,
   ErrorEnvelope,
   evaluateBacktestGate,
@@ -46,6 +47,7 @@ const buildGateStatus = async (
       ok: true,
       failure: null,
       detail: 'The gate guards live capital only; this profile runs on testnet.',
+      failedChecks: [],
     };
   }
   if (!policy.enabled) {
@@ -54,6 +56,7 @@ const buildGateStatus = async (
       ok: true,
       failure: null,
       detail: 'The live gate is turned off for this profile.',
+      failedChecks: [],
     };
   }
 
@@ -64,6 +67,7 @@ const buildGateStatus = async (
       ok: false,
       failure: 'no-matching-backtest',
       detail: 'The strategy is not registered, so no backtest can prove this config.',
+      failedChecks: [],
     };
   }
 
@@ -83,6 +87,7 @@ const buildGateStatus = async (
       ok: false,
       failure: 'no-matching-backtest',
       detail: 'The current config could not be evaluated against a backtest.',
+      failedChecks: [],
     };
   }
 
@@ -91,6 +96,8 @@ const buildGateStatus = async (
     ok: outcome.ok,
     failure: outcome.ok ? null : outcome.failure,
     detail: describeGateOutcome(outcome),
+    failedChecks:
+      !outcome.ok && outcome.failure === 'thresholds' ? failedCheckLines(outcome.checks) : [],
   };
 };
 

@@ -67,9 +67,8 @@ describe('SymbolStatsStrip', () => {
     });
   });
 
-  it('keeps a sub-1 price at full precision so a low-priced symbol does not round to 0.00', async () => {
-    // formatPrice's sub-1 branch keeps up to 8dp; the header relies on it for
-    // low-priced symbols (e.g. SHIB). A flat toFixed(2) would round this away.
+  it('keeps every tick of a sub-1 price up to 8dp so a low-priced symbol does not round to 0.00', async () => {
+    // Exchange prices are tick-quantised and Binance quotes at most 8dp, so formatPrice's sub-1 branch shows every digit up to 8dp. A flat toFixed(2) would round this SHIB-style price away.
     setUp(() => json(ticker({ lastPrice: '0.00002345' })));
     await waitFor(() => {
       expect(screen.getByTestId('symbol-last-price').textContent).toBe('0.00002345');

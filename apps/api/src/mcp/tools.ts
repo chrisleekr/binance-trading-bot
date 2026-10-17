@@ -111,7 +111,7 @@ const pathParamNames = (template: string): ReadonlySet<string> =>
 /**
  * Turns one route signature plus validated arguments into a concrete call.
  *
- * Path parameters are filled from same-named arguments and everything left over becomes a query string on a read or a JSON body on a write, which is the shape every route in this app already uses. Doing it structurally rather than per tool is what keeps 68 tools from carrying 68 hand-written request builders that can each drift from their route.
+ * Path parameters are filled from same-named arguments and everything left over becomes a query string on a read or a JSON body on a write, which is the shape every route in this app already uses. Doing it structurally rather than per tool is what keeps 69 tools from carrying 69 hand-written request builders that can each drift from their route.
  *
  * A path argument that cannot be one segment is refused here rather than encoded, for the reason {@link isSinglePathSegment} gives.
  *
@@ -326,7 +326,7 @@ const PROFILE = `${ACCOUNTS}/profiles/:profileId`;
 const SYMBOL = `${PROFILE}/symbols/:symbol`;
 
 /**
- * The complete agent-facing surface: 34 reads on `mcp:read`, 34 writes on `mcp:trade`.
+ * The complete agent-facing surface: 34 reads on `mcp:read`, 35 writes on `mcp:trade`.
  *
  * Writes are 1:1 with the action they perform and explicitly named, because the permission prompt and the audit row should say exactly what happened. A generic verb with a `kind` parameter would let the single most dangerous call in the set, a market fan-out across every bound symbol, arrive looking like every other write. Reads are consolidated only where the routes return the same shape and the model would otherwise spend four tool definitions on one question.
  */
@@ -868,6 +868,20 @@ export const MCP_TOOLS: readonly McpTool[] = [
       quoteAsset: QuoteAsset.optional().describe(
         'The currency this profile trades against and holds as cash, for example USDT. Another profile on the account cannot bind a pair whose base is this currency, so moving a stopped profile off a coin is what frees that coin for a sibling. Refused with a conflict when this profile or any sibling on the account still trades a pair whose base is the new quote.',
       ),
+    },
+  }),
+  // Dispatches to the same PATCH as update_profile rather than a route of its own, so the run checks (belongs to this profile, finished) and the pin-time stamp exist exactly once, in the route.
+  writeTool({
+    name: 'set_backtest_baseline',
+    signature: `PATCH ${PROFILE}`,
+    description:
+      'Pin a finished backtest run as the baseline the live results are compared against, or pass null to unpin it. The live scorecard and the edge-decay alert then count only trades recorded since the pin (when each cycle was archived, not its exchange close time), so pin a backtest of the config the profile is running now. Re-pinning the run already pinned keeps its original pin time. Refused unless the run belongs to this profile and has finished; list_backtests shows the candidates. Places no order.',
+    shape: {
+      ...profileArgs,
+      baselineBacktestRunId: z
+        .uuid()
+        .nullable()
+        .describe('Backtest run id from list_backtests, or null to unpin.'),
     },
   }),
   writeTool({

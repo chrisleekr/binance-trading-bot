@@ -145,6 +145,7 @@ const RESULT: BacktestResult = {
     ],
   },
   dataWarnings: [],
+  modelNotes: [],
   regimeBreakdown: [],
 };
 
@@ -227,20 +228,36 @@ describe('BacktestResults', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
   });
 
-  it('surfaces a patchy-history banner when the run carries data warnings', () => {
+  it('surfaces an unreliable-results banner when the run carries data warnings', () => {
     const warned: BacktestResult = {
       ...RESULT,
       dataWarnings: ['DEADUSDT: only 12% of the expected 1h candles are present (120/1000).'],
     };
     render(<BacktestResults result={warned} loadChartModule={loadChartModule} />);
     expect(screen.getByTestId('backtest-data-warnings')).toBeInTheDocument();
-    expect(screen.getByText(/Patchy price history/)).toBeInTheDocument();
+    expect(screen.getByText(/These results may be unreliable/)).toBeInTheDocument();
     expect(screen.getByText(/DEADUSDT: only 12%/)).toBeInTheDocument();
   });
 
   it('renders no data-warning banner for a clean run', () => {
     render(<BacktestResults result={RESULT} loadChartModule={loadChartModule} />);
     expect(screen.queryByTestId('backtest-data-warnings')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('backtest-model-notes')).not.toBeInTheDocument();
+  });
+
+  it('shows modeling notes as a collapsed note, not a warning banner', () => {
+    const noted: BacktestResult = {
+      ...RESULT,
+      modelNotes: ['detail interval equals strategy interval (1h)'],
+    };
+    render(<BacktestResults result={noted} loadChartModule={loadChartModule} />);
+    // A modeling caveat is not a data fault, so it must never raise the unreliable-results warning.
+    expect(screen.queryByTestId('backtest-data-warnings')).not.toBeInTheDocument();
+    const notes = screen.getByTestId('backtest-model-notes');
+    expect(notes.tagName).toBe('DETAILS');
+    expect(notes).not.toHaveAttribute('open');
+    expect(screen.getByText('How this run was modeled')).toBeInTheDocument();
+    expect(screen.getByText(/detail interval equals strategy interval/)).toBeInTheDocument();
   });
 
   it('shows a prefer-hold banner when the strategy lost to holding (negative alpha)', () => {

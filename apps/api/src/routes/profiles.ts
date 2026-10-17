@@ -79,6 +79,9 @@ const toResponse = (
   quoteAsset: row.quoteAsset,
   benchmarkMode: BenchmarkMode.catch('btc').parse(row.benchmarkMode),
   baselineBacktestRunId: row.baselineBacktestRunId ?? null,
+  // A pin time without a run is left behind when the FK clears the run id on delete; it describes nothing, so it is not served.
+  baselinePinnedAt:
+    row.baselineBacktestRunId && row.baselinePinnedAt ? row.baselinePinnedAt.toISOString() : null,
   // null column → the contract defaults; a stored partial fills the rest.
   enablementPolicy: readEnablementPolicy(row.enablementPolicy),
   // null column → every event on; a stored partial fills the rest.
@@ -377,6 +380,7 @@ export const profilesRouter = (di: DI): ApiHono => {
     if (body.baselineBacktestRunId !== undefined) {
       if (body.baselineBacktestRunId === null) {
         patch.baselineBacktestRunId = null;
+        patch.baselinePinnedAt = null;
       } else {
         // The run must belong to this profile (the scoped getter returns null
         // otherwise) and be finished — pinning a queued/failed run as a baseline
@@ -389,6 +393,11 @@ export const profilesRouter = (di: DI): ApiHono => {
           );
         }
         patch.baselineBacktestRunId = body.baselineBacktestRunId;
+        // The pin time starts the live comparison window. Re-pinning the run already pinned keeps it, so an agent retrying the call does not silently drop the trades since the first pin; a pin made before the column existed has no time and gets one here.
+        const samePin =
+          existing.baselineBacktestRunId === body.baselineBacktestRunId &&
+          existing.baselinePinnedAt !== null;
+        if (!samePin) patch.baselinePinnedAt = new Date();
       }
     }
     if (body.config !== undefined) {

@@ -219,7 +219,9 @@ describe('<HistoryEquityCard>', () => {
     renderCard();
     // `unknown` is the weaker of the two tiers in the window, and the line describes the whole of it.
     const footnote = await screen.findByTestId('history-equity-footnote');
-    expect(footnote).toHaveTextContent('fees not accounted');
+    expect(footnote).toHaveTextContent(
+      'was never reported, so profit here may be lower than shown',
+    );
     expect(footnote.textContent ?? '').not.toContain('partly estimated');
   });
 
