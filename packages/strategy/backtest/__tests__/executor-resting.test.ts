@@ -112,6 +112,9 @@ describe('BacktestExecutor with a realistic (resting) fill model', () => {
     ex.setMarketContext(SYMBOL, new Decimal('100'), bar(60_000, '99', '101'));
     expect(ex.getTrades()).toHaveLength(0); // underfunded → rejected, no fill
     expect(ex.openOrders()).toHaveLength(0); // dropped from the book
+    // The run loop reads this to discard a position the strategy recorded for the refused BUY; it clears on read.
+    expect(ex.drainRejectedBuy(SYMBOL)).toBe(true);
+    expect(ex.drainRejectedBuy(SYMBOL)).toBe(false);
   });
 
   it('tracks origQty and executedQty across a volume-cap partial fill', async () => {

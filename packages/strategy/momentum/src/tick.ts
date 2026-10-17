@@ -175,12 +175,7 @@ const extensionGate = (
 };
 
 /**
- * Momentum strategy: enter long on a fast/slow EMA cross-up (the fast EMA must
- * clear the slow EMA by `entryMarginPct` to filter chop), exit on a trailing
- * stop retrace from the high since entry or an EMA cross-down. While holding, a
- * resting exchange-side protective stop mirrors the trailing level so the
- * position survives a worker outage or a gap. One long per (profile, symbol);
- * no grid. Pure — EMAs are computed in-strategy from the candle window.
+ * Momentum strategy: enter long on a fast/slow EMA cross-up, or on any closed candle while the fast EMA is above the slow under `entryTrigger: 'trend'` (either way the fast EMA must clear the slow EMA by `entryMarginPct` to filter chop; one entry per candle), exit on a trailing stop retrace from the high since entry or an EMA cross-down. While holding, a resting exchange-side protective stop mirrors the trailing level so the position survives a worker outage or a gap. One long per (profile, symbol); no grid. Pure — EMAs are computed in-strategy from the candle window.
  *
  * @param input - One tick's world for a single (profile, symbol): config, the state body as stored, the candle window and live price, wallet and account balances, and any pending operator override. Never mutated.
  * @returns The next state body plus the decisions the worker should execute. A hold returns a `noop` decision rather than an empty list, so a tick that chose to do nothing is distinguishable from one that never ran.
@@ -234,14 +229,12 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
   const band = new Decimal(1).plus(entryMargin(config));
   const crossUp = fastPrev.lte(slowPrev.mul(band)) && fastNow.gt(slowNow.mul(band));
   const crossDown = fastPrev.gte(slowPrev) && fastNow.lt(slowNow);
+  // `trend` enters on the state (fast above the threshold) rather than the event, because discovery admits symbols that already crossed and for them the event does not recur while the trend lasts.
+  const entrySignal = config.entryTrigger === 'trend' ? fastNow.gt(slowNow.mul(band)) : crossUp;
 
   if (state.entryPrice === null) {
-    if (crossUp) {
-      // One entry per cross. `crossUp` reads the last two CLOSED candles, so it
-      // stays true for the rest of the candle it fired on: a position stopped out
-      // inside that window would otherwise re-enter at the price the stop just
-      // rejected, unbounded. Checked before the trend gate so a stale-cross
-      // attempt does not report itself as a trend-filter veto.
+    if (entrySignal) {
+      // One entry per candle. The signal (cross-up, or fast above slow under `trend`) reads the last CLOSED candles, so it stays true for the rest of the candle it fired on: a position stopped out inside that window would otherwise re-enter at the price the stop just rejected, unbounded. Checked before the trend gate so a repeat attempt does not report itself as a trend-filter veto.
       if (lastEntryCandle(state) === lastCandle.closeTimeMs) {
         return hold(
           state,
@@ -292,7 +285,7 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
         );
       }
     }
-    return evaluateEntry(scoped, crossUp, lastCandle.closeTimeMs, candles, {
+    return evaluateEntry(scoped, entrySignal, lastCandle.closeTimeMs, candles, {
       fastNow,
       slowNow,
       threshold: slowNow.mul(band),
@@ -303,13 +296,13 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
 
 const evaluateEntry = (
   input: MomentumInput,
-  crossUp: boolean,
+  entrySignal: boolean,
   candleCloseMs: number,
   candles: readonly Candle[],
   signal: { fastNow: Decimal; slowNow: Decimal; threshold: Decimal },
 ): MomentumOutput => {
   const { state, config, market, profile, account } = input;
-  if (!crossUp) {
+  if (!entrySignal) {
     // A bare "no signal" cannot tell an operator, or an agent reading the tick trace, whether the coin is about to cross or crossed weeks ago and must fall back first. The EMA values answer that without recomputing them from candles.
     const { fastNow, slowNow, threshold } = signal;
     return hold(state, [
@@ -385,11 +378,17 @@ const evaluateEntry = (
     nextState,
     decisions: [decision],
     logs: [
-      log('info', 'momentum: entry on EMA cross-up', {
-        symbol: market.symbol,
-        price: market.currentPrice,
-        quantity: sized.quantity,
-      }),
+      log(
+        'info',
+        config.entryTrigger === 'trend'
+          ? 'momentum: entry with fast EMA above slow'
+          : 'momentum: entry on EMA cross-up',
+        {
+          symbol: market.symbol,
+          price: market.currentPrice,
+          quantity: sized.quantity,
+        },
+      ),
     ],
     metrics: [metric('momentum.entry')],
   };

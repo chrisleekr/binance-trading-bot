@@ -60,6 +60,7 @@ The SPA renders a strategy's `PreviewModel` with **one generic component**, so a
 | --- | --- |
 | `candleIntervals` | The kline intervals the worker must fetch and feed. |
 | `entryOnCandleClose?` | `readonly entryOnCandleClose?: boolean`. Whether the ENTRY decision is evaluated on closes of `config.candleInterval` rather than on every tick's price. A cadence claim, not a data-source one: reading the candle window for indicators, sizing or a veto guard does not make it true. Optional, absent reads as false. |
+| `exitsWithinCandle?` | `readonly exitsWithinCandle?: boolean`. Whether a held position's exit level moves on 1-minute closes inside one trading candle. When `true`, a single-symbol backtest loads 1-minute bars and ticks the strategy on each one while it holds a position; a multi-symbol run, or one longer than the 1-minute load cap, ticks once per candle and adds a `dataWarning`. Optional, absent reads as false. |
 | `needsUserDataStream` | Subscribe the account / order user stream. |
 | `needsMiniTicker` | Subscribe the symbol mini-ticker price feed. |
 | `needsProfileKv?` | `readonly needsProfileKv?: boolean`. Opt into the per-profile KV store: when `true` the worker loads it into `TickInput.profileKv` for cross-symbol reads. Optional, defaults off — the worker skips the load unless set. |
@@ -67,6 +68,8 @@ The SPA renders a strategy's `PreviewModel` with **one generic component**, so a
 | `operatorActions` | The subset of the contracts `OPERATOR_ACTIONS` closed set this strategy honors. An empty array means no operator surface. |
 
 `entryOnCandleClose` lets the `entry-signal-reach` diagnosis rung count entry chances without naming a strategy (invariant 1). Momentum declares `true`; trailing-trade and rebalance declare `false`. Any value other than `true`, including absent, makes that rung report `unknown`.
+
+`exitsWithinCandle` lets the backtest runner replay an exit that live fires on 1-minute prices without naming a strategy (invariant 1). Momentum declares `true` for its profit trail; trailing-trade and rebalance leave it absent and keep one tick per candle.
 
 `operatorActions` tokens are validated against `OPERATOR_ACTIONS` (`packages/contracts/src/operator-actions.ts`) at the api wire boundary (the `OperatorAction` `z.enum`) and by the registry consistency test. An action a strategy does not declare is gated `422` at the api, dropped by the worker, and omitted from the web UI, so an action that would be silently dropped never renders. `operatorActions` and `bundleProviders` are both `readonly string[]` to keep this package free of a `@app/contracts` dependency; the closed set is enforced at the boundary, not by the type.
 

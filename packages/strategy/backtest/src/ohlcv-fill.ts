@@ -67,13 +67,7 @@ export interface OhlcvFillModelOptions {
  *            it (BUY: bar low < limit; SELL: bar high > limit), not on a mere
  *            touch — modelling maker queue non-fill; maker fee.
  *   - MARKET fills at the candle open shifted by slippage; taker fee.
- *   - STOP_LOSS_LIMIT arms once a detail bar reaches the stop (SELL: low <=
- *            stop; BUY: high >= stop), then behaves as a resting LIMIT at
- *            `params.price`: it fills at the limit the first time a bar (arming
- *            bar included) trades THROUGH it, and a bar that gaps PAST the limit
- *            leaves it resting UNFILLED — modelling the real tail risk that a
- *            protective stop can gap through its limit and never protect, or a
- *            grid stop-limit gap through and never enter. Taker fee.
+ *   - STOP_LOSS_LIMIT arms once a detail bar reaches the stop (SELL: low <= stop; BUY: high >= stop). If the trigger price (the stop, or the arming bar's open when it gapped past the stop) is still marketable against the limit, it fills there shifted by slippage and the half-spread, never worse than the limit. Otherwise it rests as a LIMIT at `params.price`: it fills at the limit the first time a bar trades THROUGH it, and a bar that gaps PAST the limit leaves it resting UNFILLED, modelling the real tail risk that a protective stop can gap through its limit and never protect. The arm is not remembered across evaluations: each one re-checks the stop, so a gapped-through stop-limit fills on a later bar that is still at or past the stop and trades through the limit, while a bar that recovers entirely back past the stop does not re-arm it and it keeps resting where Binance's already-armed limit would have filled. Taker fee.
  *
  * Every fill is then haircut by the half-spread (BUY pays up, SELL receives
  * less). Filters: stepSize/tickSize quantisation, minNotional and minQty are
@@ -110,16 +104,12 @@ export class OhlcvFillModel implements FillModel {
   }
 
   /**
-   * Funds a resting order locks. Every order rests one candle in this model
-   * (`fill` returns `rest` on the place phase for all types), so the lock is
-   * sized by order type. A BUY locks the quote it will spend: the fill price the
-   * `fill` path charges — the order price (its `price`, or a stop-limit's limit)
-   * lifted by the same half-spread, since a maker/limit fill pays that haircut —
-   * times the fee (maker for a LIMIT, taker otherwise). Matching the fill price
-   * exactly is what lets an all-in buy fund its own fill: an under-lock would
-   * leave `free` short of the spread-lifted cost and the affordability check
-   * would then reject the whole order. A SELL locks the base it will deliver; a
-   * MARKET buy carries no price and locks nothing.
+   * Funds a resting order locks. Every order rests one candle in this model (`fill` returns `rest` on the place phase for all types), so the lock is sized by order type.
+   *
+   * A BUY locks the most quote a fill can charge: the order price (its `price`, or a stop-limit's limit, which caps a marketable trigger fill) lifted by the half-spread, times the fee (maker for a LIMIT, taker otherwise). A stop-limit that fills below its limit leaves excess lock, which returns on fill. Never under-locking is what lets an all-in buy fund its own fill: an under-lock would leave `free` short of the spread-lifted cost and the affordability check would then reject the whole order. A SELL locks the base it will deliver; a MARKET buy carries no price and locks nothing.
+   *
+   * @param input - The order being placed and the symbol it trades, which picks the locked asset.
+   * @returns The asset and amount to move from free to locked while the order rests.
    */
   reserve(input: ReserveInput): FillReservation {
     const { intent, params, symbolInfo } = input;
@@ -242,21 +232,21 @@ export class OhlcvFillModel implements FillModel {
       return { price: limit.mul(this.spreadFactor(side)), feeBps: this.makerBps, bar };
     }
 
-    // STOP_LOSS_LIMIT. On Binance the stop only ARMS a LIMIT order at
-    // `params.price`; the fill is then a plain limit, so a bar that gaps PAST the
-    // limit leaves it resting UNFILLED. Modelling it as a guaranteed stop-market
-    // fill hides the dominant tail risk: a protective stop that gaps through its
-    // limit never protects the position, and a grid stop-limit that gaps through
-    // never enters. Model both phases from the bar bounds — arm once a bar
-    // reaches the stop, then fill at the limit the first time a bar (the arming
-    // bar included) trades THROUGH the limit; if none do, keep resting. Fill at
-    // the limit like any LIMIT (no slippage — a limit fills at its rate, not
-    // worse); a triggered stop still pays the taker fee.
+    // STOP_LOSS_LIMIT. On Binance the stop only ARMS a LIMIT order at `params.price`; the fill is then a plain limit, so a bar that gaps PAST the limit leaves it resting UNFILLED. Modelling it as a guaranteed stop-market fill hides the dominant tail risk: a protective stop that gaps through its limit never protects the position, and a grid stop-limit that gaps through never enters. Model both phases from the bar bounds: arm once a bar reaches the stop, then fill at the trigger when it is marketable, else at the limit the first time a bar (the arming bar included) trades THROUGH the limit; if none do, keep resting. The arm is not remembered, so the next evaluation re-checks the stop. A triggered stop pays the taker fee.
     const stop = roundToTick(new Decimal(params.stopPrice ?? params.price ?? '0'), tick);
     const limit = roundToTick(new Decimal(params.price ?? params.stopPrice ?? '0'), tick);
     if (stop.lte(0) || limit.lte(0)) return null;
     const armBar = firstStopBar(side, stop, bars);
     if (armBar === null) return null; // stop not reached — keep resting
+    // The armed limit is marketable whenever the trigger price is still on the right side of it, and a marketable limit executes at the book, not at its limit. Live protective stops fill at the stop price (a 1.54 stop with a 1.509 limit filled at 1.540), so filling at the limit charged every stop-out the whole limit offset. The trigger is the stop, or the arming bar's open when that bar gapped past the stop.
+    const open = new Decimal(armBar.open);
+    const trigger = side === 'SELL' ? Decimal.min(stop, open) : Decimal.max(stop, open);
+    if (side === 'SELL' ? trigger.gte(limit) : trigger.lte(limit)) {
+      // Cap after the half-spread: a Binance limit order never executes past its limit.
+      const raw = trigger.mul(this.slippageFactor(side)).mul(this.spreadFactor(side));
+      const executed = side === 'SELL' ? Decimal.max(limit, raw) : Decimal.min(limit, raw);
+      return { price: executed, feeBps: this.takerBps, bar: armBar };
+    }
     const crossed = firstCrossBar(side, limit, bars.slice(bars.indexOf(armBar)));
     if (crossed === null) return null; // gapped past the limit — rests unfilled
     return { price: limit.mul(this.spreadFactor(side)), feeBps: this.takerBps, bar: crossed };

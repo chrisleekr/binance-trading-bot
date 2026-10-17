@@ -159,8 +159,8 @@ const stopLimitCandle = (
 
 const STOP_LIMIT_CANDLES: Candle[] = [
   stopLimitCandle(0, 100, 100.5, 99.5, 100), // entry fires → STOP_LOSS_LIMIT buy stop 101 / limit 102
-  stopLimitCandle(1, 100, 101.5, 100, 101.2), // high 101.5 >= stop 101 (armed); low 100 < limit 102 → fills at the limit 102
-  stopLimitCandle(2, 101.2, 110, 101, 108), // close 108 >= 102 x 1.05 (107.1) → arms trailing stop; highSinceBuy 110
+  stopLimitCandle(1, 100, 101.5, 100, 101.2), // high 101.5 >= stop 101 (armed) from an open below it → fills at the stop 101 plus 5bps slippage
+  stopLimitCandle(2, 101.2, 110, 101, 108), // close 108 >= entry 101.0505 x 1.05 (≈106.10) → arms trailing stop; highSinceBuy 110
   stopLimitCandle(3, 108, 110, 104, 105), // close 105 <= 110 x 0.98 (107.8) → trailing market sell
   stopLimitCandle(4, 105, 106, 104, 105), // market sell fills at the next open
 ];
@@ -215,16 +215,14 @@ function runStopLimit() {
 }
 
 describe('trailingTrade — stop-limit buy (backtest)', () => {
-  it('rests a STOP_LOSS_LIMIT buy and fills it at the limit price', async () => {
+  it('rests a STOP_LOSS_LIMIT buy and fills it at the stop when the armed limit is marketable', async () => {
     const report = await runStopLimit();
     const buys = report.trades.filter((t) => t.side === 'BUY');
     expect(buys.length).toBeGreaterThanOrEqual(1);
     const first = buys[0];
     if (first === undefined) throw new Error('expected a BUY trade');
-    // Candle 1 arms the stop (high 101.5 >= stop 101) and crosses the limit
-    // (low 100 < limit 102), so the order fills at its limit — a stop-limit fills
-    // at its limit, not the stop, and takes no slippage.
-    expect(new Decimal(first.price).equals(new Decimal('102'))).toBe(true);
+    // Candle 1 opens at 100 and trades up through the stop 101, so the armed limit 102 is marketable and executes at the stop plus 5bps slippage, not at its limit.
+    expect(new Decimal(first.price).equals(new Decimal('101.0505'))).toBe(true);
   });
 
   it('matches the committed report snapshot (drift gate)', async () => {

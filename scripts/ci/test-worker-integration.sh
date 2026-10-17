@@ -55,7 +55,7 @@ if [ ! -s "$REPORT" ]; then
   exit "$STATUS"
 fi
 
-bun scripts/ci/check-worker-integration-honesty.ts --vitest-status="$STATUS" --forbid-skips --min-non-integration-files=231 \
+bun scripts/ci/check-worker-integration-honesty.ts --vitest-status="$STATUS" --forbid-skips --min-non-integration-files=233 \
   <"$REPORT" || STATUS=$?
 
 exit "$STATUS"

@@ -159,22 +159,44 @@ describe('OhlcvFillModel', () => {
     else throw new Error('expected fill');
   });
 
-  it('fills a SELL stop-limit at its limit once armed and the limit is crossed', () => {
-    // The stop 90 arms when a bar's low reaches it; the limit 89 then fills the
-    // first time a bar trades through it. A stop-limit fills AT its limit with no
-    // slippage (a limit fills at its rate, not a market-style haircut), taker fee.
+  // Live evidence: a SELL stop 1.54 / limit 1.509 filled at 1.540. Once armed, the limit is marketable, so it executes at the book near the stop, not at the limit.
+  it('fills a SELL stop-limit at the stop less slippage when the arming bar opened above the stop', () => {
     const out = model.fill(
       input({
         side: 'SELL',
         params: { type: 'STOP_LOSS_LIMIT', stopPrice: '90', price: '89', quantity: '1' },
-        detail: [bar('85', '95', '92')], // low 85 <= stop 90 (armed); high 95 > limit 89 (crossed)
+        detail: [bar('85', '95', '92')], // open 92 > stop 90, low 85 reaches it
       }),
     );
     expect(out.kind).toBe('filled');
     if (out.kind === 'filled') {
-      expect(out.fills[0]?.price.toString()).toBe('89'); // the limit, no slippage
+      expect(out.fills[0]?.price.toString()).toBe('89.55'); // 90 x (1 - 50bps)
       expect(out.fills[0]?.feeBps).toBe(20); // taker
     }
+  });
+
+  it('triggers a SELL stop-limit at the open when the bar gapped below the stop but above the limit', () => {
+    const out = model.fill(
+      input({
+        side: 'SELL',
+        params: { type: 'STOP_LOSS_LIMIT', stopPrice: '90', price: '85', quantity: '1' },
+        detail: [bar('86', '89', '88')], // gapped open 88 < stop 90, still above limit 85
+      }),
+    );
+    expect(out.kind).toBe('filled');
+    if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('87.56'); // 88 x (1 - 50bps)
+  });
+
+  it('never fills a marketable SELL stop-limit below its limit', () => {
+    const out = model.fill(
+      input({
+        side: 'SELL',
+        params: { type: 'STOP_LOSS_LIMIT', stopPrice: '90', price: '89.9', quantity: '1' },
+        detail: [bar('85', '95', '92')], // slippage would take 90 to 89.55, below the limit
+      }),
+    );
+    expect(out.kind).toBe('filled');
+    if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('89.9');
   });
 
   it('keeps resting a SELL stop whose low has not reached the stop', () => {
@@ -282,19 +304,43 @@ describe('OhlcvFillModel', () => {
     }
   });
 
-  it('fills a BUY stop-limit at its limit once armed and the limit is crossed', () => {
+  it('fills a BUY stop-limit at the stop plus slippage when the arming bar opened below the stop', () => {
     const out = model.fill(
       input({
         side: 'BUY',
         params: { type: 'STOP_LOSS_LIMIT', stopPrice: '110', price: '111', quantity: '1' },
-        detail: [bar('100', '115', '100')], // high 115 >= stop 110 (armed); low 100 < limit 111 (crossed)
+        detail: [bar('100', '115', '100')], // open 100 < stop 110, high 115 reaches it
       }),
     );
     expect(out.kind).toBe('filled');
     if (out.kind === 'filled') {
-      expect(out.fills[0]?.price.toString()).toBe('111'); // the limit, no slippage
+      expect(out.fills[0]?.price.toString()).toBe('110.55'); // 110 x (1 + 50bps)
       expect(out.fills[0]?.feeBps).toBe(20); // taker
     }
+  });
+
+  it('never fills a marketable BUY stop-limit above its limit', () => {
+    const out = model.fill(
+      input({
+        side: 'BUY',
+        params: { type: 'STOP_LOSS_LIMIT', stopPrice: '110', price: '110.2', quantity: '1' },
+        detail: [bar('100', '115', '100')], // slippage would take 110 to 110.55, above the limit
+      }),
+    );
+    expect(out.kind).toBe('filled');
+    if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('110.2');
+  });
+
+  it('fills a BUY stop-limit at the arming bar open plus slippage when that bar gapped above the stop', () => {
+    const out = model.fill(
+      input({
+        side: 'BUY',
+        params: { type: 'STOP_LOSS_LIMIT', stopPrice: '110', price: '115', quantity: '1' },
+        detail: [bar('111', '114', '112')], // opened at 112, past the stop 110 but under the limit 115
+      }),
+    );
+    expect(out.kind).toBe('filled');
+    if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('112.56'); // 112 x (1 + 50bps)
   });
 
   it('keeps a BUY stop-limit resting when the bar gaps entirely above its limit', () => {
@@ -311,9 +357,8 @@ describe('OhlcvFillModel', () => {
     expect(out.kind).toBe('rest');
   });
 
-  it('fills a stop-limit at its limit regardless of slippageBps (a limit fills at its rate)', () => {
-    // Unlike a MARKET order, a triggered limit is not slippaged: a large
-    // slippageBps must not move the fill off the limit price.
+  it('fills a gapped-through stop-limit at its limit regardless of slippageBps', () => {
+    // The bar opened below the limit, so the armed limit rests and later fills at its own rate: slippage does not apply to a resting limit.
     const hiSlip = new OhlcvFillModel({ makerBps: 10, takerBps: 20, slippageBps: 500 });
     const out = hiSlip.fill(
       input({
@@ -454,6 +499,33 @@ describe('OhlcvFillModel half-spread haircut', () => {
       expect(out.fills[0]?.price.toString()).toBe('88.555');
       expect(out.fills[0]?.feeBps).toBe(20); // taker
     }
+  });
+  it('caps a marketable stop-limit at its limit after the half-spread, never past it', () => {
+    // Slippage and the half-spread together would push both fills past the limit; Binance never executes a limit order past its limit.
+    const both = new OhlcvFillModel({
+      makerBps: 10,
+      takerBps: 20,
+      slippageBps: 50,
+      spreadBps: 100,
+    });
+    const sell = both.fill(
+      input({
+        side: 'SELL',
+        params: { type: 'STOP_LOSS_LIMIT', stopPrice: '90', price: '89.9', quantity: '1' },
+        detail: [bar('85', '95', '92')], // 90 x 0.995 x 0.995 = 89.10 < limit 89.9
+      }),
+    );
+    expect(sell.kind).toBe('filled');
+    if (sell.kind === 'filled') expect(sell.fills[0]?.price.toString()).toBe('89.9');
+    const buy = both.fill(
+      input({
+        side: 'BUY',
+        params: { type: 'STOP_LOSS_LIMIT', stopPrice: '110', price: '110.2', quantity: '1' },
+        detail: [bar('100', '115', '100')], // 110 x 1.005 x 1.005 = 111.10 > limit 110.2
+      }),
+    );
+    expect(buy.kind).toBe('filled');
+    if (buy.kind === 'filled') expect(buy.fills[0]?.price.toString()).toBe('110.2');
   });
 });
 

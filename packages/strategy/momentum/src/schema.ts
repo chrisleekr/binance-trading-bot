@@ -457,6 +457,13 @@ export const MomentumConfigSchema = z.object({
     .describe(
       '@ui:percent-of How far the fast EMA must exceed the slow EMA to confirm an entry. 1 means require a 1% margin; 0 enters on a bare cross.',
     ),
+  // What opens a position. Absent reads as `cross` so the unparsed worker config and existing golden replays are unchanged.
+  entryTrigger: z
+    .enum(['cross', 'trend'])
+    .optional()
+    .describe(
+      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle.',
+    ),
   protectiveStop: MomentumProtectiveStopSchema.optional(),
   // Macro trend filter gating entries (exit logic untouched). Off by default so
   // existing configs and golden replays stay byte-identical.
@@ -539,13 +546,7 @@ export const MomentumStateSchema = z.object({
   // Authoritative held base-asset quantity for sell sizing. Maintained by the
   // fill-adopter and reconciled against the wallet at boot; null when flat.
   heldQuantity: z.string().nullable(),
-  // Close time of the candle whose cross-up opened the last entry; enforces one
-  // entry per cross. Stamped at ENTRY, not exit, because an exchange-side
-  // protective stop reaches the strategy only as `{kind: 'empty'}`, carrying no
-  // timestamp. Survives the exit emit and the fill-adopter's flatten, both of
-  // which spread the body. Additive with `.default(null)` so the state schema
-  // version can stay put: momentum declares no `migrateState`, and a bump would
-  // strand live rows at the old version, silently no-opping the position adapter.
+  // Close time of the candle whose entry signal (cross-up, or fast above slow under `entryTrigger: 'trend'`) opened the last entry; enforces one entry per candle. Stamped at ENTRY, not exit, because an exchange-side protective stop reaches the strategy only as `{kind: 'empty'}`, carrying no timestamp. Survives the exit emit and the fill-adopter's flatten, both of which spread the body. Additive with `.default(null)` so the state schema version can stay put: momentum declares no `migrateState`, and a bump would strand live rows at the old version, silently no-opping the position adapter.
   lastEntryCandleMs: z.number().int().nullable().default(null),
   // Epoch bounding which 1m closes may ratchet the profit trail: the close
   // instant of the newest 1m candle already closed when the position opened.

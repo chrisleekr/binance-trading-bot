@@ -88,6 +88,7 @@ export {
   configFingerprint,
   backtestSignature,
   signatureForBacktest,
+  BACKTEST_ENGINE_REVISION,
 } from './config-fingerprint.js';
 export type { BacktestSignatureInput } from './config-fingerprint.js';
 export {

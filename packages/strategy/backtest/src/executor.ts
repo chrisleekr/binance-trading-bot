@@ -104,6 +104,8 @@ export class BacktestExecutor implements Executor {
   private readonly kv = new Map<string, unknown>();
   private restingOrders: RestingOrder[] = [];
   private pendingFills: DrainedFill[] = [];
+  // Symbols whose BUY the fill model refused since the last drain. Live discards the tick's state when its order never executes; the run loop needs this to do the same.
+  private readonly rejectedBuys = new Set<string>();
   private nextOrderId = 1;
 
   constructor(
@@ -201,6 +203,16 @@ export class BacktestExecutor implements Executor {
     for (const f of this.pendingFills) (f.symbol === symbol ? taken : rest).push(f);
     this.pendingFills = rest;
     return taken;
+  }
+
+  /**
+   * Whether a BUY on this symbol was refused since the last call, clearing the flag.
+   *
+   * @param symbol - The symbol to check.
+   * @returns True when the fill model rejected a BUY for it, at placement or while resting.
+   */
+  drainRejectedBuy(symbol: string): boolean {
+    return this.rejectedBuys.delete(symbol);
   }
 
   getEvents(): readonly { eventType: string; payload: unknown }[] {
@@ -321,7 +333,9 @@ export class BacktestExecutor implements Executor {
     // model (ideal) always fully fills, so there is no remainder in practice.
     if (outcome.kind === 'rest') {
       this.rest(intent, params, ctx.clock.nowMs(), symbolInfo);
-    } else if (outcome.kind !== 'rejected') {
+    } else if (outcome.kind === 'rejected') {
+      if (intent.side === 'BUY') this.rejectedBuys.add(intent.symbol);
+    } else {
       for (const fill of outcome.fills)
         this.applyFill(intent.side, intent.reason, symbolInfo, fill);
     }
@@ -404,7 +418,10 @@ export class BacktestExecutor implements Executor {
         continue;
       }
       // Rejected: leave the reservation released — the funds return to free.
-      if (outcome.kind === 'rejected') continue;
+      if (outcome.kind === 'rejected') {
+        if (ord.intent.side === 'BUY') this.rejectedBuys.add(symbol);
+        continue;
+      }
       for (const fill of outcome.fills) {
         this.applyFill(ord.intent.side, ord.intent.reason, symbolInfo, fill);
       }

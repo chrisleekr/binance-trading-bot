@@ -8,6 +8,7 @@ import type {
   MarketSnapshot,
   MetricEntry,
   PositionStateAdapter,
+  PositionView,
   Strategy,
   SymbolInfo,
   TickInput,
@@ -123,6 +124,16 @@ export interface RunBacktestOptions<C, S, B extends Readonly<Record<string, unkn
    * result. The engine only awaits the injected function; it does no I/O itself.
    */
   readonly onBeforeMetrics?: () => void | Promise<void>;
+  /**
+   * Tick the strategy on every detail bar inside a candle while it holds a position, and hand it the bars that closed since its previous tick under `interval`. Live ticks on every price update, so an exit level that moves on 1-minute closes (momentum's profit trail) fires mid-candle; one tick per candle cannot see that. The detail bars must be of `interval` for the strategy to read them as such.
+   *
+   * Single-symbol only: the within-candle ticks advance the clock inside each candle, so a second symbol would replay its bars after the first symbol's later ones and mutate the shared account out of time order. The loop throws on a second symbol. Default: none, one tick per candle exactly as before.
+   */
+  readonly intraCandle?: { readonly interval: CandleInterval };
+  /**
+   * Awaited after each within-candle tick. A held daily candle replays 1,440 minute ticks inside one streamed candle, so a host that shares its process with live trading injects a throttled event-loop yield here, the same one that paces the stream. The engine only awaits the injected function; it does no I/O itself. Default: none.
+   */
+  readonly onIntraCandleTick?: () => void | Promise<void>;
 }
 
 const PROFILE_ID = 'backtest';
@@ -243,20 +254,23 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     else logBuckets.set(key, { level: l.level, message: l.message, reason, count: 1 });
   };
 
-  // Converge the plugin's position state from the executor's fills, the
-  // engine's analogue of the live fill-adopter. Without this a stateful
-  // strategy (e.g. TT, which reads `state.avgEntryPrice`) never learns it
-  // holds a position and re-buys every candle. Prior position is read from
-  // state (the backtest's source of truth — there is no durable LBP row),
-  // and the weighted-average entry mirrors `fill-adopter.resolveBuy`.
+  // Converge the plugin's position state from the executor's fills, the engine's analogue of the live fill-adopter. Without this a stateful strategy (e.g. TT, which reads `state.avgEntryPrice`) never learns it holds a position and re-buys every candle. The prior position comes from a fills-only ledger, the analogue of live's durable avg-entry row, not from state: momentum writes its order quantity into state when it places the entry, so folding the fill onto state counted every entry twice.
+  const positionLedger = new Map<string, PositionView | null>();
   const adoptFills = (symbol: string): void => {
     const position = strategy.position;
     if (!position) return; // strategy doesn't manage a position; nothing to converge
     const drained = executor.drainFills(symbol);
-    if (drained.length === 0) return;
+    const buyRejected = executor.drainRejectedBuy(symbol);
+    if (drained.length === 0 && !buyRejected) return;
     let state = states.get(symbol) ?? strategy.initialState(config);
-    for (const fill of drained) state = adoptOne(position, state, fill);
+    let prior = positionLedger.get(symbol) ?? null;
+    for (const fill of drained) ({ state, prior } = adoptOne(position, state, prior, fill));
+    positionLedger.set(symbol, prior);
     states.set(symbol, state);
+    // A strategy that records its position when it places the entry (momentum) is left claiming coins the refused BUY never bought. Live discards that tick's state, so flatten it here; otherwise the run carries a phantom position that blocks re-entry and arms stops against nothing. Only a claim no fill backs is cleared.
+    if (buyRejected && prior === null && holdsPosition(symbol)) {
+      states.set(symbol, position.applyFill(state, { kind: 'empty' }) ?? state);
+    }
   };
 
   // Account-wide deployed quote = Σ(avgEntryPrice × heldQuantity) over every
@@ -284,94 +298,78 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     return total.toString();
   };
 
-  for await (const tick of dataSource.stream(request)) {
-    const { symbol, interval, candle } = tick;
-    const detailCandles = tick.detailCandles;
-
-    // Enforce the MarketDataSource ordering contract: the shared account must
-    // mutate in true time order, so an out-of-order tick would silently
-    // mis-sequence a portfolio's balance. Fail loudly instead.
-    if (candle.closeTimeMs < lastCloseMs) {
-      throw new Error(
-        `market data out of order: ${symbol} closeTime ${candle.closeTimeMs} < ${lastCloseMs}`,
-      );
+  /**
+   * Whether the strategy holds a position on `symbol`, read through its position capability. Gates the within-candle ticks: they exist to replay a held position's exit, and skipping them while flat keeps a long minute-bar replay affordable. The cost is an entry live would take mid-candle after a price-dependent gate deferred it past the close; the replay takes it at the next close instead.
+   *
+   * @param symbol - The symbol whose replayed state is read.
+   * @returns True only when the position view parses to a held quantity above zero; a strategy with no position capability, or no state yet, reads as flat.
+   */
+  const holdsPosition = (symbol: string): boolean => {
+    const position = strategy.position;
+    const state = states.get(symbol);
+    if (!position || state === undefined) return false;
+    const held = position.readPosition(state)?.heldQuantity;
+    if (held === null || held === undefined) return false;
+    try {
+      return new Decimal(held).gt(0);
+    } catch {
+      return false;
     }
-    lastCloseMs = candle.closeTimeMs;
+  };
 
-    const priorInterval = intervalOf.get(symbol);
-    if (priorInterval && priorInterval !== interval) {
-      throw new Error(
-        `symbol ${symbol} streamed two intervals (${priorInterval}, ${interval}); ` +
-          `a backtest expects exactly one interval per symbol`,
-      );
-    }
-    intervalOf.set(symbol, interval);
+  // Within-candle bars that closed since the symbol's previous tick, handed to the next tick under `intraCandle.interval`. The strategy keeps its own high-water marks in state, so the bars since the last tick are all it needs, and the buffer never outgrows one trading candle because every close ticks and drains it.
+  const pendingBars = new Map<string, Candle[]>();
+  const takePendingBars = (symbol: string): readonly Candle[] => {
+    const bars = pendingBars.get(symbol) ?? [];
+    pendingBars.set(symbol, []);
+    return bars;
+  };
+  const addPendingBar = (symbol: string, bar: Candle): void => {
+    const bars = pendingBars.get(symbol);
+    if (bars) bars.push(bar);
+    else pendingBars.set(symbol, [bar]);
+  };
 
-    const key = `${symbol}|${interval}`;
-    const window = windows.get(key) ?? [];
-    window.push(candle);
-    if (window.length > windowCap) window.shift();
-    windows.set(key, window);
-
-    clock.advanceTo(candle.closeTimeMs);
-    const price = new Decimal(candle.close);
-    // When the data source supplies the finer detail bars for this candle, the
-    // OHLCV model crosses orders against them in time order; otherwise it falls
-    // back to the coarse candle. The data source owns the grouping.
-    executor.setMarketContext(symbol, price, candle, detailCandles);
-    // Resting orders may have filled against this candle; adopt them before
-    // the tick so the strategy sees the resulting position this candle
-    // (signal-N, fill-N+1, position-visible-N+1 — the live ordering).
-    adoptFills(symbol);
-
-    // Mark opening equity once the first candle has set a price, so a
-    // non-quote opening balance is valued, not zeroed.
-    if (startingBalance === null) startingBalance = executor.equityInQuote(quoteAsset);
-
-    const count = (seen.get(symbol) ?? 0) + 1;
-    seen.set(symbol, count);
-    if (count <= startup) continue; // warm-up: accumulate, do not trade
-
-    // Buy-and-hold / DCA benchmark accumulators, anchored on the first TRADED
-    // candle (post-warmup) so the hold baseline spans the same window as the
-    // strategy's equity curve. Accumulating during warmup would measure the
-    // benchmark over the extra warmup candles the operator never asked to
-    // evaluate, distorting alphaVsHold.
-    if (!firstClose.has(symbol)) firstClose.set(symbol, price);
-    lastClose.set(symbol, price);
-    // A non-positive close cannot anchor a percentage benchmark; skip it from
-    // both accumulators (the same drop rule the buy-and-hold mean applies).
-    if (price.gt(0)) {
-      closeInvSum.set(symbol, (closeInvSum.get(symbol) ?? ZERO).add(ONE.div(price)));
-      closeCount.set(symbol, (closeCount.get(symbol) ?? 0) + 1);
-    }
-
+  /**
+   * One strategy tick: assemble the snapshot, run `tick()`, fold its diagnostics, and apply its decisions. Shared by the per-candle close and the within-candle ticks so the two cannot drift in what the strategy sees.
+   *
+   * @param args - The symbol and its streamed interval; its trading window, which ends at the last CLOSED trading candle (mid-candle it excludes the candle in progress); the price the tick sees; the instant auxiliary windows are cut at, so none reaches past it; and the trigger handed to the strategy.
+   * @returns Resolves once every decision has been applied and any immediate fills adopted.
+   */
+  const runTick = async (args: {
+    readonly symbol: string;
+    readonly interval: CandleInterval;
+    readonly window: readonly Candle[];
+    readonly price: string;
+    readonly asOfMs: number;
+    readonly trigger: TickInput<C, S, B>['trigger'];
+  }): Promise<void> => {
+    const { symbol, interval, window } = args;
     const symbolInfo = symbolInfos.get(symbol);
     if (!symbolInfo) throw new Error(`no SymbolInfo provided for ${symbol}`);
 
     const state = states.get(symbol) ?? strategy.initialState(config);
-    const auxWindows = opts.auxiliaryWindows?.({ symbol, asOfMs: candle.closeTimeMs });
+    const auxWindows = opts.auxiliaryWindows?.({ symbol, asOfMs: args.asOfMs });
+    const intraKey = opts.intraCandle?.interval;
     // The streamed interval's rolling window is authoritative; auxiliary
     // windows (e.g. the daily regime candle) fill OTHER intervals only, so the
     // streamed key is spread last to win any collision.
-    const candlesByInterval: Partial<Record<CandleInterval, readonly Candle[]>> = auxWindows
-      ? { ...auxWindows, [interval]: window }
-      : { [interval]: window };
-    // Per-interval indicator snapshots, mirroring what the live worker writes to
-    // Redis and reads into `market.indicatorsByInterval`. Without this an armed
-    // indicatorGate (RSI/SMA/EMA bias) reads `undefined` and fails closed with
-    // `indicator-unavailable` on every tick, so the profile can never trade — or
-    // pass the live-enablement gate — in a backtest. `snapshotComputer.step`
-    // reuses the same incremental indicators as live for byte-parity.
+    const candlesByInterval: Partial<Record<CandleInterval, readonly Candle[]>> = {
+      ...(auxWindows ?? {}),
+      ...(intraKey !== undefined ? { [intraKey]: takePendingBars(symbol) } : {}),
+      [interval]: window,
+    };
+    // Per-interval indicator snapshots, mirroring what the live worker writes to Redis and reads into `market.indicatorsByInterval`. Without this an armed indicatorGate (RSI/SMA/EMA bias) reads `undefined` and fails closed with `indicator-unavailable` on every tick, so the profile can never trade — or pass the live-enablement gate — in a backtest. `snapshotComputer.step` reuses the same incremental indicators as live for byte-parity. The within-candle bars are skipped: they are a since-last-tick slice, not a rolling window an indicator can be computed over, and `step` requires each call to advance one closed candle.
     const indicatorsByInterval: Partial<Record<CandleInterval, IndicatorSnapshot>> = {};
     for (const iv of Object.keys(candlesByInterval) as CandleInterval[]) {
+      if (iv === intraKey && iv !== interval) continue;
       const win = candlesByInterval[iv];
       const snap = win ? snapshotComputer.step(`${symbol}|${iv}`, win) : null;
       if (snap) indicatorsByInterval[iv] = snap;
     }
     const market: MarketSnapshot = {
       symbol,
-      currentPrice: candle.close,
+      currentPrice: args.price,
       candlesByInterval,
       indicatorsByInterval,
       symbolInfo,
@@ -379,7 +377,7 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     const input: TickInput<C, S, B> = {
       clock,
       rng,
-      trigger: { kind: 'candle-close', interval, openTimeMs: candle.openTimeMs },
+      trigger: args.trigger,
       profile: {
         id: PROFILE_ID,
         userId: USER_ID,
@@ -422,6 +420,115 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     // onto the post-tick state so the next tick sees the position. A resting
     // model produces nothing here — its fills are adopted at the next candle.
     adoptFills(symbol);
+  };
+
+  for await (const tick of dataSource.stream(request)) {
+    const { symbol, interval, candle } = tick;
+    const detailCandles = tick.detailCandles;
+
+    // Enforce the MarketDataSource ordering contract: the shared account must
+    // mutate in true time order, so an out-of-order tick would silently
+    // mis-sequence a portfolio's balance. Fail loudly instead.
+    if (candle.closeTimeMs < lastCloseMs) {
+      throw new Error(
+        `market data out of order: ${symbol} closeTime ${candle.closeTimeMs} < ${lastCloseMs}`,
+      );
+    }
+    lastCloseMs = candle.closeTimeMs;
+
+    const priorInterval = intervalOf.get(symbol);
+    if (priorInterval && priorInterval !== interval) {
+      throw new Error(
+        `symbol ${symbol} streamed two intervals (${priorInterval}, ${interval}); ` +
+          `a backtest expects exactly one interval per symbol`,
+      );
+    }
+    intervalOf.set(symbol, interval);
+
+    const key = `${symbol}|${interval}`;
+    const window = windows.get(key) ?? [];
+
+    // Bars the closing step crosses resting orders against. Under within-candle ticking every bar but the last has already been crossed by its own tick, so the close crosses only the last one.
+    let closeBars = detailCandles;
+    if (opts.intraCandle !== undefined && detailCandles !== undefined && detailCandles.length > 0) {
+      // Within-candle ticks advance the clock inside each candle, so a second symbol would replay its bars after this one's later ones and mutate the shared account out of time order.
+      if (symbol !== benchmarkSymbol) {
+        throw new Error(
+          `within-candle ticking replays one symbol; ${symbol} is not the run's only symbol`,
+        );
+      }
+      for (const bar of detailCandles.slice(0, -1)) {
+        clock.advanceTo(bar.closeTimeMs);
+        executor.setMarketContext(symbol, new Decimal(bar.close), bar, [bar]);
+        adoptFills(symbol);
+        addPendingBar(symbol, bar);
+        // Warm-up never reaches here holding anything: no tick has run, so no order has filled.
+        if (!holdsPosition(symbol)) continue;
+        // The trading window still ends at the previous close: this candle has not closed yet, exactly as live sees it mid-candle.
+        await runTick({
+          symbol,
+          interval,
+          window,
+          price: bar.close,
+          asOfMs: bar.closeTimeMs,
+          trigger: { kind: 'tick' },
+        });
+        await opts.onIntraCandleTick?.();
+      }
+      const last = detailCandles[detailCandles.length - 1];
+      if (last !== undefined) addPendingBar(symbol, last);
+      closeBars = detailCandles.slice(-1);
+    }
+
+    window.push(candle);
+    if (window.length > windowCap) window.shift();
+    windows.set(key, window);
+
+    clock.advanceTo(candle.closeTimeMs);
+    const price = new Decimal(candle.close);
+    // When the data source supplies the finer detail bars for this candle, the
+    // OHLCV model crosses orders against them in time order; otherwise it falls
+    // back to the coarse candle. The data source owns the grouping.
+    executor.setMarketContext(symbol, price, candle, closeBars);
+    // Resting orders may have filled against this candle; adopt them before
+    // the tick so the strategy sees the resulting position this candle
+    // (signal-N, fill-N+1, position-visible-N+1 — the live ordering).
+    adoptFills(symbol);
+
+    // Mark opening equity once the first candle has set a price, so a
+    // non-quote opening balance is valued, not zeroed.
+    if (startingBalance === null) startingBalance = executor.equityInQuote(quoteAsset);
+
+    const count = (seen.get(symbol) ?? 0) + 1;
+    seen.set(symbol, count);
+    if (count <= startup) {
+      // Warm-up bars feed no tick, so drop them rather than handing a stale pre-trading slice to the first traded tick.
+      pendingBars.set(symbol, []);
+      continue; // warm-up: accumulate, do not trade
+    }
+
+    // Buy-and-hold / DCA benchmark accumulators, anchored on the first TRADED
+    // candle (post-warmup) so the hold baseline spans the same window as the
+    // strategy's equity curve. Accumulating during warmup would measure the
+    // benchmark over the extra warmup candles the operator never asked to
+    // evaluate, distorting alphaVsHold.
+    if (!firstClose.has(symbol)) firstClose.set(symbol, price);
+    lastClose.set(symbol, price);
+    // A non-positive close cannot anchor a percentage benchmark; skip it from
+    // both accumulators (the same drop rule the buy-and-hold mean applies).
+    if (price.gt(0)) {
+      closeInvSum.set(symbol, (closeInvSum.get(symbol) ?? ZERO).add(ONE.div(price)));
+      closeCount.set(symbol, (closeCount.get(symbol) ?? 0) + 1);
+    }
+
+    await runTick({
+      symbol,
+      interval,
+      window,
+      price: candle.close,
+      asOfMs: candle.closeTimeMs,
+      trigger: { kind: 'candle-close', interval, openTimeMs: candle.openTimeMs },
+    });
 
     const equity = executor.equityInQuote(quoteAsset).toString();
     equityCurve.push({ tsMs: clock.nowMs(), equity });
@@ -495,20 +602,28 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
 }
 
 /**
- * Merge one executor fill onto the plugin's position state via the shared
- * {@link resolveFill} fold (the same fold the live fill-adopter uses, so the two
- * cannot drift). Prior position is read from state, the backtest has no durable
- * avg-entry-price row. Each fill is folded at its own price; folding sub-fills one
- * at a time is arithmetically equal to averaging a whole order's VWAP once. A
- * `null` from `applyFill` (unusable body) leaves the state unchanged.
+ * Merge one executor fill onto the plugin's position state via the shared {@link resolveFill} fold (the same fold the live fill-adopter uses, so the two cannot drift). Each fill is folded at its own price; folding sub-fills one at a time is arithmetically equal to averaging a whole order's VWAP once. A `null` from `applyFill` (unusable body) leaves the state unchanged, but `prior` still advances because it tracks fills, not state.
+ *
+ * @param position - The strategy's position capability.
+ * @param state - The symbol's state before this fill.
+ * @param prior - The position built from earlier fills only, the backtest's stand-in for live's durable avg-entry row; never read from state, which a strategy may have pre-filled when it placed the order.
+ * @param fill - The executor fill to fold.
+ * @returns The next state, and the next fills-only position (null once flat) to pass as `prior` for the following fill.
  */
-export function adoptOne<S>(position: PositionStateAdapter<S>, state: S, fill: DrainedFill): S {
-  const adopted = resolveFill(position.readPosition(state), {
-    side: fill.side,
-    price: fill.price,
-    quantity: fill.qty,
-  });
-  return position.applyFill(state, adopted) ?? state;
+export function adoptOne<S>(
+  position: PositionStateAdapter<S>,
+  state: S,
+  prior: PositionView | null,
+  fill: DrainedFill,
+): { state: S; prior: PositionView | null } {
+  const adopted = resolveFill(prior, { side: fill.side, price: fill.price, quantity: fill.qty });
+  const next: PositionView | null =
+    adopted.kind === 'buy'
+      ? { avgEntryPrice: adopted.avgEntryPrice, heldQuantity: adopted.heldQuantity }
+      : adopted.kind === 'sell-reduce'
+        ? { avgEntryPrice: prior?.avgEntryPrice ?? null, heldQuantity: adopted.heldQuantity }
+        : null;
+  return { state: position.applyFill(state, adopted) ?? state, prior: next };
 }
 
 /**
