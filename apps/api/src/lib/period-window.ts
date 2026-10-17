@@ -23,17 +23,19 @@ const tzOffsetMs = (tz: string, t: number): number => {
 };
 
 /**
- * The instant local midnight starts on a `tz` calendar date. The offset is read twice because the first read is taken at UTC midnight, which can sit on the other side of a DST switch from local midnight.
+ * The instant local midnight starts on a `tz` calendar date. The offset is read more than once because the first read is taken at UTC midnight, which can sit on the other side of a DST switch from local midnight.
  * @param tz - IANA zone.
  * @param y - Calendar year in `tz`.
  * @param m - Zero-based month in `tz`; out-of-range days roll over as `Date.UTC` does.
  * @param d - Day of month in `tz`.
- * @returns 00:00 local time on that date, as a UTC instant.
+ * @returns 00:00 local time on that date as a UTC instant, or the first instant of the day when DST skips midnight.
  */
 const localMidnight = (tz: string, y: number, m: number, d: number): Date => {
   const wall = Date.UTC(y, m, d);
   const guess = wall - tzOffsetMs(tz, wall);
-  return new Date(wall - tzOffsetMs(tz, guess));
+  const t1 = wall - tzOffsetMs(tz, guess);
+  // Where DST starts at midnight (Santiago, Havana) 00:00 does not exist and t1 lands an hour early on the previous day; the third read moves it to the first instant that does exist.
+  return new Date(Math.max(t1, wall - tzOffsetMs(tz, t1)));
 };
 
 /**

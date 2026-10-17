@@ -94,5 +94,12 @@ describe('periodWindow', () => {
         iso(periodWindow('d', 'America/New_York', new Date('2026-11-01T23:00:00Z')).from),
       ).toBe('2026-11-01T04:00:00.000Z');
     });
+
+    it('starts the day at 01:00 where DST skips midnight, not 23:00 the day before', () => {
+      // Santiago jumps from 00:00 to 01:00 on 2026-09-06, so the day's first instant is 01:00 CLST (UTC-3).
+      expect(
+        iso(periodWindow('d', 'America/Santiago', new Date('2026-09-06T12:00:00Z')).from),
+      ).toBe('2026-09-06T04:00:00.000Z');
+    });
   });
 });
