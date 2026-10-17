@@ -417,13 +417,13 @@ export async function runProfileBacktest(
           intervalToMs(interval),
         );
         // A within-candle run's 1-minute window stays out of the cache: the cache is bounded by entry count, not bytes, and a year of minute bars is about 100 MB, so a handful of pinned windows would exhaust the process that also trades live.
-        if (tailComplete && !(intraCandle && interval === INTRA_CANDLE_INTERVAL)) {
-          deps.candleCache?.set(cacheKey, candles);
-        } else {
+        if (!tailComplete) {
           deps.logger?.warn(
             { symbol, interval },
             'backtest: candle window stops before the last closed bar; not caching so a later run can refetch the tail',
           );
+        } else if (!(intraCandle && interval === INTRA_CANDLE_INTERVAL)) {
+          deps.candleCache?.set(cacheKey, candles);
         }
       }
       const key = `${symbol}|${interval}`;

@@ -457,27 +457,33 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
           `within-candle ticking replays one symbol; ${symbol} is not the run's only symbol`,
         );
       }
-      for (const bar of detailCandles.slice(0, -1)) {
-        clock.advanceTo(bar.closeTimeMs);
-        executor.setMarketContext(symbol, new Decimal(bar.close), bar, [bar]);
-        adoptFills(symbol);
-        addPendingBar(symbol, bar);
-        // Warm-up never reaches here holding anything: no tick has run, so no order has filled.
-        if (!holdsPosition(symbol)) continue;
-        // The trading window still ends at the previous close: this candle has not closed yet, exactly as live sees it mid-candle.
-        await runTick({
-          symbol,
-          interval,
-          window,
-          price: bar.close,
-          asOfMs: bar.closeTimeMs,
-          trigger: { kind: 'tick' },
-        });
-        await opts.onIntraCandleTick?.();
+      if (!coversCandle(detailCandles, candle)) {
+        // A hole in the bars hides minutes the coarse candle's high and low still include, so cross the whole candle once and tick only on its close.
+        for (const bar of detailCandles) addPendingBar(symbol, bar);
+        closeBars = undefined;
+      } else {
+        for (const bar of detailCandles.slice(0, -1)) {
+          clock.advanceTo(bar.closeTimeMs);
+          executor.setMarketContext(symbol, new Decimal(bar.close), bar, [bar]);
+          adoptFills(symbol);
+          addPendingBar(symbol, bar);
+          // Warm-up never reaches here holding anything: no tick has run, so no order has filled.
+          if (!holdsPosition(symbol)) continue;
+          // The trading window still ends at the previous close: this candle has not closed yet, exactly as live sees it mid-candle.
+          await runTick({
+            symbol,
+            interval,
+            window,
+            price: bar.close,
+            asOfMs: bar.closeTimeMs,
+            trigger: { kind: 'tick' },
+          });
+          await opts.onIntraCandleTick?.();
+        }
+        const last = detailCandles[detailCandles.length - 1];
+        if (last !== undefined) addPendingBar(symbol, last);
+        closeBars = detailCandles.slice(-1);
       }
-      const last = detailCandles[detailCandles.length - 1];
-      if (last !== undefined) addPendingBar(symbol, last);
-      closeBars = detailCandles.slice(-1);
     }
 
     window.push(candle);
@@ -673,4 +679,17 @@ function dcaBenchmarkPct(
   let acc = ZERO;
   for (const c of changes) acc = acc.add(c);
   return acc.div(changes.length).toNumber();
+}
+
+/**
+ * Whether the detail bars tile the coarse candle with no gap, which within-candle replay needs before it can cross each bar on its own and the close against only the last one.
+ *
+ * @param bars - The candle's detail bars, in time order.
+ * @param candle - The coarse candle they belong to.
+ * @returns True when the first bar opens at the candle's open, each bar opens the millisecond after the previous one closed, and the last closes at the candle's close.
+ */
+function coversCandle(bars: readonly Candle[], candle: Candle): boolean {
+  if (bars[0]?.openTimeMs !== candle.openTimeMs) return false;
+  if (bars[bars.length - 1]?.closeTimeMs !== candle.closeTimeMs) return false;
+  return bars.every((bar, i) => i === 0 || bar.openTimeMs === (bars[i - 1]?.closeTimeMs ?? 0) + 1);
 }

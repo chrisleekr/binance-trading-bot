@@ -84,7 +84,7 @@ const withinCandle = {
   capabilities: { ...trailingTrade.capabilities, exitsWithinCandle: true },
 };
 
-function deps(strategy: unknown, toMs: number, candleCache?: unknown) {
+function deps(strategy: unknown, toMs: number, candleCache?: unknown, logger?: pino.Logger) {
   return {
     db: {},
     ...(candleCache ? { candleCache } : {}),
@@ -103,7 +103,7 @@ function deps(strategy: unknown, toMs: number, candleCache?: unknown) {
     })),
     strategies: { get: () => strategy },
     clock: { nowMs: () => toMs },
-    logger: pino({ level: 'silent' }),
+    logger: logger ?? pino({ level: 'silent' }),
   };
 }
 
@@ -122,6 +122,7 @@ async function run(
     readonly fromMs?: number;
     readonly toMs?: number;
     readonly candleCache?: unknown;
+    readonly logger?: pino.Logger;
   } = {},
 ) {
   const fromMs = opts.fromMs ?? FROM;
@@ -132,7 +133,7 @@ async function run(
     return EMPTY_REPORT;
   });
   const { result } = await runProfileBacktest(
-    deps(strategy, toMs, opts.candleCache) as never,
+    deps(strategy, toMs, opts.candleCache, opts.logger) as never,
     {
       params: {
         symbols,
@@ -209,11 +210,15 @@ describe('runProfileBacktest within-candle exits', () => {
 
   it('keeps the minute window out of the shared candle cache', async () => {
     const set = vi.fn();
-    await run(withinCandle, ['BTCUSDT'], { candleCache: { get: () => undefined, set } });
+    const logger = pino({ level: 'silent' });
+    const warn = vi.spyOn(logger, 'warn');
+    await run(withinCandle, ['BTCUSDT'], { candleCache: { get: () => undefined, set }, logger });
     const keys = set.mock.calls.map((call) => String(call[0]));
     // The trading window is cached as before; only the minute bars are left out.
     expect(keys.some((k) => k.includes('|1h|'))).toBe(true);
     expect(keys.some((k) => k.includes('|1m|'))).toBe(false);
+    // Leaving a complete minute window out is deliberate, not the incomplete-tail fault the warning reports.
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('does not warn a basket whose strategy already trades on 1-minute candles', async () => {

@@ -224,6 +224,28 @@ describe('runBacktest — within-candle ticks (intraCandle)', () => {
     expect(seen.flatMap((s) => s.barOpens)).toEqual(DETAIL.map((b) => b.openTimeMs));
   });
 
+  it('crosses the whole candle once, with no within-candle tick, when its detail bars have a hole', async () => {
+    const seen: SeenTick[] = [];
+    const holed = DETAIL.filter((b) => b.openTimeMs !== HOUR + QUARTER);
+    await runBacktest({
+      strategy: trailProbe(seen),
+      config: {},
+      dataSource: arrayMarketDataSource([
+        { symbol: SYMBOL, interval: '1h', candles: COARSE, detailCandles: holed },
+      ]),
+      fillModel: new OhlcvFillModel({ makerBps: 0, takerBps: 0, slippageBps: 0 }),
+      request: { symbols: [SYMBOL], intervals: ['1h'], fromMs: 0, toMs: 2 * HOUR },
+      initialBalances: { USDT: '1000' },
+      quoteAsset: 'USDT',
+      symbolInfos: [SYMBOL_INFO],
+      startupCandleCount: 0,
+      intraCandle: { interval: '15m' },
+    });
+    expect(seen.filter((s) => s.kind === 'tick')).toHaveLength(0);
+    // The bars that do exist still reach the close tick once each.
+    expect(seen.flatMap((s) => s.barOpens)).toEqual(holed.map((b) => b.openTimeMs));
+  });
+
   it('awaits the host yield after every within-candle tick', async () => {
     let yields = 0;
     const seen: SeenTick[] = [];
