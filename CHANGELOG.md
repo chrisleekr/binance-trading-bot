@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.7.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.6.0...v1.7.0) (2026-10-17)
+
+
+### Features
+
+* **backtest:** replay within-candle exits minute by minute and fill stops at the trigger ([#800](https://github.com/chrisleekr/binance-trading-bot/issues/800)) ([646f5fb](https://github.com/chrisleekr/binance-trading-bot/commit/646f5fbc1709529310cc89527f7ebe96eae21f4f))
+* **momentum:** adopt coins already held and add a breakout entry trigger ([#801](https://github.com/chrisleekr/binance-trading-bot/issues/801)) ([cd3e308](https://github.com/chrisleekr/binance-trading-bot/commit/cd3e3088845312a318ac3adfcafe1e38d43d3b1d))
+
+
+### Bug Fixes
+
+* **api:** profile-stop snapshot, cost-basis guidance, stateless MCP, local-midnight windows ([#802](https://github.com/chrisleekr/binance-trading-bot/issues/802)) ([2c7e10e](https://github.com/chrisleekr/binance-trading-bot/commit/2c7e10eaa07090199775162c3053ace9fcb9e859))
+* **discovery:** hold the symbol cap, keep tradable coins and cushion entry cash ([#804](https://github.com/chrisleekr/binance-trading-bot/issues/804)) ([7c601db](https://github.com/chrisleekr/binance-trading-bot/commit/7c601dbea52c78f6e68aad66f8d044a4c11f3d4a))
+* window the live verdict at the baseline pin and make the dashboard readable ([#803](https://github.com/chrisleekr/binance-trading-bot/issues/803)) ([7cdc27d](https://github.com/chrisleekr/binance-trading-bot/commit/7cdc27d0a418990ba5ac490204042f09d6c08114))
+
 ## [1.6.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.5.0...v1.6.0) (2026-10-03)
 
 
