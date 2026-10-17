@@ -439,6 +439,15 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
     expect(row(model, 'trail')).toBeDefined();
   });
 
+  it('drops the empty Entry section when held with no breakout level and no stop to project', () => {
+    const config = {
+      ...cfg({ entryTrigger: 'breakout', breakoutLookback: 10 }),
+      trailingStopPct: '1.5',
+    };
+    const model = momentumPreviewLevels(input(config, { state: held(), entryPrice: '100' }));
+    expect(model.sections.map((s) => s.title)).not.toContain('Entry');
+  });
+
   it('falls back to the projected band as the trail base when held with no high', () => {
     const model = momentumPreviewLevels(
       input(cfg({ entryMarginPct: '0' }), {
