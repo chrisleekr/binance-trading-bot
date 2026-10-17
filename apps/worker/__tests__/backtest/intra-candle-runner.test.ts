@@ -167,16 +167,15 @@ describe('runProfileBacktest within-candle exits', () => {
     );
   });
 
-  it('ticks a single-symbol run on 1-minute bars and says the detail interval changed', async () => {
+  it('ticks a single-symbol run on 1-minute bars without a data warning', async () => {
     const { captured, warnings } = await run(withinCandle, ['BTCUSDT']);
     expect(captured.intraCandle).toEqual({ interval: '1m' });
     // A yield hook is wired for the minute ticks; the shared budget itself is pinned by the cooperative-data-source tests.
     expect(typeof captured.onIntraCandleTick).toBe('function');
     expect(captured.request.intervals).toContain('1m');
     expect(captured.request.intervals).not.toContain('5m');
-    expect(warnings.some((w) => w.startsWith('detail interval set to 1m instead of 5m'))).toBe(
-      true,
-    );
+    // Finer bars than requested are not a gap; any warning here would fail the live gate's data-coverage check on every default momentum run.
+    expect(warnings).toEqual([]);
   });
 
   it('loads the minute bars of an hourly strategy from one candle before the range, not across the warm-up', async () => {

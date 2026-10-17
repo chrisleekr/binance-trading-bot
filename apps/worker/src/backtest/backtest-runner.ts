@@ -467,7 +467,7 @@ export async function runProfileBacktest(
       `detail interval equals strategy interval (${strategyInterval}); intra-candle fill ordering is assumed favorably, so grid round-trips inside one bar may be slightly optimistic — set a finer detail interval to remove the ambiguity`,
     );
   }
-  // Within-candle exit caveats. A basket, or a range too long to hold its minute bars, falls back to one tick per candle with no 1-minute window, so an exit that live takes on 1-minute prices is not replayed; the operator must know the replay is coarser than live. A single-symbol run replaces the requested detail interval with 1-minute bars, which the report should say since the run's params still show the requested one.
+  // Within-candle exit caveats. A basket, or a range too long to hold its minute bars, falls back to one tick per candle with no 1-minute window, so an exit that live takes on 1-minute prices is not replayed; the operator must know the replay is coarser than live. A single-symbol run that swaps the requested detail interval for 1-minute bars raises no warning: the bars are finer than asked, and any `dataWarnings` entry fails the live gate's data-coverage check.
   if (exitsWithinCandle && params.symbols.length > 1) {
     dataWarnings.push(
       `this strategy exits within a candle (live sells on 1-minute prices), but a multi-symbol run ticks once per ${strategyInterval} candle with no 1-minute bars, so that exit is not replayed and results can differ from live — run one symbol to replay it minute by minute`,
@@ -475,11 +475,6 @@ export async function runProfileBacktest(
   } else if (exitsWithinCandle && !intraSpanOk) {
     dataWarnings.push(
       `this strategy exits within a candle (live sells on 1-minute prices), but the range needs more than ${MAX_INTRA_CANDLE_SPAN_MS / 86_400_000} days of 1-minute bars, so it ticks once per ${strategyInterval} candle and that exit is not replayed — shorten the range to replay it minute by minute`,
-    );
-  }
-  if (intraCandle && params.detailInterval !== INTRA_CANDLE_INTERVAL) {
-    dataWarnings.push(
-      `detail interval set to ${INTRA_CANDLE_INTERVAL} instead of ${params.detailInterval}: this strategy exits within a candle, so the run ticks it on 1-minute bars while it holds a position`,
     );
   }
   // Frictionless-fill caveat: an unset spread/volume-cap makes fills more
