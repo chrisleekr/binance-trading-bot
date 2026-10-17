@@ -11,7 +11,7 @@
     "docs:capture": "node docs-screenshots.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0",
+    "@playwright/test": "1.64.1",
     "@types/ws": "~8.18.2",
     "sharp": "^0.35.5",
     "ws": "~8.22.0"

@@ -13,7 +13,7 @@ permissions:
   issues: write
 
 env:
-  BUN_VERSION: 1.4.2
+  BUN_VERSION: 1.4.3
 
 jobs:
   # Real testnet exercise of the e2e suite. PR CI uses nock-mocked Binance;
