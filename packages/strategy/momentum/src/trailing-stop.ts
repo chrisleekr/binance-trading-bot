@@ -13,6 +13,27 @@ export const atrStopPeriod = (raw: unknown): number => coerceInt(raw, { min: 2, 
 const atrStopMultiple = (raw: unknown) => coerceDec(raw, { fallback: '3' });
 
 /**
+ * The config a position's stop and entry sizing must read: a position the below-trend layer opened trails at that layer's ATR multiple, every other position at the main one. Swapping the multiple inside the config, rather than threading a second number through each stop function, keeps the in-process trail, the resting stop, entry sizing and the preview on one resolver. Only the multiple moves, so an ATR stop that is off stays off.
+ *
+ * @param config - The possibly unparsed momentum config for this tick.
+ * @param layer - Which entry rule opened the position (or is about to); null or absent means the main rule.
+ * @returns The config with the layer's ATR multiple swapped in, or `config` itself when no swap applies.
+ */
+export const configForEntryLayer = (
+  config: MomentumConfig,
+  layer: 'below-trend' | null | undefined,
+): MomentumConfig => {
+  if (layer !== 'below-trend' || config.atrTrailingStop === undefined) return config;
+  return {
+    ...config,
+    atrTrailingStop: {
+      ...config.atrTrailingStop,
+      multiple: config.belowTrendBreakout?.atrMultiple ?? '2',
+    },
+  };
+};
+
+/**
  * The volatility-scaled trailing-stop price for the current tick, or null when
  * the ATR mode is off, the window is too short to compute ATR, or the resulting
  * stop is non-positive. Chandelier exit: `effectiveHigh − multiple × ATR(period)`.

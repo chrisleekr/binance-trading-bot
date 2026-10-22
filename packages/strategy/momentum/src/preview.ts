@@ -19,10 +19,12 @@ import type {
 } from '@app/strategy-core';
 
 import { breakoutLevel, breakoutLookback } from './breakout.js';
+import { impulseLevel } from './impulse.js';
 import { coerceInt } from './config-coerce.js';
 import type { MomentumConfig, MomentumState } from './schema.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
 import { resolveStopLevel } from './stop-level.js';
+import { configForEntryLayer } from './trailing-stop.js';
 import { DEFAULT_LIMIT_OFFSET } from './protective-stop.js';
 import { resolveEntryBudget } from './sizing.js';
 import { computeEntryQuantity, entryStopFloor } from './quantity.js';
@@ -89,8 +91,9 @@ const movingAverage = (
 export const momentumPreviewLevels = (
   input: PreviewInput<MomentumConfig, MomentumState>,
 ): PreviewModel => {
-  const { config } = input;
   const flat = input.state === null || input.state.entryPrice === null;
+  // A held position the below-trend layer opened trails at that layer's multiple, so its stop rows must project the same level the tick rests.
+  const config = flat ? input.config : configForEntryLayer(input.config, input.state?.entryLayer);
   const candles = closedCandles(input.candles);
 
   const slow = coerceInt((config as { ema?: { slow?: unknown } }).ema?.slow, {
@@ -108,7 +111,10 @@ export const momentumPreviewLevels = (
   // A window shorter than the lookback has no breakout level. Flat, every row projects from it, so show nothing; held, the stops and guards still read the position, so only the entry row goes.
   const noBreakout = config.entryTrigger === 'breakout' && breakout === null;
   if (noBreakout && flat) return { sections: [] };
-  const band = breakout ?? slowEma.mul(new Decimal(1).plus(entryMargin(config)));
+  // Under the impulse trigger the entry follows a surge, so the projected entry is the close a full-size up candle would reach from here; its volume leg cannot be projected.
+  const impulse = config.entryTrigger === 'impulse' ? impulseLevel(candles, config.impulse) : null;
+  if (config.entryTrigger === 'impulse' && impulse === null) return { sections: [] };
+  const band = breakout ?? impulse ?? slowEma.mul(new Decimal(1).plus(entryMargin(config)));
   const bandStr = band.toString();
 
   // The exit trail measures from the position high when held, or from the
@@ -177,7 +183,12 @@ const buildEntryRow = (
   // drift-gate trigger. Marking it `trigger` would false-fail the replay gate.
   const base: PreviewRow = {
     code: 'entry',
-    label: input.config.entryTrigger === 'breakout' ? 'Breakout level' : 'Entry band',
+    label:
+      input.config.entryTrigger === 'breakout'
+        ? 'Breakout level'
+        : input.config.entryTrigger === 'impulse'
+          ? 'Impulse level'
+          : 'Entry band',
     tone: 'entry',
     price: bandStr,
     chartLine: true,

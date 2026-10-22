@@ -246,6 +246,7 @@ describe('momentum.tick — entry', () => {
       protectiveStopBlocker: null,
       exitBlocker: null,
       nativeTrail: null,
+      entryLayer: null,
     });
     expect(out.metrics).toEqual([{ name: 'momentum.entry', value: 1 }]);
   });
@@ -509,9 +510,107 @@ describe('momentum.tick — entry', () => {
   it('accepts entryTrigger in the config schema and rejects an unknown value', () => {
     expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'trend' })).success).toBe(true);
     expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'breakout' })).success).toBe(true);
+    expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'impulse' })).success).toBe(true);
+    expect(
+      MomentumConfigSchema.safeParse({ ...cfg(), impulse: { volumeMultiple: '0' } }).success,
+    ).toBe(false);
     expect(MomentumConfigSchema.safeParse({ ...cfg(), entryTrigger: 'pullback' }).success).toBe(
       false,
     );
+  });
+
+  // A flat 1-wide series (ATR 1, volume 1) and then a surge candle: 4x volume, body +2.1 ATR.
+  const impulseCandles = (judgedVolume: string): Candle[] => [
+    ...mkCandles(Array.from({ length: 15 }, () => '10')).map((c) => ({
+      ...c,
+      high: '10.5',
+      low: '9.5',
+    })),
+    {
+      openTimeMs: 15 * 3_600_000,
+      closeTimeMs: 16 * 3_600_000,
+      open: '10',
+      high: '12.1',
+      low: '10',
+      close: '12.1',
+      volume: judgedVolume,
+      isClosed: true,
+    },
+  ];
+  const impulseCfg = cfg({
+    entryTrigger: 'impulse',
+    impulse: { volumeLookback: 3, volumeMultiple: '3', riseAtrMultiple: '2' },
+  });
+
+  it('enters under entryTrigger impulse on a heavy-volume up candle', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: impulseCandles('4'),
+        currentPrice: '12.1',
+        state: flat(),
+        config: impulseCfg,
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+    expect(out.nextState.lastEntryCandleMs).toBe(16 * 3_600_000);
+    expect(out.logs[0]?.message).toBe('momentum: entry on impulse candle');
+  });
+
+  it('holds under entryTrigger impulse and reports how far the last candle was from qualifying', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: impulseCandles('3'),
+        currentPrice: '12.1',
+        state: flat(),
+        config: impulseCfg,
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.message).toBe('momentum: flat, no impulse');
+    expect(out.logs[0]?.context).toMatchObject({
+      volumeRatio: '3.00',
+      bodyAtr: '2.10',
+      trendGate: 'pass',
+      waitingFor: 'heavy-volume-up-candle',
+    });
+  });
+
+  it('reports impulse-history while the window is shorter than the trigger reads', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: impulseCandles('4').slice(-5),
+        currentPrice: '12.1',
+        state: flat(),
+        config: impulseCfg,
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      volumeRatio: null,
+      bodyAtr: null,
+      waitingFor: 'impulse-history',
+    });
+  });
+
+  // The trend filter still gates an impulse entry; this pins that the trigger does not bypass it.
+  it('lets the trend filter veto an impulse entry', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: impulseCandles('4'),
+        currentPrice: '12.1',
+        state: flat(),
+        config: cfg({
+          entryTrigger: 'impulse',
+          impulse: { volumeLookback: 3 },
+          trendFilter: { enabled: true, period: 5, side: 'below' },
+        }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.message).toBe('momentum: entry suppressed by trend filter');
   });
 
   // The range must fit the hard window with the judged candle on top, or it could never fill and every entry would be suppressed.
@@ -553,7 +652,26 @@ describe('momentum.tick — entry', () => {
     expect(out.decisions).toEqual([{ type: 'noop' }]);
     expect(out.logs[0]?.context).toMatchObject({
       breakoutLevel: '12',
+      riseToBreakoutPercent: '0.00',
+      trendGate: 'pass',
       waitingFor: 'close-above-breakout-level',
+    });
+  });
+
+  // The rise is measured from the last closed candle, not the live price: a close of 10 under a level of 12 needs +20%.
+  it('reports the rise the last close needs to reach the breakout level', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['10', '12', '11', '11', '10']),
+        currentPrice: '11',
+        state: flat(),
+        config: cfg({ entryTrigger: 'breakout', breakoutLookback: 3 }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      breakoutLevel: '12',
+      riseToBreakoutPercent: '20.00',
     });
   });
 
@@ -584,6 +702,7 @@ describe('momentum.tick — entry', () => {
     expect(out.decisions).toEqual([{ type: 'noop' }]);
     expect(out.logs[0]?.context).toMatchObject({
       breakoutLevel: null,
+      riseToBreakoutPercent: null,
       waitingFor: 'breakout-history',
     });
   });
@@ -1051,6 +1170,7 @@ describe('momentum.tick — exit', () => {
       protectiveStopBlocker: null,
       exitBlocker: null,
       nativeTrail: null,
+      entryLayer: null,
     });
   });
 
@@ -2198,6 +2318,7 @@ describe('momentumPositionAdapter', () => {
       highSinceEntry: null,
       profitHigh: null,
       heldQuantity: null,
+      entryLayer: null,
     });
   });
 
@@ -2278,6 +2399,7 @@ describe('momentumPositionAdapter', () => {
         highSinceEntry: null,
         profitHigh: null,
         profitTrailSinceMs: null,
+        entryLayer: null,
       }),
     );
   });
@@ -2464,6 +2586,7 @@ describe('schema', () => {
     // so an unparsed worker config that omits the field still has a usable window.
     expect(cfg({ trendFilter: { enabled: true, period: 50 } }).trendFilter).toEqual({
       enabled: true,
+      side: 'above',
       maType: 'sma',
       period: 50,
       requireRising: false,
@@ -2517,6 +2640,7 @@ describe('schema', () => {
     const merged = mergeConfig(profile, { trendFilter: { period: 100 } });
     expect(merged.trendFilter).toEqual({
       enabled: true,
+      side: 'above',
       maType: 'sma',
       period: 100,
       requireRising: false,
@@ -2601,6 +2725,53 @@ describe('momentum.tick — trend filter', () => {
     ]);
     expect(out.nextState).toEqual({ ...flat(), entryBlocker: { reason: 'below-trend' } });
     expect(out.nextState.entryBlocker?.reason).toBe('below-trend');
+  });
+
+  it("side 'below' allows an entry while price is under the trend line", () => {
+    // sma(3) = 10.67; live price 9 is below it, which a below-side filter admits.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '9',
+        state: flat(),
+        config: cfg({ trendFilter: { enabled: true, period: 3, side: 'below' } }),
+      }),
+    );
+    expect(out.decisions[0]?.type).toBe('place-order');
+  });
+
+  it("side 'below' skips the rising-slope veto, so an inherited requireRising does not block it", () => {
+    // With the veto applied this window is too short for period + slopeLookbackBars and the gate would hold; skipped, it enters under the line.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '9',
+        state: flat(),
+        config: cfg({
+          trendFilter: { enabled: true, period: 3, side: 'below', requireRising: true },
+        }),
+      }),
+    );
+    expect(out.decisions[0]?.type).toBe('place-order');
+  });
+
+  it("side 'below' suppresses an entry at or above the trend line as above-trend", () => {
+    // sma(3) of [10,8,14] = 10.67; 14 is above and the exact line value is not under it, so both sit out.
+    for (const currentPrice of ['14', new Decimal(32).div(3).toString()]) {
+      const out = momentum.tick(
+        mkInput({
+          closes: mkCandles(CROSS_UP),
+          currentPrice,
+          state: flat(),
+          config: cfg({ trendFilter: { enabled: true, period: 3, side: 'below' } }),
+        }),
+      );
+      expect(out.decisions).toEqual([{ type: 'noop' }]);
+      expect(out.metrics).toEqual([
+        { name: 'momentum.skip', value: 1, tags: { side: 'entry', reason: 'above-trend' } },
+      ]);
+      expect(out.nextState).toEqual({ ...flat(), entryBlocker: { reason: 'above-trend' } });
+    }
   });
 
   it('allows an entry while price is above the trend line', () => {
@@ -4118,5 +4289,207 @@ describe('momentum.tick — protective stop outside the exchange price band', ()
     // on the ordinary refusal — that one is already a blocker and a skip metric.
     const out = momentum.tick(bandInput('8.8320'));
     expect(out.metrics.map((m) => m.name)).not.toContain('protective_stop_band_adjusted');
+  });
+});
+
+describe('momentum.tick — below-trend breakout layer', () => {
+  // sma(6) = 93/6 = 15.5, so price 12 is under the line and the primary 5-bar range (high 20) is far above it; the 2-bar range before the last candle is 10..11, which 12 clears.
+  const DOWNTREND = ['20', '20', '20', '10', '11', '12'];
+  const layerCfg = (over: Record<string, unknown> = {}) =>
+    cfg({
+      entryTrigger: 'breakout',
+      breakoutLookback: 5,
+      trendFilter: { enabled: true, period: 6 },
+      atrTrailingStop: { enabled: true, period: 3, multiple: '4' },
+      belowTrendBreakout: { enabled: true, lookback: 2, atrMultiple: '2' },
+      ...over,
+    });
+
+  it('enters on a short breakout while price is under the trend line and stamps the layer', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(DOWNTREND),
+        currentPrice: '12',
+        state: flat(),
+        config: layerCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+    expect(out.nextState.entryLayer).toBe('below-trend');
+    expect(out.logs[0]?.message).toBe('momentum: entry on breakout below the trend line');
+  });
+
+  it('stays a below-trend refusal when the layer is off', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(DOWNTREND),
+        currentPrice: '12',
+        state: flat(),
+        config: layerCfg({ belowTrendBreakout: { enabled: false, lookback: 2, atrMultiple: '2' } }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).not.toHaveProperty('belowTrendBreakoutLevel');
+    expect(out.logs[0]?.context).not.toHaveProperty('riseToBelowTrendBreakoutPercent');
+  });
+
+  it('holds while the close only matches the short range, and names that level in the trace', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['20', '20', '20', '10', '11', '11']),
+        currentPrice: '11',
+        state: flat(),
+        config: layerCfg(),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    // sma(6) = 92/6 ≈ 15.33 sits above the close of 11, so the primary gate answers below-trend; 20/11 - 1 = 81.82%.
+    expect(out.logs[0]?.context).toMatchObject({
+      breakoutLevel: '20',
+      riseToBreakoutPercent: '81.82',
+      belowTrendBreakoutLevel: '11',
+      riseToBelowTrendBreakoutPercent: '0.00',
+      trendGate: 'below-trend',
+    });
+  });
+
+  it('does not fire above the trend line, where only the primary range counts', () => {
+    // sma(3) of [10,11,12] = 11 sits under price 12, so the gate passes and the primary 5-bar range (20) is not cleared.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(DOWNTREND),
+        currentPrice: '12',
+        state: flat(),
+        config: layerCfg({ trendFilter: { enabled: true, period: 3 } }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+  });
+
+  it("is inert on a trend filter whose side is already 'below'", () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(DOWNTREND),
+        currentPrice: '12',
+        state: flat(),
+        config: layerCfg({ trendFilter: { enabled: true, period: 6, side: 'below' } }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+  });
+
+  it('is inert under a trigger other than breakout', () => {
+    // A cross trigger with no cross on this window: without the breakout gate the layer would buy the 2-bar range break.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(DOWNTREND),
+        currentPrice: '12',
+        state: flat(),
+        config: layerCfg({ entryTrigger: 'cross' }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+  });
+
+  it('stamps no layer on a primary breakout above the line', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['10', '12', '11', '11', '13', '14']),
+        currentPrice: '14',
+        state: flat(),
+        config: layerCfg({ breakoutLookback: 3, trendFilter: { enabled: true, period: 3 } }),
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { side: 'BUY' } });
+    expect(out.nextState.entryLayer).toBeNull();
+  });
+
+  it("sizes the entry against the layer's own, tighter stop", () => {
+    // sma(6) = 20.6 is above 19.4 and the 2-bar range high 19.2 is cleared. On 1000 USDT a 1% risk cap binds below the 140 fixed size, and the 2x layer stop sits half as far below entry as the 4x main one, so the layer buys more coins for the same risk.
+    const calm = ['22', '22', '22', '19', '19.2', '19.4'];
+    const qty = (atrMultiple: string) => {
+      const out = momentum.tick(
+        mkInput({
+          closes: mkCandles(calm),
+          currentPrice: '19.4',
+          state: flat(),
+          balances: {
+            USDT: { asset: 'USDT', free: new Decimal('1000'), locked: new Decimal('0') },
+          },
+          config: layerCfg({
+            riskSizing: { enabled: true, riskPct: '0.01' },
+            belowTrendBreakout: { enabled: true, lookback: 2, atrMultiple },
+          }),
+        }),
+      );
+      const d = out.decisions[0];
+      if (d?.type !== 'place-order' || d.params.type !== 'MARKET')
+        throw new Error('expected a market buy');
+      return new Decimal(d.params.quantity);
+    };
+    expect(qty('2').gt(qty('4').mul('1.3'))).toBe(true);
+  });
+
+  describe('exit trail', () => {
+    // Same window as the ATR suite: ATR(3) ≈ 1.7778 from a 15 high, so the 2x stop is 11.44 and the 4x stop 7.89.
+    const CANDLES = ['10', '12', '11', '14', '13', '15'];
+    const sells = (entryLayer: 'below-trend' | null) =>
+      momentum
+        .tick(
+          mkInput({
+            closes: mkCandles(CANDLES),
+            currentPrice: '11',
+            state: longState({ entryPrice: '10', highSinceEntry: '15', entryLayer }),
+            config: layerCfg(),
+          }),
+        )
+        .decisions.filter((d) => d.type === 'place-order' && d.intent.side === 'SELL');
+
+    it("trails a layer position at the layer's multiple", () => {
+      expect(sells('below-trend')).toHaveLength(1);
+    });
+
+    it('trails a primary position at the main multiple', () => {
+      expect(sells(null)).toHaveLength(0);
+    });
+
+    it('clears the layer on the exit it takes', () => {
+      const out = momentum.tick(
+        mkInput({
+          closes: mkCandles(CANDLES),
+          currentPrice: '11',
+          state: longState({ entryPrice: '10', highSinceEntry: '15', entryLayer: 'below-trend' }),
+          config: layerCfg(),
+        }),
+      );
+      expect(out.nextState.entryLayer).toBeNull();
+    });
+  });
+
+  it('keeps the layer through its own buy fill and drops it on a full exit or a cleared basis', () => {
+    const held = longState({ entryLayer: 'below-trend' });
+    expect(
+      momentumPositionAdapter.applyFill(held, {
+        kind: 'buy',
+        avgEntryPrice: '101',
+        heldQuantity: '1',
+      })?.entryLayer,
+    ).toBe('below-trend');
+    expect(momentumPositionAdapter.applyFill(held, { kind: 'empty' })?.entryLayer).toBeNull();
+    expect(
+      momentumPositionAdapter.clearPosition({ ...held, heldQuantity: null })?.entryLayer,
+    ).toBeNull();
+  });
+
+  it('defaults the block to off with a 120-candle range and a 2x stop', () => {
+    expect(cfg({ belowTrendBreakout: {} }).belowTrendBreakout).toEqual({
+      enabled: false,
+      lookback: 120,
+      atrMultiple: '2',
+    });
+    expect(MomentumStateSchema.parse({ ...flat(), entryLayer: undefined }).entryLayer).toBeNull();
   });
 });

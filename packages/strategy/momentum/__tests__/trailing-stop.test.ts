@@ -3,7 +3,11 @@ import { Decimal } from '@app/money';
 import { atr } from '@app/indicators';
 import type { Candle } from '@app/strategy-core';
 
-import { atrTrailingStopPrice, initialStopDistanceFraction } from '../src/trailing-stop.js';
+import {
+  atrTrailingStopPrice,
+  configForEntryLayer,
+  initialStopDistanceFraction,
+} from '../src/trailing-stop.js';
 import { MomentumConfigSchema, type MomentumConfig } from '../src/index.js';
 
 const mkCandles = (closes: readonly string[]): Candle[] =>
@@ -142,5 +146,22 @@ describe('initialStopDistanceFraction', () => {
       } as unknown as MomentumConfig;
       expect(initialStopDistanceFraction(config, CANDLES, PRICE)).toBeNull();
     }
+  });
+});
+
+describe('configForEntryLayer', () => {
+  const base = {
+    atrTrailingStop: { enabled: true, period: 14, multiple: '4' },
+  } as unknown as MomentumConfig;
+
+  it('keeps the config for a primary position and for a profile with no ATR block', () => {
+    expect(configForEntryLayer(base, null)).toBe(base);
+    const noAtr = {} as MomentumConfig;
+    expect(configForEntryLayer(noAtr, 'below-trend')).toBe(noAtr);
+  });
+
+  // A layer position outlives a later edit that drops the block from the unparsed config, so it must still trail at the layer default rather than widen to the main multiple.
+  it('falls back to the 2x layer default when the layer block is gone', () => {
+    expect(configForEntryLayer(base, 'below-trend').atrTrailingStop?.multiple).toBe('2');
   });
 });

@@ -26,7 +26,9 @@ import { computeEntryQuantity, computeExitQuantity, entryStopFloor } from './qua
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
 import { trendMaType, trendPeriod } from './trend-filter.js';
 import { breakoutLevel, breakoutLookback } from './breakout.js';
+import { impulseReading, type ImpulseReading } from './impulse.js';
 import { profitLegDistance } from './profit-leg.js';
+import { configForEntryLayer } from './trailing-stop.js';
 import { profitTrailEpoch, ratchetProfitHigh, resolveStopLevel } from './stop-level.js';
 import { resolveEntryBudget } from './sizing.js';
 import { entryClientOrderId, exitClientOrderId } from './client-order-id.js';
@@ -93,13 +95,14 @@ const entryMargin = (config: MomentumConfig): Decimal => {
 /**
  * Macro trend gate result. `pass` allows the entry. The block reasons are kept
  * distinct for observability: `below-trend` is a genuine sit-out (price under
+ * the line); `above-trend` is its mirror under `side: 'below'` (price at or over
  * the line); `falling-trend` is the slope veto (price is above the line but the
  * line is not rising, the bear-rally signature); `insufficient-history` is
  * fail-closed (the window is too short to compute the line, or its slope) — a
  * misconfiguration tell, e.g. a 200-period filter on a profile that has not
  * loaded 200 candles, which must not look like a normal downtrend on the metric.
  */
-type TrendGate = 'pass' | 'below-trend' | 'falling-trend' | 'insufficient-history';
+type TrendGate = 'pass' | 'below-trend' | 'above-trend' | 'falling-trend' | 'insufficient-history';
 
 const trendLine = (maType: 'sma' | 'ema', candles: readonly Candle[], period: number): Decimal =>
   maType === 'ema' ? ema(candles, period) : sma(candles, period);
@@ -129,14 +132,18 @@ const trendGate = (
   // `period`/`maType` are coerced too: a partial per-symbol override may enable
   // the filter without carrying them, and the worker reads config unparsed, so
   // an undefined period must not reach `sma`/`ema` (which throw on it).
-  const rising = tf.requireRising === true;
+  // The slope veto guards an above-the-line entry against a bear-rally pop. A below-side sleeve buys under the line, which is normally falling, so the veto would block nearly every signal there; it is skipped and `lintConfig` flags the setting as inert.
+  const rising = tf.requireRising === true && tf.side !== 'below';
   const rawK = Number(tf.slopeLookbackBars ?? 10);
   const k = rising ? (Number.isFinite(rawK) && rawK >= 1 ? rawK : 1) : 0;
   const period = trendPeriod(tf.period);
   const maType = trendMaType(tf.maType);
   if (candles.length < period + k) return 'insufficient-history';
   const line = trendLine(maType, candles, period);
-  if (new Decimal(currentPrice).lte(line)) return 'below-trend';
+  // Strict on both sides, so a price exactly on the line enters neither sleeve.
+  if (tf.side === 'below') {
+    if (new Decimal(currentPrice).gte(line)) return 'above-trend';
+  } else if (new Decimal(currentPrice).lte(line)) return 'below-trend';
   if (rising) {
     const prevLine = trendLine(maType, candles.slice(0, candles.length - k), period);
     if (line.lte(prevLine)) return 'falling-trend';
@@ -239,12 +246,22 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
     config.entryTrigger === 'breakout'
       ? breakoutLevel(windowPrev, breakoutLookback(config.breakoutLookback))
       : null;
+  const impulse =
+    config.entryTrigger === 'impulse' ? impulseReading(candles, config.impulse) : null;
   const entrySignal =
     config.entryTrigger === 'trend'
       ? fastNow.gt(slowNow.mul(band))
       : config.entryTrigger === 'breakout'
         ? breakout !== null && new Decimal(lastCandle.close).gt(breakout)
-        : crossUp;
+        : config.entryTrigger === 'impulse'
+          ? impulse?.fired === true
+          : crossUp;
+  // The below-trend layer's range, read only when that layer can act: the breakout trigger with the layer on.
+  const belowTrend = config.belowTrendBreakout;
+  const belowBreakout =
+    config.entryTrigger === 'breakout' && belowTrend?.enabled === true
+      ? breakoutLevel(windowPrev, breakoutLookback(belowTrend.lookback))
+      : null;
 
   if (state.entryPrice === null) {
     // Coins with no cost basis are an unguarded holding, not a flat symbol: the reconciler seeds a held quantity from the wallet, and deleting a basis keeps it. Entering here would place a second buy and overwrite `heldQuantity` with that order alone, dropping the original coins from tracking. Refuse and say so until the operator sets a basis or sells.
@@ -264,7 +281,14 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
       // A force-sell cannot be sized against a position the strategy does not hold, so decline it with the reason rather than the generic "did not act".
       return forceSell ? { ...blocked, overrideDeclineReason: 'held-without-basis' } : blocked;
     }
-    if (entrySignal) {
+    const gate = trendGate(config, candles, market.currentPrice);
+    // The layer fires only where the primary rule's own trend gate refuses for `below-trend`, so above the line nothing changes, and a `below` side or a disabled filter (which never answers `below-trend`) leaves it inert.
+    const belowSignal =
+      belowBreakout !== null &&
+      new Decimal(lastCandle.close).gt(belowBreakout) &&
+      gate === 'below-trend';
+    const layer = belowSignal ? ('below-trend' as const) : null;
+    if (entrySignal || belowSignal) {
       // One entry per candle. The signal (cross-up, or fast above slow under `trend`) reads the last CLOSED candles, so it stays true for the rest of the candle it fired on: a position stopped out inside that window would otherwise re-enter at the price the stop just rejected, unbounded. Checked before the trend gate so a repeat attempt does not report itself as a trend-filter veto.
       if (lastEntryCandle(state) === lastCandle.closeTimeMs) {
         return hold(
@@ -283,8 +307,7 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
       // trend line, so the strategy sits out confirmed downtrends instead of buying
       // false cross-ups on bear rallies. The skip reason distinguishes a genuine
       // below-trend sit-out from a too-short window (a misconfiguration tell).
-      const gate = trendGate(config, candles, market.currentPrice);
-      if (gate !== 'pass') {
+      if (gate !== 'pass' && layer === null) {
         return hold(
           state,
           [
@@ -316,14 +339,32 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
         );
       }
     }
-    return evaluateEntry(scoped, entrySignal, lastCandle.closeTimeMs, candles, {
-      fastNow,
-      slowNow,
-      threshold: slowNow.mul(band),
-      breakout,
-    });
+    return evaluateEntry(
+      { ...scoped, config: configForEntryLayer(config, layer) },
+      entrySignal || belowSignal,
+      lastCandle.closeTimeMs,
+      candles,
+      {
+        fastNow,
+        slowNow,
+        threshold: slowNow.mul(band),
+        breakout,
+        belowBreakout,
+        impulse,
+        close: new Decimal(lastCandle.close),
+        gate,
+      },
+      layer,
+    );
   }
-  return evaluateExit(scoped, state.entryPrice, crossDown, lastCandle, candles, forceSell);
+  return evaluateExit(
+    { ...scoped, config: configForEntryLayer(config, state.entryLayer) },
+    state.entryPrice,
+    crossDown,
+    lastCandle,
+    candles,
+    forceSell,
+  );
 };
 
 const evaluateEntry = (
@@ -331,15 +372,50 @@ const evaluateEntry = (
   entrySignal: boolean,
   candleCloseMs: number,
   candles: readonly Candle[],
-  signal: { fastNow: Decimal; slowNow: Decimal; threshold: Decimal; breakout: Decimal | null },
+  signal: {
+    fastNow: Decimal;
+    slowNow: Decimal;
+    threshold: Decimal;
+    breakout: Decimal | null;
+    belowBreakout: Decimal | null;
+    impulse: ImpulseReading | null;
+    close: Decimal;
+    gate: TrendGate;
+  },
+  // Which rule this entry belongs to, stamped into state so the exit trails at that rule's multiple; `input.config` already carries it.
+  layer: 'below-trend' | null,
 ): MomentumOutput => {
   const { state, config, market, profile, account } = input;
+  if (!entrySignal && config.entryTrigger === 'impulse') {
+    // The two ratios say how far the last candle was from qualifying; null means the window is still too short to measure them.
+    const reading = signal.impulse;
+    return hold(state, [
+      log('debug', 'momentum: flat, no impulse', {
+        symbol: market.symbol,
+        volumeRatio: reading?.volumeRatio.toFixed(2) ?? null,
+        bodyAtr: reading?.bodyAtr.toFixed(2) ?? null,
+        trendGate: signal.gate,
+        waitingFor: reading === null ? 'impulse-history' : 'heavy-volume-up-candle',
+      }),
+    ]);
+  }
   if (!entrySignal && config.entryTrigger === 'breakout') {
     // A null level means the window has not yet filled the lookback range, which a "waiting for a close above" line would misreport.
+    // The rise percents and the trend verdict say how far each rule is from firing and which side of the line price is on, so a reader of the trace can name the blocking condition without recomputing it from candles.
+    const riseTo = (level: Decimal): string =>
+      level.div(signal.close).minus(1).times(100).toFixed(2);
     return hold(state, [
       log('debug', 'momentum: flat, no breakout', {
         symbol: market.symbol,
         breakoutLevel: signal.breakout?.toFixed() ?? null,
+        riseToBreakoutPercent: signal.breakout === null ? null : riseTo(signal.breakout),
+        ...(signal.belowBreakout === null
+          ? {}
+          : {
+              belowTrendBreakoutLevel: signal.belowBreakout.toFixed(),
+              riseToBelowTrendBreakoutPercent: riseTo(signal.belowBreakout),
+            }),
+        trendGate: signal.gate,
         waitingFor: signal.breakout === null ? 'breakout-history' : 'close-above-breakout-level',
       }),
     ]);
@@ -415,6 +491,7 @@ const evaluateEntry = (
     protectiveStopBlocker: null,
     exitBlocker: null,
     nativeTrail: null,
+    entryLayer: layer,
   };
   return {
     nextState,
@@ -422,11 +499,15 @@ const evaluateEntry = (
     logs: [
       log(
         'info',
-        config.entryTrigger === 'trend'
-          ? 'momentum: entry with fast EMA above slow'
-          : config.entryTrigger === 'breakout'
-            ? 'momentum: entry on breakout above the lookback high'
-            : 'momentum: entry on EMA cross-up',
+        layer === 'below-trend'
+          ? 'momentum: entry on breakout below the trend line'
+          : config.entryTrigger === 'trend'
+            ? 'momentum: entry with fast EMA above slow'
+            : config.entryTrigger === 'breakout'
+              ? 'momentum: entry on breakout above the lookback high'
+              : config.entryTrigger === 'impulse'
+                ? 'momentum: entry on impulse candle'
+                : 'momentum: entry on EMA cross-up',
         {
           symbol: market.symbol,
           price: market.currentPrice,
@@ -591,6 +672,7 @@ const evaluateExit = (
       protectiveStopBlocker: null,
       exitBlocker: null,
       nativeTrail: null,
+      entryLayer: null,
     };
     return {
       nextState,

@@ -21,7 +21,7 @@ export const momentumNotes: FieldNotes = {
   entryTrigger: {
     when: 'Switch to `trend` when discovery feeds the profile and the tick trace keeps saying `fall-back-then-cross-up`: discovery adds coins after they have crossed, so `cross` rarely gets a chance to buy them.',
     expect:
-      '`trend` enters more often and later in a move, so the trend filter and extension guard do more of the filtering. Expect more stop-outs per entry than `cross`; at most one entry per candle still applies. `breakout` ignores the EMA entry signal and buys a close above the recent range high (`breakoutLookback`); pair it with `atrTrailingStop` so a failed breakout is cut quickly.',
+      '`trend` enters more often and later in a move, so the trend filter and extension guard do more of the filtering. Expect more stop-outs per entry than `cross`; at most one entry per candle still applies. `breakout` ignores the EMA entry signal and buys a close above the recent range high (`breakoutLookback`); pair it with `atrTrailingStop` so a failed breakout is cut quickly. `impulse` buys right after a heavy-volume up candle (`impulse` block); keep it small: it has made money only in some regimes.',
   },
   breakoutLookback: {
     when: 'Only with `entryTrigger: breakout`. Lengthen it if entries keep firing on small ranges that immediately fall back; shorten it if the bot only buys after most of a move has happened.',
@@ -133,10 +133,45 @@ export const momentumNotes: FieldNotes = {
     expect:
       'How often the profit trail is allowed to move up. It paces that trail only: your normal trailing stop advances on your candle interval, so with a 1-minute interval the stop order at Binance can still be rewritten every minute whenever the normal stop is the higher of the two. Each rewrite uses one cancelReplace request and spends one unit of order allowance. The sell check itself runs every tick, so a fall through the current level is caught immediately; what this delays is the level moving UP.',
   },
+  'impulse.volumeLookback': {
+    when: 'Only with `entryTrigger: impulse`. Change it only with the candle interval: it should span about a week of candles, so 168 on `1h` and 42 on `4h`.',
+    expect:
+      "This is the baseline the judged candle's volume is compared with. A shorter baseline reacts to the last few days, so a run of busy candles raises the bar and fewer surges qualify.",
+  },
+  'impulse.volumeMultiple': {
+    when: 'Only with `entryTrigger: impulse`. Raise it if the bot buys ordinary up candles that fade; lower it if it almost never fires.',
+    expect:
+      'Higher means fewer, more extreme surges. In the 1h research 3 with a 2 ATR rise traded about once every two weeks per coin; 4 with 3 ATR traded a third as often and was weaker on the large caps.',
+  },
+  'impulse.riseAtrMultiple': {
+    when: 'Only with `entryTrigger: impulse`. Raise it to buy only the sharpest rises; lower it to buy more of them.',
+    expect:
+      'Measured in ATRs of the candles before the surge, so it adapts to how volatile the coin normally is. 2 means the candle rose about two normal candles in one.',
+  },
+  'belowTrendBreakout.enabled': {
+    when: 'Turn it on when the market sits under its trend line for weeks and the `above` trend filter refuses every breakout, so the profile cannot trade at all. Needs `entryTrigger: breakout`, the trend filter on its `above` side, and `atrTrailingStop`.',
+    expect:
+      'Above the line nothing changes. Under it, a close above the shorter `belowTrendBreakout.lookback` range buys, and that position trails at `belowTrendBreakout.atrMultiple` instead of the main multiple. Expect more, smaller trades in a downtrend and more stop-outs; each uses the same entry size as a main breakout.',
+  },
+  'belowTrendBreakout.lookback': {
+    when: 'Only with the layer on. Shorten it to catch rallies sooner; lengthen it if the layer keeps buying small bounces that fail at once.',
+    expect:
+      'Counted in candles of `candleInterval`, so 120 is 5 days on `1h`. Keep it well under `breakoutLookback`: rallies inside a downtrend rarely last long enough to clear the main range.',
+  },
+  'belowTrendBreakout.atrMultiple': {
+    when: 'Only with the layer on. Keep it tighter than `atrTrailingStop.multiple`, because a rally under the trend line usually fails quickly.',
+    expect:
+      'Applies only to positions this layer opened. The opening rule is recorded at entry, so a layer position keeps this multiple when `atrTrailingStop.multiple` changes, and editing this field moves the stop of open layer positions too. A wider multiple holds rallies longer and gives back more when they fail.',
+  },
   'trendFilter.enabled': {
     when: 'Turn it on when backtests show the strategy losing money mainly on entries taken during sustained downtrends.',
     expect:
       'Entries are refused while price is below the long-term trend line. Exits are untouched, so you can still get out. Fewer trades overall, and you will sit out the early part of a recovery.',
+  },
+  'trendFilter.side': {
+    when: 'Only when the trend filter is on. Set `below` on a separate, small profile that should trade rallies while the market is in a downtrend, the regime where an `above` filter never lets a breakout through.',
+    expect:
+      '`below` flips the gate: entries are refused while price is at or above the line. With a short `breakoutLookback` this buys a fresh multi-day high that is still under the long-term line. Rallies inside a downtrend are short, so expect small wins, a tight ATR stop, and nothing at all once the market is back above its trend.',
   },
   'trendFilter.maType': {
     when: 'Only when the trend filter is on. `ema` weights recent prices more heavily, so it turns sooner than `sma`.',

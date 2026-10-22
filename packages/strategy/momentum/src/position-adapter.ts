@@ -83,6 +83,7 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
           highSinceEntry: null,
           profitHigh: null,
           profitTrailSinceMs: null,
+          entryLayer: null,
         });
       }
     }
@@ -112,6 +113,8 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
       highSinceEntry: null,
       profitHigh: null,
       profitTrailSinceMs: null,
+      // The rule that opened the position goes with its cost basis: kept coins re-based later are not that rule's entry.
+      entryLayer: null,
     };
     // This clear forgets the cost basis and KEEPS the coins, so unlike the full-exit fill above it does not end the position. A stop refusal on a still-held balance still describes a real, still-unguarded holding, and dropping it here would delete the operator's only in-state warning while the exposure is live. Only a body with nothing left to protect may have it cleared.
     //

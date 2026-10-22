@@ -17,11 +17,13 @@ import { extensionPeriod } from './extension.js';
 import { atrStopPeriod } from './trailing-stop.js';
 import { trendPeriod } from './trend-filter.js';
 import { breakoutLookback } from './breakout.js';
+import { impulseNeed } from './impulse.js';
 import { momentumPositionAdapter } from './position-adapter.js';
 import { momentumReasonAttribution } from './attribution.js';
 import { momentumPreviewLevels, momentumPreviewDataNeeds } from './preview.js';
 import { momentumAttributeOrder } from './client-order-id.js';
 import { momentumStopBandSettings } from './protective-stop.js';
+import { lintMomentumConfig } from './lint.js';
 
 export { momentumReasonAttribution } from './attribution.js';
 export { momentumPositionAdapter } from './position-adapter.js';
@@ -53,7 +55,7 @@ const finiteNum = (v: unknown): number => {
 };
 
 /**
- * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1` when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, and an enabled ATR trailing stop reads `period + 1` closes for its first true-range value. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
+ * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1`, and the impulse trigger its volume lookback plus the judged candle, when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, and an enabled ATR trailing stop reads `period + 1` closes for its first true-range value. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
  *
  * The ATR term is a HARD need, not the trail's soft one. Risk-based entry sizing divides equity risk by the initial stop distance, and that distance is unresolvable on a short ATR window, so the entry is refused outright (`risk-sizing-unavailable`) rather than degraded. The exit trail's own shortfall behaviour is a fallback to the fixed `trailingStopPct`, which is why the term could be omitted here before entry sizing read it.
  */
@@ -63,6 +65,7 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
     trendFilter?: {
       enabled?: unknown;
       period?: unknown;
+      side?: unknown;
       requireRising?: unknown;
       slopeLookbackBars?: unknown;
     };
@@ -70,16 +73,29 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
     atrTrailingStop?: { enabled?: unknown; period?: unknown };
     entryTrigger?: unknown;
     breakoutLookback?: unknown;
+    belowTrendBreakout?: { enabled?: unknown; lookback?: unknown };
+    impulse?: unknown;
   };
   // The breakout level reads `lookback` candles before the one being judged; folded into the EMA term since both are entry-signal needs.
-  const breakoutNeed = c.entryTrigger === 'breakout' ? breakoutLookback(c.breakoutLookback) + 1 : 0;
+  const bt = c.belowTrendBreakout;
+  const mainRange = breakoutLookback(c.breakoutLookback);
+  const layerRange = bt?.enabled === true ? breakoutLookback(bt.lookback) : 0;
+  const rangeNeed = layerRange > mainRange ? layerRange : mainRange;
+  const breakoutNeed =
+    c.entryTrigger === 'breakout'
+      ? rangeNeed + 1
+      : c.entryTrigger === 'impulse'
+        ? impulseNeed(c.impulse)
+        : 0;
   const crossNeed = finiteNum(c.ema?.slow) + 1;
   const emaNeed = crossNeed > breakoutNeed ? crossNeed : breakoutNeed;
   const tf = c.trendFilter;
   let trendNeed = 0;
   if (tf?.enabled === true) {
     const rawK = Number(tf.slopeLookbackBars ?? 10);
-    const k = tf.requireRising === true ? (Number.isFinite(rawK) && rawK >= 1 ? rawK : 1) : 0;
+    // Mirrors trendGate: the below side never runs the slope veto, so it needs no slope history.
+    const rising = tf.requireRising === true && tf.side !== 'below';
+    const k = rising ? (Number.isFinite(rawK) && rawK >= 1 ? rawK : 1) : 0;
     // Coerce with the same helper the gate uses, so a partial override that
     // omits `period` sizes the window to the 200 default rather than 0.
     trendNeed = trendPeriod(tf.period) + k;
@@ -105,7 +121,7 @@ export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> =
   version: '1.0.0',
   displayName: 'Momentum',
   description:
-    'Trend entry (on the EMA cross-up, while the fast EMA is above the slow, or on a close above the recent range high) with a trailing-stop / cross-down exit. Single long position, no grid.',
+    'Trend entry (on the EMA cross-up, while the fast EMA is above the slow, on a close above the recent range high, or after a heavy-volume up candle) with a trailing-stop / cross-down exit. Single long position, no grid.',
   capabilities: {
     candleIntervals: MOMENTUM_CANDLE_INTERVALS,
     // The entry signal (the EMA cross, the fast-above-slow state under `entryTrigger: 'trend'`, or the range breakout under `'breakout'`) reads CLOSED candles of `config.candleInterval`, and one entry per candle is enforced, so a flat symbol gets at most one entry per close of that interval.
@@ -139,5 +155,6 @@ export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> =
   // configured trail is deeper than the symbol's price band will hold, instead
   // of the operator learning it from the first tick that could not arm a stop.
   protectiveStopBandSettings: momentumStopBandSettings,
+  lintConfig: lintMomentumConfig,
   tick: computeTick,
 };
