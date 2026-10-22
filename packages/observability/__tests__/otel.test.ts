@@ -1,8 +1,8 @@
 import { ExportResultCode, type ExportResult } from '@opentelemetry/core';
-import { type ReadableSpan, type SpanExporter } from '@opentelemetry/sdk-trace-base';
+import { type ReadableSpan, type SpanExporter } from '@opentelemetry/sdk-trace';
 import { describe, expect, it, vi } from 'vitest';
 
-import { CountingExporter, startOtel } from '../src/otel.js';
+import { CountingBatchSpanProcessor, CountingExporter, startOtel } from '../src/otel.js';
 
 class StubExporter implements SpanExporter {
   public exports = 0;
@@ -89,5 +89,49 @@ describe('CountingExporter', () => {
     const wrapped = new CountingExporter(inner, vi.fn(), 1000);
     await wrapped.shutdown();
     expect(inner.shutdownCalls).toBe(1);
+  });
+});
+
+describe('CountingBatchSpanProcessor', () => {
+  it('calls onDrop("queue_full") exactly when the base class drops a span', async () => {
+    // The counter reads the SDK's private `_finishedSpans` / `_maxQueueSize`; an SDK rename would silence it without a type error, so this pins it against the real class.
+    // Holding callbacks keeps the first export in flight so the queue fills; once released, the BSP re-flushes the queued spans, so later exports must complete or a 60s timeout timer outlives the test.
+    let hold = true;
+    const held: ((result: ExportResult) => void)[] = [];
+    const exporter: SpanExporter = {
+      export: (_spans, cb) => {
+        if (hold) held.push(cb);
+        else cb({ code: ExportResultCode.SUCCESS });
+      },
+      shutdown: async () => undefined,
+    };
+    const onDrop = vi.fn();
+    const bsp = new CountingBatchSpanProcessor(
+      exporter,
+      {
+        maxQueueSize: 2,
+        maxExportBatchSize: 1,
+        scheduledDelayMillis: 60_000,
+        exportTimeoutMillis: 60_000,
+      },
+      onDrop,
+    );
+    const span = {
+      spanContext: () => ({ traceFlags: 1 }),
+      resource: {},
+    } as unknown as ReadableSpan;
+
+    // Span 1 starts an export that hangs, so spans 2 and 3 fill the queue and span 4 is dropped.
+    bsp.onEnd(span);
+    bsp.onEnd(span);
+    bsp.onEnd(span);
+    expect(onDrop).not.toHaveBeenCalled();
+    bsp.onEnd(span);
+    expect(onDrop).toHaveBeenCalledTimes(1);
+    expect(onDrop).toHaveBeenCalledWith('queue_full');
+
+    hold = false;
+    for (const cb of held) cb({ code: ExportResultCode.SUCCESS });
+    await bsp.shutdown();
   });
 });

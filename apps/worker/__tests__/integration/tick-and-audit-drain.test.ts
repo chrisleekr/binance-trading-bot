@@ -659,7 +659,7 @@ describeInfra('both', 'worker tick + audit-drain integration', () => {
       .times(1)
       .reply(
         200,
-        (_uri, requestBody: string) => {
+        (_uri: string, requestBody: string) => {
           const cidMatch = /newClientOrderId=([^&]+)/.exec(String(requestBody));
           const cid = cidMatch?.[1] ?? `cid-bulk-${Date.now()}`;
           return {

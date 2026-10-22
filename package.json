@@ -42,17 +42,17 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@commitlint/cli": "~21.2.3",
-    "@commitlint/config-conventional": "~21.2.3",
+    "@commitlint/cli": "~21.2.4",
+    "@commitlint/config-conventional": "~21.2.4",
     "@types/bun": "1.4.3",
     "@vitest/coverage-v8": "~5.0.5",
     "branch-name-lint": "~3.0.1",
     "husky": "~9.1.7",
     "lint-staged": "~17.6.0",
-    "oxlint": "1.88.0",
+    "oxlint": "1.89.0",
     "prettier": "~3.9.10",
     "prettier-plugin-tailwindcss": "~0.8.1",
-    "turbo": "^2.11.9",
+    "turbo": "^2.11.10",
     "typescript": "~7.0.2",
     "vitest": "~5.0.5"
   },

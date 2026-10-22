@@ -17,7 +17,7 @@ import {
   type Sampler,
   type SpanExporter,
   type SpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+} from '@opentelemetry/sdk-trace';
 import { ATTR_SERVICE_NAME, ATTR_SERVICE_VERSION } from '@opentelemetry/semantic-conventions';
 import { BullMQInstrumentation } from 'opentelemetry-instrumentation-bullmq';
 
@@ -100,20 +100,24 @@ export class CountingExporter implements SpanExporter {
 }
 
 /**
- * Subclass of `BatchSpanProcessor` that bumps the drop counter
- * when a span lands in a full buffer. The base class drops
- * silently; this wrapper makes the loss observable.
+ * Subclass of `BatchSpanProcessor` that bumps the drop counter when a span lands in a full buffer. The base class drops silently; this wrapper makes the loss observable.
+ * @param exporter - Downstream exporter; passed separately and merged into the SDK options because sdk-trace 3 takes a single options object.
+ * @param opts - SDK batching limits without `exporter`; its `maxQueueSize` is the threshold `onEnd` compares against before reporting `queue_full`.
+ * @param onDrop - Drop-counter sink, called with `queue_full` for each span the base class is about to discard.
  */
 export class CountingBatchSpanProcessor extends BatchSpanProcessor {
   constructor(
     exporter: SpanExporter,
-    opts: ConstructorParameters<typeof BatchSpanProcessor>[1],
+    opts: Omit<ConstructorParameters<typeof BatchSpanProcessor>[0], 'exporter'>,
     private readonly onDrop: (reason: string) => void,
   ) {
-    super(exporter, opts);
+    super({ ...opts, exporter });
   }
 
-  /** Inspects the BSP buffer length before delegating; flags `queue_full` when the next push will be silently dropped. */
+  /**
+   * Inspects the BSP buffer length before delegating; flags `queue_full` when the next push will be silently dropped.
+   * @param span - The finished span; reported as dropped when the buffer is already at maxQueueSize.
+   */
   override onEnd(span: ReadableSpan): void {
     const buf = (this as unknown as { _finishedSpans?: unknown[] })._finishedSpans;
     const max = (this as unknown as { _maxQueueSize?: number })._maxQueueSize;
