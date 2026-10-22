@@ -158,7 +158,7 @@ const MomentumTrendFilterSchema = z.object({
     .boolean()
     .default(false)
     .describe(
-      'Also require the trend line itself to be rising, not just price above it. This rejects entries on bear rallies that pop above a line that is still falling. Off keeps the simpler price-above-line gate.',
+      'Also require the trend line itself to be rising, not just price above it. This rejects entries on bear rallies that pop above a line that is still falling. Off keeps the simpler price-above-line gate. Ignored when the side is "below", where the line is normally falling.',
     ),
   slopeLookbackBars: z
     .number()

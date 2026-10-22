@@ -71,6 +71,20 @@ describe('momentumRequiredWindow', () => {
     expect(momentumRequiredWindow(c)).toBe(310);
   });
 
+  it('adds no slope lookback on the below side, where the gate skips the slope veto', () => {
+    const c = cfg({
+      ema: { fast: 9, slow: 50 },
+      trendFilter: {
+        enabled: true,
+        period: 300,
+        side: 'below',
+        requireRising: true,
+        slopeLookbackBars: 10,
+      },
+    });
+    expect(momentumRequiredWindow(c)).toBe(300);
+  });
+
   it('floors the slope lookback at 1 when requireRising is on but the lookback is invalid or < 1', () => {
     // Non-finite slopeLookbackBars (unparsed garbage) → floor to 1.
     expect(

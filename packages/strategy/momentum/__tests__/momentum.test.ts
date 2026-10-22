@@ -2740,6 +2740,21 @@ describe('momentum.tick — trend filter', () => {
     expect(out.decisions[0]?.type).toBe('place-order');
   });
 
+  it("side 'below' skips the rising-slope veto, so an inherited requireRising does not block it", () => {
+    // With the veto applied this window is too short for period + slopeLookbackBars and the gate would hold; skipped, it enters under the line.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '9',
+        state: flat(),
+        config: cfg({
+          trendFilter: { enabled: true, period: 3, side: 'below', requireRising: true },
+        }),
+      }),
+    );
+    expect(out.decisions[0]?.type).toBe('place-order');
+  });
+
   it("side 'below' suppresses an entry at or above the trend line as above-trend", () => {
     // sma(3) of [10,8,14] = 10.67; 14 is above and the exact line value is not under it, so both sit out.
     for (const currentPrice of ['14', new Decimal(32).div(3).toString()]) {

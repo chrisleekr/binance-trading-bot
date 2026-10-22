@@ -23,6 +23,7 @@ import { momentumReasonAttribution } from './attribution.js';
 import { momentumPreviewLevels, momentumPreviewDataNeeds } from './preview.js';
 import { momentumAttributeOrder } from './client-order-id.js';
 import { momentumStopBandSettings } from './protective-stop.js';
+import { lintMomentumConfig } from './lint.js';
 
 export { momentumReasonAttribution } from './attribution.js';
 export { momentumPositionAdapter } from './position-adapter.js';
@@ -64,6 +65,7 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
     trendFilter?: {
       enabled?: unknown;
       period?: unknown;
+      side?: unknown;
       requireRising?: unknown;
       slopeLookbackBars?: unknown;
     };
@@ -91,7 +93,9 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
   let trendNeed = 0;
   if (tf?.enabled === true) {
     const rawK = Number(tf.slopeLookbackBars ?? 10);
-    const k = tf.requireRising === true ? (Number.isFinite(rawK) && rawK >= 1 ? rawK : 1) : 0;
+    // Mirrors trendGate: the below side never runs the slope veto, so it needs no slope history.
+    const rising = tf.requireRising === true && tf.side !== 'below';
+    const k = rising ? (Number.isFinite(rawK) && rawK >= 1 ? rawK : 1) : 0;
     // Coerce with the same helper the gate uses, so a partial override that
     // omits `period` sizes the window to the 200 default rather than 0.
     trendNeed = trendPeriod(tf.period) + k;
@@ -151,5 +155,6 @@ export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> =
   // configured trail is deeper than the symbol's price band will hold, instead
   // of the operator learning it from the first tick that could not arm a stop.
   protectiveStopBandSettings: momentumStopBandSettings,
+  lintConfig: lintMomentumConfig,
   tick: computeTick,
 };

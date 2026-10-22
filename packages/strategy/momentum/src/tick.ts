@@ -132,7 +132,8 @@ const trendGate = (
   // `period`/`maType` are coerced too: a partial per-symbol override may enable
   // the filter without carrying them, and the worker reads config unparsed, so
   // an undefined period must not reach `sma`/`ema` (which throw on it).
-  const rising = tf.requireRising === true;
+  // The slope veto guards an above-the-line entry against a bear-rally pop. A below-side sleeve buys under the line, which is normally falling, so the veto would block nearly every signal there; it is skipped and `lintConfig` flags the setting as inert.
+  const rising = tf.requireRising === true && tf.side !== 'below';
   const rawK = Number(tf.slopeLookbackBars ?? 10);
   const k = rising ? (Number.isFinite(rawK) && rawK >= 1 ? rawK : 1) : 0;
   const period = trendPeriod(tf.period);
