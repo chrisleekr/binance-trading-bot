@@ -2,10 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import type { LlmClient, StructuredRequest } from '../client.js';
 
 /**
- * How the client authenticates. `apikey` uses a Console `sk-ant-api-...` key via
- * the `x-api-key` header; `oauth` uses a Claude Code subscription `sk-ant-oat-...`
- * token via `Authorization: Bearer`. The two are not interchangeable — passing an
- * OAuth token as an API key 401s.
+ * How the client authenticates. `apikey` uses a Console `sk-ant-api-...` key; `oauth` uses a Claude Code subscription `sk-ant-oat-...` token. SDK v1 sends both as `Authorization: Bearer`, but the two credentials are still not interchangeable: an OAuth token gets the throttled quota pool unless the identifier block below is present.
  */
 type AuthMode = 'apikey' | 'oauth';
 
@@ -74,8 +71,7 @@ export function createAnthropicClient(opts: {
       },
     };
   }
-  // Prefer the Console API key when both are set: it's the supported path with
-  // real quota. OAuth (Bearer) is the subscription fallback needing the identifier block.
+  // Prefer the Console API key when both are set: it is the supported path with real quota. The OAuth token is the subscription fallback and needs the identifier block.
   const authMode: AuthMode = apiKey ? 'apikey' : 'oauth';
   type AnthropicClient = InstanceType<typeof import('@anthropic-ai/sdk').default>;
   let clientPromise: Promise<AnthropicClient> | null = null;

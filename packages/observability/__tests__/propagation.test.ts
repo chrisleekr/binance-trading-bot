@@ -7,10 +7,10 @@ import { context, propagation, trace, type Span } from '@opentelemetry/api';
 import { W3CTraceContextPropagator } from '@opentelemetry/core';
 import {
   AlwaysOnSampler,
-  BasicTracerProvider,
   InMemorySpanExporter,
   SimpleSpanProcessor,
-} from '@opentelemetry/sdk-trace-base';
+  TracerProvider,
+} from '@opentelemetry/sdk-trace';
 import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -24,12 +24,12 @@ import {
 } from '../src/propagation.js';
 
 let exporter: InMemorySpanExporter;
-let provider: BasicTracerProvider;
+let provider: TracerProvider;
 
 beforeAll(() => {
   exporter = new InMemorySpanExporter();
-  provider = new BasicTracerProvider({
-    spanProcessors: [new SimpleSpanProcessor(exporter)],
+  provider = new TracerProvider({
+    spanProcessors: [new SimpleSpanProcessor({ exporter })],
     sampler: new AlwaysOnSampler(),
   });
   trace.setGlobalTracerProvider(provider);

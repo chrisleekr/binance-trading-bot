@@ -41,6 +41,6 @@
     "@app/testcontainers": "workspace:*",
     "@types/pg": "~8.23.1",
     "@types/ws": "~8.18.2",
-    "nock": "~14.0.17"
+    "nock": "~15.0.5"
   }
 }
