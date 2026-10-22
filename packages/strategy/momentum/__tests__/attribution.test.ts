@@ -13,6 +13,7 @@ const ENTRY_REASON_CODES = [
   'already-entered-this-candle',
   'insufficient-history',
   'below-trend',
+  'above-trend',
   'falling-trend',
   ...ENTRY_SIZING_SKIPS,
   'min-qty',

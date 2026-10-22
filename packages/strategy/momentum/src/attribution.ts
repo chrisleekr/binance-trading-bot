@@ -30,8 +30,14 @@ export const momentumReasonAttribution: ReasonAttribution = {
   },
   'below-trend': {
     setting: 'Trend filter',
-    paths: ['trendFilter.enabled', 'trendFilter.maType', 'trendFilter.period'],
+    paths: ['trendFilter.enabled', 'trendFilter.side', 'trendFilter.maType', 'trendFilter.period'],
     gloss: 'Price was below the long-term trend line',
+    kind: 'market',
+  },
+  'above-trend': {
+    setting: 'Trend filter',
+    paths: ['trendFilter.enabled', 'trendFilter.side', 'trendFilter.maType', 'trendFilter.period'],
+    gloss: 'Price was above the trend line, and this profile only buys below it',
     kind: 'market',
   },
   'falling-trend': {

@@ -129,6 +129,13 @@ const MomentumTrendFilterSchema = z.object({
     .describe(
       'Only enter while price is above the long-term trend line, so the bot sits out confirmed downtrends instead of buying into them. Exits are unaffected.',
     ),
+  // `below` inverts the gate for a sleeve that trades rallies inside a downtrend; the breakout trigger then only fires on a range high that is still under the line.
+  side: z
+    .enum(['above', 'below'])
+    .default('above')
+    .describe(
+      'Which side of the trend line allows an entry. "Above" (the default) buys only while price is above the line and sits out downtrends. "Below" buys only while price is under the line, for a profile that trades short rallies inside a downtrend; pair it with a short breakout range and a tight ATR stop.',
+    ),
   maType: z
     .enum(['sma', 'ema'])
     .default('sma')
@@ -233,6 +240,32 @@ const MomentumAtrTrailingStopSchema = z.object({
     .default('3')
     .describe(
       'How many ATRs below the peak the stop sits. 3 means sell when price falls 3 ATRs from the high reached since entry.',
+    ),
+});
+
+/**
+ * Second breakout entry for the regime the trend filter sits out. With the trend filter on its `above` side, a downtrend refuses every breakout, so the profile cannot trade at all while the market is under its line. This layer admits a shorter-range breakout while price is UNDER the line, and that position trails at its own, usually tighter, ATR multiple because rallies inside a downtrend are short. The primary rule is untouched: above the line only the primary breakout enters. Read only under `entryTrigger: 'breakout'` with `trendFilter` enabled on `side: 'above'` and `atrTrailingStop` enabled. Optional so the unparsed worker config reads an absent block as off.
+ */
+const MomentumBelowTrendBreakoutSchema = z.object({
+  enabled: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Also buy a shorter breakout while price is below the trend line, the market the trend filter otherwise sits out. Needs the breakout trigger, the trend filter on its "above" side, and the ATR trailing stop.',
+    ),
+  lookback: z
+    .number()
+    .int()
+    .min(2)
+    .max(MAX_CANDLE_WINDOW - 1)
+    .default(120)
+    .describe(
+      'How many candles back the below-trend range runs that a close must clear. 120 on a 1h interval is 5 days, shorter than the main breakout range because rallies in a downtrend are short.',
+    ),
+  atrMultiple: decimalString('atrMultiple must be a positive decimal', { gt: 0 })
+    .default('2')
+    .describe(
+      'ATR multiple for the trailing stop of a position this layer opened. 2 means sell when price falls 2 ATRs from the high since entry. Positions opened by the main breakout keep the main ATR multiple.',
     ),
 });
 
@@ -387,6 +420,32 @@ const MomentumEntrySizingSchema = z
  * can be briefly overshot. Optional so an absent block reads as off in the
  * unparsed worker config.
  */
+/** Thresholds for `entryTrigger: 'impulse'`. Defaults are the 1h setting the 2025-26 research chose (volume above 3x its 168-candle average, body up more than 2 ATRs). */
+const MomentumImpulseSchema = z
+  .object({
+    volumeLookback: z
+      .number()
+      .int()
+      .min(2)
+      // The judged candle and the ATR's first true range ride on top, so the cap keeps the whole read inside the hard window ceiling.
+      .max(MAX_CANDLE_WINDOW - 1)
+      .default(168)
+      .describe(
+        'How many candles before the judged one form the average volume. 168 on a 1h interval is one week.',
+      ),
+    volumeMultiple: decimalString('volumeMultiple must be above 0', { gt: 0 })
+      .default('3')
+      .describe(
+        'How many times the average volume the judged candle must trade. 3 means three times a normal candle.',
+      ),
+    riseAtrMultiple: decimalString('riseAtrMultiple must be above 0', { gt: 0 })
+      .default('2')
+      .describe(
+        'How far the judged candle must rise from its open to its close, in ATRs (average true range: the typical size of one candle). 2 means a candle twice the usual size, all of it up.',
+      ),
+  })
+  .describe('Impulse trigger only: what counts as a buying surge worth following.');
+
 const MomentumAccountCapSchema = z
   .object({
     mode: z
@@ -459,10 +518,10 @@ export const MomentumConfigSchema = z.object({
     ),
   // What opens a position. Absent reads as `cross` so the unparsed worker config and existing golden replays are unchanged.
   entryTrigger: z
-    .enum(['cross', 'trend', 'breakout'])
+    .enum(['cross', 'trend', 'breakout', 'impulse'])
     .optional()
     .describe(
-      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle. "Breakout" buys when a candle closes above the highest price of the previous `breakoutLookback` candles; the EMAs then only matter for the cross-down exit, and the entry margin is not applied.',
+      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle. "Breakout" buys when a candle closes above the highest price of the previous `breakoutLookback` candles; the EMAs then only matter for the cross-down exit, and the entry margin is not applied. "Impulse" buys after a heavy-volume up candle (see `impulse`), betting the surge continues; the EMAs then only matter for the cross-down exit.',
     ),
   // Read only under `entryTrigger: 'breakout'`. Capped so `lookback + 1` candles fit the hard window ceiling; a longer range could never fill and would suppress every entry.
   breakoutLookback: z
@@ -474,6 +533,10 @@ export const MomentumConfigSchema = z.object({
     .describe(
       'Breakout trigger only: how many candles back the range runs that a close must clear. 400 on a 1h interval is about 17 days. Longer means fewer, stronger breakouts.',
     ),
+  // Second, below-the-line breakout entry with its own trail. Off by default so existing configs and golden replays stay byte-identical.
+  belowTrendBreakout: MomentumBelowTrendBreakoutSchema.optional(),
+  // Read only under `entryTrigger: 'impulse'`. Optional so existing configs and golden replays are unchanged.
+  impulse: MomentumImpulseSchema.optional(),
   protectiveStop: MomentumProtectiveStopSchema.optional(),
   // Macro trend filter gating entries (exit logic untouched). Off by default so
   // existing configs and golden replays stay byte-identical.
@@ -583,6 +646,7 @@ export const MomentumStateSchema = z.object({
         'held-without-basis',
         'insufficient-history',
         'below-trend',
+        'above-trend',
         'falling-trend',
         'overextended',
         'extension-insufficient-history',
@@ -636,6 +700,8 @@ export const MomentumStateSchema = z.object({
     })
     .nullable()
     .default(null),
+  // Which entry rule opened the held position, so its exit trails at that rule's ATR multiple. Null for the primary rule and while flat. Stamped by the entry tick, kept by the fill adopter's buy, cleared on a full exit. Additive with `.default(null)`, same no-version-bump reason as above.
+  entryLayer: z.enum(['below-trend']).nullable().default(null),
 });
 /** Mutable per-tick state the strategy writes back. Persisted by the executor; never read by other profiles or accounts. */
 export type MomentumState = z.infer<typeof MomentumStateSchema>;
@@ -669,6 +735,7 @@ export const initialMomentumState = (): MomentumState => ({
   protectiveStopBlocker: null,
   exitBlocker: null,
   nativeTrail: null,
+  entryLayer: null,
 });
 
 /**

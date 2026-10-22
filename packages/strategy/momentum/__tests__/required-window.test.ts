@@ -31,6 +31,30 @@ describe('momentumRequiredWindow', () => {
     ).toBe(51);
   });
 
+  it('needs the volume lookback plus the judged candle under the impulse trigger, defaulting the lookback to 168', () => {
+    expect(
+      momentumRequiredWindow(
+        cfg({
+          ema: { fast: 9, slow: 50 },
+          entryTrigger: 'impulse',
+          impulse: { volumeLookback: 300 },
+        }),
+      ),
+    ).toBe(301);
+    expect(
+      momentumRequiredWindow(cfg({ ema: { fast: 9, slow: 50 }, entryTrigger: 'impulse' })),
+    ).toBe(169);
+    expect(
+      momentumRequiredWindow(
+        cfg({
+          ema: { fast: 9, slow: 50 },
+          entryTrigger: 'trend',
+          impulse: { volumeLookback: 300 },
+        }),
+      ),
+    ).toBe(51);
+  });
+
   it('honours a trend-filter period above the EMA need', () => {
     const c = cfg({
       ema: { fast: 9, slow: 50 },
@@ -164,5 +188,23 @@ describe('momentumRequiredWindow', () => {
   it('coerces an unparsed (string) config and never throws on missing fields', () => {
     expect(momentumRequiredWindow(cfg({ ema: { slow: '50' } }))).toBe(51);
     expect(momentumRequiredWindow(cfg({}))).toBe(1); // slow absent → 0 + 1
+  });
+});
+
+describe('momentumRequiredWindow — below-trend breakout layer', () => {
+  const base = { ema: { fast: 9, slow: 50 }, entryTrigger: 'breakout', breakoutLookback: 100 };
+  it('widens to the layer range when it is the longer one and the layer is on', () => {
+    expect(
+      momentumRequiredWindow(
+        cfg({ ...base, belowTrendBreakout: { enabled: true, lookback: 300 } }),
+      ),
+    ).toBe(301);
+  });
+  it('ignores the layer range while the layer is off', () => {
+    expect(
+      momentumRequiredWindow(
+        cfg({ ...base, belowTrendBreakout: { enabled: false, lookback: 300 } }),
+      ),
+    ).toBe(101);
   });
 });

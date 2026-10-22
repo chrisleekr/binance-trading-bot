@@ -111,6 +111,23 @@ describe('momentumPreviewLevels — flat state with a configured entry', () => {
     expect(momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE)).sections).toEqual([]);
   });
 
+  // A 16-candle rising step: every true range is 1, so ATR is 1 and the projected surge close is 25 + 2 = 27.
+  it('projects the impulse level, the last close plus riseAtrMultiple ATRs, under the impulse trigger', () => {
+    const config = cfg({ entryTrigger: 'impulse', impulse: { riseAtrMultiple: '2' } });
+    const candles = mkCandles(Array.from({ length: 16 }, (_, i) => String(10 + i)));
+    const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles));
+    expect(row(model, 'entry')).toMatchObject({ price: '27', label: 'Impulse level' });
+  });
+
+  it('projects nothing under the impulse trigger while the window is too short for the ATR', () => {
+    const config = cfg({ entryTrigger: 'impulse' });
+    expect(
+      momentumPreviewLevels(
+        previewInput(config, RICH_ACCOUNT_WIRE, mkCandles(['10', '11', '12', '13'])),
+      ).sections,
+    ).toEqual([]);
+  });
+
   it('projects the entry band at slowEMA*(1+margin) as an informational row (no trigger)', () => {
     const config = cfg();
     const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE));
@@ -915,5 +932,32 @@ describe('momentumPreviewLevels — protectiveStop.mode: native-trail', () => {
     expect(ps?.label).toBe('Protective stop');
     expect(ps?.price).toBe('9.69');
     expect(ps?.note).toBeUndefined();
+  });
+});
+
+describe('momentumPreviewLevels — below-trend breakout layer', () => {
+  // Constant step of 1, so ATR(3) is exactly 1 and the 120 high projects a 118 stop at 2x and a 116 stop at 4x.
+  const config = cfg({
+    atrTrailingStop: { enabled: true, period: 3, multiple: '4' },
+    belowTrendBreakout: { enabled: true, lookback: 2, atrMultiple: '2' },
+  });
+  const project = (entryLayer: 'below-trend' | null) =>
+    momentumPreviewLevels({
+      config,
+      state: held({ entryLayer }),
+      entryPrice: '100',
+      currentPrice: '119',
+      filters: FILTERS,
+      candles: STEP_CANDLES,
+      account: RICH_ACCOUNT_WIRE,
+      quoteAsset: 'USDT',
+    } as never);
+
+  it("projects a layer position's stop at the layer multiple", () => {
+    expect(row(project('below-trend'), 'trail')?.price).toBe('118');
+  });
+
+  it("projects a primary position's stop at the main multiple", () => {
+    expect(row(project(null), 'trail')?.price).toBe('116');
   });
 });
