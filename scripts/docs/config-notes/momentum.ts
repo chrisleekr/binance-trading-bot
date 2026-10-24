@@ -141,7 +141,7 @@ export const momentumNotes: FieldNotes = {
   'relativeStrength.lookbackBars': {
     when: 'Only with the gate on. Change it with the candle interval: about a month of candles, so 720 on `1h`.',
     expect:
-      'Shorter follows the latest leaders and changes rank more often; longer ranks on the steadier trend. In the research with the top 3 of nine coins, 336, 720 and 1440 candles all made money in both six-month halves from October 2025; shorter earned more in the recent half, longer in the earlier one.',
+      'Shorter follows the latest leaders and changes rank more often; longer ranks on the steadier trend. In the research with the top 3 of nine coins, 336, 720 and 1440 candles all made money in both six-month halves from October 2025; shorter earned more in the recent half, longer in the earlier one. 1440 is above the 998 cap, so it was a research-only setting.',
   },
   'relativeStrength.topK': {
     when: 'Only with the gate on. Lower it to concentrate on the very strongest coins; raise it toward the coin count to loosen the gate.',

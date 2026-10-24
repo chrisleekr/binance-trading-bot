@@ -417,8 +417,9 @@ export interface TickInput<
    * Read-only snapshot of this profile's cross-symbol KV store:
    * the merge of every `set-kv` / `delete-kv` decision emitted under a
    * strategy-owned namespaced key. Present only when the strategy opts in via
-   * `capabilities.needsProfileKv` — absent (and the worker skips the load) for
-   * the per-symbol strategies that need no cross-symbol coupling. A KV mutation
+   * `capabilities.needsProfileKv` or {@link Strategy.needsProfileKvFor} — absent
+   * (and the worker skips the load) for the per-symbol strategies that need no
+   * cross-symbol coupling. A KV mutation
    * in one symbol's tick appears here on subsequent ticks (eventual, per the
    * `set-kv` concurrency note), not within the same tick.
    *
@@ -671,7 +672,7 @@ export interface PreviewInput<Config, State> {
  * through the per-profile KV store instead: a tick publishes under a
  * strategy-owned namespaced key via `set-kv` / `delete-kv` decisions and reads
  * the merged snapshot back on later ticks via {@link TickInput.profileKv}, which
- * requires opting in with `capabilities.needsProfileKv`. A KV write is visible to
+ * requires opting in with `capabilities.needsProfileKv` or {@link Strategy.needsProfileKvFor}. A KV write is visible to
  * sibling symbols on subsequent ticks, never within the same tick.
  *
  * Concurrency. Ticks for different symbols of the same profile may run in

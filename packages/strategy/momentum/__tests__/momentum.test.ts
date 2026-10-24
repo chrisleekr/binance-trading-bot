@@ -601,7 +601,9 @@ describe('momentum.tick — entry', () => {
   const rsCfg = (over: Record<string, unknown> = {}) =>
     cfg({ relativeStrength: { enabled: true, lookbackBars: 3, topK: 1 }, ...over });
   const rsKey = (s: string): string => `momentum:relative-strength:${s}`;
-  const stronger = { [rsKey('ETHUSDT')]: { score: '5', candleCloseMs: 4 * 3_600_000 } };
+  const stronger = {
+    [rsKey('ETHUSDT')]: { score: '5', candleCloseMs: 4 * 3_600_000, lookbackBars: 3 },
+  };
 
   it('refuses an entry while another coin in the profile ranks above it, and still publishes its own score', () => {
     const out = momentum.tick(
@@ -617,7 +619,7 @@ describe('momentum.tick — entry', () => {
     expect(out.decisions[1]).toMatchObject({
       type: 'set-kv',
       key: rsKey('BTCUSDT'),
-      value: { candleCloseMs: 4 * 3_600_000 },
+      value: { candleCloseMs: 4 * 3_600_000, lookbackBars: 3 },
     });
     expect(out.decisions).toHaveLength(2);
     expect(out.nextState.entryBlocker).toEqual({ reason: 'relative-strength' });

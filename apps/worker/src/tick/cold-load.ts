@@ -74,8 +74,9 @@ export const createProductionColdLoad = (deps: ColdLoadDeps): SnapshotColdLoad =
     loadProfileKv: async (scope: ProfileScope): Promise<Record<string, unknown>> => {
       // Cross-symbol KV. Ownership already proven (same scope as the
       // symbol-state read); fold the profile's rows into one snapshot. Only
-      // reached when the strategy sets `needsProfileKv`, so it never runs for
-      // the per-symbol strategies. One small indexed read per KV-strategy symbol
+      // reached when `readsProfileKv` is true (the `needsProfileKv` capability
+      // or a config opt-in), so a per-symbol strategy that does not opt in
+      // never pays for it. One small indexed read per KV-strategy symbol
       // tick (N/cycle); revisit with a Redis snapshot cache if a many-symbol KV
       // strategy ever makes the per-tick PG read hot.
       const p = profileRepoFromScope(scope);

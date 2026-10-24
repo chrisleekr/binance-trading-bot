@@ -27,7 +27,11 @@ const mk = (closes: readonly string[]): Candle[] =>
 const ZIGZAG = ['10', '11', '9.9', '10.89'];
 const ON = { enabled: true, lookbackBars: 3, topK: 2 };
 const key = (s: string): string => `${RELATIVE_STRENGTH_KV_PREFIX}${s}`;
-const pub = (score: string, candleCloseMs = 4 * HOUR) => ({ score, candleCloseMs });
+const pub = (score: string, candleCloseMs = 4 * HOUR, lookbackBars = 3) => ({
+  score,
+  candleCloseMs,
+  lookbackBars,
+});
 
 describe('relativeStrengthSettings', () => {
   it('is off unless enabled is literally true, and falls back to 720 / 3 on malformed leaves', () => {
@@ -84,7 +88,11 @@ describe('relativeStrengthPublish', () => {
     const expected = {
       type: 'set-kv',
       key: key('ADAUSDT'),
-      value: { score: relativeStrengthScore(mk(ZIGZAG), 3)!.toFixed(), candleCloseMs: 4 * HOUR },
+      value: {
+        score: relativeStrengthScore(mk(ZIGZAG), 3)!.toFixed(),
+        candleCloseMs: 4 * HOUR,
+        lookbackBars: 3,
+      },
     };
     expect(relativeStrengthPublish(mk(ZIGZAG), ON, 'ADAUSDT', undefined)).toEqual(expected);
     // An older candle's value, or one that does not parse, is replaced.
@@ -93,6 +101,12 @@ describe('relativeStrengthPublish', () => {
     ).toEqual(expected);
     expect(
       relativeStrengthPublish(mk(ZIGZAG), ON, 'ADAUSDT', { [key('ADAUSDT')]: { score: 1 } }),
+    ).toEqual(expected);
+    // A value scored over another lookback is not this config's score, so it is replaced too.
+    expect(
+      relativeStrengthPublish(mk(ZIGZAG), ON, 'ADAUSDT', {
+        [key('ADAUSDT')]: pub('0.1', 4 * HOUR, 720),
+      }),
     ).toEqual(expected);
   });
 
@@ -132,7 +146,7 @@ describe('relativeStrengthGate', () => {
     );
   });
 
-  it('ranks against current siblings only: higher scores count, ties, stale, malformed and own entries do not', () => {
+  it('ranks against current siblings only: higher scores count, ties, stale, other-lookback, malformed and own entries do not', () => {
     const own = relativeStrengthScore(mk(ZIGZAG), 3)!.toFixed();
     const kv = {
       [key('ADAUSDT')]: pub('99'),
@@ -144,6 +158,7 @@ describe('relativeStrengthGate', () => {
       [key('TRXUSDT')]: 'garbage',
       [key('PEPEUSDT')]: pub('not-a-number'),
       [key('SHIBUSDT')]: pub('Infinity'),
+      [key('XRPUSDT')]: pub('9', 4 * HOUR, 720),
       'other:key': pub('9'),
     };
     const r = relativeStrengthGate(mk(ZIGZAG), ON, 'ADAUSDT', kv);

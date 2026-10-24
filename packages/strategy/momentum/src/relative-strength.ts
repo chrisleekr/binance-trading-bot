@@ -61,26 +61,34 @@ export const relativeStrengthScore = (
   return mean.div(sd.gt(SD_FLOOR) ? sd : SD_FLOOR);
 };
 
-/** What one symbol publishes: its score as a decimal string, stamped with the close time of the candle it was computed on. */
+/** What one symbol publishes: its score as a decimal string, stamped with the close time of the candle and the lookback it was computed with. Scores over different lookbacks are not comparable, so the lookback is part of the score's identity. */
 interface Published {
   readonly score: Decimal;
   readonly candleCloseMs: number;
+  readonly lookbackBars: number;
 }
 
 /** Revive one KV value, or null when it is not a well-formed published score (KV values come back as plain JSON). */
 const readPublished = (value: unknown): Published | null => {
-  const v = value as { score?: unknown; candleCloseMs?: unknown } | null;
-  if (typeof v?.score !== 'string' || typeof v.candleCloseMs !== 'number') return null;
+  const v = value as { score?: unknown; candleCloseMs?: unknown; lookbackBars?: unknown } | null;
+  if (
+    typeof v?.score !== 'string' ||
+    typeof v.candleCloseMs !== 'number' ||
+    typeof v.lookbackBars !== 'number'
+  )
+    return null;
   try {
     const score = new Decimal(v.score);
-    return score.isFinite() ? { score, candleCloseMs: v.candleCloseMs } : null;
+    return score.isFinite()
+      ? { score, candleCloseMs: v.candleCloseMs, lookbackBars: v.lookbackBars }
+      : null;
   } catch {
     return null;
   }
 };
 
 /**
- * The KV write that keeps this symbol's published score current, made once per closed candle: a tick on a candle whose score is already published writes nothing, so the per-second ticks between closes cost no store write. A window too short to score drops a previously published value, so siblings never rank a stale one.
+ * The KV write that keeps this symbol's published score current, made once per closed candle: a tick on a candle whose score is already published under the same lookback neither rescores nor writes, so the per-second ticks between closes cost no Decimal pass and no store write. A lookback change re-publishes on the next tick. A window too short to score drops a previously published value, so siblings never rank a stale one.
  *
  * @param candles - Closed candles on the strategy interval, oldest first.
  * @param raw - The unparsed `relativeStrength` config block.
@@ -99,13 +107,24 @@ export const relativeStrengthPublish = (
   if (!s.enabled || last === undefined) return null;
   const key = `${RELATIVE_STRENGTH_KV_PREFIX}${symbol}`;
   const current = profileKv?.[key];
+  const published = readPublished(current);
+  // Same closed candles and lookback scored before, so the score is unchanged; the length check covers a window that shrank since.
+  if (
+    published?.candleCloseMs === last.closeTimeMs &&
+    published.lookbackBars === s.lookbackBars &&
+    candles.length >= s.lookbackBars + 1
+  )
+    return null;
   const score = relativeStrengthScore(candles, s.lookbackBars);
   if (score === null) return current === undefined ? null : { type: 'delete-kv', key };
-  if (readPublished(current)?.candleCloseMs === last.closeTimeMs) return null;
   return {
     type: 'set-kv',
     key,
-    value: { score: score.toFixed(), candleCloseMs: last.closeTimeMs },
+    value: {
+      score: score.toFixed(),
+      candleCloseMs: last.closeTimeMs,
+      lookbackBars: s.lookbackBars,
+    },
   };
 };
 
@@ -121,7 +140,7 @@ export interface RelativeStrengthReading {
 }
 
 /**
- * Relative-strength entry gate: allow a buy only while this coin is among the `topK` strongest of the profile's symbols by {@link relativeStrengthScore}, so a profile trading many coins spends its slots on the ones trending best. Siblings rank by the scores they published to the profile KV store; a sibling whose score is more than one candle older than this symbol's last close is skipped, so a disabled or removed symbol stops counting. Ties do not count against this symbol. Siblings that have not published yet do not count either, so a newly started profile is permissive until they do. Fail-closed on this symbol's own score: a window too short to score refuses the entry. In the 2025-26 1h research, gating the dual breakout (main 400-candle breakout above SMA400 plus the 120-candle below-trend layer) to the top 3 of nine pre-chosen large caps by 720-candle Sharpe made money in both six-month halves, which the ungated rule did not.
+ * Relative-strength entry gate: allow a buy only while this coin is among the `topK` strongest of the profile's symbols by {@link relativeStrengthScore}, so a profile trading many coins spends its slots on the ones trending best. Siblings rank by the scores they published to the profile KV store; a sibling whose score is more than one candle older than this symbol's last close is skipped, so a disabled or removed symbol stops counting, and so is one scored over a different lookback, since its score is not comparable. Ties do not count against this symbol. Siblings that have not published yet do not count either, so a newly started profile is permissive until they do. Fail-closed on this symbol's own score: a window too short to score refuses the entry. In the 2025-26 1h research, gating the dual breakout (main 400-candle breakout above SMA400 plus the 120-candle below-trend layer) to the top 3 of nine pre-chosen large caps by 720-candle Sharpe made money in both six-month halves, which the ungated rule did not.
  *
  * @param candles - Closed candles on the strategy interval, oldest first.
  * @param raw - The unparsed `relativeStrength` config block.
@@ -148,7 +167,7 @@ export const relativeStrengthGate = (
     if (!key.startsWith(RELATIVE_STRENGTH_KV_PREFIX)) continue;
     if (key.slice(RELATIVE_STRENGTH_KV_PREFIX.length) === symbol) continue;
     const sib = readPublished(value);
-    if (sib === null || sib.candleCloseMs < oldest) continue;
+    if (sib === null || sib.candleCloseMs < oldest || sib.lookbackBars !== s.lookbackBars) continue;
     siblings++;
     if (sib.score.gt(score)) rank++;
   }
