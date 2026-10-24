@@ -1,5 +1,5 @@
 import { Decimal } from '@app/money';
-import { resolveCandleWindow, resolveFill } from '@app/strategy-core';
+import { readsProfileKv, resolveCandleWindow, resolveFill } from '@app/strategy-core';
 import type {
   Candle,
   CandleInterval,
@@ -415,7 +415,7 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
       limits: { weightUsed1m: 0, weightLimit1m: 1200, headroomBps: 10_000 },
       // Cross-symbol KV: mirror the live read gating — only a strategy
       // that opts in sees the store, so per-symbol strategies stay byte-identical.
-      ...(strategy.capabilities.needsProfileKv ? { profileKv: executor.kvSnapshot() } : {}),
+      ...(readsProfileKv(strategy, config) ? { profileKv: executor.kvSnapshot() } : {}),
     };
 
     // Fail closed on a schema-invalid bundle, matching the live tick boundary:

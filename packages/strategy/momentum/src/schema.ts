@@ -446,6 +446,36 @@ const MomentumImpulseSchema = z
   })
   .describe('Impulse trigger only: what counts as a buying surge worth following.');
 
+/** Cross-symbol entry gate. Defaults are the 1h setting the 2025-26 research chose (720 candles is 30 days; top 3 of nine large caps). */
+const MomentumRelativeStrengthSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .default(false)
+      .describe(
+        "Only buy a coin while it is among the strongest of this profile's coins, ranked by recent return per unit of volatility. A profile trading many coins then spends its entries on the ones trending best. Exits are not affected.",
+      ),
+    lookbackBars: z
+      .number()
+      .int()
+      .min(2)
+      // The score needs one close more than it has returns, so the cap keeps the read inside the hard window ceiling.
+      .max(MAX_CANDLE_WINDOW - 1)
+      .default(720)
+      .describe('How many candles of returns the ranking reads. 720 on a 1h interval is 30 days.'),
+    topK: z
+      .number()
+      .int()
+      .min(1)
+      .default(3)
+      .describe(
+        "How many of the profile's coins may buy at once by rank. 3 means a coin buys only while at most two others rank above it.",
+      ),
+  })
+  .describe(
+    "Relative strength gate: rank this profile's coins against each other and let only the strongest buy.",
+  );
+
 const MomentumAccountCapSchema = z
   .object({
     mode: z
@@ -537,6 +567,8 @@ export const MomentumConfigSchema = z.object({
   belowTrendBreakout: MomentumBelowTrendBreakoutSchema.optional(),
   // Read only under `entryTrigger: 'impulse'`. Optional so existing configs and golden replays are unchanged.
   impulse: MomentumImpulseSchema.optional(),
+  // Cross-symbol entry gate over the profile KV store. Optional so existing configs and golden replays are unchanged.
+  relativeStrength: MomentumRelativeStrengthSchema.optional(),
   protectiveStop: MomentumProtectiveStopSchema.optional(),
   // Macro trend filter gating entries (exit logic untouched). Off by default so
   // existing configs and golden replays stay byte-identical.
@@ -650,6 +682,8 @@ export const MomentumStateSchema = z.object({
         'falling-trend',
         'overextended',
         'extension-insufficient-history',
+        'relative-strength',
+        'relative-strength-insufficient-history',
         // Spread from sizing's own vocabulary rather than copied, so a skip added there is
         // persistable the moment it exists: a hand copy can only be checked for drift after
         // the fact, and the gap it leaves is a blocker the worker cannot write down. Widening

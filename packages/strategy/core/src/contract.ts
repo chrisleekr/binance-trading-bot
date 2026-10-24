@@ -827,6 +827,11 @@ export interface Strategy<
   lintConfig?(config: Config): readonly ConfigDiagnostic[];
 
   /**
+   * Config-dependent opt-in to the cross-symbol KV store, for a per-symbol strategy with one optional feature that ranks its symbols against each other. True loads `TickInput.profileKv` for this tick exactly as `capabilities.needsProfileKv` does; false or absent leaves that decision to the static capability, so a profile with the feature off pays no per-tick store read. Reads the config defensively: the live worker passes it unparsed. Callers go through {@link readsProfileKv}, never this method or the capability alone.
+   */
+  needsProfileKvFor?(config: Config): boolean;
+
+  /**
    * Pure feasibility check of a (schema-valid) config against ONE symbol's live
    * order minimums and the available quote balance. Unlike {@link lintConfig},
    * this needs runtime facts the schema cannot see — the symbol's `SymbolFilters`

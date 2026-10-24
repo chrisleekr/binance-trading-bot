@@ -24,6 +24,7 @@ import { momentumPreviewLevels, momentumPreviewDataNeeds } from './preview.js';
 import { momentumAttributeOrder } from './client-order-id.js';
 import { momentumStopBandSettings } from './protective-stop.js';
 import { lintMomentumConfig } from './lint.js';
+import { relativeStrengthNeed, relativeStrengthSettings } from './relative-strength.js';
 
 export { momentumReasonAttribution } from './attribution.js';
 export { momentumPositionAdapter } from './position-adapter.js';
@@ -55,7 +56,7 @@ const finiteNum = (v: unknown): number => {
 };
 
 /**
- * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1`, and the impulse trigger its volume lookback plus the judged candle, when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, and an enabled ATR trailing stop reads `period + 1` closes for its first true-range value. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
+ * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1`, and the impulse trigger its volume lookback plus the judged candle, when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, an enabled ATR trailing stop reads `period + 1` closes for its first true-range value, and an enabled relative-strength gate reads `lookbackBars + 1` closes for its score. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
  *
  * The ATR term is a HARD need, not the trail's soft one. Risk-based entry sizing divides equity risk by the initial stop distance, and that distance is unresolvable on a short ATR window, so the entry is refused outright (`risk-sizing-unavailable`) rather than degraded. The exit trail's own shortfall behaviour is a fallback to the fixed `trailingStopPct`, which is why the term could be omitted here before entry sizing read it.
  */
@@ -75,6 +76,7 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
     breakoutLookback?: unknown;
     belowTrendBreakout?: { enabled?: unknown; lookback?: unknown };
     impulse?: unknown;
+    relativeStrength?: unknown;
   };
   // The breakout level reads `lookback` candles before the one being judged; folded into the EMA term since both are entry-signal needs.
   const bt = c.belowTrendBreakout;
@@ -113,7 +115,9 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
   const atrNeed = at?.enabled === true ? atrStopPeriod(at.period) + 1 : 0;
   const need = emaNeed > trendNeed ? emaNeed : trendNeed;
   const widest = need > extNeed ? need : extNeed;
-  return widest > atrNeed ? widest : atrNeed;
+  const withAtr = widest > atrNeed ? widest : atrNeed;
+  const rsNeed = relativeStrengthNeed(c.relativeStrength);
+  return withAtr > rsNeed ? withAtr : rsNeed;
 };
 
 export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> = {
@@ -156,5 +160,8 @@ export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> =
   // of the operator learning it from the first tick that could not arm a stop.
   protectiveStopBandSettings: momentumStopBandSettings,
   lintConfig: lintMomentumConfig,
+  // Only the relative-strength gate reads sibling symbols, so a profile without it pays no per-tick store read.
+  needsProfileKvFor: (config) =>
+    relativeStrengthSettings((config as { relativeStrength?: unknown }).relativeStrength).enabled,
   tick: computeTick,
 };

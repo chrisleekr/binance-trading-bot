@@ -8,6 +8,19 @@ import type { MomentumConfig } from '../src/index.js';
 const cfg = (over: Record<string, unknown>): MomentumConfig => over as unknown as MomentumConfig;
 
 describe('momentumRequiredWindow', () => {
+  it('needs lookbackBars + 1 candles for an enabled relative-strength gate, and nothing when it is off', () => {
+    expect(
+      momentumRequiredWindow(
+        cfg({ ema: { fast: 9, slow: 50 }, relativeStrength: { enabled: true, lookbackBars: 720 } }),
+      ),
+    ).toBe(721);
+    expect(
+      momentumRequiredWindow(
+        cfg({ ema: { fast: 9, slow: 50 }, relativeStrength: { lookbackBars: 720 } }),
+      ),
+    ).toBe(51);
+  });
+
   it('needs slow + 1 candles for the EMA cross when no trend filter', () => {
     expect(momentumRequiredWindow(cfg({ ema: { fast: 9, slow: 50 } }))).toBe(51);
   });

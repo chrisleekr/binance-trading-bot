@@ -23,7 +23,7 @@ import type {
   TickInput,
   TriggerEvent,
 } from '@app/strategy-core';
-import { resolveCandleWindow } from '@app/strategy-core';
+import { readsProfileKv, resolveCandleWindow } from '@app/strategy-core';
 import type {
   AccountId,
   Condition,
@@ -686,7 +686,8 @@ export const buildTickInput = async (
   // the same one-read-per-tick gating the account-deployed total uses. The
   // per-symbol strategies leave `needsProfileKv` false and pay nothing; a
   // cross-symbol strategy reads the merged store the worker folds from PG.
-  const profileKv = strategy.capabilities.needsProfileKv
+  // A per-symbol strategy can also opt in per config (`needsProfileKvFor`).
+  const profileKv = readsProfileKv(strategy, profile.config)
     ? await deps.coldLoad.loadProfileKv(profile.scope)
     : undefined;
 
