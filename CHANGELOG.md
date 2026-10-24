@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.7.0...v1.8.0) (2026-10-24)
+
+
+### Features
+
+* **momentum:** add impulse entry, below-trend breakout layer and inverted trend filter ([#811](https://github.com/chrisleekr/binance-trading-bot/issues/811)) ([e1bed83](https://github.com/chrisleekr/binance-trading-bot/commit/e1bed83aaa4801a0cfced6d040d1e40b4e408fe4))
+* **momentum:** add relative-strength entry gate and bump Bun to 1.4.4 ([#814](https://github.com/chrisleekr/binance-trading-bot/issues/814)) ([b39d382](https://github.com/chrisleekr/binance-trading-bot/commit/b39d38216f22294b6a930691bd406244f549a59a))
+
 ## [1.7.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.6.0...v1.7.0) (2026-10-17)
 
 
