@@ -468,9 +468,12 @@ docker-build:
     # index's manifests in parallel and the registry rejects (400) an
     # attestation manifest whose subject has not landed yet; the failed run
     # still stores the subjects, so the second attempt completes the tag.
+    # A tag holding one arch only (how 1.4.3 ended up arm64-only) is recopied.
     - bun_tag="$BUN_IMAGE:$(sed -n 's/^ARG BUN_VERSION=//p' apps/server/Dockerfile)-alpine"
     - |
-      if ! docker buildx imagetools inspect "$bun_tag" >/dev/null 2>&1; then
+      mirrored=$(docker buildx imagetools inspect "$bun_tag" 2>/dev/null || true)
+      if ! printf '%s\n' "$mirrored" | grep -q 'linux/amd64' ||
+        ! printf '%s\n' "$mirrored" | grep -q 'linux/arm64'; then
         upstream="docker.io/oven/bun:${bun_tag##*:}"
         docker buildx imagetools create --tag "$bun_tag" "$upstream" ||
           docker buildx imagetools create --tag "$bun_tag" "$upstream"

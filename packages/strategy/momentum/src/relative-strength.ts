@@ -88,6 +88,28 @@ const readPublished = (value: unknown): Published | null => {
 };
 
 /**
+ * This symbol's stored score when it is still its score now: stamped with the last closed candle and the current lookback, over a window still long enough to score. The same candles and lookback give the same score, so a caller can use it instead of rescoring.
+ *
+ * @param candles - Closed candles on the strategy interval, oldest first.
+ * @param lookbackBars - The lookback the current config scores over.
+ * @param stored - This symbol's raw value from the profile KV snapshot.
+ * @returns The stored score, or null when it is missing, malformed or out of date.
+ */
+const currentPublished = (
+  candles: readonly Candle[],
+  lookbackBars: number,
+  stored: unknown,
+): Decimal | null => {
+  const published = readPublished(stored);
+  return published !== null &&
+    published.candleCloseMs === candles.at(-1)?.closeTimeMs &&
+    published.lookbackBars === lookbackBars &&
+    candles.length >= lookbackBars + 1
+    ? published.score
+    : null;
+};
+
+/**
  * The KV write that keeps this symbol's published score current, made once per closed candle: a tick on a candle whose score is already published under the same lookback neither rescores nor writes, so the per-second ticks between closes cost no Decimal pass and no store write. A lookback change re-publishes on the next tick. A window too short to score drops a previously published value, so siblings never rank a stale one.
  *
  * @param candles - Closed candles on the strategy interval, oldest first.
@@ -107,14 +129,7 @@ export const relativeStrengthPublish = (
   if (!s.enabled || last === undefined) return null;
   const key = `${RELATIVE_STRENGTH_KV_PREFIX}${symbol}`;
   const current = profileKv?.[key];
-  const published = readPublished(current);
-  // Same closed candles and lookback scored before, so the score is unchanged; the length check covers a window that shrank since.
-  if (
-    published?.candleCloseMs === last.closeTimeMs &&
-    published.lookbackBars === s.lookbackBars &&
-    candles.length >= s.lookbackBars + 1
-  )
-    return null;
+  if (currentPublished(candles, s.lookbackBars, current) !== null) return null;
   const score = relativeStrengthScore(candles, s.lookbackBars);
   if (score === null) return current === undefined ? null : { type: 'delete-kv', key };
   return {
@@ -156,7 +171,13 @@ export const relativeStrengthGate = (
 ): RelativeStrengthReading => {
   const s = relativeStrengthSettings(raw);
   if (!s.enabled) return { gate: 'pass', score: null, rank: 0, siblings: 0 };
-  const score = relativeStrengthScore(candles, s.lookbackBars);
+  // A refused symbol keeps its entry signal and reaches here every tick, so reuse its stored score for this candle instead of rescoring.
+  const score =
+    currentPublished(
+      candles,
+      s.lookbackBars,
+      profileKv?.[`${RELATIVE_STRENGTH_KV_PREFIX}${symbol}`],
+    ) ?? relativeStrengthScore(candles, s.lookbackBars);
   if (score === null)
     return { gate: 'relative-strength-insufficient-history', score: null, rank: 0, siblings: 0 };
   // One candle of slack: at a candle close the siblings that have not ticked yet still carry the previous candle's score. A score implies at least lookbackBars + 1 >= 3 candles, so the previous one exists.

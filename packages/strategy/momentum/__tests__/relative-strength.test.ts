@@ -149,7 +149,8 @@ describe('relativeStrengthGate', () => {
   it('ranks against current siblings only: higher scores count, ties, stale, other-lookback, malformed and own entries do not', () => {
     const own = relativeStrengthScore(mk(ZIGZAG), 3)!.toFixed();
     const kv = {
-      [key('ADAUSDT')]: pub('99'),
+      // Its own previous-candle value: not a sibling, and not current enough to reuse.
+      [key('ADAUSDT')]: pub('99', 3 * HOUR),
       [key('AVAXUSDT')]: pub('5'),
       [key('DOTUSDT')]: pub('5', 3 * HOUR),
       [key('LINKUSDT')]: pub(own),
@@ -167,6 +168,24 @@ describe('relativeStrengthGate', () => {
     expect(r.score?.toFixed()).toBe(own);
     expect(r.gate).toBe('relative-strength');
     expect(relativeStrengthGate(mk(ZIGZAG), { ...ON, topK: 3 }, 'ADAUSDT', kv).gate).toBe('pass');
+  });
+
+  // A refused symbol keeps its entry signal and reaches the gate every tick; its stored score for this candle stands in for a rescore.
+  it("reuses this symbol's stored score for the current candle and lookback, and rescores otherwise", () => {
+    const kv = { [key('AVAXUSDT')]: pub('5') };
+    const reused = relativeStrengthGate(mk(ZIGZAG), ON, 'ADAUSDT', {
+      ...kv,
+      [key('ADAUSDT')]: pub('9'),
+    });
+    expect(reused.score?.toFixed()).toBe('9');
+    expect(reused.rank).toBe(0);
+    const own = relativeStrengthScore(mk(ZIGZAG), 3)!;
+    expect(
+      relativeStrengthGate(mk(ZIGZAG), ON, 'ADAUSDT', {
+        ...kv,
+        [key('ADAUSDT')]: pub('9', 4 * HOUR, 720),
+      }).score?.eq(own),
+    ).toBe(true);
   });
 
   it('passes while no sibling has published', () => {
