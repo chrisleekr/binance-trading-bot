@@ -22,6 +22,8 @@ const ENTRY_REASON_CODES = [
   'invalid-filters',
   'overextended',
   'extension-insufficient-history',
+  'relative-strength',
+  'relative-strength-insufficient-history',
 ] as const;
 
 // The list above spreads the sizing skips from `sizing.ts` rather than restating them, and the list below takes the protective-stop reasons from the core vocabulary the same way. Both are derived, not copied, so a reason added at either source fails here until it is glossed instead of reaching the operator as a bare kebab code.

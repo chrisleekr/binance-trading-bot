@@ -63,6 +63,18 @@ export const momentumReasonAttribution: ReasonAttribution = {
     gloss: 'Not enough price history yet to check for overextension',
     kind: 'data',
   },
+  'relative-strength': {
+    setting: 'Relative strength gate',
+    paths: ['relativeStrength.enabled', 'relativeStrength.topK', 'relativeStrength.lookbackBars'],
+    gloss: 'Other coins in this profile were trending more strongly, so this one waited its turn',
+    kind: 'market',
+  },
+  'relative-strength-insufficient-history': {
+    setting: 'Relative strength window',
+    note: 'not enough candles loaded yet to score this coin against the others; this clears as more candles arrive, or lower the relative-strength lookback',
+    gloss: 'Not enough price history yet to rank this coin against the others',
+    kind: 'data',
+  },
   'sizing-unconfigured': {
     setting: 'Entry sizing',
     paths: ['entrySizing.mode', 'entrySizing.amount', 'entrySizing.percent'],

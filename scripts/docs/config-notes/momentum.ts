@@ -133,6 +133,21 @@ export const momentumNotes: FieldNotes = {
     expect:
       'How often the profit trail is allowed to move up. It paces that trail only: your normal trailing stop advances on your candle interval, so with a 1-minute interval the stop order at Binance can still be rewritten every minute whenever the normal stop is the higher of the two. Each rewrite uses one cancelReplace request and spends one unit of order allowance. The sell check itself runs every tick, so a fall through the current level is caught immediately; what this delays is the level moving UP.',
   },
+  'relativeStrength.enabled': {
+    when: 'Only on a profile trading many coins whose entries keep landing on the weaker ones. On a profile with fewer coins than `topK` it never refuses.',
+    expect:
+      "A coin buys only while at most `topK - 1` of this profile's other coins score higher on return per unit of volatility over `lookbackBars` candles, so expect fewer entries, concentrated in the strongest coins. Coins that have not scored yet do not count, so a newly started profile buys freely until every coin has closed a candle. In the 1h research, the top 3 of nine large caps by 720-candle score, applied to the breakout with its below-trend layer, made money in both six-month halves from October 2025, which the ungated rule did not.",
+  },
+  'relativeStrength.lookbackBars': {
+    when: 'Only with the gate on. Change it with the candle interval: about a month of candles, so 720 on `1h`.',
+    expect:
+      'Shorter follows the latest leaders and changes rank more often; longer ranks on the steadier trend. In the research with the top 3 of nine coins, 336, 720 and 1440 candles all made money in both six-month halves from October 2025; shorter earned more in the recent half, longer in the earlier one. 1440 is above the 998 cap, so it was a research-only setting.',
+  },
+  'relativeStrength.topK': {
+    when: 'Only with the gate on. Lower it to concentrate on the very strongest coins; raise it toward the coin count to loosen the gate.',
+    expect:
+      'In the research on nine coins, 3 and 4 made money in both six-month halves from October 2025; 2 lost in the earlier half.',
+  },
   'impulse.volumeLookback': {
     when: 'Only with `entryTrigger: impulse`. Change it only with the candle interval: it should span about a week of candles, so 168 on `1h` and 42 on `4h`.',
     expect:

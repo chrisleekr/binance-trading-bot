@@ -109,6 +109,7 @@ interface InputOpts {
   // The 1m window the worker feeds for every symbol regardless of
   // `candleInterval`. Only the profit trail reads it.
   readonly oneMinute?: readonly Candle[];
+  readonly profileKv?: Readonly<Record<string, unknown>>;
 }
 
 const mkInput = (opts: InputOpts): TickInput<MomentumConfig, MomentumState, MomentumBundle> => ({
@@ -140,6 +141,7 @@ const mkInput = (opts: InputOpts): TickInput<MomentumConfig, MomentumState, Mome
   openOrders: opts.openOrders ?? [],
   bundle: { override: opts.override ?? null },
   limits: { weightUsed1m: 0, weightLimit1m: 1200, headroomBps: 10_000 },
+  ...(opts.profileKv === undefined ? {} : { profileKv: opts.profileKv }),
 });
 
 const flat = initialMomentumState;
@@ -593,6 +595,109 @@ describe('momentum.tick — entry', () => {
       bodyAtr: null,
       waitingFor: 'impulse-history',
     });
+  });
+
+  // CROSS_UP closes 12, 10, 8, 14 score below 1 over 3 returns, so a sibling published at 5 on the same candle outranks it.
+  const rsCfg = (over: Record<string, unknown> = {}) =>
+    cfg({ relativeStrength: { enabled: true, lookbackBars: 3, topK: 1 }, ...over });
+  const rsKey = (s: string): string => `momentum:relative-strength:${s}`;
+  const stronger = {
+    [rsKey('ETHUSDT')]: { score: '5', candleCloseMs: 4 * 3_600_000, lookbackBars: 3 },
+  };
+
+  it('refuses an entry while another coin in the profile ranks above it, and still publishes its own score', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '14',
+        state: flat(),
+        config: rsCfg(),
+        profileKv: stronger,
+      }),
+    );
+    expect(out.decisions[0]).toEqual({ type: 'noop' });
+    expect(out.decisions[1]).toMatchObject({
+      type: 'set-kv',
+      key: rsKey('BTCUSDT'),
+      value: { candleCloseMs: 4 * 3_600_000, lookbackBars: 3 },
+    });
+    expect(out.decisions).toHaveLength(2);
+    expect(out.nextState.entryBlocker).toEqual({ reason: 'relative-strength' });
+    expect(out.logs[0]?.context).toMatchObject({ gate: 'relative-strength', rank: 1, siblings: 1 });
+  });
+
+  it('refuses while the window is too short to score the coin, with no score in the trace', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '14',
+        state: flat(),
+        config: rsCfg({ relativeStrength: { enabled: true, lookbackBars: 10, topK: 1 } }),
+      }),
+    );
+    expect(out.nextState.entryBlocker).toEqual({
+      reason: 'relative-strength-insufficient-history',
+    });
+    expect(out.logs[0]?.context).toMatchObject({ score: null });
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+  });
+
+  it('enters when the coin ranks within topK', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '14',
+        state: flat(),
+        config: rsCfg({ relativeStrength: { enabled: true, lookbackBars: 3, topK: 2 } }),
+        profileKv: stronger,
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { side: 'BUY' } });
+    expect(out.decisions[1]).toMatchObject({ type: 'set-kv', key: rsKey('BTCUSDT') });
+  });
+
+  // A per-symbol gate that refuses first must report itself, not the cross-symbol rank.
+  it('reports a trend-filter refusal ahead of the relative-strength gate', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '14',
+        state: flat(),
+        config: rsCfg({ trendFilter: { enabled: true, period: 4, side: 'below' } }),
+        profileKv: stronger,
+      }),
+    );
+    expect(out.nextState.entryBlocker?.reason).toBe('above-trend');
+  });
+
+  it('keeps publishing while a position is held, so siblings still rank against it', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(FLAT_SERIES),
+        currentPrice: '100',
+        state: longState(),
+        config: rsCfg(),
+      }),
+    );
+    expect(out.decisions.at(-1)).toMatchObject({ type: 'set-kv', key: rsKey('BTCUSDT') });
+  });
+
+  it('leaves the decisions untouched while the gate is off', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '14',
+        state: flat(),
+        profileKv: stronger,
+      }),
+    );
+    expect(out.decisions.map((d) => d.type)).toEqual(['place-order']);
+  });
+
+  it('asks the worker for the profile store only while the gate is on', () => {
+    expect(momentum.needsProfileKvFor?.(rsCfg())).toBe(true);
+    expect(momentum.needsProfileKvFor?.(cfg())).toBe(false);
+    expect(momentum.capabilities.needsProfileKv).toBeUndefined();
   });
 
   // The trend filter still gates an impulse entry; this pins that the trigger does not bypass it.

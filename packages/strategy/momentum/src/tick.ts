@@ -27,6 +27,7 @@ import { extensionMaxPercent, extensionPeriod } from './extension.js';
 import { trendMaType, trendPeriod } from './trend-filter.js';
 import { breakoutLevel, breakoutLookback } from './breakout.js';
 import { impulseReading, type ImpulseReading } from './impulse.js';
+import { relativeStrengthGate, relativeStrengthPublish } from './relative-strength.js';
 import { profitLegDistance } from './profit-leg.js';
 import { configForEntryLayer } from './trailing-stop.js';
 import { profitTrailEpoch, ratchetProfitHigh, resolveStopLevel } from './stop-level.js';
@@ -187,12 +188,33 @@ const extensionGate = (
 };
 
 /**
- * Momentum strategy: enter long on a fast/slow EMA cross-up, or on any closed candle while the fast EMA is above the slow under `entryTrigger: 'trend'` (either way the fast EMA must clear the slow EMA by `entryMarginPct` to filter chop; one entry per candle), exit on a trailing stop retrace from the high since entry or an EMA cross-down. While holding, a resting exchange-side protective stop mirrors the trailing level so the position survives a worker outage or a gap. One long per (profile, symbol); no grid. Pure — EMAs are computed in-strategy from the candle window.
+ * Momentum strategy: enter long on a fast/slow EMA cross-up, or on any closed candle while the fast EMA is above the slow under `entryTrigger: 'trend'` (either way the fast EMA must clear the slow EMA by `entryMarginPct` to filter chop; one entry per candle), exit on a trailing stop retrace from the high since entry or an EMA cross-down. While holding, a resting exchange-side protective stop mirrors the trailing level so the position survives a worker outage or a gap. One long per (profile, symbol); no grid. Pure — EMAs are computed in-strategy from the candle window. With the relative-strength gate on, every tick also keeps this symbol's score current in the profile KV store, once per closed candle.
  *
  * @param input - One tick's world for a single (profile, symbol): config, the state body as stored, the candle window and live price, wallet and account balances, and any pending operator override. Never mutated.
  * @returns The next state body plus the decisions the worker should execute. A hold returns a `noop` decision rather than an empty list, so a tick that chose to do nothing is distinguishable from one that never ran.
  */
 export const computeTick = (input: MomentumInput): MomentumOutput => {
+  const out = decide(input);
+  // Publishing is independent of what the tick decided: a held or refused symbol still has a score its siblings rank against.
+  const closed = (input.market.candlesByInterval[input.config.candleInterval] ?? []).filter(
+    (c) => c.isClosed,
+  );
+  const publish = relativeStrengthPublish(
+    closed,
+    input.config.relativeStrength,
+    input.market.symbol,
+    input.profileKv,
+  );
+  return publish === null ? out : { ...out, decisions: [...out.decisions, publish] };
+};
+
+/**
+ * Everything {@link computeTick} decides except the relative-strength KV publish.
+ *
+ * @param input - The tick's input, as {@link computeTick} received it.
+ * @returns The next state body and the tick's decisions.
+ */
+const decide = (input: MomentumInput): MomentumOutput => {
   const { config, market } = input;
   // A position-scoped blocker explains something about a position that is OPEN; with the position gone it describes nothing, so it must not outlive it. Cleared here rather than inside the flat branch below because the warm-up return above that branch is itself a flat tick, and would otherwise carry a refusal forward for as long as the candle window stays short.
   //
@@ -336,6 +358,29 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
           ],
           [skipMetric('entry', extension)],
           { reason: extension },
+        );
+      }
+      // Cross-symbol rank, last because it is the only gate that reads other symbols: a refusal by any per-symbol gate reports itself first.
+      const strength = relativeStrengthGate(
+        candles,
+        config.relativeStrength,
+        market.symbol,
+        input.profileKv,
+      );
+      if (strength.gate !== 'pass') {
+        return hold(
+          state,
+          [
+            log('debug', 'momentum: entry suppressed by relative strength', {
+              symbol: market.symbol,
+              gate: strength.gate,
+              score: strength.score?.toFixed(6) ?? null,
+              rank: strength.rank,
+              siblings: strength.siblings,
+            }),
+          ],
+          [skipMetric('entry', strength.gate)],
+          { reason: strength.gate },
         );
       }
     }

@@ -18,7 +18,7 @@ Read [`AGENTS.md`](AGENTS.md). It is the engineering charter: the invariants the
 
 ## Setup
 
-Prerequisites: [Bun](https://bun.sh) 1.3+ and Docker with the `compose` plugin.
+Prerequisites: [Bun](https://bun.sh) 1.4+ (exact version pinned in `.tool-versions`) and Docker with the `compose` plugin.
 
 ```bash
 bun install

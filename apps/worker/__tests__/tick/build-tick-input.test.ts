@@ -320,6 +320,21 @@ describe('buildTickInput', () => {
     expect(built.input.profileKv).toEqual({ 'rebalance:target': '0.5' });
   });
 
+  it('loads the profile KV snapshot when a per-symbol strategy opts in through its config', async () => {
+    const stubs = makeStubs();
+    const byConfig = {
+      ...strategyStub,
+      needsProfileKvFor: () => true,
+    } as unknown as AnyStrategy;
+    const built = await buildTickInput(
+      stubs.deps,
+      buildArgs({ strategy: byConfig, raw: baseRaw() }),
+    );
+    if (built.kind !== 'ready') throw new Error('expected ready');
+    expect(stubs.loadProfileKv).toHaveBeenCalledOnce();
+    expect(built.input.profileKv).toEqual({ 'rebalance:target': '0.5' });
+  });
+
   it('skips the profile KV read for a per-symbol strategy (no needsProfileKv)', async () => {
     const stubs = makeStubs();
     const built = await buildTickInput(stubs.deps, buildArgs({ raw: baseRaw() }));
