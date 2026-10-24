@@ -416,8 +416,9 @@ docker-build:
     BUILDX_NO_DEFAULT_ATTESTATIONS: '1'
     # Mirror tonistiigi/binfmt and oven/bun in the project's GitLab registry
     # so this job sidesteps Docker Hub's 100/6h unauthenticated pull rate
-    # limit. After a Bun bump, run the manual `mirror-bun` job once before
-    # this job runs on main. binfmt is still populated by hand with
+    # limit. before_script copies the Bun tag the Dockerfile pins into the
+    # mirror when it is missing, so a Bun bump needs no manual step. binfmt is
+    # still populated by hand with
     # `docker buildx imagetools create --tag <mirror> <upstream>`.
     #
     # `:master` here is the MIRROR IMAGE'S OWN registry tag, not a git ref.
@@ -460,39 +461,19 @@ docker-build:
     # and shell history; the `-p` form leaks the password to anything that
     # can read /proc/<pid>/cmdline on the runner.
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    # Copies every platform of oven/bun:<pinned>-alpine into the mirror on the
+    # first build after a Bun bump. Done here on the runner because uploads
+    # through the registry's public edge fail with 413 on the 47 MB Bun layer,
+    # and a laptop `docker push` mirrors one arch only. imagetools copies the
+    # index's manifests in parallel and the registry rejects (400) an
+    # attestation manifest whose subject has not landed yet; the failed run
+    # still stores the subjects, so the second attempt completes the tag.
+    - bun_tag="$BUN_IMAGE:$(sed -n 's/^ARG BUN_VERSION=//p' apps/server/Dockerfile)-alpine"
+    - |
+      if ! docker buildx imagetools inspect "$bun_tag" >/dev/null 2>&1; then
+        upstream="docker.io/oven/bun:${bun_tag##*:}"
+        docker buildx imagetools create --tag "$bun_tag" "$upstream" ||
+          docker buildx imagetools create --tag "$bun_tag" "$upstream"
+      fi
   script:
     - bash scripts/ci/docker-build.sh --push --registry "$CI_REGISTRY_IMAGE" --platforms "$PLATFORMS" $DOCKER_TAGS
-
-# Copies oven/bun:<Dockerfile BUN_VERSION>-alpine, every platform, into the
-# BUN_IMAGE mirror docker-build pulls from. It runs on the runner because
-# uploads through the registry's public edge fail with 413 on the
-# 47 MB Bun layer, and a laptop `docker push` mirrors one arch only, which is
-# how the 1.4.3 tag ended up arm64-only. Run it once per Bun bump, before
-# docker-build runs on main.
-mirror-bun:
-  stage: build
-  needs: []
-  image: docker:29-cli
-  services:
-    - docker:29-dind
-  variables:
-    DOCKER_HOST: tcp://docker:2376
-    DOCKER_TLS_CERTDIR: /certs
-    DOCKER_TLS_VERIFY: '1'
-    DOCKER_CERT_PATH: /certs/client
-  rules:
-    - when: manual
-      allow_failure: true
-  # imagetools copies the index's manifests in parallel, and the registry
-  # rejects (400) an attestation manifest whose subject has not landed yet.
-  # The failed run still stores the subjects, so one retry completes the tag.
-  retry:
-    max: 1
-    when: script_failure
-  before_script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-  script:
-    - version=$(sed -n 's/^ARG BUN_VERSION=//p' apps/server/Dockerfile)
-    - test -n "$version"
-    - docker buildx imagetools create --tag "$CI_REGISTRY_IMAGE/mirror/bun:$version-alpine" "docker.io/oven/bun:$version-alpine"
-    - docker buildx imagetools inspect "$CI_REGISTRY_IMAGE/mirror/bun:$version-alpine"
