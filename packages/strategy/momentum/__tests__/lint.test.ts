@@ -33,12 +33,25 @@ describe('lintMomentumConfig', () => {
     expect(codes(base({ trendFilter: { enabled: true, requireRising: true } }))).toEqual([]);
   });
 
+  it('flags the exhaustion trigger under a trend filter on its above side', () => {
+    const tf = (trendFilter: Record<string, unknown>) =>
+      codes(base({ entryTrigger: 'exhaustion', trendFilter }));
+    expect(tf({ enabled: true })).toEqual(['exhaustion-trend-filter-above']);
+    expect(tf({ enabled: true, side: 'below' })).toEqual([]);
+    expect(tf({ enabled: false })).toEqual([]);
+  });
+
   it.each([
     ['a non-breakout trigger', { entryTrigger: 'cross' }],
     ['the trend filter off', { trendFilter: { enabled: false } }],
     ['the trend filter on its below side', { trendFilter: { enabled: true, side: 'below' } }],
   ])('flags the below-trend layer as inert under %s', (_label, over) => {
     expect(codes(base({ ...working, ...over }))).toContain('below-trend-breakout-inert');
+  });
+
+  it('accepts the layer under the MA cluster trigger with the trend filter off', () => {
+    const c = base({ ...working, entryTrigger: 'maCluster', trendFilter: { enabled: false } });
+    expect(lintMomentumConfig(c)).toEqual([]);
   });
 
   it('flags the layer ATR multiple when the ATR trailing stop is off', () => {

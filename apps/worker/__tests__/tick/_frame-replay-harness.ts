@@ -79,7 +79,7 @@ export const makeFakeRedis = (tuple: FrameTuple): Redis => {
   store.set(buildOpenOrdersKey(accountId, symbol), tuple.raw.openOrders);
   store.set(buildKillSwitchKey(accountId, profileId), tuple.raw.killSwitch);
   store.set(buildDisableActionKey(accountId, profileId, symbol), tuple.raw.symbolDisable);
-  store.set(buildOrderRearmKey(profileId, symbol), tuple.raw.orderRearm);
+  store.set(buildOrderRearmKey(profileId, symbol), tuple.raw.orderRearm ?? null);
   store.set(buildOrderRefusalKey(accountId, profileId, symbol), tuple.raw.orderRefusal ?? null);
   store.set(
     buildWeightKey(accountId, profileId, minuteBucketOf(NOW_MS)),

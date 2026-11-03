@@ -55,7 +55,8 @@ export interface RawSnapshot {
   // pipeline instead of costing a separate deadline-wrapped GET after the
   // strategy runs. The only writer is the same tick handler, strictly later than
   // this read, so reading it here is equivalent to reading it post-strategy.
-  readonly orderRearm: string | null;
+  /** Undefined means this soft slot errored; the tick then cannot tell whether the flag is set, so it clears the key but stamps no `rearmed`. */
+  readonly orderRearm: string | null | undefined;
   /** Undefined means this soft slot errored; the circuit must fail open and skip mutation. */
   readonly orderRefusal: string | null | undefined;
   readonly indicatorsByInterval: Readonly<Record<string, string | null>>;
@@ -163,9 +164,10 @@ export const readRawSnapshot = async (redis: Redis, input: SnapshotInput): Promi
   // kill-switch slots beside it must never be guessed. An errored read of the
   // re-arm flag costs the audit flag, not the tick — the posture the standalone
   // deadline-wrapped read it replaced spelled out.
-  const orderRearm = ((): string | null => {
+  const orderRearm = ((): string | null | undefined => {
     const r = replies[cursor++];
-    return r && !r[0] && typeof r[1] === 'string' ? r[1] : null;
+    if (!r || r[0]) return undefined;
+    return typeof r[1] === 'string' ? r[1] : null;
   })();
   // This guard is operational safety, not a decision prerequisite. If only its
   // slot fails, send the order and leave both Redis and the durable condition

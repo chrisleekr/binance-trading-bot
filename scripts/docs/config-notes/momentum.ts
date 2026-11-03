@@ -21,7 +21,7 @@ export const momentumNotes: FieldNotes = {
   entryTrigger: {
     when: 'Switch to `trend` when discovery feeds the profile and the tick trace keeps saying `fall-back-then-cross-up`: discovery adds coins after they have crossed, so `cross` rarely gets a chance to buy them.',
     expect:
-      '`trend` enters more often and later in a move, so the trend filter and extension guard do more of the filtering. Expect more stop-outs per entry than `cross`; at most one entry per candle still applies. `breakout` ignores the EMA entry signal and buys a close above the recent range high (`breakoutLookback`); pair it with `atrTrailingStop` so a failed breakout is cut quickly. `impulse` buys right after a heavy-volume up candle (`impulse` block); keep it small: it has made money only in some regimes.',
+      '`trend` enters more often and later in a move, so the trend filter and extension guard do more of the filtering. Expect more stop-outs per entry than `cross`; at most one entry per candle still applies. `breakout` ignores the EMA entry signal and buys a close above the recent range high (`breakoutLookback`); pair it with `atrTrailingStop` so a failed breakout is cut quickly. `impulse` buys right after a heavy-volume up candle (`impulse` block); keep it small: it has made money only in some regimes. `maCluster` buys the close that clears the 20, 50, 100 and 200 candle averages once they have bunched together (`maCluster` block); turn the trend filter off with it, since a cluster break usually starts below the long trend line.',
   },
   breakoutLookback: {
     when: 'Only with `entryTrigger: breakout`. Lengthen it if entries keep firing on small ranges that immediately fall back; shorten it if the bot only buys after most of a move has happened.',
@@ -148,6 +148,49 @@ export const momentumNotes: FieldNotes = {
     expect:
       'In the research on nine coins, 3 and 4 made money in both six-month halves from October 2025; 2 lost in the earlier half.',
   },
+  'maCluster.maxSpread': {
+    when: 'Only with `entryTrigger: maCluster`. Widen it if the bot almost never fires; narrow it if it buys breaks in choppy, unsettled markets that fade.',
+  },
+  'maCluster.maxChoppiness': {
+    when: 'Only with `entryTrigger: maCluster`. Set it if the bot keeps buying breaks that fade within a day; lower it to skip more of them, clear it to buy every break.',
+    expect:
+      'In the 2025 to October 2026 1h research on the five majors, 50 skipped about a third of the breaks, cut the August to October 2026 losers from 25 to 16, and made more after 2.5x costs over 90 days, both six-month halves and the year; it made less over 18 months before costs.',
+  },
+  'maCluster.maxAtrPercentile': {
+    when: 'Only with `entryTrigger: maCluster`. Set it if breaks taken while the market is swinging hard keep failing; raise it to buy more of them, clear it to buy every break. The bot needs 495 closed candles before it can judge a break with this on.',
+    expect:
+      'In the 2025 to October 2026 1h research on the five majors with a choppiness ceiling of 50, 40% kept about three quarters of the breaks, cut the 60-day loss from 6.0% to 3.7% per symbol after 2.5x costs, and made more after 2.5x costs over 90 days, April to October 2026, the year and 18 months; it made slightly less in October 2025 to April 2026 and in the 2024 bull market. Lookbacks of 240, 480 and 960 candles with ceilings from 30% to 60% were all profitable in both six-month halves. It did not help on nine pre-chosen large caps.',
+  },
+  'maCluster.confirmBreak': {
+    when: 'Only with `entryTrigger: maCluster`. Turn it on if breaks keep falling straight back under the averages within the hour; the buy then comes one candle later, usually a little higher.',
+    expect:
+      'In the 2025 to October 2026 1h research on the five majors with a choppiness ceiling of 50, waiting one candle skipped about one break in eight and made more after 2.5x costs over 60 and 90 days, both six-month halves, the year, 18 months and the 2024 bull market. Waiting two or three candles made less. It did not help on nine pre-chosen large caps.',
+  },
+  'exhaustion.maxChoppiness': {
+    when: 'Only with `entryTrigger: exhaustion`. Lower it to buy only the steepest one-way slides; raise it to also buy choppier drops.',
+    expect:
+      'In the 2025 to October 2026 1h research, 35 instead of 30 roughly doubled the trades on the majors and turned the last 90 days and the year negative after 2.5x costs.',
+  },
+  'exhaustion.minBelowAverage': {
+    when: 'Only with `entryTrigger: exhaustion`. Raise it to wait for deeper drops; lower it to buy shallower ones.',
+    expect:
+      'In the 1h research 4% and 7% both stayed profitable after 2.5x costs over 90 days and from April 2026 on, on the majors and the large caps. Deeper means fewer trades.',
+  },
+  'exhaustion.maxRsi': {
+    when: 'Only with `entryTrigger: exhaustion`. Lower it to buy only the most oversold drops; raise it to buy more of them.',
+    expect:
+      'In the 1h research 20 traded about a third less often than 25 and stayed profitable; 30 traded more and made less, with the majors last 90 days no better than random entries.',
+  },
+  'obvLead.lookback': {
+    when: 'Only with `entryTrigger: obvLead`. Shorten it for more, weaker signals; lengthen it for fewer, stronger ones.',
+    expect:
+      'In the 2025 to October 2026 1h research, 120 and 240 both stayed profitable after 2.5x costs over 90 days and from April 2026 on, on the majors and the large caps.',
+  },
+  'obvLead.maxChoppiness': {
+    when: 'Only with `entryTrigger: obvLead`. Lower it to buy only in clearly directional markets.',
+    expect:
+      'In the 1h research, dropping the gate deepened the October 2025 to April 2026 loss on the majors and turned the year negative after 2.5x costs; 45 traded less and made less than 50.',
+  },
   'impulse.volumeLookback': {
     when: 'Only with `entryTrigger: impulse`. Change it only with the candle interval: it should span about a week of candles, so 168 on `1h` and 42 on `4h`.',
     expect:
@@ -164,7 +207,7 @@ export const momentumNotes: FieldNotes = {
       'Measured in ATRs of the candles before the surge, so it adapts to how volatile the coin normally is. 2 means the candle rose about two normal candles in one.',
   },
   'belowTrendBreakout.enabled': {
-    when: 'Turn it on when the market sits under its trend line for weeks and the `above` trend filter refuses every breakout, so the profile cannot trade at all. Needs `entryTrigger: breakout`, the trend filter on its `above` side, and `atrTrailingStop`.',
+    when: 'Turn it on when the market sits under its trend line for weeks and the `above` trend filter refuses every breakout, so the profile cannot trade at all. Needs `atrTrailingStop`, and either `entryTrigger: breakout` with the trend filter on its `above` side, or `entryTrigger: maCluster`, where it reads the `trendFilter` line even with the filter off.',
     expect:
       'Above the line nothing changes. Under it, a close above the shorter `belowTrendBreakout.lookback` range buys, and that position trails at `belowTrendBreakout.atrMultiple` instead of the main multiple. Expect more, smaller trades in a downtrend and more stop-outs; each uses the same entry size as a main breakout.',
   },
@@ -172,6 +215,11 @@ export const momentumNotes: FieldNotes = {
     when: 'Only with the layer on. Shorten it to catch rallies sooner; lengthen it if the layer keeps buying small bounces that fail at once.',
     expect:
       'Counted in candles of `candleInterval`, so 120 is 5 days on `1h`. Keep it well under `breakoutLookback`: rallies inside a downtrend rarely last long enough to clear the main range.',
+  },
+  'belowTrendBreakout.maxChoppiness': {
+    when: 'Only with the layer on. Set it if layer entries keep fading within a day of the break; clear it to buy every below-trend break.',
+    expect:
+      "A break is bought only while the 14-candle Choppiness Index is below it. In the 2025 to October 2026 1h research, 50 raised the below-trend breakout's year after 2.5x costs on the five majors and on nine pre-chosen large caps, and beside the MA cluster rule it added about 1% a year per symbol over no ceiling.",
   },
   'belowTrendBreakout.atrMultiple': {
     when: 'Only with the layer on. Keep it tighter than `atrTrailingStop.multiple`, because a rally under the trend line usually fails quickly.',

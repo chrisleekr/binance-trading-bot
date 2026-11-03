@@ -29,6 +29,7 @@ import {
   type MomentumConfig,
   type MomentumState,
 } from '../src/index.js';
+import { choppiness } from '../src/ma-cluster.js';
 import { computeEntryQuantity, computeExitQuantity, entryStopFloor } from '../src/quantity.js';
 import {
   closingSellDecisions,
@@ -513,6 +514,19 @@ describe('momentum.tick — entry', () => {
     expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'trend' })).success).toBe(true);
     expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'breakout' })).success).toBe(true);
     expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'impulse' })).success).toBe(true);
+    expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'maCluster' })).success).toBe(true);
+    expect(
+      MomentumConfigSchema.safeParse({ ...cfg(), maCluster: { maxSpread: '1' } }).success,
+    ).toBe(false);
+    expect(
+      MomentumConfigSchema.safeParse({ ...cfg(), maCluster: { maxChoppiness: '101' } }).success,
+    ).toBe(false);
+    expect(
+      MomentumConfigSchema.safeParse({ ...cfg(), maCluster: { maxChoppiness: '50' } }).success,
+    ).toBe(true);
+    expect(
+      MomentumConfigSchema.safeParse({ ...cfg(), maCluster: { confirmBreak: 'yes' } }).success,
+    ).toBe(false);
     expect(
       MomentumConfigSchema.safeParse({ ...cfg(), impulse: { volumeMultiple: '0' } }).success,
     ).toBe(false);
@@ -595,6 +609,213 @@ describe('momentum.tick — entry', () => {
       bodyAtr: null,
       waitingFor: 'impulse-history',
     });
+  });
+
+  // 400 flat candles at 100, then 20 that fall 1 each except every fourth, which bounces 0.4: CHOP 10.5, RSI 13.4, close 12.7% under the 400-candle average, so every leg clears its default.
+  const exhaustionCandles = (): Candle[] => {
+    const out = mkCandles(Array.from({ length: 400 }, () => '100')).map((c) => ({
+      ...c,
+      high: '100.5',
+      low: '99.5',
+    }));
+    let prev = 100;
+    for (let k = 0; k < 20; k++) {
+      const next = k % 4 === 3 ? prev + 0.4 : prev - 1;
+      out.push({
+        openTimeMs: (400 + k) * 3_600_000,
+        closeTimeMs: (401 + k) * 3_600_000,
+        open: String(prev),
+        high: String(Math.max(prev, next)),
+        low: String(Math.min(prev, next)),
+        close: String(next),
+        volume: '1',
+        isClosed: true,
+      });
+      prev = next;
+    }
+    return out;
+  };
+
+  it('enters under entryTrigger exhaustion on a one-way oversold slide under the long average', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: exhaustionCandles(),
+        currentPrice: '86',
+        state: flat(),
+        config: cfg({ entryTrigger: 'exhaustion' }),
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+    expect(out.nextState.lastEntryCandleMs).toBe(420 * 3_600_000);
+    expect(out.logs[0]?.message).toBe('momentum: entry on exhausted sell-off');
+  });
+
+  it('holds under entryTrigger exhaustion and reports each leg of the reading', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: exhaustionCandles(),
+        currentPrice: '86',
+        state: flat(),
+        config: cfg({ entryTrigger: 'exhaustion', exhaustion: { maxRsi: '10' } }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.message).toBe('momentum: flat, no exhaustion');
+    expect(out.logs[0]?.context).toMatchObject({
+      choppiness: '10.5',
+      belowAveragePercent: '12.68',
+      rsi: '13.4',
+      trendGate: 'pass',
+      waitingFor: 'one-way-oversold-slide',
+    });
+  });
+
+  it('reports exhaustion-history while the window is shorter than the trigger reads', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: exhaustionCandles().slice(-400),
+        currentPrice: '86',
+        state: flat(),
+        config: cfg({ entryTrigger: 'exhaustion' }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      choppiness: null,
+      belowAveragePercent: null,
+      rsi: null,
+      waitingFor: 'exhaustion-history',
+    });
+  });
+
+  // The trigger buys under the trend line, so an enabled above-side filter must still refuse it: the probation profile runs with the filter off.
+  it('lets the trend filter veto an exhaustion entry', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: exhaustionCandles(),
+        currentPrice: '86',
+        state: flat(),
+        config: cfg({
+          entryTrigger: 'exhaustion',
+          trendFilter: { enabled: true, period: 400, side: 'above' },
+        }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.metrics).toEqual([
+      { name: 'momentum.skip', value: 1, tags: { side: 'entry', reason: 'below-trend' } },
+    ]);
+  });
+
+  it('accepts entryTrigger exhaustion and rejects an exhaustion leaf out of range', () => {
+    expect(MomentumConfigSchema.safeParse(cfg({ entryTrigger: 'exhaustion' })).success).toBe(true);
+    for (const bad of [{ maxRsi: '0' }, { maxChoppiness: '101' }, { minBelowAverage: '1' }])
+      expect(MomentumConfigSchema.safeParse({ ...cfg(), exhaustion: bad }).success).toBe(false);
+  });
+
+  // Five up candles to 110 on volume 1, a 14-candle slide on volume 0.1, then one up candle to 97 on volume 10: OBV 13.6 beats its prior 5 while the close sits under 110, in a one-way market.
+  const obvLeadCandles = (): Candle[] => {
+    const closes = [
+      100,
+      102,
+      104,
+      106,
+      108,
+      110,
+      ...Array.from({ length: 14 }, (_, k) => 109 - k),
+      97,
+    ];
+    const vols = [1, 1, 1, 1, 1, 1, ...Array.from({ length: 14 }, () => 0.1), 10];
+    return closes.map((c, i) => {
+      const p = closes[i - 1] ?? c;
+      return {
+        openTimeMs: i * 3_600_000,
+        closeTimeMs: (i + 1) * 3_600_000,
+        open: String(p),
+        high: String(Math.max(p, c)),
+        low: String(Math.min(p, c)),
+        close: String(c),
+        volume: String(vols[i]),
+        isClosed: true,
+      };
+    });
+  };
+  const obvCfg = (over: Record<string, unknown> = {}) =>
+    cfg({ entryTrigger: 'obvLead', obvLead: { lookback: 20, ...over } });
+
+  it('enters under entryTrigger obvLead when OBV leads price to a new high', () => {
+    const out = momentum.tick(
+      mkInput({ closes: obvLeadCandles(), currentPrice: '97', state: flat(), config: obvCfg() }),
+    );
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+    expect(out.logs[0]?.message).toBe('momentum: entry on OBV leading price');
+  });
+
+  it('holds under entryTrigger obvLead and names the first leg short of firing', () => {
+    const at = (candles: Candle[], over: Record<string, unknown> = {}) =>
+      momentum.tick(
+        mkInput({ closes: candles, currentPrice: '97', state: flat(), config: obvCfg(over) }),
+      );
+    const weak = obvLeadCandles().map((c, i) => (i === 20 ? { ...c, volume: '1' } : c));
+    const broke = obvLeadCandles().map((c, i) =>
+      i === 20 ? { ...c, close: '111', high: '111' } : c,
+    );
+    const chop = at(obvLeadCandles(), { maxChoppiness: '1' });
+    expect(at(weak).decisions).toEqual([{ type: 'noop' }]);
+    expect(at(weak).logs[0]?.message).toBe('momentum: flat, no OBV lead');
+    expect(at(weak).logs[0]?.context).toMatchObject({
+      obvNewHigh: false,
+      waitingFor: 'obv-new-high',
+    });
+    expect(at(broke).logs[0]?.context).toMatchObject({
+      obvNewHigh: true,
+      waitingFor: 'price-already-at-high',
+    });
+    expect(chop.logs[0]?.context).toMatchObject({
+      obvNewHigh: true,
+      priceToHighPercent: '13.40',
+      trendGate: 'pass',
+      waitingFor: 'less-choppy-market',
+    });
+  });
+
+  it('reports obv-lead-history while the window is shorter than the trigger reads', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: obvLeadCandles().slice(1),
+        currentPrice: '97',
+        state: flat(),
+        config: obvCfg(),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      obvNewHigh: null,
+      priceToHighPercent: null,
+      choppiness: null,
+      waitingFor: 'obv-lead-history',
+    });
+  });
+
+  it('accepts entryTrigger obvLead and rejects an obvLead leaf out of range', () => {
+    expect(MomentumConfigSchema.safeParse(obvCfg()).success).toBe(true);
+    expect(MomentumConfigSchema.parse(cfg({ obvLead: {} })).obvLead).toEqual({
+      lookback: 168,
+      maxChoppiness: '50',
+    });
+    for (const bad of [
+      { lookback: 13 },
+      { lookback: 1.5 },
+      { maxChoppiness: '0' },
+      { maxChoppiness: '101' },
+    ])
+      expect(MomentumConfigSchema.safeParse({ ...cfg(), obvLead: bad }).success).toBe(false);
   });
 
   // CROSS_UP closes 12, 10, 8, 14 score below 1 over 3 returns, so a sibling published at 5 on the same candle outranks it.
@@ -698,6 +919,193 @@ describe('momentum.tick — entry', () => {
     expect(momentum.needsProfileKvFor?.(rsCfg())).toBe(true);
     expect(momentum.needsProfileKvFor?.(cfg())).toBe(false);
     expect(momentum.capabilities.needsProfileKv).toBeUndefined();
+  });
+
+  // 200 flat closes at 10 bunch every average at 10; the judged 10.05 crosses the top (the 20-candle average, 10.0025).
+  const clusterCandles = (tail: readonly string[]): Candle[] =>
+    mkCandles([...Array.from({ length: 201 - tail.length }, () => '10'), ...tail]);
+  const clusterCfg = cfg({ entryTrigger: 'maCluster' });
+
+  it('enters under entryTrigger maCluster on the close that breaks above the bunched averages', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: clusterCandles(['10.05']),
+        currentPrice: '10.05',
+        state: flat(),
+        config: clusterCfg,
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+    expect(out.logs[0]?.message).toBe('momentum: entry on break above bunched averages');
+  });
+
+  it('holds under entryTrigger maCluster and reports the cluster top, spread and rise needed', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: clusterCandles(['10.05', '10.06']),
+        currentPrice: '10.06',
+        state: flat(),
+        config: clusterCfg,
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.message).toBe('momentum: flat, no MA cluster break');
+    expect(out.logs[0]?.context).toMatchObject({
+      clusterTop: '10.0055',
+      clusterSpreadPercent: '0.05',
+      riseToClusterTopPercent: '-0.54',
+      choppiness: '0.0',
+      trendGate: 'pass',
+      waitingFor: 'fall-back-then-close-above-cluster',
+    });
+  });
+
+  // 200 flat closes at 10 and the break to 10.05; under confirmBreak the buy waits for the candle after it.
+  const confirmCfg = cfg({ entryTrigger: 'maCluster', maCluster: { confirmBreak: true } });
+  const confirmCandles = (tail: readonly string[]): Candle[] =>
+    mkCandles([...Array.from({ length: 200 }, () => '10'), '10.05', ...tail]);
+
+  it('holds the break candle under confirmBreak and names the wait', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles([...Array.from({ length: 201 }, () => '10'), '10.05']),
+        currentPrice: '10.05',
+        state: flat(),
+        config: confirmCfg,
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({ waitingFor: 'next-close-above-cluster' });
+  });
+
+  it('enters under confirmBreak when the candle after the break also closes above the top', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: confirmCandles(['10.06']),
+        currentPrice: '10.06',
+        state: flat(),
+        config: confirmCfg,
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+  });
+
+  it('skips a break under confirmBreak when the next close falls back into the cluster', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: confirmCandles(['10']),
+        currentPrice: '10',
+        state: flat(),
+        config: confirmCfg,
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({ waitingFor: 'close-above-bunched-averages' });
+  });
+
+  it('waits for a close above the cluster while the averages are bunched and price is under the top', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: clusterCandles(['9.99']),
+        currentPrice: '9.99',
+        state: flat(),
+        config: clusterCfg,
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({ waitingFor: 'close-above-bunched-averages' });
+  });
+
+  // 100 closes at 10 then 101 at 11 put the 20-candle average at 11 and the 200-candle one near 10.5: about 4.5% apart, wider than the 1% limit, even though the last close sits above the top.
+  it('waits for the averages to bunch while they are spread wider than maxSpread', () => {
+    const wide = mkCandles([
+      ...Array.from({ length: 100 }, () => '10'),
+      ...Array.from({ length: 100 }, () => '11'),
+      '11.2',
+    ]);
+    const out = momentum.tick(
+      mkInput({ closes: wide, currentPrice: '11.2', state: flat(), config: clusterCfg }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({ waitingFor: 'averages-to-bunch' });
+  });
+
+  // A 9.99/10.01 swing before the break keeps the averages bunched but reads 62.2 on the Choppiness Index, above the 50 ceiling.
+  it('holds a choppy MA cluster break under maxChoppiness and names the gate', () => {
+    const zigzag = [...Array.from({ length: 13 }, (_, k) => (k % 2 ? '10.01' : '9.99')), '10.05'];
+    const out = momentum.tick(
+      mkInput({
+        closes: clusterCandles(zigzag),
+        currentPrice: '10.05',
+        state: flat(),
+        config: cfg({
+          entryTrigger: 'maCluster',
+          maCluster: { maxSpread: '0.01', maxChoppiness: '50' },
+        }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      choppiness: '62.2',
+      waitingFor: 'less-choppy-market',
+    });
+  });
+
+  // Closes flat at 10 with a 0.02 swing every hour, then a break to 10.05 whose 0.05 true range lifts the ATR above all 480 before it.
+  it('holds a volatile MA cluster break under maxAtrPercentile and names the gate', () => {
+    const calm = [
+      ...mkCandles(Array.from({ length: 494 }, () => '10')).map((c) => ({
+        ...c,
+        high: '10.01',
+        low: '9.99',
+      })),
+      ...mkCandles(['10.05']).map((c) => ({
+        ...c,
+        openTimeMs: 494 * 3_600_000,
+        closeTimeMs: 495 * 3_600_000,
+      })),
+    ];
+    const out = momentum.tick(
+      mkInput({
+        closes: calm,
+        currentPrice: '10.05',
+        state: flat(),
+        config: cfg({
+          entryTrigger: 'maCluster',
+          maCluster: { maxSpread: '0.01', maxAtrPercentile: '0.4' },
+        }),
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      atrPercentile: '1.00',
+      waitingFor: 'calmer-market',
+    });
+  });
+
+  it('reports ma-cluster-history while the window is shorter than the trigger reads', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: clusterCandles(['10.05']).slice(-200),
+        currentPrice: '10.05',
+        state: flat(),
+        config: clusterCfg,
+      }),
+    );
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      clusterTop: null,
+      clusterSpreadPercent: null,
+      riseToClusterTopPercent: null,
+      choppiness: null,
+      waitingFor: 'ma-cluster-history',
+    });
   });
 
   // The trend filter still gates an impulse entry; this pins that the trigger does not bypass it.
@@ -4427,6 +4835,25 @@ describe('momentum.tick — below-trend breakout layer', () => {
     expect(out.logs[0]?.message).toBe('momentum: entry on breakout below the trend line');
   });
 
+  // The choppiness gate needs more than 14 candles, so the downtrend is padded on the left with the 20s the primary range already sees.
+  it('refuses the short breakout at or above maxChoppiness and enters below it', () => {
+    const closes = mkCandles([...Array.from({ length: 17 }, () => '20'), '10', '11', '12']);
+    const chop = choppiness(closes).toDecimalPlaces(4, Decimal.ROUND_FLOOR);
+    const tickWith = (maxChoppiness: string) =>
+      momentum.tick(
+        mkInput({
+          closes,
+          currentPrice: '12',
+          state: flat(),
+          config: layerCfg({
+            belowTrendBreakout: { enabled: true, lookback: 2, atrMultiple: '2', maxChoppiness },
+          }),
+        }),
+      );
+    expect(tickWith(chop.toFixed()).decisions).toEqual([{ type: 'noop' }]);
+    expect(tickWith(chop.plus('0.0001').toFixed()).nextState.entryLayer).toBe('below-trend');
+  });
+
   it('stays a below-trend refusal when the layer is off', () => {
     const out = momentum.tick(
       mkInput({
@@ -4589,11 +5016,79 @@ describe('momentum.tick — below-trend breakout layer', () => {
     ).toBeNull();
   });
 
-  it('defaults the block to off with a 120-candle range and a 2x stop', () => {
+  describe('under the MA cluster trigger', () => {
+    // 198 closes at 20 then 10, 11, 12: the averages are far apart, so the cluster cannot fire; sma(6) = 15.5 sits over 12 and the 2-bar range before the last candle tops at 11. Choppiness(14) of this tail is about 6.9.
+    const FALLING = mkCandles([...Array.from({ length: 198 }, () => '20'), '10', '11', '12']);
+    const macLayer = (over: Record<string, unknown> = {}) =>
+      cfg({
+        entryTrigger: 'maCluster',
+        trendFilter: { enabled: false, period: 6 },
+        atrTrailingStop: { enabled: true, period: 3, multiple: '4' },
+        belowTrendBreakout: { enabled: true, lookback: 2, atrMultiple: '2' },
+        ...over,
+      });
+    const tickOn = (closes: Candle[], price: string, config: MomentumConfig) =>
+      momentum.tick(mkInput({ closes, currentPrice: price, state: flat(), config }));
+
+    it("buys a short breakout under the trend filter's line with the filter off", () => {
+      const out = tickOn(FALLING, '12', macLayer());
+      expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { side: 'BUY' } });
+      expect(out.nextState.entryLayer).toBe('below-trend');
+    });
+
+    it('does not buy above the line', () => {
+      // sma(3) of 10, 11, 12 is 11, under price 12.
+      const out = tickOn(FALLING, '12', macLayer({ trendFilter: { enabled: false, period: 3 } }));
+      expect(out.decisions).toEqual([{ type: 'noop' }]);
+    });
+
+    it('does not buy while the trend line is longer than the window', () => {
+      const out = tickOn(FALLING, '12', macLayer({ trendFilter: { enabled: false, period: 400 } }));
+      expect(out.decisions).toEqual([{ type: 'noop' }]);
+    });
+
+    it('refuses the break at or above maxChoppiness and buys below it', () => {
+      const layer = (maxChoppiness: string) => ({
+        belowTrendBreakout: { enabled: true, lookback: 2, atrMultiple: '2', maxChoppiness },
+      });
+      expect(tickOn(FALLING, '12', macLayer(layer('6'))).decisions).toEqual([{ type: 'noop' }]);
+      expect(tickOn(FALLING, '12', macLayer(layer('50'))).nextState.entryLayer).toBe('below-trend');
+    });
+
+    it('names the below-trend level in the flat cluster trace', () => {
+      const closes = mkCandles([...Array.from({ length: 198 }, () => '20'), '10', '11', '11']);
+      const out = tickOn(closes, '11', macLayer());
+      expect(out.decisions).toEqual([{ type: 'noop' }]);
+      expect(out.logs[0]?.message).toBe('momentum: flat, no MA cluster break');
+      expect(out.logs[0]?.context).toMatchObject({
+        belowTrendBreakoutLevel: '11',
+        riseToBelowTrendBreakoutPercent: '0.00',
+      });
+    });
+
+    it('lets the cluster break win when both rules fire on one candle', () => {
+      // 50 closes at 30 lift sma(250) to about 13.98, over 10.05, while the last 201 closes are the bunched cluster that 10.05 breaks.
+      const closes = mkCandles([
+        ...Array.from({ length: 50 }, () => '30'),
+        ...Array.from({ length: 200 }, () => '10'),
+        '10.05',
+      ]);
+      const out = tickOn(
+        closes,
+        '10.05',
+        macLayer({ trendFilter: { enabled: false, period: 250 } }),
+      );
+      expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { side: 'BUY' } });
+      expect(out.nextState.entryLayer).toBeNull();
+    });
+  });
+
+  it('defaults the block to off with a 120-candle range, a 2x stop and no choppiness gate', () => {
     expect(cfg({ belowTrendBreakout: {} }).belowTrendBreakout).toEqual({
       enabled: false,
       lookback: 120,
       atrMultiple: '2',
+      maxChoppiness: '',
     });
     expect(MomentumStateSchema.parse({ ...flat(), entryLayer: undefined }).entryLayer).toBeNull();
   });

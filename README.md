@@ -44,6 +44,10 @@ Configure a strategy per profile, then replay it against historical candles befo
 
 More screens are covered in the [user guide](https://chrisleekr.github.io/binance-trading-bot/user-guide/).
 
+### Ask an AI agent
+
+Optionally, connect an AI agent such as Claude Code over [MCP](https://modelcontextprotocol.io). Once you approve it, it can read your accounts, profiles, orders and backtests, and place orders and change settings through the same checks as the web app. It is off by default. See [AI agents (MCP)](https://chrisleekr.github.io/binance-trading-bot/operations/ai-agents/).
+
 ## Configuration
 
 Per-profile configuration (grid, indicators, notifier providers, Technicals gates) lives in the database and is editable through the SPA after first run. See [configure a profile](https://chrisleekr.github.io/binance-trading-bot/get-started/configure/).
@@ -86,7 +90,7 @@ The full guide is at **<https://chrisleekr.github.io/binance-trading-bot>**, spl
 | [**Get started**](https://chrisleekr.github.io/binance-trading-bot/get-started/) | Install, configure a profile, go live |
 | [**User guide**](https://chrisleekr.github.io/binance-trading-bot/user-guide/) | Dashboard, symbol workspace, profile and account settings |
 | [**Concepts**](https://chrisleekr.github.io/binance-trading-bot/concepts/) | Strategies, discovery, technicals, backtesting, notifiers, written for non-experts |
-| [**Operations**](https://chrisleekr.github.io/binance-trading-bot/operations/) | Deploy, kill switch, environment variables, troubleshooting |
+| [**Operations**](https://chrisleekr.github.io/binance-trading-bot/operations/) | Deploy, kill switch, AI agents (MCP), environment variables, troubleshooting |
 | [**Contributing**](https://chrisleekr.github.io/binance-trading-bot/contributing/) | Architecture, plugin contracts, CI gates, coding rules, testing |
 
 Build the site locally:

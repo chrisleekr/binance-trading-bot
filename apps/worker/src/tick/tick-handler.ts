@@ -484,7 +484,7 @@ export const createTickHandler = (
         // round-trip here: this flag is audit attribution, never a decision input, and
         // the only writer is this same handler strictly further down, so the earlier
         // read observes the identical value.
-        const wasRearmed = raw.orderRearm !== null;
+        const wasRearmed = typeof raw.orderRearm === 'string';
 
         // Hand the executor the ownership proof this tick already resolved, plus
         // the config scalars it already read, so the bindings build reuses both
@@ -817,9 +817,8 @@ export const createTickHandler = (
           );
         } else {
           writtenConditions = await commit(output.nextState, persistTimeoutMs);
-          // Every order decision this tick landed: the retry sequence, if there was
-          // one, is over.
-          if (failure === undefined) {
+          // Every order decision this tick landed: the retry sequence, if there was one, is over. Skip the DEL only when the read succeeded and found the flag unset (this handler is its only writer, so the DEL would be a no-op round trip that turned Redis latency into warns on every ordinary tick); an errored read cannot tell, so it still clears.
+          if (failure === undefined && raw.orderRearm !== null) {
             await raceDeadline(
               () => deps.redis.del(rearmKey),
               REARM_TIMEOUT_MS,

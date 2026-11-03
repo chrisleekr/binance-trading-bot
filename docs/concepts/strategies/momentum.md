@@ -4,65 +4,225 @@
 
 _The Momentum configuration form, as the profile's Strategy section renders it. Every field is documented in the table below. Seeded demo data, not a real account._
 
-Momentum buys a coin that is already moving up and rides it until the move ends. It enters on a confirmed upward **EMA crossover** (or, with `entryTrigger: trend`, on any closed candle while the fast EMA is above the slow one; or, with `entryTrigger: breakout`, on a close above the recent range high; or, with `entryTrigger: impulse`, right after a heavy-volume up candle) and exits only through a stop — there is no upside price target. It trades less often than Trailing Trade and can sit in cash for long stretches waiting for a clean move.
+Momentum buys when a chosen **entry trigger** fires and holds until a **stop** sells it. There is no profit target. It trades less often than Trailing Trade and can sit in cash for long stretches.
 
-This page is the canonical reference for the strategy — what it does, how each tick decides, every configuration knob, worked examples, the state it keeps, and its internals. It serves both an operator configuring a profile and a contributor reading the code (`packages/strategy/momentum/`).
+Terms used on this page:
 
-## In one sentence
+- **Candle**: the open, high, low and close price over one `candleInterval`, such as one hour.
+- **EMA / SMA**: exponential and simple moving averages, a smoothed price line over N candles.
+- **ATR** (average true range): the typical size of one candle, a measure of volatility.
+- **RSI** (relative strength index, 0 to 100): under 30 is commonly read as oversold.
+- **Choppiness Index** (0 to 100): compares the summed candle ranges with the net high-to-low range. Near 100 means price kept reversing inside a band; low means it travelled one way.
+- **Stop**: a sell rule that fires when price falls to a set level. A **trailing stop** moves that level up as price rises.
 
-When a fast moving average crosses above a slow one (or, with `entryTrigger: trend`, while it sits above it; or, with `entryTrigger: breakout`, when a candle closes above the highest price of the recent range; or, with `entryTrigger: impulse`, when a candle rises hard on very heavy volume) it buys, at most once per candle; it then follows the price up with a trailing stop and sells when the price falls back through that stop or the fast average crosses back below the slow one.
+This page is the reference for operators and contributors. Source: `packages/strategy/momentum/`.
 
 ## How a tick decides
 
-The bot ticks a coin whenever a new price update arrives, but Momentum only acts on **closed candles** — a still-forming candle would make the crossover flip around. It compares the fast and slow EMAs on the latest closed candle against the one before.
+Momentum reads its entry signals from **closed candles**, because a still-forming candle would make signals flip. The trailing stop, trend filter and extension guard compare the live price.
 
 ```mermaid
 flowchart TD
-    Start["New closed candle"]:::io
-    Warm{"Enough history<br/>for the slow EMA?"}:::gate
-    Held{"Currently holding?"}:::gate
-
-    CrossUp{"Entry signal:<br/>fast crossed above slow EMA, or<br/>fast above slow under trend,<br/>by the margin?"}:::gate
-    Gates["Entry gates:<br/>one entry per candle,<br/>trend filter, extension guard"]:::core
-    Buy["Place a buy order"]:::act
-
-    Exit{"Trail hit, cross-down,<br/>or force-sell?"}:::gate
-    Sell["Sell out of the position,<br/>retiring the resting stop<br/>in the same request"]:::act
-    Ratchet["Raise both high-water marks,<br/>re-arm the protective stop"]:::io
-
-    Wait["Do nothing this tick<br/>record why"]:::wait
+    Start["Tick"]:::io
+    Warm{"Enough candles<br/>for the slow EMA?"}:::gate
+    Held{"Holding<br/>this coin?"}:::gate
+    Trigger{"Entry trigger<br/>fires?"}:::gate
+    Gates{"Entry gates<br/>pass?"}:::gate
+    Buy["Buy"]:::act
+    Exit{"Exit<br/>fires?"}:::gate
+    Sell["Sell, retiring the resting<br/>stop in the same request"]:::act
+    Ratchet["Raise the high-water marks,<br/>re-arm the protective stop"]:::io
+    Wait["Do nothing,<br/>record why"]:::wait
     Save["Save state"]:::io
 
     Start --> Warm
     Warm -->|no| Wait
     Warm -->|yes| Held
-    Held -->|no| CrossUp
-    CrossUp -->|yes| Gates
+    Held -->|no| Trigger
+    Trigger -->|no| Wait
+    Trigger -->|yes| Gates
     Gates -->|pass| Buy --> Save
     Gates -->|blocked| Wait --> Save
-    CrossUp -->|no| Wait
     Held -->|yes| Exit
     Exit -->|yes| Sell --> Save
     Exit -->|no| Ratchet --> Save
 
     classDef io fill:#2c3e50,color:#ffffff;
-    classDef core fill:#1f6f43,color:#ffffff;
     classDef gate fill:#f0ad4e,color:#2c3e50;
     classDef act fill:#1f6f43,color:#ffffff;
     classDef wait fill:#ecf0f1,color:#2c3e50;
 ```
 
-Entry is deliberately slow and exit is deliberately quick: the entry cross must clear an optional margin (`entryMarginPct`), while the exit cross-down is a bare cross with no margin — quick to leave, slow to enter.
+Until `ema.slow + 1` candles have closed, nothing runs, exits included, and a manual sell waits. The [entry triggers](#entry-triggers), [entry gates](#entry-gates) and [exits](#exit) are each explained below. When it waits, the [raw tick trace](../../user-guide/profile/history.md#raw-tick-trace) on the profile's **History** page says why in `waitingFor`, or names the gate that refused.
 
-## Entry and exit, in detail
+## Entry triggers
 
-**Entry.** With `entryTrigger: cross` (the default), a buy fires when the fast EMA was at or below the slow EMA on the previous closed candle and is now above it by `entryMarginPct` (default: bare cross). With `entryTrigger: trend`, a buy fires on any closed candle where the fast EMA is above the slow EMA by `entryMarginPct`, crossed or not. Use `trend` with discovery: discovery admits coins that are already trending, which have crossed before they were added, so under `cross` they wait for a dip and a fresh cross that may not come before discovery drops them. With `entryTrigger: breakout`, a buy fires when a candle closes above the highest high of the `breakoutLookback` candles before it (default 400). A close equal to that high is not a breakout. The EMAs then only drive the cross-down exit, and `entryMarginPct` is not applied. Until the window holds the full range the bot does not buy, and the tick trace says `breakout-history`. With `entryTrigger: impulse`, a buy fires when a closed candle traded more than `impulse.volumeMultiple` times (default 3) the average volume of the `impulse.volumeLookback` candles before it (default 168, one week of 1h candles) AND rose from open to close by more than `impulse.riseAtrMultiple` (default 2) ATRs of the candles before it (ATR, average true range, is the typical size of one candle; the period is fixed at 14). It bets that a surge of new buying continues, and the EMAs then only drive the cross-down exit. The tick trace logs `volumeRatio` and `bodyAtr` for the last candle, so you can see how close it came, and says `impulse-history` until the window is long enough. In the 2025 to October 2026 1h research this entry with a 3x ATR trailing stop and no trend filter made money over the last 90 days and from April 2026 on, on both the majors and nine pre-chosen large caps, but lost on the majors from October 2025 to April 2026, so run it small, on its own profile. At most one entry per candle, so a stop-out inside the same candle cannot immediately re-buy. Optional gates can veto the entry: the **trend filter** (only enter while price is above a long-term moving average, or, with `trendFilter.side: below`, only while it is under it, for a profile that trades rallies inside a downtrend; that refusal is logged as `above-trend`) the **extension guard** (skip when price is stretched too far above its baseline), and the **relative-strength gate** (`relativeStrength`, off by default: on a profile trading many coins, buy a coin only while it ranks in the top `topK` of the profile's coins by return per unit of volatility over the last `lookbackBars` candles, logged as `relative-strength`; each coin publishes its score to the profile's shared store once per closed candle, and a coin with no score from the current or previous candle does not count). The relative-strength gate runs last, so a refusal by the trend filter or extension guard reports itself first. Exits are never gated. An opening buy is also refused with `entry-below-stop-notional` when, after the 0.1% trading fee and Binance's lot-size rounding, the coins bought would be worth less at the initial protective stop's stop-limit price than the minimum order size, the smallest order value Binance accepts. In `native-trail` mode the check is made at the stop's trigger instead, because a trail carries no limit price to be measured against — the same distinction the arm makes, so a marginal entry is not refused for an offset the resting order does not apply. Raise the entry budget or tighten the stop (move it closer to the entry price, so the coins are worth more when it fires); add-on buys into an existing position are not held to this floor.
+`entryTrigger` picks what opens a position. Every trigger sells the same way (see [Exit](#exit)).
 
-**Below-trend breakout layer.** With the trend filter on its `above` side, a market that stays under its trend line refuses every breakout, so the profile cannot trade until the market recovers. `belowTrendBreakout` (off by default) adds a second entry for that case, under `entryTrigger: breakout` only: while price is under the trend line, a candle that closes above the highest high of the previous `belowTrendBreakout.lookback` candles (default 120) buys, with the same entry size as a main breakout. The position records which rule opened it, and its trailing stop uses `belowTrendBreakout.atrMultiple` (default 2) instead of `atrTrailingStop.multiple`, because a rally inside a downtrend usually fails fast. Above the line only the main breakout buys, so turning the layer on changes nothing in an uptrend. The flat tick trace shows `belowTrendBreakoutLevel` next to `breakoutLevel` while the layer is on.
+| Trigger | Buys when | Bets that | Suited to |
+| --- | --- | --- | --- |
+| `cross` (default) | The fast EMA crosses above the slow EMA. | A new uptrend has started. | The default. |
+| `trend` | Any candle closes while the fast EMA is above the slow EMA. | An uptrend already under way continues. | Coins added by [discovery](../discovery.md). |
+| `breakout` | A candle closes above the recent range high. | Price leaving its range keeps going. | Pairing with the trend filter and the below-trend layer. |
+| `impulse` | A candle rises hard on very heavy volume. | A surge of buying continues. | A small, separate profile. |
+| `maCluster` | A candle closes above four moving averages that have bunched together. | A long sideways range breaks upward. | The five majors. |
+| `exhaustion` | A one-way sell-off runs far below the long average with RSI oversold. | Sellers have run out and price bounces. | A small, separate profile with a tight trail. |
+| `obvLead` | Buying volume reaches a new high while price is still under its own high. | Price follows the volume. | A small, separate profile. |
 
-**Reading a flat breakout trace.** Each flat `momentum: flat, no breakout` line carries `riseToBreakoutPercent`, how far the last closed candle must rise to clear `breakoutLevel` (`20.00` means +20%), and `trendGate`, the trend filter's answer at that tick: `pass`, `below-trend` (price under the line, so the main breakout would be refused even if it fired), `above-trend`, `falling-trend`, or `insufficient-history`. With the below-trend layer on, `riseToBelowTrendBreakoutPercent` gives the same distance for `belowTrendBreakoutLevel`. Together they say which rule is closest to buying and what stands in its way, without recomputing the levels from candles.
+The research notes below each trigger come from 1h backtests, mostly 2025 to October 2026, with 2024 and 18-month windows as extra checks. They are not a promise of future results.
 
-**Exit.** Every exit is a stop — there is **no take-profit target**. A held position is sold when any of these fires:
+### `cross` and `trend`
+
+- **`cross`** buys when the fast EMA was at or below the slow EMA on the previous closed candle and is now above it by `entryMarginPct` (default: a bare cross).
+- **`trend`** buys on any closed candle where the fast EMA is above the slow EMA by `entryMarginPct`, crossed or not.
+- Use `trend` with discovery. Discovery adds coins that are already trending, so under `cross` they wait for a dip and a fresh cross that may not come before discovery drops them.
+- Entry is slow and exit is quick: the entry needs the margin, but the exit cross-down is a bare cross.
+- `waitingFor`: `cross-up`, or `fall-back-then-cross-up` when the fast EMA is already above.
+
+### `breakout`
+
+- Buys when a candle closes above the highest high of the previous `breakoutLookback` candles (default 400). A close equal to that high does not count.
+- `entryMarginPct` is not applied. The EMAs only drive the cross-down exit.
+- `waitingFor`: `breakout-history` until the window holds the full range, then `close-above-breakout-level`.
+
+Each flat trace line also says how close the next buy is:
+
+| Field | Meaning |
+| --- | --- |
+| `breakoutLevel` | The price a close must beat. |
+| `riseToBreakoutPercent` | How far the last close must rise to beat it (`20.00` means +20%). |
+| `trendGate` | The trend filter's answer: `pass`, `below-trend` (price under the line, so the main breakout would be refused even if it fired), `above-trend`, `falling-trend` or `insufficient-history`. |
+| `belowTrendBreakoutLevel`, `riseToBelowTrendBreakoutPercent` | The same pair for the [below-trend layer](#below-trend-breakout-layer), when it is on. |
+
+### `impulse`
+
+- Buys when one closed candle trades more than `impulse.volumeMultiple` (default 3) times the average volume of the previous `impulse.volumeLookback` candles (default 168, one week of 1h candles) **and** rises from open to close by more than `impulse.riseAtrMultiple` (default 2) ATRs of the candles before it.
+- The ATR period is fixed at 14.
+- The EMAs only drive the cross-down exit.
+- The trace logs `volumeRatio` and `bodyAtr` for the last candle. `waitingFor`: `impulse-history`, then `heavy-volume-up-candle`.
+
+??? note "Research"
+
+    With a 3x ATR trailing stop and no trend filter, it made money over the last 90 days and from April 2026 on, on both the five majors and nine pre-chosen large caps. It lost on the majors from October 2025 to April 2026. Run it small, on its own profile.
+
+### `maCluster`
+
+- Buys on the closed candle that moves from at or below the highest of the 20, 50, 100 and 200 candle SMAs to above it, while those four sit within `maCluster.maxSpread` (default 1%) of each other as a share of the close.
+- Averages that tight mean price has gone sideways long enough for every horizon to agree. The break out of that range is the bet.
+- The periods are fixed; in the research the rule held only with the 200-candle average in the set.
+- The trace logs `clusterTop`, `clusterSpreadPercent` and `riseToClusterTopPercent`.
+
+Three optional filters, all off by default:
+
+- **`maCluster.maxChoppiness`** refuses a break while the 14-candle Choppiness Index is at or above it. The trace logs `choppiness`.
+- **`maCluster.maxAtrPercentile`** refuses a break while the market is more volatile than usual. The 14-candle ATR, as a share of price, is ranked against the previous 480 candles (20 days on 1h); `0.4` buys only breaks in the calmest 40%. It needs 495 closed candles. The trace logs `atrPercentile`.
+- **`maCluster.confirmBreak`** waits one candle. The break candle must pass every other check, and the next candle must also close above the highest average, so a break that falls straight back is skipped. It needs one more closed candle.
+
+`waitingFor` names the first condition that blocks the buy:
+
+| `waitingFor` | Meaning |
+| --- | --- |
+| `ma-cluster-history` | Not enough closed candles yet: 201, or 495 with `maxAtrPercentile`, plus one with `confirmBreak`. |
+| `less-choppy-market` | The choppiness filter refused the break. |
+| `calmer-market` | The ATR percentile filter refused the break. |
+| `next-close-above-cluster` | `confirmBreak` is waiting for the next candle. |
+| `averages-to-bunch` | The averages are `maxSpread` or more apart. |
+| `fall-back-then-close-above-cluster` | The close is already above the top; it must drop back and cross again. |
+| `close-above-bunched-averages` | The averages are bunched and price is under the top. |
+
+??? note "Research"
+
+    On the five majors, with a 4x ATR trailing stop and no trend filter, it was positive from October 2025 to April 2026 and from April 2026 on, on every nearby setting, and in 2024 at 2.5x costs. It did not replicate on nine pre-chosen large caps, so it is a majors rule.
+
+    A choppiness ceiling of 50 skipped about a third of the breaks, cut the August to October 2026 losers from 25 to 16, and made more after 2.5x costs over 90 days, both six-month halves and the year, though less over 18 months before costs.
+
+    With that ceiling, an ATR percentile of 0.4 made more after 2.5x costs over 90 days, April to October 2026, the year and 18 months, and trimmed the August to October 2026 loss. It made slightly less from October 2025 to April 2026 and in 2024, and did not help on the large caps.
+
+### `exhaustion`
+
+Buys on a closed candle where all three hold:
+
+| Condition                                                    | Setting (default)                 |
+| ------------------------------------------------------------ | --------------------------------- |
+| The slide has been one-way: 14-candle Choppiness Index under | `exhaustion.maxChoppiness` (30)   |
+| The close is under the 400-candle SMA by more than           | `exhaustion.minBelowAverage` (5%) |
+| RSI(14) is under                                             | `exhaustion.maxRsi` (25)          |
+
+- It buys against the trend, so it needs the trend filter off or on its `below` side. With the filter on its `above` side nearly every signal is refused as `below-trend`, and the config check warns.
+- The periods are fixed at the ones the research tested.
+- The trace logs `choppiness`, `belowAveragePercent` and `rsi`. `waitingFor`: `exhaustion-history` until 401 candles have closed, then `one-way-oversold-slide`.
+
+??? note "Research"
+
+    With a 1.5x ATR trailing stop, it made money after 2.5x costs over the last 90 days and from April 2026 on, on both the five majors and nine pre-chosen large caps, beating random entries with the same exit. It lost from October 2025 to April 2026 and is roughly flat over the year after 2.5x costs. Run it small, on its own profile, with a tight trail.
+
+### `obvLead`
+
+**On-balance volume** (OBV) is a running total of volume: a candle that closes up adds its volume, one that closes down subtracts it, and an unchanged close adds nothing. Buys on a closed candle where all three hold:
+
+| Condition                                                        | Setting (default)            |
+| ---------------------------------------------------------------- | ---------------------------- |
+| OBV is above its highest value over the previous candles         | `obvLead.lookback` (168)     |
+| The close is still under its highest close over the same candles | `obvLead.lookback` (168)     |
+| 14-candle Choppiness Index under                                 | `obvLead.maxChoppiness` (50) |
+
+- Once price makes its own new high the trigger stops firing: volume is no longer ahead of price.
+- The trace logs `obvNewHigh`, `priceToHighPercent` (how far the close is under the range's highest close) and `choppiness`. `waitingFor` names the first condition that fails: `obv-lead-history` until `lookback + 1` candles have closed, then `obv-new-high`, `price-already-at-high` or `less-choppy-market`.
+- The preview shows the last close as the entry level, since the volume condition cannot be projected.
+
+??? note "Research"
+
+    With a 3x ATR trailing stop and no trend filter, it made money after 2.5x costs over the last 90 days and from April 2026 on, on both the five majors and nine pre-chosen large caps, beating every random entry with the same exit, and it made a little money in the last 60 days, where the MA cluster trigger lost every trade. Lookbacks of 120 and 240 and trails of 2x and 4x stayed profitable in both windows on the majors. It lost from October 2025 to April 2026 on both. Run it small, on its own profile.
+
+## Entry gates
+
+After a trigger fires, these checks can still refuse the buy. Exits are never gated.
+
+- **One entry per candle.** A stop-out inside a candle cannot re-buy in that same candle.
+- **Trend filter** (`trendFilter`). Buys only while price is above a long-term moving average (refused as `below-trend`). With `trendFilter.side: below` it buys only while price is under it, for a profile that trades rallies inside a downtrend (refused as `above-trend`). With `trendFilter.requireRising` on (above side only; ignored with `side: below`), it also refuses while the line is not rising over `slopeLookbackBars` (refused as `falling-trend`).
+- **Extension guard** (`entryExtension`). Skips a coin stretched too far above its baseline, a likely blow-off top (refused as `overextended`).
+- **Relative strength** (`relativeStrength`, off by default). On a profile trading many coins, buys a coin only while it ranks in the top `topK` of the profile's coins by return per unit of volatility over the last `lookbackBars` candles (refused as `relative-strength`). Each coin publishes its score to the profile's shared store once per closed candle; a coin with no score from the current or previous candle does not count. This gate runs after the trend filter and extension guard, so their refusals are reported first.
+- **Minimum sellable size** (refused as `entry-below-stop-notional`). After the 0.1% fee and Binance's lot-size rounding, the coins bought must still be worth Binance's minimum order value at the initial protective stop's limit price (at its trigger in `native-trail` mode, which has no limit price). Otherwise the stop could never sell them. Raise the entry budget or move the stop closer to the entry. Add-on buys into an existing position are exempt.
+
+## Below-trend breakout layer
+
+With the trend filter on its `above` side, a market that stays under its trend line refuses every breakout, so the profile cannot trade until it recovers. `belowTrendBreakout` (off by default) adds a second, shorter breakout for that case.
+
+```mermaid
+flowchart LR
+    Candle["Closed candle"]:::io
+    Line{"Price above<br/>the trend line?"}:::gate
+    Main["Main rule only,<br/>main ATR trail"]:::act
+    Trig{"Entry trigger?"}:::gate
+    LayerOnly["Layer rule only: close above<br/>the lookback high, default 120,<br/>layer ATR trail, default 2"]:::act
+    Both["Cluster break or layer rule;<br/>with the trend filter off,<br/>the cluster break wins"]:::act
+    Candle --> Line
+    Line -->|yes| Main
+    Line -->|no| Trig
+    Trig -->|breakout| LayerOnly
+    Trig -->|maCluster| Both
+
+    classDef io fill:#2c3e50,color:#ffffff;
+    classDef gate fill:#f0ad4e,color:#2c3e50;
+    classDef act fill:#1f6f43,color:#ffffff;
+```
+
+- Works under `entryTrigger: breakout` (with the trend filter on its `above` side) or `maCluster`. Its own trail needs `atrTrailingStop` on; without it, layer positions trail at the main trailing-stop percent.
+- While price is under the line, a close above the highest high of the previous `belowTrendBreakout.lookback` candles (default 120) buys, with the same entry size as a main breakout.
+- The position remembers which rule opened it. A layer position trails at `belowTrendBreakout.atrMultiple` (default 2) instead of `atrTrailingStop.multiple`, because rallies inside a downtrend usually fail fast.
+- Above the line only the main rule buys, so in an uptrend nothing changes.
+- Under `maCluster` the layer reads the line from `trendFilter.period` and `trendFilter.maType` even while `trendFilter.enabled` is false.
+- With the trend filter off (as researched), the cluster break buys on either side of the line, and if both rules fire on one candle the cluster break wins and keeps the main ATR multiple. With the filter on, a cluster break under the line is refused like any trigger, and when both fire there the layer's trail applies.
+- `belowTrendBreakout.maxChoppiness` (off by default) refuses a layer break while the 14-candle Choppiness Index is at or above it.
+- The flat trace shows `belowTrendBreakoutLevel` next to `breakoutLevel` (or `clusterTop`).
+
+??? note "Research"
+
+    On the five majors at 2.5x costs, MA cluster with a choppiness ceiling of 50 plus this layer (120 candles, 2 ATR, choppiness under 50, SMA 400 line) made +4.8% from October 2025 to April 2026 and +12.7% from April to October 2026 per symbol, against +4.0% and +12.3% for MA cluster alone. All eight nearby settings were positive in both halves. It made less in the 2024 bull market (+4.6% against +8.5% before costs), when the market rarely sat under its line.
+
+## Exit
+
+There is **no take-profit target**. A held position is sold when any of these fires:
 
 - **Trailing stop** — price falls to the trailing level (see below).
 - **EMA cross-down** — the fast EMA crosses back below the slow EMA.

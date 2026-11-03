@@ -11,6 +11,7 @@ import type {
 import { momentumPreviewLevels, momentumPreviewDataNeeds } from '../src/preview.js';
 
 import { MomentumConfigSchema, type MomentumConfig } from '../src/index.js';
+import { obvLeadNeed } from '../src/obv-lead.js';
 import { resolveEntryBudget } from '../src/sizing.js';
 import { computeEntryQuantity, entryStopFloor } from '../src/quantity.js';
 
@@ -111,21 +112,70 @@ describe('momentumPreviewLevels — flat state with a configured entry', () => {
     expect(momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE)).sections).toEqual([]);
   });
 
+  it('projects the last close under the OBV lead trigger', () => {
+    const config = cfg({ entryTrigger: 'obvLead' });
+    const candles = mkCandles(
+      Array.from({ length: obvLeadNeed(config.obvLead) }, (_, i) => String(10 + i)),
+    );
+    const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles));
+    expect(row(model, 'entry')).toMatchObject({ price: '178', label: 'Last close' });
+  });
+
+  it('projects nothing under the OBV lead trigger while the window is shorter than the tick needs', () => {
+    const config = cfg({ entryTrigger: 'obvLead' });
+    const candles = mkCandles(
+      Array.from({ length: obvLeadNeed(config.obvLead) - 1 }, (_, i) => String(10 + i)),
+    );
+    expect(
+      momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles)).sections,
+    ).toEqual([]);
+  });
+
   // A 16-candle rising step: every true range is 1, so ATR is 1 and the projected surge close is 25 + 2 = 27.
   it('projects the impulse level, the last close plus riseAtrMultiple ATRs, under the impulse trigger', () => {
-    const config = cfg({ entryTrigger: 'impulse', impulse: { riseAtrMultiple: '2' } });
+    // volumeLookback 3 keeps the tick's need at 16 candles, so the window is long enough to judge.
+    const config = cfg({
+      entryTrigger: 'impulse',
+      impulse: { riseAtrMultiple: '2', volumeLookback: 3 },
+    });
     const candles = mkCandles(Array.from({ length: 16 }, (_, i) => String(10 + i)));
     const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles));
     expect(row(model, 'entry')).toMatchObject({ price: '27', label: 'Impulse level' });
   });
 
-  it('projects nothing under the impulse trigger while the window is too short for the ATR', () => {
+  it('projects nothing under the impulse trigger while the window is shorter than the tick needs', () => {
     const config = cfg({ entryTrigger: 'impulse' });
     expect(
       momentumPreviewLevels(
         previewInput(config, RICH_ACCOUNT_WIRE, mkCandles(['10', '11', '12', '13'])),
       ).sections,
     ).toEqual([]);
+  });
+
+  // 401 flat closes at 10, the length the tick needs: the level is the average less the default 5%.
+  it('projects the 400-candle average less minBelowAverage under the exhaustion trigger', () => {
+    const config = cfg({ entryTrigger: 'exhaustion' });
+    const candles = mkCandles(Array.from({ length: 401 }, () => '10'));
+    const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles));
+    expect(row(model, 'entry')).toMatchObject({ price: '9.5', label: 'Exhaustion level' });
+  });
+
+  it('projects nothing under the exhaustion trigger while the window is shorter than the average', () => {
+    const config = cfg({ entryTrigger: 'exhaustion' });
+    expect(momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE)).sections).toEqual([]);
+  });
+
+  // 200 flat closes at 10 then 10.05: the highest average is the 20-candle one at 10.0025.
+  it('projects the top of the bunched averages under the MA cluster trigger', () => {
+    const config = cfg({ entryTrigger: 'maCluster' });
+    const candles = mkCandles([...Array.from({ length: 200 }, () => '10'), '10.05']);
+    const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles));
+    expect(row(model, 'entry')).toMatchObject({ price: '10.0025', label: 'MA cluster top' });
+  });
+
+  it('projects nothing under the MA cluster trigger while the window is too short', () => {
+    const config = cfg({ entryTrigger: 'maCluster' });
+    expect(momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE)).sections).toEqual([]);
   });
 
   it('projects the entry band at slowEMA*(1+margin) as an informational row (no trigger)', () => {
@@ -454,7 +504,21 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
     const model = momentumPreviewLevels(input(config, { state: held(), entryPrice: '100' }));
     expect(row(model, 'entry')).toBeUndefined();
     expect(row(model, 'trail')).toBeDefined();
+    expect(row(model, 'protective-stop')).toBeDefined();
   });
+
+  // Each trigger's rule needs a longer window than the 4-candle default, so a held position keeps its stop rows and loses only the entry row.
+  it.each(['impulse', 'maCluster', 'exhaustion', 'obvLead'] as const)(
+    'keeps the held stop rows and drops only the entry row under %s with a too-short window',
+    (entryTrigger) => {
+      const model = momentumPreviewLevels(
+        input(cfg({ entryTrigger }), { state: held(), entryPrice: '100' }),
+      );
+      expect(row(model, 'entry')).toBeUndefined();
+      expect(row(model, 'trail')).toBeDefined();
+      expect(row(model, 'protective-stop')).toBeDefined();
+    },
+  );
 
   it('drops the empty Entry section when held with no breakout level and no stop to project', () => {
     const config = {

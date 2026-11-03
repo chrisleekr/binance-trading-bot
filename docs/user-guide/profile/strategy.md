@@ -9,7 +9,7 @@ The **Strategy** section is where you pick the strategy the profile runs and set
 Pick the strategy that matches what you expect the market to do, then configure it on its reference page:
 
 - **[Trailing Trade](../../concepts/strategies/trailing-trade.md#configuration)** — buys dips in steps and trails the sell up; for a coin that swings within a range.
-- **[Momentum](../../concepts/strategies/momentum.md#configuration)** — buys a confirmed breakout and rides it out on a trailing stop; for a coin already moving up.
+- **[Momentum](../../concepts/strategies/momentum.md#configuration)** — buys when its chosen entry trigger fires and sells on a trailing stop; for a strong move to keep going, or a sharp sell-off to bounce.
 - **[Rebalance](../../concepts/strategies/rebalance.md#configuration)** — holds a basket at target proportions, or (in momentum weight mode) rotates into the strongest few.
 
 Each reference page carries the full, always-current field table for that strategy — the same fields, labels, and help you see in this section.

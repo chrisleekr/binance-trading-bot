@@ -24,14 +24,28 @@ export const lintMomentumConfig = (config: MomentumConfig): readonly ConfigDiagn
     });
   }
 
+  // Exhaustion buys under the trend line, which trendGate refuses as below-trend on the above side, so such a profile saves cleanly and almost never buys.
+  if (config.entryTrigger === 'exhaustion' && tf?.enabled === true && tf.side !== 'below') {
+    out.push({
+      level: 'warn',
+      code: 'exhaustion-trend-filter-above',
+      message:
+        'The exhaustion trigger buys sell-offs under the trend line, and the trend filter on its "above" side refuses nearly all of them. Turn the trend filter off, or set its side to "below".',
+      path: ['trendFilter', 'enabled'],
+    });
+  }
+
   if (config.belowTrendBreakout?.enabled === true) {
-    // The layer reads its range only under the breakout trigger, and fires only when the trend gate answers below-trend, which needs the filter on its above side.
-    if (config.entryTrigger !== 'breakout' || tf?.enabled !== true || tf.side === 'below') {
+    // Under breakout the layer fires only when the trend gate answers below-trend, which needs the filter on its above side. Under the MA cluster trigger it reads the line itself; no other trigger reads it.
+    const inert =
+      config.entryTrigger !== 'maCluster' &&
+      (config.entryTrigger !== 'breakout' || tf?.enabled !== true || tf.side === 'below');
+    if (inert) {
       out.push({
         level: 'warn',
         code: 'below-trend-breakout-inert',
         message:
-          'The below-trend breakout never buys with these settings. It needs the breakout trigger and the trend filter turned on with its side set to "above".',
+          'The below-trend breakout never buys with these settings. It needs the MA cluster trigger, or the breakout trigger with the trend filter turned on and its side set to "above".',
         path: ['belowTrendBreakout', 'enabled'],
       });
     } else if (config.atrTrailingStop?.enabled !== true) {

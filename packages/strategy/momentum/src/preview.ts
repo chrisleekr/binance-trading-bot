@@ -19,7 +19,10 @@ import type {
 } from '@app/strategy-core';
 
 import { breakoutLevel, breakoutLookback } from './breakout.js';
+import { exhaustionLevel } from './exhaustion.js';
 import { impulseLevel } from './impulse.js';
+import { maClusterReading } from './ma-cluster.js';
+import { obvLeadNeed } from './obv-lead.js';
 import { coerceInt } from './config-coerce.js';
 import type { MomentumConfig, MomentumState } from './schema.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
@@ -108,13 +111,37 @@ export const momentumPreviewLevels = (
     config.entryTrigger === 'breakout'
       ? breakoutLevel(candles, breakoutLookback(config.breakoutLookback))
       : null;
-  // A window shorter than the lookback has no breakout level. Flat, every row projects from it, so show nothing; held, the stops and guards still read the position, so only the entry row goes.
-  const noBreakout = config.entryTrigger === 'breakout' && breakout === null;
-  if (noBreakout && flat) return { sections: [] };
   // Under the impulse trigger the entry follows a surge, so the projected entry is the close a full-size up candle would reach from here; its volume leg cannot be projected.
   const impulse = config.entryTrigger === 'impulse' ? impulseLevel(candles, config.impulse) : null;
-  if (config.entryTrigger === 'impulse' && impulse === null) return { sections: [] };
-  const band = breakout ?? impulse ?? slowEma.mul(new Decimal(1).plus(entryMargin(config)));
+  // Under the MA cluster trigger the entry is a close above the highest of the bunched averages, so that average is the projected entry; the spread leg cannot be projected.
+  const cluster =
+    config.entryTrigger === 'maCluster'
+      ? (maClusterReading(candles, config.maCluster)?.top ?? null)
+      : null;
+  // Under the exhaustion trigger the entry needs the close more than `minBelowAverage` under the 400-candle average, so that price is the projected entry; the choppiness and RSI legs cannot be projected.
+  const exhaustion =
+    config.entryTrigger === 'exhaustion' ? exhaustionLevel(candles, config.exhaustion) : null;
+  // Under the OBV lead trigger the buy fires on a volume leg while price is still under its range high, so the last close is the projected entry; the volume leg cannot be projected. Shown only once the window is long enough for the tick to judge a candle.
+  const lastClose = candles.at(-1)?.close;
+  const obvLead =
+    config.entryTrigger === 'obvLead' &&
+    lastClose !== undefined &&
+    candles.length >= obvLeadNeed(config.obvLead)
+      ? new Decimal(lastClose)
+      : null;
+  // A window too short for the trigger's rule has no entry level. Flat, every row projects from it, so show nothing; held, the stops and guards still read the position, so only the entry row goes.
+  const noEntryLevel =
+    ['breakout', 'impulse', 'maCluster', 'exhaustion', 'obvLead'].includes(
+      config.entryTrigger ?? '',
+    ) && (breakout ?? impulse ?? cluster ?? exhaustion ?? obvLead) === null;
+  if (noEntryLevel && flat) return { sections: [] };
+  const band =
+    breakout ??
+    impulse ??
+    cluster ??
+    exhaustion ??
+    obvLead ??
+    slowEma.mul(new Decimal(1).plus(entryMargin(config)));
   const bandStr = band.toString();
 
   // The exit trail measures from the position high when held, or from the
@@ -143,7 +170,7 @@ export const momentumPreviewLevels = (
     null,
   ).stop;
 
-  const entryRows: PreviewRow[] = noBreakout ? [] : [buildEntryRow(input, bandStr, candles)];
+  const entryRows: PreviewRow[] = noEntryLevel ? [] : [buildEntryRow(input, bandStr, candles)];
   if (stopBase !== null) {
     entryRows.push({
       code: 'trail',
@@ -188,7 +215,13 @@ const buildEntryRow = (
         ? 'Breakout level'
         : input.config.entryTrigger === 'impulse'
           ? 'Impulse level'
-          : 'Entry band',
+          : input.config.entryTrigger === 'maCluster'
+            ? 'MA cluster top'
+            : input.config.entryTrigger === 'exhaustion'
+              ? 'Exhaustion level'
+              : input.config.entryTrigger === 'obvLead'
+                ? 'Last close'
+                : 'Entry band',
     tone: 'entry',
     price: bandStr,
     chartLine: true,

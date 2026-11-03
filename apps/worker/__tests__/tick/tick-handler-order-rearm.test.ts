@@ -149,6 +149,8 @@ interface RunOpts {
   readonly cancelResult?: OrderResult;
   /** A re-arm flag already set by an earlier tick (this tick is the retry). */
   readonly rearmFlagSet?: boolean;
+  /** The re-arm flag's pipeline slot errors instead of replying. */
+  readonly rearmReadErrored?: boolean;
   /** Replaces the default notify stub so a test can make the operator alert fail. */
   readonly notifyOrderFailed?: (input: NotifyOrderFailedInput) => unknown;
   /** Replaces the reply of `redis.set` so a test can break one key's write. */
@@ -200,9 +202,11 @@ const run = async (opts: RunOpts) => {
       },
       exec: async () =>
         keys.map((k) =>
-          opts.rearmFlagSet === true && k === REARM_KEY
-            ? ([null, '1'] as const)
-            : ([null, null] as const),
+          opts.rearmReadErrored === true && k === REARM_KEY
+            ? ([new Error('slot failed'), null] as const)
+            : opts.rearmFlagSet === true && k === REARM_KEY
+              ? ([null, '1'] as const)
+              : ([null, null] as const),
         ),
     };
     return chain;
@@ -424,14 +428,33 @@ describe('tick handler — a failed order is re-issued by NOT advancing the stat
   });
 
   it('clears the re-arm flag once every order in the tick lands', async () => {
-    const { commit, delCalls } = await run({ orderResult: { ok: true } });
+    const { commit, delCalls } = await run({ orderResult: { ok: true }, rearmFlagSet: true });
     expect(commit).toHaveBeenCalledOnce();
     expect(delCalls).toContain(REARM_KEY);
+  });
+
+  // The flag was not set, so there is no retry sequence to end; skipping the DEL keeps Redis latency on ordinary ticks out of the warn log.
+  it('does not touch the flag on an ordinary tick that read it unset', async () => {
+    const { commit, delCalls } = await run({ orderResult: { ok: true } });
+    expect(commit).toHaveBeenCalledOnce();
+    expect(delCalls).not.toContain(REARM_KEY);
+  });
+
+  // An errored read cannot prove the flag is unset, so the DEL still runs; it must not claim a retry it never saw.
+  it('clears the flag but stamps no rearmed when the flag read errored', async () => {
+    const { commit, delCalls, auditPayload } = await run({
+      orderResult: { ok: true },
+      rearmReadErrored: true,
+    });
+    expect(commit).toHaveBeenCalledOnce();
+    expect(delCalls).toContain(REARM_KEY);
+    expect(auditPayload.rearmed).toBeUndefined();
   });
 
   it('does NOT clear the flag while an order is still failing', async () => {
     const { delCalls } = await run({
       orderResult: { ok: false, retryable: false, phase: 'accepted', reason: 'bookkeeping failed' },
+      rearmFlagSet: true,
     });
     expect(delCalls).not.toContain(REARM_KEY);
   });
@@ -715,6 +738,7 @@ describe('tick handler — a broken best-effort Redis write never fails the tick
     // Every order landed, so this tick takes the CLEAR path, not the arm path.
     const { result, warnings, delCalls } = await run({
       orderResult: { ok: true },
+      rearmFlagSet: true,
       redisDel: () => {
         throw boom;
       },
@@ -731,6 +755,7 @@ describe('tick handler — a broken best-effort Redis write never fails the tick
     const boom = new Error('DEL rejected');
     const { result, warnings } = await run({
       orderResult: { ok: true },
+      rearmFlagSet: true,
       redisDel: () => Promise.reject(boom),
     });
 

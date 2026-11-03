@@ -76,10 +76,10 @@ describe('impulseReading', () => {
 
 describe('impulseLevel', () => {
   it('projects the last close plus riseAtrMultiple ATRs', () => {
-    expect(impulseLevel(flat(15), CFG)?.toFixed()).toBe('12');
+    expect(impulseLevel(flat(impulseNeed(CFG)), CFG)?.toFixed()).toBe('12');
   });
 
-  it('is null while the window is too short for the ATR', () => {
-    expect(impulseLevel(flat(14), CFG)).toBeNull();
+  it('is null while the window is shorter than the tick needs', () => {
+    expect(impulseLevel(flat(impulseNeed(CFG) - 1), CFG)).toBeNull();
   });
 });

@@ -135,9 +135,9 @@ Restoring a backup asks you to confirm it's you first, because the archive repla
 
 ## AI agents (MCP)
 
-When the [MCP control plane](../architecture/mcp.md) is on, an AI agent such as Claude Code asks for access through the normal sign-in page. You sign in (with a password or single sign-on), then approve the agent on a consent page. The agent never sees your password or your provider login.
+When [AI agent access](ai-agents.md) is on, an AI agent such as Claude Code asks for access through the normal sign-in page. You sign in (with a password or single sign-on), then approve the agent on a consent page. The agent never sees your password or your provider login.
 
-To cut every agent off at once, choose **Revoke all agent access** on **Settings > Security**. It takes effect immediately, including for access tokens the agent already holds. Changing or resetting your password, and signing out everywhere, do the same.
+To cut every agent off at once, see [Revoke access](ai-agents.md#revoke-access).
 
 ## Protecting against floods
 
