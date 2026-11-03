@@ -30,7 +30,7 @@ MCP_ENABLED=1
 MCP_RESOURCE_URL=https://bot.example.com/api/mcp
 ```
 
-- `MCP_RESOURCE_URL` must be the `https` address the agent actually reaches. An internal or container address makes every call fail with a 401.
+- `MCP_RESOURCE_URL` must be the `https` address the agent actually reaches (`http` is accepted only for a loopback host such as `localhost`). An internal or container address makes every call fail with a 401.
 - If `PUBLIC_BASE_URL` is set, both must share the same origin.
 - The app refuses to start with both `MCP_ENABLED` and `LIVE_DEMO` on.
 
@@ -70,7 +70,7 @@ An agent in regular use stays connected until you revoke it; one unused for 7 da
 - **Claude Code asks you to confirm every trade.** It shows a full permission prompt for each trade call, not a one-tap approval, and it only protects you if you read it. The prompt comes from Claude Code, not the bot: another MCP client, or your own Agent SDK code, may run trade calls without asking.
 - **You are told about every trade, if a notifier is set up.** Each completed trade or settings change sends an **AI agent changed something** notification to the account's notifiers. With no notifier, nothing is sent and nothing warns you, so set one up first. You can mute it under **Operational alerts** on **Settings**, but you would lose your only visible record.
 - **The audit log does not show who acted.** The database records the agent as the actor, with its address and user agent, but the audit log on a profile's **History** page does not display it yet.
-- **A retried order is not placed twice.** Order tools need a unique key per order. For 15 minutes, a retry with the same key gets the first call's result if it succeeded. If the bot refused the first call, the key is freed and the retry runs again. If the first call is still running, the retry is told to wait; if it failed in a way that may have placed an order, the retry is told to check the orders first. Reusing a key for a different order is refused.
+- **A retry within 15 minutes is not placed twice.** Order tools need a unique key per order. For 15 minutes, a retry with the same key gets the first call's result if it succeeded. If the bot refused the first call, the key is freed and the retry runs again. If the first call is still running, the retry is told to wait; if it failed in a way that may have placed an order, the retry is told to check the orders first. Reusing a key for a different order is refused.
 - **The same checks apply.** An agent's call runs the same code as the web app, including the [risk](../user-guide/profile/risk.md) breakers. An order for a symbol not on the profile is refused, but with the trade permission the agent can add symbols, widen discovery, create profiles and change those risk limits, so none of these limits it.
 - **Calls are limited.** All agents together may make 120 calls a minute.
 
@@ -78,7 +78,7 @@ An agent in regular use stays connected until you revoke it; one unused for 7 da
 
 On **Settings > Security**, under **AI agent access**, choose **Revoke all agent access**. It takes effect immediately, including for tokens an agent already holds. Changing or resetting your password and **Sign out everywhere** do the same.
 
-Revoking stops new calls only. It does not cancel orders the agent placed or undo settings it changed. If you suspect misuse, revoke first so the agent cannot lift the stop, then use the [kill switch](kill-switch.md), then review open orders and each profile's risk and discovery settings.
+Revoking stops new calls only. It does not cancel orders the agent placed or undo settings it changed. If you suspect misuse, revoke first so the agent cannot lift the stop, then use the [kill switch](kill-switch.md), confirm it is still on, and review open orders and each profile's risk and discovery settings.
 
 ## How it works
 

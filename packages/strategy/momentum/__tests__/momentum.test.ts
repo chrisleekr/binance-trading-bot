@@ -29,6 +29,7 @@ import {
   type MomentumConfig,
   type MomentumState,
 } from '../src/index.js';
+import { choppiness } from '../src/ma-cluster.js';
 import { computeEntryQuantity, computeExitQuantity, entryStopFloor } from '../src/quantity.js';
 import {
   closingSellDecisions,
@@ -4832,6 +4833,25 @@ describe('momentum.tick — below-trend breakout layer', () => {
     });
     expect(out.nextState.entryLayer).toBe('below-trend');
     expect(out.logs[0]?.message).toBe('momentum: entry on breakout below the trend line');
+  });
+
+  // The choppiness gate needs more than 14 candles, so the downtrend is padded on the left with the 20s the primary range already sees.
+  it('refuses the short breakout at or above maxChoppiness and enters below it', () => {
+    const closes = mkCandles([...Array.from({ length: 17 }, () => '20'), '10', '11', '12']);
+    const chop = choppiness(closes).toDecimalPlaces(4, Decimal.ROUND_FLOOR);
+    const tickWith = (maxChoppiness: string) =>
+      momentum.tick(
+        mkInput({
+          closes,
+          currentPrice: '12',
+          state: flat(),
+          config: layerCfg({
+            belowTrendBreakout: { enabled: true, lookback: 2, atrMultiple: '2', maxChoppiness },
+          }),
+        }),
+      );
+    expect(tickWith(chop.toFixed()).decisions).toEqual([{ type: 'noop' }]);
+    expect(tickWith(chop.plus('0.0001').toFixed()).nextState.entryLayer).toBe('below-trend');
   });
 
   it('stays a below-trend refusal when the layer is off', () => {

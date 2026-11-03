@@ -76,10 +76,10 @@ export const exhaustionReading = (
  *
  * @param candles - Closed candles on the strategy interval, oldest first.
  * @param raw - The unparsed `exhaustion` config block.
- * @returns The level, or null while the window is shorter than the average.
+ * @returns The level, or null while the window is shorter than {@link exhaustionNeed}, the length the tick needs before it can judge a candle.
  */
 export const exhaustionLevel = (candles: readonly Candle[], raw: unknown): Decimal | null => {
-  if (candles.length < EXHAUSTION_TREND_PERIOD) return null;
+  if (candles.length < exhaustionNeed()) return null;
   return sma(candles, EXHAUSTION_TREND_PERIOD).times(
     new Decimal(1).minus(exhaustionSettings(raw).minBelowAverage),
   );

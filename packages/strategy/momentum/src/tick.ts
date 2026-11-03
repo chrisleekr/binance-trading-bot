@@ -305,40 +305,6 @@ const decide = (input: MomentumInput): MomentumOutput => {
   const band = new Decimal(1).plus(entryMargin(config));
   const crossUp = fastPrev.lte(slowPrev.mul(band)) && fastNow.gt(slowNow.mul(band));
   const crossDown = fastPrev.gte(slowPrev) && fastNow.lt(slowNow);
-  // `trend` enters on the state (fast above the threshold) rather than the event, because discovery admits symbols that already crossed and for them the event does not recur while the trend lasts.
-  const breakout =
-    config.entryTrigger === 'breakout'
-      ? breakoutLevel(windowPrev, breakoutLookback(config.breakoutLookback))
-      : null;
-  const impulse =
-    config.entryTrigger === 'impulse' ? impulseReading(candles, config.impulse) : null;
-  const cluster =
-    config.entryTrigger === 'maCluster' ? maClusterReading(candles, config.maCluster) : null;
-  const exhaustion =
-    config.entryTrigger === 'exhaustion' ? exhaustionReading(candles, config.exhaustion) : null;
-  const obvLead =
-    config.entryTrigger === 'obvLead' ? obvLeadReading(candles, config.obvLead) : null;
-  const entrySignal =
-    config.entryTrigger === 'trend'
-      ? fastNow.gt(slowNow.mul(band))
-      : config.entryTrigger === 'breakout'
-        ? breakout !== null && new Decimal(lastCandle.close).gt(breakout)
-        : config.entryTrigger === 'impulse'
-          ? impulse?.fired === true
-          : config.entryTrigger === 'maCluster'
-            ? cluster?.fired === true
-            : config.entryTrigger === 'exhaustion'
-              ? exhaustion?.fired === true
-              : config.entryTrigger === 'obvLead'
-                ? obvLead?.fired === true
-                : crossUp;
-  // The below-trend layer's range, read only when that layer can act: the breakout or MA cluster trigger with the layer on.
-  const belowTrend = config.belowTrendBreakout;
-  const belowBreakout =
-    (config.entryTrigger === 'breakout' || config.entryTrigger === 'maCluster') &&
-    belowTrend?.enabled === true
-      ? breakoutLevel(windowPrev, breakoutLookback(belowTrend.lookback))
-      : null;
 
   if (state.entryPrice === null) {
     // Coins with no cost basis are an unguarded holding, not a flat symbol: the reconciler seeds a held quantity from the wallet, and deleting a basis keeps it. Entering here would place a second buy and overwrite `heldQuantity` with that order alone, dropping the original coins from tracking. Refuse and say so until the operator sets a basis or sells.
@@ -358,6 +324,40 @@ const decide = (input: MomentumInput): MomentumOutput => {
       // A force-sell cannot be sized against a position the strategy does not hold, so decline it with the reason rather than the generic "did not act".
       return forceSell ? { ...blocked, overrideDeclineReason: 'held-without-basis' } : blocked;
     }
+    // `trend` enters on the state (fast above the threshold) rather than the event, because discovery admits symbols that already crossed and for them the event does not recur while the trend lasts.
+    const breakout =
+      config.entryTrigger === 'breakout'
+        ? breakoutLevel(windowPrev, breakoutLookback(config.breakoutLookback))
+        : null;
+    const impulse =
+      config.entryTrigger === 'impulse' ? impulseReading(candles, config.impulse) : null;
+    const cluster =
+      config.entryTrigger === 'maCluster' ? maClusterReading(candles, config.maCluster) : null;
+    const exhaustion =
+      config.entryTrigger === 'exhaustion' ? exhaustionReading(candles, config.exhaustion) : null;
+    const obvLead =
+      config.entryTrigger === 'obvLead' ? obvLeadReading(candles, config.obvLead) : null;
+    const entrySignal =
+      config.entryTrigger === 'trend'
+        ? fastNow.gt(slowNow.mul(band))
+        : config.entryTrigger === 'breakout'
+          ? breakout !== null && new Decimal(lastCandle.close).gt(breakout)
+          : config.entryTrigger === 'impulse'
+            ? impulse?.fired === true
+            : config.entryTrigger === 'maCluster'
+              ? cluster?.fired === true
+              : config.entryTrigger === 'exhaustion'
+                ? exhaustion?.fired === true
+                : config.entryTrigger === 'obvLead'
+                  ? obvLead?.fired === true
+                  : crossUp;
+    // The below-trend layer's range, read only when that layer can act: the breakout or MA cluster trigger with the layer on.
+    const belowTrend = config.belowTrendBreakout;
+    const belowBreakout =
+      (config.entryTrigger === 'breakout' || config.entryTrigger === 'maCluster') &&
+      belowTrend?.enabled === true
+        ? breakoutLevel(windowPrev, breakoutLookback(belowTrend.lookback))
+        : null;
     const gate = trendGate(config, candles, market.currentPrice);
     // Under breakout the layer fires only where the primary rule's own trend gate refuses for `below-trend`, so above the line nothing changes, and a `below` side or a disabled filter (which never answers `below-trend`) leaves it inert. The MA cluster rule was researched with no trend gate, so there the layer reads the trend filter's line itself, whether or not the filter gates entries.
     const belowSignal =

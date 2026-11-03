@@ -127,13 +127,16 @@ describe('exhaustionSettings', () => {
 });
 
 describe('exhaustionLevel', () => {
-  // 400 flat closes at 100: the level is 100 less 5%.
+  // 401 flat closes at 100, the length the tick needs: the level is 100 less 5%.
+  const flat401 = [...slide(0), candle(400, 100, 100.5, 99.5, 100)];
+
   it('projects the 400-candle average less minBelowAverage', () => {
-    expect(exhaustionLevel(slide(0), {})?.toFixed()).toBe('95');
-    expect(exhaustionLevel(slide(0), { minBelowAverage: '0.1' })?.toFixed()).toBe('90');
+    expect(exhaustionLevel(flat401, {})?.toFixed()).toBe('95');
+    expect(exhaustionLevel(flat401, { minBelowAverage: '0.1' })?.toFixed()).toBe('90');
   });
 
-  it('projects nothing while the window is shorter than the average', () => {
-    expect(exhaustionLevel(slide(0).slice(-399), {})).toBeNull();
+  it('projects nothing while the window is shorter than the tick needs', () => {
+    expect(exhaustionLevel(flat401.slice(-400), {})).toBeNull();
+    expect(exhaustionLevel(flat401.slice(-399), {})).toBeNull();
   });
 });

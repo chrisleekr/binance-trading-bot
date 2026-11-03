@@ -149,6 +149,8 @@ interface RunOpts {
   readonly cancelResult?: OrderResult;
   /** A re-arm flag already set by an earlier tick (this tick is the retry). */
   readonly rearmFlagSet?: boolean;
+  /** The re-arm flag's pipeline slot errors instead of replying. */
+  readonly rearmReadErrored?: boolean;
   /** Replaces the default notify stub so a test can make the operator alert fail. */
   readonly notifyOrderFailed?: (input: NotifyOrderFailedInput) => unknown;
   /** Replaces the reply of `redis.set` so a test can break one key's write. */
@@ -200,9 +202,11 @@ const run = async (opts: RunOpts) => {
       },
       exec: async () =>
         keys.map((k) =>
-          opts.rearmFlagSet === true && k === REARM_KEY
-            ? ([null, '1'] as const)
-            : ([null, null] as const),
+          opts.rearmReadErrored === true && k === REARM_KEY
+            ? ([new Error('slot failed'), null] as const)
+            : opts.rearmFlagSet === true && k === REARM_KEY
+              ? ([null, '1'] as const)
+              : ([null, null] as const),
         ),
     };
     return chain;
@@ -434,6 +438,17 @@ describe('tick handler — a failed order is re-issued by NOT advancing the stat
     const { commit, delCalls } = await run({ orderResult: { ok: true } });
     expect(commit).toHaveBeenCalledOnce();
     expect(delCalls).not.toContain(REARM_KEY);
+  });
+
+  // An errored read cannot prove the flag is unset, so the DEL still runs; it must not claim a retry it never saw.
+  it('clears the flag but stamps no rearmed when the flag read errored', async () => {
+    const { commit, delCalls, auditPayload } = await run({
+      orderResult: { ok: true },
+      rearmReadErrored: true,
+    });
+    expect(commit).toHaveBeenCalledOnce();
+    expect(delCalls).toContain(REARM_KEY);
+    expect(auditPayload.rearmed).toBeUndefined();
   });
 
   it('does NOT clear the flag while an order is still failing', async () => {

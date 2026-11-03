@@ -19,11 +19,11 @@ This page is the reference for operators and contributors. Source: `packages/str
 
 ## How a tick decides
 
-Momentum acts only on **closed candles**, because a still-forming candle would make signals flip.
+Momentum reads its entry signals from **closed candles**, because a still-forming candle would make signals flip. The trailing stop, trend filter and extension guard compare the live price.
 
 ```mermaid
 flowchart TD
-    Start["New closed candle"]:::io
+    Start["Tick"]:::io
     Warm{"Enough candles<br/>for the slow EMA?"}:::gate
     Held{"Holding<br/>this coin?"}:::gate
     Trigger{"Entry trigger<br/>fires?"}:::gate
@@ -222,7 +222,7 @@ flowchart LR
 
 ## Exit
 
-Every exit is a stop. There is **no take-profit target**. A held position is sold when any of these fires:
+There is **no take-profit target**. A held position is sold when any of these fires:
 
 - **Trailing stop** — price falls to the trailing level (see below).
 - **EMA cross-down** — the fast EMA crosses back below the slow EMA.
