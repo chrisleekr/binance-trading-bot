@@ -41,6 +41,11 @@ describe('lintMomentumConfig', () => {
     expect(codes(base({ ...working, ...over }))).toContain('below-trend-breakout-inert');
   });
 
+  it('accepts the layer under the MA cluster trigger with the trend filter off', () => {
+    const c = base({ ...working, entryTrigger: 'maCluster', trendFilter: { enabled: false } });
+    expect(lintMomentumConfig(c)).toEqual([]);
+  });
+
   it('flags the layer ATR multiple when the ATR trailing stop is off', () => {
     const c = base({ ...working, atrTrailingStop: { enabled: false } });
     expect(lintMomentumConfig(c)).toEqual([

@@ -26,7 +26,16 @@ import { computeEntryQuantity, computeExitQuantity, entryStopFloor } from './qua
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
 import { trendMaType, trendPeriod } from './trend-filter.js';
 import { breakoutLevel, breakoutLookback } from './breakout.js';
+import { exhaustionReading, type ExhaustionReading } from './exhaustion.js';
+import { obvLeadReading, type ObvLeadReading } from './obv-lead.js';
 import { impulseReading, type ImpulseReading } from './impulse.js';
+import {
+  choppiness,
+  MA_CLUSTER_CHOP_PERIOD,
+  maClusterMaxChoppiness,
+  maClusterReading,
+  type MaClusterReading,
+} from './ma-cluster.js';
 import { relativeStrengthGate, relativeStrengthPublish } from './relative-strength.js';
 import { profitLegDistance } from './profit-leg.js';
 import { configForEntryLayer } from './trailing-stop.js';
@@ -153,6 +162,39 @@ const trendGate = (
 };
 
 /**
+ * Whether price sits on or under the trend filter's line, read from its period and MA type even with the filter off. The below-trend layer uses it under the MA cluster trigger, which has no trend gate of its own. Same boundary as {@link trendGate}: on the line counts as under.
+ *
+ * @param config - Profile config; only `trendFilter.period` and `trendFilter.maType` are read, coerced like the gate does.
+ * @param candles - Closed candles, oldest first.
+ * @param currentPrice - Live price compared with the line, as the gate compares it.
+ * @returns False while the window is shorter than the period, so a short window never buys.
+ */
+const underTrendLine = (
+  config: MomentumConfig,
+  candles: readonly Candle[],
+  currentPrice: string,
+): boolean => {
+  const period = trendPeriod(config.trendFilter?.period);
+  if (candles.length < period) return false;
+  return new Decimal(currentPrice).lte(
+    trendLine(trendMaType(config.trendFilter?.maType), candles, period),
+  );
+};
+
+/**
+ * The below-trend layer's choppiness gate: in the 2025-26 1h research a below-trend breakout taken while the Choppiness Index was 50 or more mostly faded, on the majors and on nine pre-chosen large caps alike.
+ *
+ * @param block - The unparsed `belowTrendBreakout` block; an empty or invalid `maxChoppiness` turns the gate off.
+ * @param candles - Closed candles, oldest first, ending with the judged candle.
+ * @returns True when the gate is off or the index is under the ceiling; false on a window too short to measure it.
+ */
+const belowTrendCalm = (block: unknown, candles: readonly Candle[]): boolean => {
+  const ceiling = maClusterMaxChoppiness(block);
+  if (ceiling === null) return true;
+  return candles.length > MA_CLUSTER_CHOP_PERIOD && choppiness(candles).lt(ceiling);
+};
+
+/**
  * Extension-gate result. `pass` allows the entry; `overextended` is the ceiling
  * veto (price too far above its baseline); `extension-insufficient-history` is
  * fail-closed (window too short to compute the baseline). The warm-up code is
@@ -270,6 +312,12 @@ const decide = (input: MomentumInput): MomentumOutput => {
       : null;
   const impulse =
     config.entryTrigger === 'impulse' ? impulseReading(candles, config.impulse) : null;
+  const cluster =
+    config.entryTrigger === 'maCluster' ? maClusterReading(candles, config.maCluster) : null;
+  const exhaustion =
+    config.entryTrigger === 'exhaustion' ? exhaustionReading(candles, config.exhaustion) : null;
+  const obvLead =
+    config.entryTrigger === 'obvLead' ? obvLeadReading(candles, config.obvLead) : null;
   const entrySignal =
     config.entryTrigger === 'trend'
       ? fastNow.gt(slowNow.mul(band))
@@ -277,11 +325,18 @@ const decide = (input: MomentumInput): MomentumOutput => {
         ? breakout !== null && new Decimal(lastCandle.close).gt(breakout)
         : config.entryTrigger === 'impulse'
           ? impulse?.fired === true
-          : crossUp;
-  // The below-trend layer's range, read only when that layer can act: the breakout trigger with the layer on.
+          : config.entryTrigger === 'maCluster'
+            ? cluster?.fired === true
+            : config.entryTrigger === 'exhaustion'
+              ? exhaustion?.fired === true
+              : config.entryTrigger === 'obvLead'
+                ? obvLead?.fired === true
+                : crossUp;
+  // The below-trend layer's range, read only when that layer can act: the breakout or MA cluster trigger with the layer on.
   const belowTrend = config.belowTrendBreakout;
   const belowBreakout =
-    config.entryTrigger === 'breakout' && belowTrend?.enabled === true
+    (config.entryTrigger === 'breakout' || config.entryTrigger === 'maCluster') &&
+    belowTrend?.enabled === true
       ? breakoutLevel(windowPrev, breakoutLookback(belowTrend.lookback))
       : null;
 
@@ -304,12 +359,17 @@ const decide = (input: MomentumInput): MomentumOutput => {
       return forceSell ? { ...blocked, overrideDeclineReason: 'held-without-basis' } : blocked;
     }
     const gate = trendGate(config, candles, market.currentPrice);
-    // The layer fires only where the primary rule's own trend gate refuses for `below-trend`, so above the line nothing changes, and a `below` side or a disabled filter (which never answers `below-trend`) leaves it inert.
+    // Under breakout the layer fires only where the primary rule's own trend gate refuses for `below-trend`, so above the line nothing changes, and a `below` side or a disabled filter (which never answers `below-trend`) leaves it inert. The MA cluster rule was researched with no trend gate, so there the layer reads the trend filter's line itself, whether or not the filter gates entries.
     const belowSignal =
       belowBreakout !== null &&
       new Decimal(lastCandle.close).gt(belowBreakout) &&
-      gate === 'below-trend';
-    const layer = belowSignal ? ('below-trend' as const) : null;
+      (config.entryTrigger === 'maCluster'
+        ? underTrendLine(config, candles, market.currentPrice)
+        : gate === 'below-trend') &&
+      belowTrendCalm(belowTrend, candles);
+    // When the primary rule may also buy on this candle it wins, so the position keeps the primary trail.
+    const layer =
+      belowSignal && !(entrySignal && gate === 'pass') ? ('below-trend' as const) : null;
     if (entrySignal || belowSignal) {
       // One entry per candle. The signal (cross-up, or fast above slow under `trend`) reads the last CLOSED candles, so it stays true for the rest of the candle it fired on: a position stopped out inside that window would otherwise re-enter at the price the stop just rejected, unbounded. Checked before the trend gate so a repeat attempt does not report itself as a trend-filter veto.
       if (lastEntryCandle(state) === lastCandle.closeTimeMs) {
@@ -396,6 +456,9 @@ const decide = (input: MomentumInput): MomentumOutput => {
         breakout,
         belowBreakout,
         impulse,
+        cluster,
+        exhaustion,
+        obvLead,
         close: new Decimal(lastCandle.close),
         gate,
       },
@@ -424,6 +487,9 @@ const evaluateEntry = (
     breakout: Decimal | null;
     belowBreakout: Decimal | null;
     impulse: ImpulseReading | null;
+    cluster: MaClusterReading | null;
+    exhaustion: ExhaustionReading | null;
+    obvLead: ObvLeadReading | null;
     close: Decimal;
     gate: TrendGate;
   },
@@ -441,6 +507,82 @@ const evaluateEntry = (
         bodyAtr: reading?.bodyAtr.toFixed(2) ?? null,
         trendGate: signal.gate,
         waitingFor: reading === null ? 'impulse-history' : 'heavy-volume-up-candle',
+      }),
+    ]);
+  }
+  if (!entrySignal && config.entryTrigger === 'exhaustion') {
+    // The three readings say which leg is short of firing; null means the window is still too short to measure them.
+    const reading = signal.exhaustion;
+    return hold(state, [
+      log('debug', 'momentum: flat, no exhaustion', {
+        symbol: market.symbol,
+        choppiness: reading?.choppiness.toFixed(1) ?? null,
+        belowAveragePercent: reading?.belowAverage.times(100).toFixed(2) ?? null,
+        rsi: reading?.rsi.toFixed(1) ?? null,
+        trendGate: signal.gate,
+        waitingFor: reading === null ? 'exhaustion-history' : 'one-way-oversold-slide',
+      }),
+    ]);
+  }
+  if (!entrySignal && config.entryTrigger === 'obvLead') {
+    // Names the first leg short of firing, in the order the rule reads them; null means the window is still too short.
+    const reading = signal.obvLead;
+    return hold(state, [
+      log('debug', 'momentum: flat, no OBV lead', {
+        symbol: market.symbol,
+        obvNewHigh: reading?.obvNewHigh ?? null,
+        priceToHighPercent: reading?.priceToHigh.times(100).toFixed(2) ?? null,
+        choppiness: reading?.choppiness.toFixed(1) ?? null,
+        trendGate: signal.gate,
+        waitingFor:
+          reading === null
+            ? 'obv-lead-history'
+            : !reading.obvNewHigh
+              ? 'obv-new-high'
+              : !reading.priceToHigh.gt(0)
+                ? 'price-already-at-high'
+                : 'less-choppy-market',
+      }),
+    ]);
+  }
+  if (!entrySignal && config.entryTrigger === 'maCluster') {
+    // Spread says whether the averages have bunched yet; the rise says how far a close must climb to clear the top one; choppiness says whether the gate would refuse a break. Null means the window is still too short.
+    const reading = signal.cluster;
+    return hold(state, [
+      log('debug', 'momentum: flat, no MA cluster break', {
+        symbol: market.symbol,
+        clusterTop: reading?.top.toFixed() ?? null,
+        clusterSpreadPercent: reading?.spread.times(100).toFixed(2) ?? null,
+        riseToClusterTopPercent:
+          reading === null ? null : reading.top.div(signal.close).minus(1).times(100).toFixed(2),
+        choppiness: reading?.choppiness.toFixed(1) ?? null,
+        atrPercentile: reading?.atrPercentile?.toFixed(2) ?? null,
+        ...(signal.belowBreakout === null
+          ? {}
+          : {
+              belowTrendBreakoutLevel: signal.belowBreakout.toFixed(),
+              riseToBelowTrendBreakoutPercent: signal.belowBreakout
+                .div(signal.close)
+                .minus(1)
+                .times(100)
+                .toFixed(2),
+            }),
+        trendGate: signal.gate,
+        // Names the condition that binds: a close already above the top cannot cross until it falls back, and with the averages spread out no cross counts at all.
+        waitingFor:
+          reading === null
+            ? 'ma-cluster-history'
+            : reading.choppy
+              ? 'less-choppy-market'
+              : reading.volatile
+                ? 'calmer-market'
+                : reading.unconfirmed
+                  ? 'next-close-above-cluster'
+                  : !reading.bunched
+                    ? 'averages-to-bunch'
+                    : signal.close.gt(reading.top)
+                      ? 'fall-back-then-close-above-cluster'
+                      : 'close-above-bunched-averages',
       }),
     ]);
   }
@@ -552,7 +694,13 @@ const evaluateEntry = (
               ? 'momentum: entry on breakout above the lookback high'
               : config.entryTrigger === 'impulse'
                 ? 'momentum: entry on impulse candle'
-                : 'momentum: entry on EMA cross-up',
+                : config.entryTrigger === 'maCluster'
+                  ? 'momentum: entry on break above bunched averages'
+                  : config.entryTrigger === 'exhaustion'
+                    ? 'momentum: entry on exhausted sell-off'
+                    : config.entryTrigger === 'obvLead'
+                      ? 'momentum: entry on OBV leading price'
+                      : 'momentum: entry on EMA cross-up',
         {
           symbol: market.symbol,
           price: market.currentPrice,

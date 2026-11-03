@@ -9,7 +9,7 @@ A **strategy** is the rulebook one profile trades by; the other concepts here wo
 The three rulebooks that ship today. You pick one per profile — see [Compare & choose](strategies/index.md):
 
 - **[Trailing Trade](strategies/trailing-trade.md)** — buys dips in steps, trails the sell up.
-- **[Momentum](strategies/momentum.md)** — buys a confirmed breakout, exits on a trailing stop.
+- **[Momentum](strategies/momentum.md)** — buys when its chosen entry trigger fires, exits on a trailing stop.
 - **[Rebalance](strategies/rebalance.md)** — holds a basket at target proportions.
 
 ## Everything else

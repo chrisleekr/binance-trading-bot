@@ -817,9 +817,8 @@ export const createTickHandler = (
           );
         } else {
           writtenConditions = await commit(output.nextState, persistTimeoutMs);
-          // Every order decision this tick landed: the retry sequence, if there was
-          // one, is over.
-          if (failure === undefined) {
+          // Every order decision this tick landed: the retry sequence, if there was one, is over. Only a tick that read the flag set has one to end. This handler is the flag's only writer and ticks for a symbol run one at a time, so an unset read means the DEL would be a no-op round trip, and on every ordinary tick its 100ms deadline turned Redis latency into warns. A read that errored also reads unset; the flag then lapses on its TTL and can at most stamp `rearmed` on one later tick inside that window.
+          if (failure === undefined && wasRearmed) {
             await raceDeadline(
               () => deps.redis.del(rearmKey),
               REARM_TIMEOUT_MS,

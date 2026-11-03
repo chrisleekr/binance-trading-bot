@@ -111,6 +111,14 @@ describe('momentumPreviewLevels — flat state with a configured entry', () => {
     expect(momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE)).sections).toEqual([]);
   });
 
+  it('projects the last close under the OBV lead trigger', () => {
+    const config = cfg({ entryTrigger: 'obvLead' });
+    const model = momentumPreviewLevels(
+      previewInput(config, RICH_ACCOUNT_WIRE, mkCandles(['10', '11', '12', '13'])),
+    );
+    expect(row(model, 'entry')).toMatchObject({ price: '13', label: 'Last close' });
+  });
+
   // A 16-candle rising step: every true range is 1, so ATR is 1 and the projected surge close is 25 + 2 = 27.
   it('projects the impulse level, the last close plus riseAtrMultiple ATRs, under the impulse trigger', () => {
     const config = cfg({ entryTrigger: 'impulse', impulse: { riseAtrMultiple: '2' } });
@@ -126,6 +134,32 @@ describe('momentumPreviewLevels — flat state with a configured entry', () => {
         previewInput(config, RICH_ACCOUNT_WIRE, mkCandles(['10', '11', '12', '13'])),
       ).sections,
     ).toEqual([]);
+  });
+
+  // 400 flat closes at 10: the level is the average less the default 5%.
+  it('projects the 400-candle average less minBelowAverage under the exhaustion trigger', () => {
+    const config = cfg({ entryTrigger: 'exhaustion' });
+    const candles = mkCandles(Array.from({ length: 400 }, () => '10'));
+    const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles));
+    expect(row(model, 'entry')).toMatchObject({ price: '9.5', label: 'Exhaustion level' });
+  });
+
+  it('projects nothing under the exhaustion trigger while the window is shorter than the average', () => {
+    const config = cfg({ entryTrigger: 'exhaustion' });
+    expect(momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE)).sections).toEqual([]);
+  });
+
+  // 200 flat closes at 10 then 10.05: the highest average is the 20-candle one at 10.0025.
+  it('projects the top of the bunched averages under the MA cluster trigger', () => {
+    const config = cfg({ entryTrigger: 'maCluster' });
+    const candles = mkCandles([...Array.from({ length: 200 }, () => '10'), '10.05']);
+    const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles));
+    expect(row(model, 'entry')).toMatchObject({ price: '10.0025', label: 'MA cluster top' });
+  });
+
+  it('projects nothing under the MA cluster trigger while the window is too short', () => {
+    const config = cfg({ entryTrigger: 'maCluster' });
+    expect(momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE)).sections).toEqual([]);
   });
 
   it('projects the entry band at slowEMA*(1+margin) as an informational row (no trigger)', () => {

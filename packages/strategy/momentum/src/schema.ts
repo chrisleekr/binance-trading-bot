@@ -251,7 +251,7 @@ const MomentumBelowTrendBreakoutSchema = z.object({
     .boolean()
     .default(false)
     .describe(
-      'Also buy a shorter breakout while price is below the trend line, the market the trend filter otherwise sits out. Needs the breakout trigger, the trend filter on its "above" side, and the ATR trailing stop.',
+      'Also buy a shorter breakout while price is below the trend line, the market the trend filter otherwise sits out. Under the breakout trigger it needs the trend filter on its "above" side; under the MA cluster trigger it reads the trend filter\'s line even with the filter off. Both need the ATR trailing stop.',
     ),
   lookback: z
     .number()
@@ -266,6 +266,15 @@ const MomentumBelowTrendBreakoutSchema = z.object({
     .default('2')
     .describe(
       'ATR multiple for the trailing stop of a position this layer opened. 2 means sell when price falls 2 ATRs from the high since entry. Positions opened by the main breakout keep the main ATR multiple.',
+    ),
+  maxChoppiness: decimalString('maxChoppiness must be empty or in (0, 100]', {
+    gt: 0,
+    lte: 100,
+    allowEmpty: true,
+  })
+    .default('')
+    .describe(
+      'Skip a below-trend breakout while the market is choppy: it is bought only while the Choppiness Index (0 to 100) over the last 14 candles is below this number. Empty turns the check off. 50 is the researched setting.',
     ),
 });
 
@@ -446,6 +455,85 @@ const MomentumImpulseSchema = z
   })
   .describe('Impulse trigger only: what counts as a buying surge worth following.');
 
+/** Thresholds for `entryTrigger: 'exhaustion'`. Defaults are the 1h setting the 2025-26 research chose (Choppiness Index under 30, close more than 5% under the 400-candle average, RSI under 25). */
+const MomentumExhaustionSchema = z
+  .object({
+    maxChoppiness: decimalString('maxChoppiness must be in (0, 100]', { gt: 0, lte: 100 })
+      .default('30')
+      .describe(
+        'How one-directional the slide must be. The Choppiness Index runs from 0 (candles all moving one way) to 100 (candles reversing inside a narrow band); the buy needs it under this value. Lower waits for steeper, cleaner slides.',
+      ),
+    minBelowAverage: decimalString('minBelowAverage must be in (0, 1)', { gt: 0, lt: 1 })
+      .default('0.05')
+      .describe(
+        '@ui:percent-of How far the close must sit under the 400-candle average before a buy. 5 means more than 5% under it. Larger waits for deeper drops and buys less often.',
+      ),
+    maxRsi: decimalString('maxRsi must be in (0, 100)', { gt: 0, lt: 100 })
+      .default('25')
+      .describe(
+        'How oversold the coin must be. RSI (relative strength index, 0 to 100) under 30 is commonly read as oversold; the buy needs it under this value. Lower buys only the most stretched drops.',
+      ),
+  })
+  .describe('Exhaustion trigger only: what counts as a sell-off that has run out of sellers.');
+
+/** Thresholds for `entryTrigger: 'obvLead'`. Defaults are the 1h setting the 2025-26 research chose (168-candle range, Choppiness Index under 50). */
+const MomentumObvLeadSchema = z
+  .object({
+    lookback: z
+      .number()
+      .int()
+      // The choppiness window must fit inside the range the trigger reads.
+      .min(14)
+      .max(MAX_CANDLE_WINDOW - 1)
+      .default(168)
+      .describe(
+        'How many candles back OBV and price are compared. OBV must beat its highest value over this range while the close is still under its highest close. 168 on a 1h interval is one week.',
+      ),
+    maxChoppiness: decimalString('maxChoppiness must be in (0, 100]', { gt: 0, lte: 100 })
+      .default('50')
+      .describe(
+        'How directional the market must be. The Choppiness Index runs from 0 (candles all moving one way) to 100 (candles reversing inside a narrow band); the buy needs it under this value.',
+      ),
+  })
+  .describe('OBV lead trigger only: when buying volume counts as leading price.');
+
+/** Threshold for `entryTrigger: 'maCluster'`. Default is the 1h setting the 2025-26 research chose (averages within 1% of each other). */
+const MomentumMaClusterSchema = z
+  .object({
+    maxSpread: decimalString('maxSpread must be in (0, 1)', { gt: 0, lt: 1 })
+      .default('0.01')
+      .describe(
+        '@ui:percent-of How close together the 20, 50, 100 and 200 candle averages must be, as a share of price, before a close above all of them counts. 1 means within 1%. Wider buys more often in choppier markets.',
+      ),
+    maxChoppiness: decimalString('maxChoppiness must be empty or in (0, 100]', {
+      gt: 0,
+      lte: 100,
+      allowEmpty: true,
+    })
+      .default('')
+      .describe(
+        'Skip a break while the market is choppy. The Choppiness Index (0 to 100) over the last 14 candles measures how much price kept reversing instead of travelling; a break is bought only while it is below this number. Empty turns the check off. 50 is the researched setting.',
+      ),
+    maxAtrPercentile: decimalString('maxAtrPercentile must be empty or in (0, 1]', {
+      gt: 0,
+      lte: 1,
+      allowEmpty: true,
+    })
+      .default('')
+      .describe(
+        '@ui:percent-of Skip a break while the market is more volatile than usual. Volatility is the 14-candle ATR as a share of price, ranked against the previous 480 candles; a break is bought only while it ranks at or below this share. 40 means only breaks in the calmest 40%. Empty turns the check off. The bot needs 495 closed candles before it can judge a break with this on.',
+      ),
+    confirmBreak: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Wait one candle before buying a break. The break candle must pass every other check, and the next candle must also close above the highest average; a break that falls straight back is skipped. The buy comes one candle later and usually a little higher.',
+      ),
+  })
+  .describe(
+    'MA cluster trigger only: how tightly the moving averages must bunch before a break above them is bought.',
+  );
+
 /** Cross-symbol entry gate. Defaults are the 1h setting the 2025-26 research chose (720 candles is 30 days; top 3 of nine large caps). */
 const MomentumRelativeStrengthSchema = z
   .object({
@@ -548,10 +636,10 @@ export const MomentumConfigSchema = z.object({
     ),
   // What opens a position. Absent reads as `cross` so the unparsed worker config and existing golden replays are unchanged.
   entryTrigger: z
-    .enum(['cross', 'trend', 'breakout', 'impulse'])
+    .enum(['cross', 'trend', 'breakout', 'impulse', 'maCluster', 'exhaustion', 'obvLead'])
     .optional()
     .describe(
-      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle. "Breakout" buys when a candle closes above the highest price of the previous `breakoutLookback` candles; the EMAs then only matter for the cross-down exit, and the entry margin is not applied. "Impulse" buys after a heavy-volume up candle (see `impulse`), betting the surge continues; the EMAs then only matter for the cross-down exit.',
+      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle. "Breakout" buys when a candle closes above the highest price of the previous `breakoutLookback` candles; the EMAs then only matter for the cross-down exit, and the entry margin is not applied. "Impulse" buys after a heavy-volume up candle (see `impulse`), betting the surge continues; the EMAs then only matter for the cross-down exit. "MA cluster" buys when a candle closes above the 20, 50, 100 and 200 candle averages after they have bunched together (see `maCluster`); the EMAs then only matter for the cross-down exit. "Exhaustion" buys a fast slide that has run far under the 400-candle average with RSI oversold (see `exhaustion`), betting on a bounce; it buys against the trend, so it needs the trend filter off, and is meant for a small profile with a tight ATR trail. "OBV lead" buys when on-balance volume makes a new high over `obvLead.lookback` candles while the close is still under its own high and the market is not choppy (see `obvLead`), betting price follows the volume; it is meant for a small profile.',
     ),
   // Read only under `entryTrigger: 'breakout'`. Capped so `lookback + 1` candles fit the hard window ceiling; a longer range could never fill and would suppress every entry.
   breakoutLookback: z
@@ -567,6 +655,12 @@ export const MomentumConfigSchema = z.object({
   belowTrendBreakout: MomentumBelowTrendBreakoutSchema.optional(),
   // Read only under `entryTrigger: 'impulse'`. Optional so existing configs and golden replays are unchanged.
   impulse: MomentumImpulseSchema.optional(),
+  // Read only under `entryTrigger: 'exhaustion'`. Optional so existing configs and golden replays are unchanged.
+  exhaustion: MomentumExhaustionSchema.optional(),
+  // Read only under `entryTrigger: 'obvLead'`. Optional so existing configs and golden replays are unchanged.
+  obvLead: MomentumObvLeadSchema.optional(),
+  // Read only under `entryTrigger: 'maCluster'`. Optional so existing configs and golden replays are unchanged.
+  maCluster: MomentumMaClusterSchema.optional(),
   // Cross-symbol entry gate over the profile KV store. Optional so existing configs and golden replays are unchanged.
   relativeStrength: MomentumRelativeStrengthSchema.optional(),
   protectiveStop: MomentumProtectiveStopSchema.optional(),

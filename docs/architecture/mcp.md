@@ -2,7 +2,7 @@
 
 The bot can expose itself to an AI agent — Claude Code, ChatGPT — over the Model Context Protocol, so the agent can read the whole trading surface and, with a second scope, trade it.
 
-This is off by default. Turning it on publishes a trading control plane on the public internet, so read this page before setting `MCP_ENABLED=1`.
+This is off by default. Turning it on publishes a trading control plane on the public internet, so read this page before setting `MCP_ENABLED=1`. To turn it on and connect an agent, see [AI agents (MCP)](../operations/ai-agents.md); this page covers how it works.
 
 ## What an agent can and cannot do
 
@@ -16,7 +16,7 @@ Every mounted `/api` route lands in exactly one of three buckets, and a test ass
 
 `GET /api/backup` streams a full `pg_dump`, and this deployment stores Binance keys and notifier secrets in plaintext by design (see [Auth](auth.md) "Threat model"). One such call would put the operator's key pair into a chat transcript, which is why backup and restore are denied rather than merely un-surfaced.
 
-The scopes split read from write, so an agent that only reports on the account never holds the scope that can place an order. That matters more than it sounds: a model reading market commentary is reading untrusted text, and a read-only token cannot be talked into trading.
+The scopes split read from write, so a token issued for `mcp:read` alone cannot place an order: a model reading market commentary is reading untrusted text, and a read-only token cannot be talked into trading. Today no client gets one by default. The `401` challenge names both tool scopes, MCP clients request exactly what it names, and `/consent` grants every requested scope or none, so an operator who allows Claude Code grants `mcp:trade` too.
 
 ## Authorization
 

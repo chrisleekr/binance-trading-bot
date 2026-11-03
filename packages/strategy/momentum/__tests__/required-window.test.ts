@@ -68,6 +68,53 @@ describe('momentumRequiredWindow', () => {
     ).toBe(51);
   });
 
+  it('needs the 400-candle average plus one under the exhaustion trigger', () => {
+    expect(
+      momentumRequiredWindow(cfg({ ema: { fast: 9, slow: 50 }, entryTrigger: 'exhaustion' })),
+    ).toBe(401);
+  });
+
+  it('needs the OBV lookback plus one under the OBV lead trigger, or the slow EMA when that is longer', () => {
+    expect(
+      momentumRequiredWindow(cfg({ ema: { fast: 9, slow: 50 }, entryTrigger: 'obvLead' })),
+    ).toBe(169);
+    expect(
+      momentumRequiredWindow(
+        cfg({ ema: { fast: 9, slow: 50 }, entryTrigger: 'obvLead', obvLead: { lookback: 20 } }),
+      ),
+    ).toBe(51);
+  });
+
+  it('needs the 200-candle average plus one under the MA cluster trigger', () => {
+    expect(
+      momentumRequiredWindow(cfg({ ema: { fast: 9, slow: 50 }, entryTrigger: 'maCluster' })),
+    ).toBe(201);
+  });
+
+  it('needs 495 candles under the MA cluster trigger with the volatility gate on', () => {
+    expect(
+      momentumRequiredWindow(
+        cfg({
+          ema: { fast: 9, slow: 50 },
+          entryTrigger: 'maCluster',
+          maCluster: { maxAtrPercentile: '0.4' },
+        }),
+      ),
+    ).toBe(495);
+  });
+
+  it('needs one more candle under the MA cluster trigger with confirmBreak on', () => {
+    expect(
+      momentumRequiredWindow(
+        cfg({
+          ema: { fast: 9, slow: 50 },
+          entryTrigger: 'maCluster',
+          maCluster: { confirmBreak: true },
+        }),
+      ),
+    ).toBe(202);
+  });
+
   it('honours a trend-filter period above the EMA need', () => {
     const c = cfg({
       ema: { fast: 9, slow: 50 },
@@ -233,5 +280,41 @@ describe('momentumRequiredWindow — below-trend breakout layer', () => {
         cfg({ ...base, belowTrendBreakout: { enabled: false, lookback: 300 } }),
       ),
     ).toBe(101);
+  });
+});
+
+describe('momentumRequiredWindow — below-trend layer under the MA cluster trigger', () => {
+  const base = { ema: { fast: 50, slow: 200 }, entryTrigger: 'maCluster' };
+  it('reads the trend line period with the filter off, and the layer range when longer', () => {
+    const on = { enabled: true, lookback: 120 };
+    expect(
+      momentumRequiredWindow(
+        cfg({ ...base, trendFilter: { enabled: false, period: 400 }, belowTrendBreakout: on }),
+      ),
+    ).toBe(400);
+    expect(
+      momentumRequiredWindow(
+        cfg({ ...base, belowTrendBreakout: { enabled: true, lookback: 250 } }),
+      ),
+    ).toBe(251);
+  });
+  it('keeps the longer need of an enabled filter with a slope check', () => {
+    const tf = { enabled: true, period: 400, requireRising: true, slopeLookbackBars: 10 };
+    expect(
+      momentumRequiredWindow(
+        cfg({ ...base, trendFilter: tf, belowTrendBreakout: { enabled: true, lookback: 120 } }),
+      ),
+    ).toBe(410);
+  });
+  it('needs only the cluster window while the layer is off', () => {
+    expect(
+      momentumRequiredWindow(
+        cfg({
+          ...base,
+          trendFilter: { enabled: false, period: 400 },
+          belowTrendBreakout: { enabled: false },
+        }),
+      ),
+    ).toBe(201);
   });
 });

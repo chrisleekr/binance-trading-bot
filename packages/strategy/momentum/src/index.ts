@@ -17,7 +17,10 @@ import { extensionPeriod } from './extension.js';
 import { atrStopPeriod } from './trailing-stop.js';
 import { trendPeriod } from './trend-filter.js';
 import { breakoutLookback } from './breakout.js';
+import { exhaustionNeed } from './exhaustion.js';
+import { obvLeadNeed } from './obv-lead.js';
 import { impulseNeed } from './impulse.js';
+import { maClusterNeed } from './ma-cluster.js';
 import { momentumPositionAdapter } from './position-adapter.js';
 import { momentumReasonAttribution } from './attribution.js';
 import { momentumPreviewLevels, momentumPreviewDataNeeds } from './preview.js';
@@ -56,7 +59,7 @@ const finiteNum = (v: unknown): number => {
 };
 
 /**
- * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1`, and the impulse trigger its volume lookback plus the judged candle, when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, an enabled ATR trailing stop reads `period + 1` closes for its first true-range value, and an enabled relative-strength gate reads `lookbackBars + 1` closes for its score. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
+ * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1`, and the impulse trigger its volume lookback plus the judged candle, and the exhaustion trigger its 400-candle average plus one, and the OBV lead trigger its lookback plus one, and the MA cluster trigger its 200-candle average plus one, when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, an enabled ATR trailing stop reads `period + 1` closes for its first true-range value, and an enabled relative-strength gate reads `lookbackBars + 1` closes for its score. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
  *
  * The ATR term is a HARD need, not the trail's soft one. Risk-based entry sizing divides equity risk by the initial stop distance, and that distance is unresolvable on a short ATR window, so the entry is refused outright (`risk-sizing-unavailable`) rather than degraded. The exit trail's own shortfall behaviour is a fallback to the fixed `trailingStopPct`, which is why the term could be omitted here before entry sizing read it.
  */
@@ -76,7 +79,9 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
     breakoutLookback?: unknown;
     belowTrendBreakout?: { enabled?: unknown; lookback?: unknown };
     impulse?: unknown;
+    obvLead?: unknown;
     relativeStrength?: unknown;
+    maCluster?: unknown;
   };
   // The breakout level reads `lookback` candles before the one being judged; folded into the EMA term since both are entry-signal needs.
   const bt = c.belowTrendBreakout;
@@ -88,7 +93,15 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
       ? rangeNeed + 1
       : c.entryTrigger === 'impulse'
         ? impulseNeed(c.impulse)
-        : 0;
+        : c.entryTrigger === 'exhaustion'
+          ? exhaustionNeed()
+          : c.entryTrigger === 'obvLead'
+            ? obvLeadNeed(c.obvLead)
+            : c.entryTrigger === 'maCluster'
+              ? maClusterNeed(c.maCluster) > layerRange
+                ? maClusterNeed(c.maCluster)
+                : layerRange + 1
+              : 0;
   const crossNeed = finiteNum(c.ema?.slow) + 1;
   const emaNeed = crossNeed > breakoutNeed ? crossNeed : breakoutNeed;
   const tf = c.trendFilter;
@@ -101,6 +114,11 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
     // Coerce with the same helper the gate uses, so a partial override that
     // omits `period` sizes the window to the 200 default rather than 0.
     trendNeed = trendPeriod(tf.period) + k;
+  }
+  // Under the MA cluster trigger the below-trend layer reads the trend line with the filter off, so the line's period is a need of its own.
+  if (c.entryTrigger === 'maCluster' && bt?.enabled === true) {
+    const lineNeed = trendPeriod(tf?.period);
+    if (lineNeed > trendNeed) trendNeed = lineNeed;
   }
   const ce = c.entryExtension;
   const extNeed = ce?.enabled === true ? extensionPeriod(ce.period) : 0;

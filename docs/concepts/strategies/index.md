@@ -42,7 +42,7 @@ The strategy only ever decides. A separate part of the bot (the _executor_) plac
 | Strategy | What it does | Fits when you expect |
 | --- | --- | --- |
 | **Trailing Trade** | Buys dips in steps, trails the sell up. | The price to swing up and down in a range. |
-| **Momentum** | Buys a confirmed breakout, exits on a trailing stop. | A coin already moving up to keep rising. |
+| **Momentum** | Buys when its chosen entry trigger fires, sells on a trailing stop. | A strong move to keep going, or a sharp sell-off to bounce. |
 | **Rebalance** | Holds a basket at target proportions. | To hold a steady mix rather than time entries. |
 
 ## Trailing Trade
@@ -58,11 +58,17 @@ It profits from repeated up-and-down movement in a ranging market. It does not p
 
 ## Momentum
 
-Momentum bets that **a coin already moving up will keep moving up**. It waits for a confirmed upward breakout, buys, and then rides the trend. It does **not** try to pick tops: it exits on a **trailing stop** (a line that follows the rise up) or when the trend flips (the fast average crosses back below the slow one), never at a fixed profit target.
+Momentum waits for its **entry trigger** (the buy signal you pick per profile), buys, and sells on a **trailing stop** (a sell line that follows the price up) or when the fast average crosses back below the slow one. It never sells at a fixed profit target.
 
-Because it only enters on strength, it trades less often than Trailing Trade and can sit in cash for long stretches waiting for a breakout. To rank many coins rather than time one, see [Rebalance's momentum weight mode](rebalance.md#how-momentum-mode-ranks).
+The triggers fall into three groups:
 
-**Full page:** [Momentum](momentum.md) — the EMA-cross entry, the trailing/cross-down exits, every config knob, and worked examples.
+- **Follow strength** (`cross`, `trend`, `breakout`, `impulse`, `maCluster`): buy a coin that is already moving up.
+- **Follow volume** (`obvLead`): buy when buying volume runs ahead of price.
+- **Buy a bounce** (`exhaustion`): buy a sharp, one-way sell-off, betting it bounces.
+
+It trades less often than Trailing Trade and can sit in cash for long stretches. To rank many coins rather than time one, see [Rebalance's momentum weight mode](rebalance.md#how-momentum-mode-ranks).
+
+**Full page:** [Momentum](momentum.md): each entry trigger, the exits, every setting, and worked examples.
 
 ## Rebalance
 
@@ -82,7 +88,7 @@ Rebalance makes no market-timing calls. It only corrects drift across the basket
 Each strategy assumes a different market. Match the one whose assumption you hold for the coins you trade:
 
 - **The price to swing up and down in a range** → Trailing Trade.
-- **A coin that is breaking out to keep rising** → Momentum.
+- **A strong move to keep going, or a sharp sell-off to bounce** → Momentum.
 - **To hold a steady spread rather than time entries** → Rebalance.
 
 No strategy is safest in the abstract; each carries the risk of the market it is built for. You can change strategy later, and run different strategies in different [profiles](../../get-started/configure.md) at the same time.

@@ -424,14 +424,22 @@ describe('tick handler — a failed order is re-issued by NOT advancing the stat
   });
 
   it('clears the re-arm flag once every order in the tick lands', async () => {
-    const { commit, delCalls } = await run({ orderResult: { ok: true } });
+    const { commit, delCalls } = await run({ orderResult: { ok: true }, rearmFlagSet: true });
     expect(commit).toHaveBeenCalledOnce();
     expect(delCalls).toContain(REARM_KEY);
+  });
+
+  // The flag was not set, so there is no retry sequence to end; skipping the DEL keeps Redis latency on ordinary ticks out of the warn log.
+  it('does not touch the flag on an ordinary tick that read it unset', async () => {
+    const { commit, delCalls } = await run({ orderResult: { ok: true } });
+    expect(commit).toHaveBeenCalledOnce();
+    expect(delCalls).not.toContain(REARM_KEY);
   });
 
   it('does NOT clear the flag while an order is still failing', async () => {
     const { delCalls } = await run({
       orderResult: { ok: false, retryable: false, phase: 'accepted', reason: 'bookkeeping failed' },
+      rearmFlagSet: true,
     });
     expect(delCalls).not.toContain(REARM_KEY);
   });
@@ -715,6 +723,7 @@ describe('tick handler — a broken best-effort Redis write never fails the tick
     // Every order landed, so this tick takes the CLEAR path, not the arm path.
     const { result, warnings, delCalls } = await run({
       orderResult: { ok: true },
+      rearmFlagSet: true,
       redisDel: () => {
         throw boom;
       },
@@ -731,6 +740,7 @@ describe('tick handler — a broken best-effort Redis write never fails the tick
     const boom = new Error('DEL rejected');
     const { result, warnings } = await run({
       orderResult: { ok: true },
+      rearmFlagSet: true,
       redisDel: () => Promise.reject(boom),
     });
 
