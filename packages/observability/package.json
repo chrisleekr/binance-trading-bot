@@ -22,7 +22,7 @@
     "@opentelemetry/resources": "~3.0.0",
     "@opentelemetry/sdk-node": "~0.300.0",
     "@opentelemetry/sdk-trace": "~3.0.0",
-    "@opentelemetry/semantic-conventions": "~1.43.0",
+    "@opentelemetry/semantic-conventions": "~1.44.0",
     "opentelemetry-instrumentation-bullmq": "~0.7.15",
     "prom-client": "~15.1.3"
   }
