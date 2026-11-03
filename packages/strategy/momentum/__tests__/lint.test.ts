@@ -33,6 +33,14 @@ describe('lintMomentumConfig', () => {
     expect(codes(base({ trendFilter: { enabled: true, requireRising: true } }))).toEqual([]);
   });
 
+  it('flags the exhaustion trigger under a trend filter on its above side', () => {
+    const tf = (trendFilter: Record<string, unknown>) =>
+      codes(base({ entryTrigger: 'exhaustion', trendFilter }));
+    expect(tf({ enabled: true })).toEqual(['exhaustion-trend-filter-above']);
+    expect(tf({ enabled: true, side: 'below' })).toEqual([]);
+    expect(tf({ enabled: false })).toEqual([]);
+  });
+
   it.each([
     ['a non-breakout trigger', { entryTrigger: 'cross' }],
     ['the trend filter off', { trendFilter: { enabled: false } }],

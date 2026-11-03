@@ -24,6 +24,17 @@ export const lintMomentumConfig = (config: MomentumConfig): readonly ConfigDiagn
     });
   }
 
+  // Exhaustion buys under the trend line, which trendGate refuses as below-trend on the above side, so such a profile saves cleanly and almost never buys.
+  if (config.entryTrigger === 'exhaustion' && tf?.enabled === true && tf.side !== 'below') {
+    out.push({
+      level: 'warn',
+      code: 'exhaustion-trend-filter-above',
+      message:
+        'The exhaustion trigger buys sell-offs under the trend line, and the trend filter on its "above" side refuses nearly all of them. Turn the trend filter off, or set its side to "below".',
+      path: ['trendFilter', 'enabled'],
+    });
+  }
+
   if (config.belowTrendBreakout?.enabled === true) {
     // Under breakout the layer fires only when the trend gate answers below-trend, which needs the filter on its above side. Under the MA cluster trigger it reads the line itself; no other trigger reads it.
     const inert =

@@ -81,10 +81,10 @@ export const impulseReading = (candles: readonly Candle[], raw: unknown): Impuls
  *
  * @param candles - Closed candles on the strategy interval, oldest first.
  * @param raw - The unparsed `impulse` config block.
- * @returns The level, or null when the window is too short for the ATR.
+ * @returns The level, or null while the window is shorter than {@link impulseNeed}, the length the tick needs before it can judge a candle.
  */
 export const impulseLevel = (candles: readonly Candle[], raw: unknown): Decimal | null => {
-  if (candles.length < IMPULSE_ATR_PERIOD + 1) return null;
+  if (candles.length < impulseNeed(raw)) return null;
   return new Decimal(candles[candles.length - 1]!.close).plus(
     impulseSettings(raw).riseAtrMultiple.times(atr(candles, IMPULSE_ATR_PERIOD)),
   );

@@ -148,7 +148,7 @@ Buys on a closed candle where all three hold:
 | The close is under the 400-candle SMA by more than           | `exhaustion.minBelowAverage` (5%) |
 | RSI(14) is under                                             | `exhaustion.maxRsi` (25)          |
 
-- It buys against the trend, so it needs the trend filter off. With the filter on its `above` side nearly every signal is refused as `below-trend`.
+- It buys against the trend, so it needs the trend filter off or on its `below` side. With the filter on its `above` side nearly every signal is refused as `below-trend`, and the config check warns.
 - The periods are fixed at the ones the research tested.
 - The trace logs `choppiness`, `belowAveragePercent` and `rsi`. `waitingFor`: `exhaustion-history` until 401 candles have closed, then `one-way-oversold-slide`.
 

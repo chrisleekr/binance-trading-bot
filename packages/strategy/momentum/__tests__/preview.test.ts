@@ -133,13 +133,17 @@ describe('momentumPreviewLevels — flat state with a configured entry', () => {
 
   // A 16-candle rising step: every true range is 1, so ATR is 1 and the projected surge close is 25 + 2 = 27.
   it('projects the impulse level, the last close plus riseAtrMultiple ATRs, under the impulse trigger', () => {
-    const config = cfg({ entryTrigger: 'impulse', impulse: { riseAtrMultiple: '2' } });
+    // volumeLookback 3 keeps the tick's need at 16 candles, so the window is long enough to judge.
+    const config = cfg({
+      entryTrigger: 'impulse',
+      impulse: { riseAtrMultiple: '2', volumeLookback: 3 },
+    });
     const candles = mkCandles(Array.from({ length: 16 }, (_, i) => String(10 + i)));
     const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles));
     expect(row(model, 'entry')).toMatchObject({ price: '27', label: 'Impulse level' });
   });
 
-  it('projects nothing under the impulse trigger while the window is too short for the ATR', () => {
+  it('projects nothing under the impulse trigger while the window is shorter than the tick needs', () => {
     const config = cfg({ entryTrigger: 'impulse' });
     expect(
       momentumPreviewLevels(
@@ -500,10 +504,11 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
     const model = momentumPreviewLevels(input(config, { state: held(), entryPrice: '100' }));
     expect(row(model, 'entry')).toBeUndefined();
     expect(row(model, 'trail')).toBeDefined();
+    expect(row(model, 'protective-stop')).toBeDefined();
   });
 
   // Each trigger's rule needs a longer window than the 4-candle default, so a held position keeps its stop rows and loses only the entry row.
-  it.each(['maCluster', 'exhaustion', 'obvLead'] as const)(
+  it.each(['impulse', 'maCluster', 'exhaustion', 'obvLead'] as const)(
     'keeps the held stop rows and drops only the entry row under %s with a too-short window',
     (entryTrigger) => {
       const model = momentumPreviewLevels(
@@ -511,6 +516,7 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
       );
       expect(row(model, 'entry')).toBeUndefined();
       expect(row(model, 'trail')).toBeDefined();
+      expect(row(model, 'protective-stop')).toBeDefined();
     },
   );
 

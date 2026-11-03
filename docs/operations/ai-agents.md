@@ -30,7 +30,7 @@ MCP_ENABLED=1
 MCP_RESOURCE_URL=https://bot.example.com/api/mcp
 ```
 
-- `MCP_RESOURCE_URL` must be the `https` address the agent actually reaches (`http` is accepted only for a loopback host such as `localhost`). An internal or container address makes every call fail with a 401.
+- `MCP_RESOURCE_URL` must be the `https` address the agent actually reaches (`http` is accepted only for a loopback host such as `localhost`). Tokens are bound to this exact string, so if the agent reaches the bot at any other address, such as a public proxy in front of an internal one, every call fails with a 401.
 - If `PUBLIC_BASE_URL` is set, both must share the same origin.
 - The app refuses to start with both `MCP_ENABLED` and `LIVE_DEMO` on.
 
