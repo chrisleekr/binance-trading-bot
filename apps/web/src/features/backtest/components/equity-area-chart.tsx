@@ -124,6 +124,7 @@ export function EquityAreaChart({
       });
 
     return () => {
+      // oxlint-disable-next-line react/immutability -- effect-local cancel flag set in cleanup, the pattern react.dev documents for useEffect fetches.
       cancelled = true;
       if (chart) chart.remove();
     };

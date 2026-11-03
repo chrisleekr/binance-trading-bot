@@ -22,7 +22,7 @@ jobs:
   # secret skip with a warning rather than failing.
   testnet-e2e:
     name: testnet-e2e
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     container:
       image: mcr.microsoft.com/playwright:v1.64.1-noble
     steps:
@@ -71,7 +71,7 @@ jobs:
   # Renovate rule.
   audit:
     name: audit
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -97,7 +97,7 @@ jobs:
     name: open-issue-on-failure
     needs: [testnet-e2e, audit]
     if: ${{ always() && (needs.testnet-e2e.result == 'failure' || needs.audit.result == 'failure') }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/github-script@v9
         env:
