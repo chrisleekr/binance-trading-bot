@@ -28,7 +28,7 @@ env:
 jobs:
   release:
     name: release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
       pull-requests: write
@@ -54,7 +54,7 @@ jobs:
     name: publish
     needs: release
     if: ${{ needs.release.outputs.release_created == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       # Build the tag release-please just cut, not the branch head. A commit
       # landing while this job queues would otherwise ship as vX.Y.Z.
@@ -104,7 +104,7 @@ jobs:
     # Stable channel only: beta prereleases do not sync the chart (the chart
     # tracks stable v<x.y.z>). Fires only when this push actually cut a release.
     if: ${{ needs.release.outputs.release_created == 'true' && github.ref_name == 'main' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     # No GITHUB_TOKEN scopes: the cross-repo dispatch is authenticated with
     # RELEASE_TOKEN (a PAT), the only credential that can reach another repo.

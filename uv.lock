@@ -1,6 +1,6 @@
 version = 1
 revision = 5
-requires-python = ">=3.15.0"
+requires-python = ">=3.15.2"
 
 [[package]]
 name = "babel"
@@ -13,16 +13,16 @@ wheels = [
 
 [[package]]
 name = "backrefs"
-version = "8.1"
+version = "8.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/68/bc/c4b75b0279b2cf9e208c7dea5755a452d158a32abe1b7330824ff1127e86/backrefs-8.1.tar.gz", hash = "sha256:f86d9312df3ebae1241758af80809a319cafa1d8f32189edfb242c9aa55573b6", size = 6999089, upload-time = "2026-10-10T13:29:24.051Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/be/dd/fa26313573cd0880799ce627f45b68d1a9d4e98ddd7987b1ee6d06c1db55/backrefs-8.2.tar.gz", hash = "sha256:3d464a90603d682006ad6fc4694bee8eeeea1506805e3783b3e6f4462cfe9d84", size = 7003472, upload-time = "2026-11-03T14:25:57.73Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/17/7be730f397b9239be5044a147f0cdfbd9605111b07af053c737b21d79d16/backrefs-8.1-py310-none-any.whl", hash = "sha256:438bd38dc7fa0cded52786a1351a2dad9efc2cda95d047284c41d916a22312a8", size = 380382, upload-time = "2026-10-10T13:29:12.764Z" },
-    { url = "https://files.pythonhosted.org/packages/fd/d1/d25387b14119b7062fead6c9b2e87c2ab286beb346df79c6a649c095e979/backrefs-8.1-py311-none-any.whl", hash = "sha256:11f61846e446fa8637af2f5c073f1083aa58dbb7460b019fd51689f564e44f7e", size = 392180, upload-time = "2026-10-10T13:29:14.729Z" },
-    { url = "https://files.pythonhosted.org/packages/7d/63/4c3078fcbb3956c55b24472d8375a1b7ad67203d4a1917512eee34d4fbee/backrefs-8.1-py312-none-any.whl", hash = "sha256:b472c76082769f86a97ffccfd1f2599b2b706610c6154955664fffe67e909035", size = 398092, upload-time = "2026-10-10T13:29:16.364Z" },
-    { url = "https://files.pythonhosted.org/packages/df/22/60f30c9b8e497ca4bbac23991a726ebc267e23771a1b9d9c04b3a3c16dd6/backrefs-8.1-py313-none-any.whl", hash = "sha256:db577dbae1c61187534d35fc9bfbd0c01158fff6239a66fecf7590e5b17879a9", size = 400050, upload-time = "2026-10-10T13:29:18.09Z" },
-    { url = "https://files.pythonhosted.org/packages/45/c7/80fa46ecb47717845ab9c07bce8651ef8f80aac5ec698e212d02ed2a9963/backrefs-8.1-py314-none-any.whl", hash = "sha256:1e857c32e91b8fe46ddb359ac21021a37b090fa4239566a61e9856123e334041", size = 411908, upload-time = "2026-10-10T13:29:19.876Z" },
-    { url = "https://files.pythonhosted.org/packages/05/32/a57c5a5b7461b8c88266244014aa38052d76f64b064451b1d5342eb09bf4/backrefs-8.1-py315-none-any.whl", hash = "sha256:9c8fe3e2eaae4301a9ce787341d986e5ba25a887d89da6de0de5d58eca26a949", size = 417589, upload-time = "2026-10-10T13:29:21.821Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/42/88bef2b432b7677e117ee8bc38966d59e3ff22a522cced27b0c235961c3b/backrefs-8.2-py310-none-any.whl", hash = "sha256:51d925937bfd5a019312dc6d242a8f3f6abdf2cd7aab53eb6304d5490ca13022", size = 379939, upload-time = "2026-11-03T14:25:49.152Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/0f/3b134134749cac841fc5da988c821a4b7a60e1d6b169c2abff5531bef8db/backrefs-8.2-py311-none-any.whl", hash = "sha256:a49a2b014bb24aa256e9486b0b2e59909452bd1106ee1343032349f3fb847385", size = 391924, upload-time = "2026-11-03T14:25:50.814Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/7e/77f7fca3992f14754b44c39effa5b3e0b9a269462c754f2ce3bc8c9b717c/backrefs-8.2-py312-none-any.whl", hash = "sha256:e64a50f31e8eee2837009ca7744999ba59125acfd50996ba2349d8f18061e608", size = 397740, upload-time = "2026-11-03T14:25:52.055Z" },
+    { url = "https://files.pythonhosted.org/packages/b8/6b/fe1b6162d8293bd2fa3ec92f0b16e4926db33baea7b20a47bc972d750c59/backrefs-8.2-py313-none-any.whl", hash = "sha256:c229c7dbf5140f369afd87a61549122c0be631df34171920006f289dcd082715", size = 399642, upload-time = "2026-11-03T14:25:53.395Z" },
+    { url = "https://files.pythonhosted.org/packages/43/2a/017b27795de641b549d6d7eec6e5755d8151568c2d728e2cc27e199347af/backrefs-8.2-py314-none-any.whl", hash = "sha256:4374f7a590d0cadf646a5bbdd71c2eebc1a093564d3c0b105aa8958fc1a46413", size = 411524, upload-time = "2026-11-03T14:25:54.81Z" },
+    { url = "https://files.pythonhosted.org/packages/62/b9/dcfb422e33138ca8b2af8c54f8fc4d507e6dd466a2cf8d771d08d7dcf1fb/backrefs-8.2-py315-none-any.whl", hash = "sha256:50362d9133634aff2c5225f43e6786ad056d47259cdb2d625126cb7c73ef7a45", size = 417004, upload-time = "2026-11-03T14:25:56.268Z" },
 ]
 
 [[package]]
@@ -60,20 +60,20 @@ docs = [
 docs = [
     { name = "mkdocs", specifier = ">=1.6.1,<2" },
     { name = "mkdocs-awesome-pages-plugin", specifier = ">=2.10.1,<3" },
-    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.6.0,<2" },
-    { name = "mkdocs-glightbox", specifier = ">=0.5.2,<1" },
-    { name = "mkdocs-material", specifier = ">=9.7.7,<10" },
+    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.6.2,<2" },
+    { name = "mkdocs-glightbox", specifier = ">=0.5.3,<1" },
+    { name = "mkdocs-material", specifier = ">=9.8.0,<10" },
     { name = "mkdocs-mermaid2-plugin", specifier = ">=1.2.3,<2" },
-    { name = "pymdown-extensions", specifier = ">=11.0.2,<12" },
+    { name = "pymdown-extensions", specifier = ">=12.3,<13" },
 ]
 
 [[package]]
 name = "bracex"
-version = "3.2"
+version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/fb/37/adf8dd2cde958c2d086bdd87fc36b532fd824bf38f10be6348d65da0c8f9/bracex-3.2.tar.gz", hash = "sha256:0a3d40bfae4caae4d3bfd0ea715874799fab711c38fd4012cc35343e815405cd", size = 29771, upload-time = "2026-10-22T00:28:49.508Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4d/fc/137095eb2f24ccf0b4db196abd9f5cfe74398a834af51d4bc4876e0beaf0/bracex-3.2.1.tar.gz", hash = "sha256:07a9b2100ceecc0c24afa1a1714bf8d4a6abb43d592939455f662b682ac9baa4", size = 32694, upload-time = "2026-11-03T14:13:43.53Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/42/65/8030b03de8137d1aab7dd6ecfecdba2fc22fc849fa35959b024f62293a99/bracex-3.2-py3-none-any.whl", hash = "sha256:8f3e908a452f66707e1d6d91b3d7d7d4c649d248df18537c0dc710aeb9c30d87", size = 12019, upload-time = "2026-10-22T00:28:48.233Z" },
+    { url = "https://files.pythonhosted.org/packages/47/ae/30dd8b027b4032b27e81364de5b74bfbef50b3c84c6aa0ead351bbb3749c/bracex-3.2.1-py3-none-any.whl", hash = "sha256:e8622d46b60ef6062b4091033f97a304e1b205e70c0285743c5038b73886a47e", size = 12527, upload-time = "2026-11-03T14:13:42.032Z" },
 ]
 
 [[package]]
@@ -483,15 +483,15 @@ wheels = [
 
 [[package]]
 name = "pymdown-extensions"
-version = "11.0.2"
+version = "12.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markdown" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ad/17/2db4b414de89659144488e0d9c6c0bf0c8395841dc12d81d0532cc6ef310/pymdown_extensions-11.0.2.tar.gz", hash = "sha256:9506fcbe66fa355a775b768084334238dd6805020ac4b92bea0c0dda6f8f223d", size = 855419, upload-time = "2026-08-22T19:28:47.236Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/fe/ac50ee24a80a1b344e643f6fb626063cc7041b978cd1dd9a7f9963ae1cd1/pymdown_extensions-12.3.tar.gz", hash = "sha256:a7f2a4e0bc60c6e6babfa7922cfb3b01cd640eb00fb208f3c582e12bae00ea67", size = 870532, upload-time = "2026-10-14T22:40:43.252Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/43/9f45ec4d14e596efc32c925a78104934790438b0c0628b70d741016734ad/pymdown_extensions-11.0.2-py3-none-any.whl", hash = "sha256:259910762019732caa1dfd76f3faa62c59f191d46573e80bcb1d13c0f675bbe5", size = 269929, upload-time = "2026-08-22T19:28:45.389Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/d0/758afe732c2da502c051b4d03ff88daa3c0fc1a1e671e6c5a6318177bab4/pymdown_extensions-12.3-py3-none-any.whl", hash = "sha256:345493a8e3497e24382902903a1c43a28e34a52f2b7571a1c9641429b820ca74", size = 277597, upload-time = "2026-10-14T22:40:41.543Z" },
 ]
 
 [[package]]
@@ -585,11 +585,11 @@ wheels = [
 
 [[package]]
 name = "soupsieve"
-version = "3.0.4"
+version = "4.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/19/63/0b6bae54546aed98d72f12d09df57b19a287f01c84d22047fa2e23772ab9/soupsieve-3.0.4.tar.gz", hash = "sha256:924fab84ae21604c19e175e1f39815eb6fa83ba23836e09e9de180925e5bc4c0", size = 119017, upload-time = "2026-10-22T00:45:26.362Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/5e/19b7c5d20bc2f226c44f33a9d9aab9740efed7555b96e656231fd564e514/soupsieve-4.0.tar.gz", hash = "sha256:ccd6470b256394ac44b08b86fd94b30a17d335a5335c8a3d15565f7b03d3c8cf", size = 151929, upload-time = "2026-11-03T14:28:55.388Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/07/66/473f7ca0be0b06e38ee8c85ee2db184e3981bd769fac2e7c19c8a8865211/soupsieve-3.0.4-py3-none-any.whl", hash = "sha256:8412826614f9c632227067d0985aeb9f584bd15efc852955430e097a9fe7afbf", size = 42458, upload-time = "2026-10-22T00:45:24.843Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/18/d24df2f733ee0655c58717d51add4118a70e64692d0e47d403b9aac4cf98/soupsieve-4.0-py3-none-any.whl", hash = "sha256:5e7494bfce90e06676cfb4c5c2cf22243e98e5cf24646bb1ecdda46d318550a0", size = 50158, upload-time = "2026-11-03T14:28:53.988Z" },
 ]
 
 [[package]]
@@ -653,12 +653,12 @@ wheels = [
 
 [[package]]
 name = "wcmatch"
-version = "11.2"
+version = "12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bracex" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bd/07/b7a9162a804bc0f7d03fe84c93e374d3e1c4d828043d5f9b797f7d4e30e0/wcmatch-11.2.tar.gz", hash = "sha256:1605bde546fbde4c063628c7d89eda486909fd4337e51d73a873987fbcb2554c", size = 134939, upload-time = "2026-10-22T00:37:57.622Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/81/eb96ce41e8def4ff3b02cec7d1d92e3682597de5064d8687ac88d1734f18/wcmatch-12.0.tar.gz", hash = "sha256:80ebfdf510d5fef580c4fc662b9eba76b331cff20d7913fc6e722edcb199cbe6", size = 161277, upload-time = "2026-11-03T14:23:48.017Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/34/96/b6cebd4bd75320743a291fed494c79f07c01b58fa9b187d12aeb5110f002/wcmatch-11.2-py3-none-any.whl", hash = "sha256:952bab83c75c233836007a69550a3a8753cf06964c1eb3b84ff11ad5bff1c272", size = 44361, upload-time = "2026-10-22T00:37:56.293Z" },
+    { url = "https://files.pythonhosted.org/packages/22/8d/fb9b889e282a73e4423bd10f1ac358dd68b3e78fd099fab17f270a482157/wcmatch-12.0-py3-none-any.whl", hash = "sha256:46f7965313cfe65d8be049ab91095a5908be96ebb43e5d16da608b158825113c", size = 50558, upload-time = "2026-11-03T14:23:46.592Z" },
 ]

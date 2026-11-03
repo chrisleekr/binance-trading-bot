@@ -92,6 +92,7 @@ export function BackupSettingsCard(): React.JSX.Element {
       }
     })();
     return () => {
+      // oxlint-disable-next-line react/immutability -- effect-local cancel flag set in cleanup, the pattern react.dev documents for useEffect fetches.
       cancelled = true;
     };
   }, []);
