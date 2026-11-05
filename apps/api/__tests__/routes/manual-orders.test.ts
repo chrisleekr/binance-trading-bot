@@ -665,3 +665,70 @@ describeIfInfra('avg-entry-price PUT — ledger-quantity fallback (no live walle
     addSpy.mockRestore();
   });
 });
+
+describeIfInfra('symbol path param — delimiter characters', () => {
+  let fx: ApiFixture;
+
+  beforeAll(async () => {
+    fx = await setupApp();
+  });
+
+  afterAll(async () => {
+    await fx.cleanup();
+  });
+
+  // `:` and `|` would otherwise reach the job-id builder, which refuses them, and surface as a 500. ACTION_UNSUPPORTED also maps to 422, so the code is asserted to prove the schema rejected it.
+  it.each(
+    (
+      [
+        ['POST', 'archive-grid-trade'],
+        ['POST', 'reset-grid-trade'],
+        ['DELETE', 'avg-entry-price'],
+      ] as const
+    ).flatMap(([method, action]) => [
+      [method, action, ':', 'BTC:USDT'],
+      [method, action, '|', 'BTC%7CUSDT'],
+    ]),
+  )(
+    '%s .../%s with a "%s" in the symbol is a VALIDATION_FAILED 422 and enqueues nothing',
+    async (method, action, _char, symbol) => {
+      const addSpy = vi.spyOn(fx.di.queue, 'add').mockResolvedValue(undefined as never);
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/${symbol}/${action}`,
+        { method, headers: headers(fx.alice.userId) },
+      );
+      expect(res.status).toBe(422);
+      expect((await errorBody(res)).error.code).toBe('VALIDATION_FAILED');
+      expect(addSpy).not.toHaveBeenCalled();
+      addSpy.mockRestore();
+    },
+  );
+});
+
+describeIfInfra('cancel-order — static job id', () => {
+  let fx: ApiFixture;
+
+  beforeAll(async () => {
+    fx = await setupApp();
+  });
+
+  afterAll(async () => {
+    await fx.cleanup();
+  });
+
+  it('enqueues with removeOnComplete/removeOnFail so a later cancel of the same order is not dropped', async () => {
+    const addSpy = vi.spyOn(fx.di.queue, 'add').mockResolvedValue(undefined as never);
+    const orderId = '8f4c1c52-3d6e-4c0e-9b7a-1d2e3f4a5b6c';
+    const res = await fx.app.request(
+      `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/BTCUSDT/cancel-order`,
+      { method: 'POST', headers: headers(fx.alice.userId), body: JSON.stringify({ orderId }) },
+    );
+    expect(res.status).toBe(202);
+    expect(addSpy).toHaveBeenCalledWith(
+      'cancel-order',
+      expect.anything(),
+      expect.objectContaining({ removeOnComplete: true, removeOnFail: true }),
+    );
+    addSpy.mockRestore();
+  });
+});

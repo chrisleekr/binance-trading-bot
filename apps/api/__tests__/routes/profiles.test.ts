@@ -814,3 +814,35 @@ describeIfInfra('profiles router — quoteAsset exclusivity (#671)', () => {
     }
   });
 });
+
+describeIfInfra('profiles router — start/stop static job ids', () => {
+  let fx: ApiFixture;
+
+  beforeAll(async () => {
+    fx = await setupApp();
+  });
+  afterAll(async () => {
+    await fx.cleanup();
+  });
+
+  it.each([
+    ['start', 'subscribe-profile'],
+    ['stop', 'unsubscribe-profile'],
+  ])(
+    '%s enqueues %s with removeOnComplete/removeOnFail so a later add is not dropped',
+    async (action, job) => {
+      const addSpy = vi.spyOn(fx.di.queue, 'add').mockResolvedValue(undefined as never);
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/${action}`,
+        { method: 'POST', headers: headers(fx.alice.userId) },
+      );
+      expect(res.status).toBe(204);
+      expect(addSpy).toHaveBeenCalledWith(
+        job,
+        expect.anything(),
+        expect.objectContaining({ removeOnComplete: true, removeOnFail: true }),
+      );
+      addSpy.mockRestore();
+    },
+  );
+});

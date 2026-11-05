@@ -65,7 +65,8 @@ import {
   buildEventsChannel,
   buildEventsStreamKey,
 } from '../../src/executor/redis-namespace.js';
-import { tickJobId, QUEUE_NAMES, QUEUE_SPECS } from '../../src/queues/queue-names.js';
+import { tickJobId } from '@app/core/queue';
+import { QUEUE_NAMES, QUEUE_SPECS } from '../../src/queues/queue-names.js';
 import type { TickJobData } from '../../src/queues/job-payloads.js';
 import { errorMessage } from '@app/core/error';
 
@@ -396,7 +397,7 @@ const enqueueTick = async (queue: Queue<TickJobData>, cidSuffix: string): Promis
     payload: {},
   };
   await queue.add('tick', data, {
-    jobId: tickJobId(TEST_PROFILE_ID, `${SYMBOL}:${cidSuffix}`),
+    jobId: tickJobId(TEST_PROFILE_ID, `${SYMBOL}-${cidSuffix}`),
   });
   return data;
 };

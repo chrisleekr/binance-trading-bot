@@ -25,9 +25,8 @@ export const healthRouter = (di: DI): HealthRouter => {
       await di.pool.query('select 1');
       const pong = await di.redis.raw().ping();
       if (pong !== 'PONG') throw new Error('redis ping failed');
-      const client = await di.queue.client;
-      const queueOk = await client.ping();
-      if (queueOk !== 'PONG') throw new Error('queue ping failed');
+      // bullmq's client interface types no PING, so INFO is the typed round trip on the queue's own connection.
+      await (await di.queue.getBackend().client).info();
       return c.text('ready', 200);
     } catch (err) {
       di.logger.warn({ err }, 'readyz_failed');

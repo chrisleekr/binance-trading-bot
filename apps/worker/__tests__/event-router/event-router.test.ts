@@ -108,18 +108,18 @@ describe('EventRouter', () => {
         symbol: 'BTCUSDT',
         event: 'mini-ticker',
       }),
-      expect.objectContaining({ jobId: 'tick:p1:BTCUSDT' }),
+      expect.objectContaining({ jobId: 'tick|p1|BTCUSDT' }),
     );
     expect(tickQueue.add).toHaveBeenNthCalledWith(
       2,
       'tick',
       expect.objectContaining({ profileId: 'p2', accountId: 'a1' }),
-      expect.objectContaining({ jobId: 'tick:p2:BTCUSDT' }),
+      expect.objectContaining({ jobId: 'tick|p2|BTCUSDT' }),
     );
   });
 
   it('enqueues tick jobs with removeOnComplete/removeOnFail set so the static jobId is reusable after each tick', async () => {
-    // Regression: static jobId (`tick:<pid>:<sym>`) coalesces in-flight
+    // Regression: static jobId (`tick|<pid>|<sym>`) coalesces in-flight
     // ticks. If completed/failed jobs are RETAINED (count/age opts),
     // BullMQ rejects every subsequent .add() as a duplicate and the
     // tick pipeline silently stops. The terminal-state slot MUST be
@@ -147,7 +147,7 @@ describe('EventRouter', () => {
       'tick',
       expect.anything(),
       expect.objectContaining({
-        jobId: 'tick:p1:BTCUSDT',
+        jobId: 'tick|p1|BTCUSDT',
         removeOnComplete: true,
         removeOnFail: true,
       }),
@@ -247,7 +247,7 @@ describe('EventRouter', () => {
     expect(tickQueue.add).toHaveBeenCalledWith(
       'tick',
       expect.objectContaining({ event: 'kline-close' }),
-      expect.objectContaining({ jobId: 'tick:p1:BTCUSDT' }),
+      expect.objectContaining({ jobId: 'tick|p1|BTCUSDT' }),
     );
   });
 

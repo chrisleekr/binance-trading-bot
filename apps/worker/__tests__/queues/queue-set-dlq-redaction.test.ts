@@ -1,3 +1,4 @@
+import { PIPELINE_JOB_OPTIONS } from '@app/core/queue';
 import { repo } from '@app/db';
 import type { AnyNotifyProvider } from '@app/notify';
 import pino from 'pino';
@@ -10,6 +11,7 @@ import { createQueueSet } from '../../src/queues/queue-set.js';
 
 const bullmq = vi.hoisted(() => ({
   adds: new Map<string, ReturnType<typeof vi.fn>>(),
+  queueOpts: new Map<string, { defaultJobOptions?: unknown }>(),
   processors: new Map<string, (job: unknown) => unknown>(),
   failedHandlers: new Map<string, (job: unknown, error: Error) => void>(),
   workerNames: new WeakMap<object, string>(),
@@ -19,8 +21,9 @@ vi.mock('bullmq', () => ({
   Queue: class {
     readonly add: ReturnType<typeof vi.fn>;
 
-    constructor(name: string) {
+    constructor(name: string, opts: { defaultJobOptions?: unknown }) {
       this.add = vi.fn(async () => undefined);
+      bullmq.queueOpts.set(name, opts);
       bullmq.adds.set(name, this.add);
     }
 
@@ -49,6 +52,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   bullmq.adds.clear();
+  bullmq.queueOpts.clear();
   bullmq.processors.clear();
   bullmq.failedHandlers.clear();
 });
@@ -109,5 +113,42 @@ describe('exhausted-job DLQ redaction', () => {
     expect(errorField?.value).toContain(SQL);
     expect.soft(errorField?.value).toContain('\nparams: [redacted]');
     expect.soft(JSON.stringify(outbound)).not.toContain(SENTINEL);
+  });
+});
+
+describe('pipeline retry policy', () => {
+  it('gives only the pipeline queue the shared default job options', () => {
+    createQueueSet({ connection: {} as never, logger: pino({ level: 'silent' }) });
+    expect(bullmq.queueOpts.get('pipeline')?.defaultJobOptions).toEqual(PIPELINE_JOB_OPTIONS);
+    for (const [name, opts] of bullmq.queueOpts) {
+      if (name !== 'pipeline') expect(opts.defaultJobOptions, name).toBeUndefined();
+    }
+  });
+
+  it('dead-letters only the failed attempt that spends the last retry', () => {
+    const queueSet = createQueueSet({ connection: {} as never, logger: pino({ level: 'silent' }) });
+    queueSet.registerWorker('pipeline', async () => undefined);
+    const failed = bullmq.failedHandlers.get('pipeline');
+    if (!failed) throw new Error('mock worker did not capture the pipeline failed handler');
+    failed(
+      {
+        id: 'sub-1',
+        data: {},
+        attemptsMade: 1,
+        opts: bullmq.queueOpts.get('pipeline')?.defaultJobOptions,
+      },
+      new Error('transient'),
+    );
+    expect(bullmq.adds.get('dlq')).not.toHaveBeenCalled();
+    failed(
+      {
+        id: 'sub-1',
+        data: {},
+        attemptsMade: PIPELINE_JOB_OPTIONS.attempts,
+        opts: bullmq.queueOpts.get('pipeline')?.defaultJobOptions,
+      },
+      new Error('transient'),
+    );
+    expect(bullmq.adds.get('dlq')).toHaveBeenCalledTimes(1);
   });
 });

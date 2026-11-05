@@ -73,14 +73,7 @@ export const handleResetGridTrade = async (
       { type: 'cancel-order', orderId: numericOrderId, reason: 'reset-grid-trade' },
     );
     if (result.ok === false) {
-      // The cancel-first invariant is load-bearing: clearing local
-      // state while a grid-buy is still live on Binance would let a
-      // subsequent fill resurrect the abandoned cycle with no local
-      // record of it. Throw on BOTH retryable and non-retryable
-      // failures. BullMQ retries the retryable case; the non-
-      // retryable case stays on DLQ until an operator investigates,
-      // which is the right outcome since the cancel won't succeed
-      // without intervention anyway.
+      // The cancel-first invariant is load-bearing: clearing local state while a grid-buy is still live on Binance would let a subsequent fill resurrect the abandoned cycle with no local record of it. Throw on BOTH retryable and non-retryable failures. Both spend the pipeline attempt budget and then dead-letter; the non-retryable case stays on DLQ until an operator investigates, which is the right outcome since the cancel won't succeed without intervention anyway.
       deps.logger.warn(
         {
           userId: payload.userId,

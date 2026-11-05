@@ -1,3 +1,4 @@
+import { backfillArchiveJobId } from '@app/core/queue';
 import {
   ArchivePeriod,
   ArchiveSort,
@@ -345,7 +346,14 @@ const route = createRoute({
   },
 });
 
-const SymbolParam = z.object({ profileId: z.uuid(), symbol: z.string().min(1) });
+// Job-id parts must not carry a delimiter, and Binance symbols are alphanumeric, so a malformed symbol is refused here rather than reaching an id builder.
+const SymbolParam = z.object({
+  profileId: z.uuid(),
+  symbol: z
+    .string()
+    .min(1)
+    .regex(/^[A-Za-z0-9]+$/, 'symbol must be alphanumeric'),
+});
 
 /** The window and ordering an export is taken under. The same fields as the list query minus its paging: an export is the whole selection, so `limit` and `cursor` would be a contradiction. */
 const ExportQuery = ArchiveQuery.omit({ limit: true, cursor: true, view: true });
@@ -661,7 +669,7 @@ export const archiveRouter = (di: DI): ApiHono => {
         fromMs: from !== undefined ? new Date(from).getTime() : null,
         toMs: to !== undefined ? new Date(to).getTime() : null,
       },
-      { jobId: `backfill-archive:${profileId}:${symbol}:${scheduledAt.getTime()}` },
+      { jobId: backfillArchiveJobId(profileId, symbol, scheduledAt.getTime()) },
     );
     c.set('auditEvent', {
       event: 'backfill-trade-archive',

@@ -37,7 +37,6 @@ const profile = (
   }) as unknown as ActiveProfile;
 
 const job = { id: 'job-1', data: {} } as unknown as Job;
-const clock = { nowMs: () => 1_700_000_000_000 };
 
 describe('buildTechnicalsComputeCron', () => {
   it('self-reschedules on a 30s start-to-start period, not a fixed scheduler', () => {
@@ -65,7 +64,6 @@ describe('technicalsComputeHandler', () => {
       logger: stubLogger,
       listActive: () => [profile('p1', '5m', ['BTCUSDT']), profile('p2', '1h', ['ETHUSDT'])],
       fetchAndCache,
-      clock,
     });
 
     await handler(job);
@@ -81,7 +79,6 @@ describe('technicalsComputeHandler', () => {
       logger: stubLogger,
       listActive: () => [profile('p1', '5m', ['ETHUSDT']), profile('p2', '5m', ['BTCUSDT'])],
       fetchAndCache,
-      clock,
     });
 
     await handler(job);
@@ -97,7 +94,6 @@ describe('technicalsComputeHandler', () => {
       logger: stubLogger,
       listActive: () => [],
       fetchAndCache,
-      clock,
     });
 
     await handler(job);
@@ -116,7 +112,6 @@ describe('technicalsComputeHandler', () => {
       logger: stubLogger,
       listActive: () => [profile('p1', '5m', ['BTCUSDT']), profile('p2', '1h', ['ETHUSDT'])],
       fetchAndCache,
-      clock,
     });
 
     await expect(handler(job)).resolves.toBeUndefined();
@@ -135,7 +130,6 @@ describe('technicalsComputeHandler', () => {
       logger,
       listActive: () => [profile('p1', '5m', ['BTCUSDT']), profile('p2', '1h', ['ETHUSDT'])],
       fetchAndCache,
-      clock,
     });
 
     await handler(job);
@@ -154,7 +148,6 @@ describe('technicalsComputeHandler', () => {
       logger,
       listActive: () => [profile('p1', '5m', ['BTCUSDT']), profile('p2', '1h', ['ETHUSDT'])],
       fetchAndCache,
-      clock,
     });
 
     await handler(job);

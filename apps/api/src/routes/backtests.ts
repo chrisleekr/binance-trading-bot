@@ -1,3 +1,4 @@
+import { backtestJobId } from '@app/core/queue';
 import {
   AdvisorListResponse,
   AdvisorResultSchema,
@@ -515,13 +516,11 @@ export const backtestsRouter = (di: DI): ApiHono => {
       params,
       parentRunId,
     });
-    // jobId coalesces a duplicate submit of the same run; must match the
-    // worker's backtestJobId(runId) = `backtest:<runId>`.
     try {
       await di.backtestQueue.add(
         'backtest',
         { runId: run.id, userId: operatorId, accountId, profileId },
-        { jobId: `backtest:${run.id}` },
+        { jobId: backtestJobId(run.id) },
       );
     } catch (err) {
       // The row is already `queued`; if enqueue fails (e.g. Redis blip) it would
@@ -583,7 +582,7 @@ export const backtestsRouter = (di: DI): ApiHono => {
       await di.backtestQueue.add(
         'backtest',
         { runId: retried.id, userId: operatorId, accountId, profileId },
-        { jobId: `backtest:${retried.id}` },
+        { jobId: backtestJobId(retried.id) },
       );
     } catch (err) {
       await p.backtestRuns.fail(retried.id, 'failed to enqueue backtest job');

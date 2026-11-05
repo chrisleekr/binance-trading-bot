@@ -1,5 +1,6 @@
-// Queue catalogue. Names + concurrency + retry are the source of truth
-// here; the boot wiring registers Workers off this table.
+// Queue catalogue. Names + concurrency + retry are the source of truth here; the boot wiring registers Workers off this table. The pipeline retry policy lives in PIPELINE_JOB_OPTIONS (@app/core/queue), and QUEUE_SPECS.pipeline.attempts mirrors it only for the DLQ guard's fallback.
+
+import { PIPELINE_JOB_OPTIONS } from '@app/core/queue';
 
 export const QUEUE_NAMES = {
   tick: 'tick',
@@ -61,10 +62,7 @@ export const QUEUE_NAMES = {
   // verify-key); strict per-profile serialisation lives one layer down
   // in the `chainByKey` Promise chain.
   pipeline: 'pipeline',
-  // One-shot, long-running backtest jobs. The api enqueues with
-  // `jobId = backtest:<runId>` so a duplicate submit of the same run
-  // coalesces. Concurrency 1 (a run is CPU-heavy and shares the per-IP
-  // Binance weight budget with ticks during candle backfill).
+  // One-shot, long-running backtest jobs. The api enqueues with `jobId = backtest|<runId>`, so a redelivered enqueue of the same run dedupes (each submit and retry mints a fresh run id; an identical resubmit resolves to the last `done` run with the same signature, while an identical twin that is still queued or running gets a new run, as does any submit with `?force`). Concurrency 1 (a run is CPU-heavy and shares the per-IP Binance weight budget with ticks during candle backfill).
   backtest: 'backtest',
   // Periodic reconciler that marks `queued`/`running` runs whose BullMQ job is
   // gone or terminal as `error`, so a run abandoned by a dead worker stops
@@ -76,9 +74,7 @@ export const QUEUE_NAMES = {
   // under the study role (an Anthropic round-trip must never share the live
   // trading event loop).
   advisor: 'advisor',
-  // On-demand "why isn't this profile trading?" investigation. The api seeds a
-  // `diagnosis_runs` row and enqueues with `jobId = diagnosis:<runId>`, so a
-  // double-click coalesces onto the run the operator is already watching.
+  // On-demand "why isn't this profile trading?" investigation. The api seeds a `diagnosis_runs` row and enqueues with `jobId = diagnosis|<runId>`, so a redelivery of that run's job dedupes (each click mints a fresh run id).
   profileDiagnosis: 'profile-diagnosis',
 } as const;
 
@@ -230,7 +226,11 @@ export const QUEUE_SPECS: Record<QueueName, QueueSpec> = {
   // full-database pg_dump can far exceed BullMQ's 30s default and would
   // otherwise false-stall + spawn a duplicate dump mid-run.
   'db-backup': { concurrency: 1, attempts: 1, backoffMs: 0, lockDurationMs: 600_000 },
-  pipeline: { concurrency: 4, attempts: 3, backoffMs: 1_000 },
+  pipeline: {
+    concurrency: 4,
+    attempts: PIPELINE_JOB_OPTIONS.attempts,
+    backoffMs: PIPELINE_JOB_OPTIONS.backoff.delay,
+  },
   // A backtest runs for minutes (candle backfill + thousands of ticks), far
   // past BullMQ's default 30 s lock — a generous lockDurationMs prevents a
   // false stall + duplicate dispatch mid-run. attempts: 1 because a run is
@@ -262,26 +262,3 @@ export const QUEUE_SPECS: Record<QueueName, QueueSpec> = {
   // well past BullMQ's 30s default.
   'profile-diagnosis': { concurrency: 2, attempts: 1, backoffMs: 0, lockDurationMs: 120_000 },
 };
-
-// Only the queues whose producers coalesce by jobId get a builder. The crons
-// are payload-less self-rescheduling repeatable jobs whose fixed `name:` is
-// their identity, so they never construct one. Add a builder when a producer
-// genuinely needs duplicate-enqueue coalescing.
-
-export const tickJobId = (profileId: string, symbol: string): string =>
-  `tick:${profileId}:${symbol}`;
-
-// A reconcile is a converge-to-truth pass, not an increment, so N enqueues for
-// one (profile, symbol) are worth exactly one run. BullMQ rejects an `.add()`
-// whose jobId already exists in ANY state, so this static id collapses a burst
-// (a -2011 fill plus the -2010 SELL rejection it causes on the next tick) into a
-// single pass while the job is waiting or active. The producer MUST pair it with
-// `removeOnComplete: true` / `removeOnFail: true`: a retained terminal job still
-// occupies the id, and the slot would never reopen.
-export const symbolReconcileJobId = (profileId: string, symbol: string): string =>
-  `reconcile-symbol:${profileId}:${symbol}`;
-
-export const technicalsJobId = (interval: string, bucket30s: number): string =>
-  `technicals-compute:${interval}:${bucket30s}`;
-
-export const backtestJobId = (runId: string): string => `backtest:${runId}`;

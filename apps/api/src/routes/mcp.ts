@@ -304,10 +304,34 @@ export const mcpRouter = (di: DI): ApiHono => {
       });
       const refusal = await di.security.protection.checkApiFlood(ipAddress, false);
       if (refusal !== null) return rateLimitedResponse(refusal.retryAfterMs);
+      return withInvalidTokenError(response);
     }
     return response;
   });
   return app;
+};
+
+/**
+ * Adds the RFC 6750 section 3.1 `error="invalid_token"` attribute to the Bearer challenge that refuses a presented access token.
+ *
+ * `@better-auth/mcp` answers every refused token (expired, revoked, forged, wrong audience) with the same challenge it sends a tokenless discovery request: `resource_metadata` and `scope`, no `error`. RFC 6750 says a refusal of a presented token SHOULD name `invalid_token`, and that attribute is how a client tells "your token is dead, refresh or authorize again" apart from "you never sent one". Only the header text changes; the 401 decision, status and body are the library's. A challenge that already names an error, or is not a Bearer challenge (DPoP), is returned untouched.
+ *
+ * @param response - The 401 the protected handler returned for a request that carried a Bearer token.
+ * @returns The same response, or a copy whose Bearer challenge leads with `error="invalid_token"`.
+ */
+export const withInvalidTokenError = (response: Response): Response => {
+  const challenge = response.headers.get('www-authenticate');
+  if (challenge === null || !/^bearer\b/i.test(challenge) || /\berror=/i.test(challenge)) {
+    return response;
+  }
+  const params = challenge.replace(/^bearer\s*/i, '');
+  const headers = new Headers(response.headers);
+  headers.set('www-authenticate', `Bearer error="invalid_token"${params ? `, ${params}` : ''}`);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 };
 
 /**

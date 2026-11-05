@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
-import type { Job } from 'bullmq';
+import type { Job, Queue } from 'bullmq';
 
 import {
   backtestSweepHandler,
+  backtestJobState,
   buildBacktestSweepCron,
   type BacktestSweepDeps,
 } from '../../src/crons/backtest-sweep.cron.js';
@@ -121,5 +122,28 @@ describe('buildBacktestSweepCron wiring', () => {
     expect(def.name).toBe('backtest-sweep');
     expect(def.queue).toBe(QUEUE_NAMES.backtestSweep);
     expect(def.pattern).toBe('0 */15 * * * *');
+  });
+});
+
+describe('backtestJobState', () => {
+  const fakeQueue = (jobs: Record<string, string>) => {
+    const getJob = vi.fn(async (id: string) =>
+      id in jobs ? { getState: async () => jobs[id] } : undefined,
+    );
+    return { getJob, queue: { getJob } as unknown as Pick<Queue, 'getJob'> };
+  };
+
+  it('returns null without trying the removed colon id', async () => {
+    const { queue, getJob } = fakeQueue({ 'backtest:r1': 'active' });
+    expect(await backtestJobState(queue)('r1')).toBeNull();
+    expect(getJob).toHaveBeenCalledTimes(1);
+    expect(getJob).toHaveBeenCalledWith('backtest|r1');
+  });
+
+  it('resolves the job state with a single lookup', async () => {
+    const { queue, getJob } = fakeQueue({ 'backtest|r1': 'waiting' });
+    expect(await backtestJobState(queue)('r1')).toBe('waiting');
+    expect(getJob).toHaveBeenCalledTimes(1);
+    expect(getJob).toHaveBeenCalledWith('backtest|r1');
   });
 });

@@ -381,7 +381,7 @@ describe('fill-adopter: base-asset commission is netted out of the held quantity
         userId: USER_ID,
         accountId: ACCOUNT_ID,
       }),
-      expect.objectContaining({ jobId: expect.stringMatching(/^archive-grid:/) }),
+      expect.objectContaining({ jobId: expect.stringMatching(/^archive-grid\|/) }),
     );
   });
 

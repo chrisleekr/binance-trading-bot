@@ -430,13 +430,19 @@ interface BullMQRedisConnection {
   readonly db?: number;
   readonly maxRetriesPerRequest: null;
   readonly enableReadyCheck: false;
+  readonly protocol: 2;
 }
 
-type ParsedRedisUrl = Omit<BullMQRedisConnection, 'maxRetriesPerRequest' | 'enableReadyCheck'>;
+type ParsedRedisUrl = Omit<
+  BullMQRedisConnection,
+  'maxRetriesPerRequest' | 'enableReadyCheck' | 'protocol'
+>;
 
 export const createBullMQConnection = (opts: BullMQConnectionOptions): BullMQRedisConnection => ({
   maxRetriesPerRequest: null,
   enableReadyCheck: false,
+  // BullMQ is developed and tested on RESP2 through ioredis 5, and ioredis 6 defaults to RESP3, so pin RESP2.
+  protocol: 2,
   // ioredis accepts the URL via the `Redis` constructor, but BullMQ wants
   // an options object. Encode the URL into the connection options here so
   // callers pass a single object across worker, queue, and queueScheduler.
