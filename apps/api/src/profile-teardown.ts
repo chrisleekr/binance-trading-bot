@@ -10,6 +10,7 @@
 // AFTER the cascade commits because it must enumerate the profiles the cascade is
 // about to remove.
 
+import { unsubscribeJobId } from '@app/core/queue';
 import type { AccountId, ProfileId, UserId } from '@app/contracts';
 import type { Queue } from 'bullmq';
 import type { ScopedRedis } from '@app/db';
@@ -22,10 +23,9 @@ export interface ProfileTeardownTarget {
 }
 
 /**
- * Tell the worker to tear down this profile's in-memory subscription and its
- * WebSocket streams. The handler re-reads DB truth — a deleted row maps to
- * teardown, so a missed job self-heals on the next fleet reconcile rather than
- * leaking a stream. `jobId` coalesces duplicate enqueues for one profile.
+ * Tell the worker to tear down this profile's in-memory subscription and its WebSocket streams. The handler re-reads DB truth — a deleted row maps to teardown, so a missed job self-heals on the next fleet reconcile rather than leaking a stream. The static `jobId` coalesces duplicate enqueues while one job is waiting or active, and the boolean retention frees the id at terminal state, otherwise a later teardown for the same id would be dropped.
+ * @param queue - The pipeline queue the worker consumes `unsubscribe-profile` from.
+ * @param target - Identifies the profile whose subscription the worker should tear down; the ids ride the job payload.
  */
 const enqueueProfileUnsubscribe = async (
   queue: Queue,
@@ -34,7 +34,7 @@ const enqueueProfileUnsubscribe = async (
   await queue.add(
     'unsubscribe-profile',
     { userId: operatorId, accountId, profileId },
-    { jobId: `unsubscribe:${profileId}` },
+    { jobId: unsubscribeJobId(profileId), removeOnComplete: true, removeOnFail: true },
   );
 };
 
@@ -42,6 +42,8 @@ const enqueueProfileUnsubscribe = async (
  * The full runtime teardown: drop the profile's cached Redis state, then stop the
  * worker from streaming for it. Stale per-profile keys outlive the DB rows unless
  * wiped, and a re-created profile would boot on another profile's cached state.
+ * @param deps - The scoped Redis used for the wipe and the pipeline queue used for the unsubscribe job.
+ * @param target - Identifies the profile being torn down; its account id scopes the Redis wipe.
  */
 export const teardownProfileRuntime = async (
   deps: { readonly redis: ScopedRedis; readonly queue: Queue },

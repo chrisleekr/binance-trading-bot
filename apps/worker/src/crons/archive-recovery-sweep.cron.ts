@@ -28,6 +28,7 @@ import {
 import type { BootContext } from 'boot/boot-context.js';
 import type { MetricsSink } from 'metrics/catalog.js';
 import type { ActiveProfile } from 'profile-manager/profile-manager.js';
+import { backfillArchiveSweepJobId } from '@app/core/queue';
 import { QUEUE_NAMES } from 'queues/queue-names.js';
 import { defineCron, type CronDef } from './define.js';
 
@@ -194,13 +195,10 @@ export const archiveRecoverySweepHandler = (deps: ArchiveRecoverySweepDeps) => {
 };
 
 /**
- * Enqueue the same pipeline job the archive screen's "Recover" button enqueues,
- * over the symbol's whole history (`null` bounds). A distinct `jobId` per run
- * rather than a static one: the pipeline queue RETAINS terminal jobs
- * (`removeOnComplete: { count: 1_000 }`), so a static id would be permanently
- * occupied after the first completion and every later repair would be silently
- * dropped. Re-running is safe — the handler skips round-trips whose closing
- * trade id is already archived.
+ * Enqueue the same pipeline job the archive screen's "Recover" button enqueues, over the symbol's whole history (`null` bounds). A distinct `jobId` per run rather than a static one: the pipeline queue's `defaultJobOptions` set no `removeOnComplete`, so BullMQ keeps every terminal job and a static id would be permanently occupied after the first completion, silently dropping every later repair. Re-running is safe: the handler skips round-trips whose closing trade id is already archived.
+ * @param queue - The pipeline queue the worker consumes `backfill-trade-archive` from.
+ * @param profile - The active profile to repair; supplies the operator, account and profile ids for the payload.
+ * @param symbol - The symbol whose whole trade history is re-scanned for missing archive rows.
  */
 const enqueueBackfillJob = async (
   queue: Queue,
@@ -217,7 +215,7 @@ const enqueueBackfillJob = async (
       fromMs: null,
       toMs: null,
     },
-    { jobId: `backfill-archive:sweep:${profile.profileId}:${symbol}:${Date.now()}` },
+    { jobId: backfillArchiveSweepJobId(profile.profileId, symbol, Date.now()) },
   );
 };
 

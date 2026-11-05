@@ -25,7 +25,7 @@ const INTEGRATION_DIR = 'apps/worker/__tests__/integration/';
 /** Every reported file under this root is part of the complete worker lane, including the integration subset with its exact invariant. */
 const WORKER_TEST_DIR = 'apps/worker/__tests__/';
 
-const EXPECTED_INTEGRATION_FILES = 12;
+const EXPECTED_INTEGRATION_FILES = 13;
 
 /** Written into the suite title by `apps/worker/__tests__/integration/_infra-gate.ts`, since no vitest reporter carries a skip reason of its own. */
 const SKIP_MARKER = ' — skipped: ';
@@ -144,7 +144,7 @@ for (const [path, reason] of [...skipped.entries()].sort(([a], [b]) => a.localeC
   console.log(`  ${path}: ${reason}`);
 }
 
-// Skips stay report-only by DEFAULT, because the local lane legitimately stands suites down. They are a failure on a lane that supplies the stack itself, and only the caller knows which it is — hence a flag rather than an environment sniff. Without it the checker fails open on the exact condition it exists to catch: drop REDIS_TEST_URL from the CI job and nine of eleven suites gate off, vitest exits 0 because a skip is not a failure, and the lane is green having run two files.
+// Skips stay report-only by DEFAULT, because the local lane legitimately stands suites down. They are a failure on a lane that supplies the stack itself, and only the caller knows which it is — hence a flag rather than an environment sniff. Without it the checker fails open on the exact condition it exists to catch: drop REDIS_TEST_URL from the CI job and every Redis-gated suite stands down, vitest exits 0 because a skip is not a failure, and the lane is green having run only the rest.
 //
 // The two scopes get separate diagnoses. Only the gated suites under the integration directory read their admission off DATABASE_TEST_URL / REDIS_TEST_URL, so naming the infrastructure is the right first place to look for those and the wrong one for a unit file, which stands down because someone wrote it that way.
 if (process.argv.includes('--forbid-skips') && skipped.size > 0) {

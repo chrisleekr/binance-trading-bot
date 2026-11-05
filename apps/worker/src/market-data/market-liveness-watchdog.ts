@@ -13,9 +13,7 @@
 // strategy keeps evaluating a fresh price during the outage. It is INERT while
 // the WS is healthy (the `isConnected()` guard returns immediately), so it adds
 // zero steady-state work. Idempotency is inherited from the tick path: the
-// synthetic mini-ticker enqueues the same coalesced `tick:<pid>:<sym>` job and
-// every decision carries a deterministic clientOrderId, so a safety tick can
-// neither double-fire an order nor race the eventual reconnect resync.
+// synthetic mini-ticker enqueues the same coalesced `tick|<pid>|<sym>` job and every decision carries a deterministic clientOrderId, so a safety tick can neither double-fire an order nor race the eventual reconnect resync.
 
 import type { Logger } from 'pino';
 

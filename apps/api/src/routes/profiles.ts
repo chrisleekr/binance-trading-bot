@@ -15,7 +15,7 @@ import {
   SwitchStrategyRequest,
   unwrapId,
 } from '@app/contracts';
-import { createReconfigureEnqueue } from '@app/core/queue';
+import { createReconfigureEnqueue, subscribeJobId, unsubscribeJobId } from '@app/core/queue';
 import { GLOBAL_KEYS, projections, repo, schema, type ProfileRepo } from '@app/db';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
@@ -521,8 +521,7 @@ export const profilesRouter = (di: DI): ApiHono => {
         disposition: disposition ?? 'cancel-orders',
         ...(toProfileId !== undefined ? { toProfileId } : {}),
       },
-      // Retries with backoff, and no fixed jobId: the worker throws until Binance is
-      // provably clear, and a BullMQ job runs ONCE unless `attempts` says otherwise.
+      // Retries with backoff far longer than the pipeline default, and no fixed jobId: the worker throws until Binance is provably clear.
       DISPOSE_JOB_OPTS,
     );
     c.set('auditEvent', {
@@ -548,7 +547,7 @@ export const profilesRouter = (di: DI): ApiHono => {
     await di.queue.add(
       'subscribe-profile',
       { userId: operatorId, accountId, profileId },
-      { jobId: `subscribe:${profileId}` },
+      { jobId: subscribeJobId(profileId), removeOnComplete: true, removeOnFail: true },
     );
     c.set('auditEvent', { event: 'start-profile', payload: { profileId } });
     return new Response(null, { status: 204 });
@@ -562,7 +561,7 @@ export const profilesRouter = (di: DI): ApiHono => {
     await di.queue.add(
       'unsubscribe-profile',
       { userId: operatorId, accountId, profileId },
-      { jobId: `unsubscribe:${profileId}` },
+      { jobId: unsubscribeJobId(profileId), removeOnComplete: true, removeOnFail: true },
     );
     c.set('auditEvent', { event: 'stop-profile', payload: { profileId } });
     return new Response(null, { status: 204 });

@@ -63,6 +63,26 @@ describeIfInfra('archive router — trade-archive backfill', () => {
     expect(data.toMs).toBe(Date.parse(to));
     addSpy.mockRestore();
   });
+
+  it.each([
+    [':', 'BTC:USDT'],
+    ['|', 'BTC%7CUSDT'],
+  ])(
+    'refuses a symbol containing "%s" with VALIDATION_FAILED 422 and enqueues nothing',
+    async (_char, symbol) => {
+      const addSpy = vi.spyOn(fx.di.queue, 'add').mockResolvedValue(undefined as never);
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/symbols/${symbol}/trade-archive-backfill`,
+        { method: 'POST', headers: headers(fx.alice.userId), body: JSON.stringify({}) },
+      );
+      expect(res.status).toBe(422);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+        'VALIDATION_FAILED',
+      );
+      expect(addSpy).not.toHaveBeenCalled();
+      addSpy.mockRestore();
+    },
+  );
 });
 
 /**

@@ -14,8 +14,8 @@ const WORKER_TEST_DIR = join(REPO_ROOT, 'apps/worker/__tests__');
 const INTEGRATION_DIR = join(REPO_ROOT, 'apps/worker/__tests__/integration');
 const INTEGRATION_REL = 'apps/worker/__tests__/integration';
 
-/** The whole point of the lane is that all twelve suites execute; a report carrying fewer is a broken include glob, which `passWithNoTests: true` would otherwise render green. */
-const EXPECTED_INTEGRATION_FILES = 12;
+/** The whole point of the lane is that all thirteen suites execute; a report carrying fewer is a broken include glob, which `passWithNoTests: true` would otherwise render green. */
+const EXPECTED_INTEGRATION_FILES = 13;
 
 /** Report size for the cases that exercise the checker's floor arithmetic. Deliberately NOT the real count: a synthetic report only has to straddle the floor passed on the same command line, and reusing the real number here is what let the wiring assertion compare a literal against itself. The real floor is checked against the tree in its own case. */
 const SYNTHETIC_NON_INTEGRATION_FILES = 4;
@@ -143,7 +143,7 @@ const fullReport = (overrides: Record<string, FileOptions> = {}) =>
   );
 
 /**
- * Adds a synthetic non-integration worker file set to the real twelve-file integration shape, keeping each case focused on the checker's report semantics rather than the worker directory walk.
+ * Adds a synthetic non-integration worker file set to the real thirteen-file integration shape, keeping each case focused on the checker's report semantics rather than the worker directory walk.
  *
  * @param count - Number of non-integration entries to report.
  * @param overrides - Keyed by synthetic file name, with the same stand-down shapes as `fullReport`.
@@ -170,7 +170,7 @@ describe('worker integration lane honesty', () => {
     const result = check(fullReport());
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain('worker-integration: 12 integration files, 0 skipped');
+    expect(result.stdout).toContain('worker-integration: 13 integration files, 0 skipped');
   });
 
   // The deliverable of the whole lane: a stand-down that is visible AND says what it was missing. junit emits a bare <skipped/>, so without the title there is no artifact CI keeps that carries a reason.
@@ -184,7 +184,7 @@ describe('worker integration lane honesty', () => {
     );
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain('worker-integration: 12 integration files, 1 skipped');
+    expect(result.stdout).toContain('worker-integration: 13 integration files, 1 skipped');
     expect(result.stdout).toContain(
       `  ${INTEGRATION_REL}/resolve-profile.test.ts: TESTCONTAINERS=1 or DATABASE_TEST_URL required`,
     );
@@ -195,7 +195,7 @@ describe('worker integration lane honesty', () => {
     const result = check(fullReport({ 'resolve-profile.test.ts': { skipReason: null } }));
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stdout).toContain('worker-integration: 12 integration files, 1 skipped');
+    expect(result.stdout).toContain('worker-integration: 13 integration files, 1 skipped');
     expect(result.stdout).toContain(`  ${INTEGRATION_REL}/resolve-profile.test.ts: no skip reason`);
   });
 
@@ -212,7 +212,7 @@ describe('worker integration lane honesty', () => {
     const strict = check(report, 0, ['--forbid-skips']);
     expect(strict.status).not.toBe(0);
     expect(strict.stderr).toContain(
-      'worker-integration: 1 of 12 integration files stood down in a lane that supplies Postgres and Redis itself',
+      'worker-integration: 1 of 13 integration files stood down in a lane that supplies Postgres and Redis itself',
     );
   });
 
@@ -425,11 +425,11 @@ describe('worker integration lane honesty', () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain(
-      'worker-integration: report contained 11 of 12 expected integration files',
+      'worker-integration: report contained 12 of 13 expected integration files',
     );
   });
 
-  // Without this the twelve above is a number the checker asserts against itself.
+  // Without this the thirteen above is a number the checker asserts against itself.
   it('pins the expected file count to what the integration directory actually holds', () => {
     const source = existsSync(CHECKER) ? readFileSync(CHECKER, 'utf8') : '';
     const pinned = /EXPECTED_INTEGRATION_FILES = (\d+)/.exec(source)?.[1];

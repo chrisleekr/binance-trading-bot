@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { GLOBAL_KEYS, profileRepo, schema } from '@app/db';
 import { asProfileId, asUserId, DEFAULT_PROFILE_NOTIFY_EVENTS } from '@app/contracts';
+import { subscribeJobId, unsubscribeJobId } from '@app/core/queue';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { HAS_INFRA, setupApp, TRAILING_TRADE_VERSION, type ApiFixture } from '../_helpers.js';
 
@@ -813,4 +814,40 @@ describeIfInfra('profiles router — quoteAsset exclusivity (#671)', () => {
       await fx.cleanup();
     }
   });
+});
+
+describeIfInfra('profiles router — start/stop static job ids', () => {
+  let fx: ApiFixture;
+
+  beforeAll(async () => {
+    fx = await setupApp();
+  });
+  afterAll(async () => {
+    await fx.cleanup();
+  });
+
+  it.each([
+    ['start', 'subscribe-profile', subscribeJobId],
+    ['stop', 'unsubscribe-profile', unsubscribeJobId],
+  ])(
+    '%s enqueues %s with removeOnComplete/removeOnFail so a later add is not dropped',
+    async (action, job, jobIdFor) => {
+      const addSpy = vi.spyOn(fx.di.queue, 'add').mockResolvedValue(undefined as never);
+      const res = await fx.app.request(
+        `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/${action}`,
+        { method: 'POST', headers: headers(fx.alice.userId) },
+      );
+      expect(res.status).toBe(204);
+      expect(addSpy).toHaveBeenCalledWith(
+        job,
+        expect.anything(),
+        expect.objectContaining({
+          jobId: jobIdFor(fx.alice.profileId),
+          removeOnComplete: true,
+          removeOnFail: true,
+        }),
+      );
+      addSpy.mockRestore();
+    },
+  );
 });

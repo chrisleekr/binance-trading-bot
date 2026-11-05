@@ -5,6 +5,7 @@
 
 import { Queue, type ConnectionOptions, type Job, type Processor, Worker } from 'bullmq';
 import type { Logger } from 'pino';
+import { PIPELINE_JOB_OPTIONS } from '@app/core/queue';
 import { redactDrizzleParamsMessage, redactDrizzleParamsText } from '@app/core/logger';
 import { QUEUE_NAMES, QUEUE_SPECS, type QueueName } from './queue-names.js';
 import type { DlqJobData } from './job-payloads.js';
@@ -65,7 +66,13 @@ export const flattenErrorMessage = (err: Error): string => {
 
 export const createQueueSet = ({ connection, logger }: CreateQueueSetOptions): QueueSet => {
   const queues = Object.fromEntries(
-    Object.values(QUEUE_NAMES).map((name) => [name, new Queue(name, { connection })]),
+    Object.values(QUEUE_NAMES).map((name) => [
+      name,
+      new Queue(name, {
+        connection,
+        ...(name === QUEUE_NAMES.pipeline && { defaultJobOptions: PIPELINE_JOB_OPTIONS }),
+      }),
+    ]),
   ) as Record<QueueName, Queue>;
 
   const workers: Worker[] = [];

@@ -29,7 +29,7 @@
     "@hono/zod-openapi": "1.6.3",
     "@modelcontextprotocol/server": "~2.4.0",
     "better-auth": "~1.7.16",
-    "bullmq": "5.58.6",
+    "bullmq": "6.5.3",
     "drizzle-orm": "~0.45.4",
     "hono": "~4.13.16",
     "ioredis": "~6.0.0",

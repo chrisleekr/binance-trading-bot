@@ -1,3 +1,4 @@
+import { applyAepJobId, manualTickJobId } from '@app/core/queue';
 import {
   AccountInfoSnapshot,
   decimalAdd,
@@ -232,6 +233,9 @@ export class OverrideRollbackError extends Error {
  * `enqueuedAtMs` is required for the audit shipper's `payload.enqueuedAtMs`
  * field; sending it as `undefined` would land in the audit stream as a
  * hole and break any monitor keyed on the field.
+ * @param di - The api container; only its `tickQueue` is used.
+ * @param p - The profile repo whose scope names the operator, account and profile the tick is for.
+ * @param symbol - The symbol to re-evaluate; the tick is per-(profile, symbol).
  */
 export const enqueueTick = async (di: DI, p: ProfileRepo, symbol: string): Promise<void> => {
   const { operatorId, accountId, profileId } = p.scope;
@@ -247,7 +251,7 @@ export const enqueueTick = async (di: DI, p: ProfileRepo, symbol: string): Promi
       enqueuedAtMs: now,
       payload: { reason: 'manual' },
     },
-    { jobId: `tick:${profileId}:${symbol}:${now}` },
+    { jobId: manualTickJobId(profileId, symbol, now) },
   );
 };
 
@@ -262,6 +266,9 @@ export const enqueueTick = async (di: DI, p: ProfileRepo, symbol: string): Promi
  * unique jobId per call (no coalescing) so each operator write applies the
  * latest ledger value. Shared by the set/delete routes and the combined
  * add-symbol path so the job name + id format live in one place.
+ * @param di - The api container; only its pipeline `queue` is used.
+ * @param p - The profile repo whose scope names the operator, account and profile whose ledger is applied.
+ * @param symbol - The symbol whose ledger cost basis is force-set on the running strategy.
  */
 export const enqueueApplyAvgEntryPrice = async (
   di: DI,
@@ -272,7 +279,7 @@ export const enqueueApplyAvgEntryPrice = async (
   await di.queue.add(
     'apply-avg-entry-price',
     { userId: operatorId, accountId, profileId, symbol },
-    { jobId: `apply-aep:${profileId}:${symbol}:${Date.now()}` },
+    { jobId: applyAepJobId(profileId, symbol, Date.now()) },
   );
 };
 
