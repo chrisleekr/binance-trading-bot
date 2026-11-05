@@ -100,6 +100,18 @@ describe('momentumRequiredWindow', () => {
     ).toBe(62);
   });
 
+  it('keeps the weekend gap need after a trigger switch while the weekendGap block remains', () => {
+    expect(
+      momentumRequiredWindow(
+        cfg({
+          ema: { fast: 9, slow: 50 },
+          entryTrigger: 'trend',
+          weekendGap: { maxHoldBars: 300 },
+        }),
+      ),
+    ).toBe(352);
+  });
+
   it('needs the 200-candle average plus one under the MA cluster trigger', () => {
     expect(
       momentumRequiredWindow(cfg({ ema: { fast: 9, slow: 50 }, entryTrigger: 'maCluster' })),

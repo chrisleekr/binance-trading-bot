@@ -139,7 +139,10 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
   const widest = need > extNeed ? need : extNeed;
   const withAtr = widest > atrNeed ? widest : atrNeed;
   const rsNeed = relativeStrengthNeed(c.relativeStrength);
-  return withAtr > rsNeed ? withAtr : rsNeed;
+  // A held weekend-gap position keeps its Friday target after a trigger switch, so a kept `weekendGap` block still sizes the window. Dropping the block resets the hold limit to 72, which the default window already covers.
+  const gapNeed = c.weekendGap !== undefined ? weekendGapNeed(c.weekendGap) : 0;
+  const withRs = withAtr > rsNeed ? withAtr : rsNeed;
+  return withRs > gapNeed ? withRs : gapNeed;
 };
 
 export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> = {
