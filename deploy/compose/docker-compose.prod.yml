@@ -46,8 +46,8 @@ services:
       options: { max-size: 100m, max-file: '5' }
 
   redis:
-    # Pinned: redis:8-alpine @ 2026-05-10
-    image: redis@sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2
+    # Pinned: redis:8-alpine @ 2026-10-29
+    image: redis@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
     restart: unless-stopped
     command:
       - 'sh'

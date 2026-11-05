@@ -497,6 +497,29 @@ const MomentumObvLeadSchema = z
   })
   .describe('OBV lead trigger only: when buying volume counts as leading price.');
 
+/** Thresholds for `entryTrigger: 'weekendGap'`. Defaults are the 1h setting the 2025-26 research chose (a gap of more than 1%, three days to recover). */
+const MomentumWeekendGapSchema = z
+  .object({
+    minGap: decimalString('minGap must be in (0, 1)', { gt: 0, lt: 1 })
+      .default('0.01')
+      .describe(
+        '@ui:percent-of How far the Sunday 22:00 UTC close must sit under the Friday 20:00 UTC close before a buy. 1 means more than 1% under it. Larger waits for deeper weekend dips and buys less often.',
+      ),
+    maxHoldBars: z
+      .number()
+      .int()
+      .positive()
+      // The held position re-reads its Friday close from the window, so the hold limit plus the look-back must fit the hard window ceiling.
+      .max(MAX_CANDLE_WINDOW - 52)
+      .default(72)
+      .describe(
+        'How many 1h candles to hold before selling regardless of price. 72 is three days, the time the research gave the price to climb back to the Friday close.',
+      ),
+  })
+  .describe(
+    'Weekend gap trigger only: how big a weekend dip to buy and how long to wait for the recovery.',
+  );
+
 /** Threshold for `entryTrigger: 'maCluster'`. Default is the 1h setting the 2025-26 research chose (averages within 1% of each other). */
 const MomentumMaClusterSchema = z
   .object({
@@ -636,10 +659,19 @@ export const MomentumConfigSchema = z.object({
     ),
   // What opens a position. Absent reads as `cross` so the unparsed worker config and existing golden replays are unchanged.
   entryTrigger: z
-    .enum(['cross', 'trend', 'breakout', 'impulse', 'maCluster', 'exhaustion', 'obvLead'])
+    .enum([
+      'cross',
+      'trend',
+      'breakout',
+      'impulse',
+      'maCluster',
+      'exhaustion',
+      'obvLead',
+      'weekendGap',
+    ])
     .optional()
     .describe(
-      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle. "Breakout" buys when a candle closes above the highest price of the previous `breakoutLookback` candles; the EMAs then only matter for the cross-down exit, and the entry margin is not applied. "Impulse" buys after a heavy-volume up candle (see `impulse`), betting the surge continues; the EMAs then only matter for the cross-down exit. "MA cluster" buys when a candle closes above the 20, 50, 100 and 200 candle averages after they have bunched together (see `maCluster`); the EMAs then only matter for the cross-down exit. "Exhaustion" buys a fast slide that has run far under the 400-candle average with RSI oversold (see `exhaustion`), betting on a bounce; it buys against the trend, so it needs the trend filter off or on its "below" side, and is meant for a small profile with a tight ATR trail. "OBV lead" buys when on-balance volume makes a new high over `obvLead.lookback` candles while the close is still under its own high and the market is not choppy (see `obvLead`), betting price follows the volume; it is meant for a small profile.',
+      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle. "Breakout" buys when a candle closes above the highest price of the previous `breakoutLookback` candles; the EMAs then only matter for the cross-down exit, and the entry margin is not applied. "Impulse" buys after a heavy-volume up candle (see `impulse`), betting the surge continues; the EMAs then only matter for the cross-down exit. "MA cluster" buys when a candle closes above the 20, 50, 100 and 200 candle averages after they have bunched together (see `maCluster`); the EMAs then only matter for the cross-down exit. "Exhaustion" buys a fast slide that has run far under the 400-candle average with RSI oversold (see `exhaustion`), betting on a bounce; it buys against the trend, so it needs the trend filter off or on its "below" side, and is meant for a small profile with a tight ATR trail. "OBV lead" buys when on-balance volume makes a new high over `obvLead.lookback` candles while the close is still under its own high and the market is not choppy (see `obvLead`), betting price follows the volume; it is meant for a small profile. "Weekend gap" buys the Sunday 22:00 UTC candle (the hour CME bitcoin futures reopen) when it closes more than `weekendGap.minGap` under the Friday 20:00 UTC candle (the hour CME closes), betting price climbs back to the Friday close within about three days (see `weekendGap`); it sells at the Friday close or after `weekendGap.maxHoldBars` candles. It only works with `candleInterval` set to `1h`: on any other interval it never buys. It lost in 2024, so it is meant for a small profile.',
     ),
   // Read only under `entryTrigger: 'breakout'`. Capped so `lookback + 1` candles fit the hard window ceiling; a longer range could never fill and would suppress every entry.
   breakoutLookback: z
@@ -659,6 +691,8 @@ export const MomentumConfigSchema = z.object({
   exhaustion: MomentumExhaustionSchema.optional(),
   // Read only under `entryTrigger: 'obvLead'`. Optional so existing configs and golden replays are unchanged.
   obvLead: MomentumObvLeadSchema.optional(),
+  // Read only under `entryTrigger: 'weekendGap'`. Optional so existing configs and golden replays are unchanged.
+  weekendGap: MomentumWeekendGapSchema.optional(),
   // Read only under `entryTrigger: 'maCluster'`. Optional so existing configs and golden replays are unchanged.
   maCluster: MomentumMaClusterSchema.optional(),
   // Cross-symbol entry gate over the profile KV store. Optional so existing configs and golden replays are unchanged.
@@ -828,8 +862,8 @@ export const MomentumStateSchema = z.object({
     })
     .nullable()
     .default(null),
-  // Which entry rule opened the held position, so its exit trails at that rule's ATR multiple. Null for the primary rule and while flat. Stamped by the entry tick, kept by the fill adopter's buy, cleared on a full exit. Additive with `.default(null)`, same no-version-bump reason as above.
-  entryLayer: z.enum(['below-trend']).nullable().default(null),
+  // Names the rule that opened the held position: `below-trend` selects that rule's ATR multiple, `weekend-gap` arms the Friday-close target and time stop. Null for the primary rule and while flat. Stamped by the entry tick, kept by the fill adopter's buy, cleared on a full exit. Additive with `.default(null)`, same no-version-bump reason as above.
+  entryLayer: z.enum(['below-trend', 'weekend-gap']).nullable().default(null),
 });
 /** Mutable per-tick state the strategy writes back. Persisted by the executor; never read by other profiles or accounts. */
 export type MomentumState = z.infer<typeof MomentumStateSchema>;

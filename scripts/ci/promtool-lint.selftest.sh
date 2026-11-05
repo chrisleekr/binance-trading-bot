@@ -53,10 +53,10 @@ run_gate() {
   local tmp="$dir/.promtool-$name"
   rm -f "$dir/.promtool-last.calls" "$dir/.promtool-last.tar" "$dir/.promtool-last.cache"
   rm -rf "$tmp"
-  mkdir -p "$tmp/node_modules/.cache/promtool-3.4.1"
+  mkdir -p "$tmp/node_modules/.cache/promtool-3.15.1"
   cp -R "$fixtures/complete/." "$tmp/"
   if [ "$cache_fixture" != '-' ]; then
-    cp -R "$fixtures/$cache_fixture/." "$tmp/node_modules/.cache/promtool-3.4.1/"
+    cp -R "$fixtures/$cache_fixture/." "$tmp/node_modules/.cache/promtool-3.15.1/"
   fi
   (
     cd "$tmp" || exit 97
@@ -67,7 +67,7 @@ run_gate() {
   local rc=$?
   cp "$tmp/promtool.calls" "$dir/.promtool-last.calls" 2>/dev/null || true
   cp "$tmp/tar.calls" "$dir/.promtool-last.tar" 2>/dev/null || true
-  ls -A "$tmp/node_modules/.cache/promtool-3.4.1" >"$dir/.promtool-last.cache" 2>/dev/null || true
+  ls -A "$tmp/node_modules/.cache/promtool-3.15.1" >"$dir/.promtool-last.cache" 2>/dev/null || true
   rm -rf "$tmp"
   return "$rc"
 }
@@ -257,17 +257,17 @@ fi
 rm -rf "$strict_bin"
 rm -f "$dir/.promtool-last.calls" "$dir/.promtool-last.tar" "$dir/.promtool-last.cache"
 
-expected_digests='07b0442f50aed883afbcc5ca3136ce45bef99aa73b7aa2e8fa4247b26f2d523f  prometheus-3.4.1.darwin-amd64.tar.gz
-7a6372e2b6a1a498a6aa4e9936878ff8b42c9ed818305b915133600182e2051e  prometheus-3.4.1.darwin-arm64.tar.gz
-09203151c132f36b004615de1a3dea22117ad17e6d7a59962e34f3abf328f312  prometheus-3.4.1.linux-amd64.tar.gz
-2a85be1dff46238c0d799674e856c8629c8526168dd26c3de2cecfbfc6f9a0a2  prometheus-3.4.1.linux-arm64.tar.gz
-fcff7d070c6fb96b2b0744448c236babd5a89484060b0193966e61a7dc01c4ea  prometheus-3.4.1.darwin-amd64/promtool
-ecd398561f7ee26278f508f922d5d2c745b862e26e30873f052ecb516f623ccc  prometheus-3.4.1.darwin-arm64/promtool
-15e75af9417292b58d8b116640a27c60c2b71c70da386887ad3b356fe5df75cd  prometheus-3.4.1.linux-amd64/promtool
-ac164096721c34e18d1e187d26d0f39434b6ab0eba8c9a3838f3610b7c197717  prometheus-3.4.1.linux-arm64/promtool'
-actual_digests="$(cat "$dir/prometheus-3.4.1.sha256" 2>/dev/null || true)"
+expected_digests='c89fcb30045d8c394c9d93e96cbbee3aaf2448a48326b417e811eb4e528edf88  prometheus-3.15.1.darwin-amd64.tar.gz
+0d4d3d9837d27e4fcd0bd16d115b1b8d6732a4bf3e69107f1190d9ef653ae471  prometheus-3.15.1.darwin-arm64.tar.gz
+6a726885328ad9efebbf36e876ce2fb6225468a71fd1e7ce3ba666d5f4d97a84  prometheus-3.15.1.linux-amd64.tar.gz
+ceb6d21493c37ca0b4513b147642797c68cf39a0f50a444d50e1e80c74f21b26  prometheus-3.15.1.linux-arm64.tar.gz
+c050e008a554ac27b265ef4772fe48d4597cf4b4ea926a1c6ae28307d7dfc621  prometheus-3.15.1.darwin-amd64/promtool
+56669304a38daa39b1393833fa98ea5a78556a52e527d9647d8b75b57d3f62e1  prometheus-3.15.1.darwin-arm64/promtool
+d0d2e0b6de44079416d2e5ea3c3fa8c9eed83bed1ad2cdd549a1bb644d8b4456  prometheus-3.15.1.linux-amd64/promtool
+8bb9a423b03ae056009732c458d91b6b4fe048b53a27c7eae02ecd9244af7576  prometheus-3.15.1.linux-arm64/promtool'
+actual_digests="$(cat "$dir/prometheus-3.15.1.sha256" 2>/dev/null || true)"
 if [ "$actual_digests" != "$expected_digests" ]; then
-  echo 'FAIL: prometheus-3.4.1.sha256 does not match the archive and promtool digests of the four supported upstream releases'
+  echo 'FAIL: prometheus-3.15.1.sha256 does not match the archive and promtool digests of the four supported upstream releases'
   fails=1
 fi
 

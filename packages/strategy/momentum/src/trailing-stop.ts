@@ -4,7 +4,7 @@ import { decOrNull } from '@app/strategy-core';
 import type { Candle } from '@app/strategy-core';
 
 import { coerceDec, coerceInt } from './config-coerce.js';
-import type { MomentumConfig } from './schema.js';
+import type { MomentumConfig, MomentumState } from './schema.js';
 
 /** ATR lookback as a finite int >= 2, else the 14 default. Live config is unparsed. */
 export const atrStopPeriod = (raw: unknown): number => coerceInt(raw, { min: 2, fallback: 14 });
@@ -21,7 +21,7 @@ const atrStopMultiple = (raw: unknown) => coerceDec(raw, { fallback: '3' });
  */
 export const configForEntryLayer = (
   config: MomentumConfig,
-  layer: 'below-trend' | null | undefined,
+  layer: MomentumState['entryLayer'] | undefined,
 ): MomentumConfig => {
   if (layer !== 'below-trend' || config.atrTrailingStop === undefined) return config;
   return {

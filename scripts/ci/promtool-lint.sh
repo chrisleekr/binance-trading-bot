@@ -10,7 +10,7 @@ source "$(dirname "$0")/_common.sh"
 ci::start promtool-lint
 script_dir="$(cd -- "$(dirname -- "$0")" && pwd)"
 
-PROMTOOL_VERSION="${PROMTOOL_VERSION:-3.4.1}"
+PROMTOOL_VERSION="${PROMTOOL_VERSION:-3.15.1}"
 # Cache under node_modules/.cache so we don't have to touch .gitignore;
 # node_modules is already ignored by default. Wiped only when the
 # operator nukes node_modules.

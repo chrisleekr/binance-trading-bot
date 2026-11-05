@@ -10,7 +10,7 @@ import { RedisContainer, type StartedRedisContainer } from '@testcontainers/redi
  */
 const POSTGRES_IMAGE =
   'timescale/timescaledb:2.31.0-pg17@sha256:b56a3f51991df1f79d0c1a0841cad5c5fa8058fdd6a3ee6886394a6d4c174538';
-const REDIS_IMAGE = 'redis@sha256:d146f83b1e0f02fc27c26a50cee39338c736674c5959db84363e6ae3cd9e02d2';
+const REDIS_IMAGE = 'redis@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537';
 
 /**
  * How many times {@link startWithRetry} will try to start one container.

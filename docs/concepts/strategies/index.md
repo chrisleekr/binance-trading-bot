@@ -58,13 +58,14 @@ It profits from repeated up-and-down movement in a ranging market. It does not p
 
 ## Momentum
 
-Momentum waits for its **entry trigger** (the buy signal you pick per profile), buys, and sells on a **trailing stop** (a sell line that follows the price up) or when the fast average crosses back below the slow one. It never sells at a fixed profit target.
+Momentum waits for its **entry trigger** (the buy signal you pick per profile), buys, and sells on a **trailing stop** (a sell line that follows the price up) or when the fast average crosses back below the slow one. Only the `weekendGap` trigger sells at a set price, the Friday close; no other trigger has a profit target.
 
-The triggers fall into three groups:
+The triggers fall into four groups:
 
 - **Follow strength** (`cross`, `trend`, `breakout`, `impulse`, `maCluster`): buy a coin that is already moving up.
 - **Follow volume** (`obvLead`): buy when buying volume runs ahead of price.
 - **Buy a bounce** (`exhaustion`): buy a sharp, one-way sell-off, betting it bounces.
+- **Buy the weekend dip** (`weekendGap`): buy when Sunday evening opens well under Friday's close, betting it climbs back.
 
 It trades less often than Trailing Trade and can sit in cash for long stretches. To rank many coins rather than time one, see [Rebalance's momentum weight mode](rebalance.md#how-momentum-mode-ranks).
 
