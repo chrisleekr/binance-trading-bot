@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.8.0...v1.9.0) (2026-11-05)
+
+
+### Features
+
+* **momentum:** add MA cluster, exhaustion and OBV lead entry triggers ([#817](https://github.com/chrisleekr/binance-trading-bot/issues/817)) ([04c348d](https://github.com/chrisleekr/binance-trading-bot/commit/04c348d797c47a446607374d8a4051b699f58a99))
+* **momentum:** add weekendGap entry trigger and bump dependencies ([#821](https://github.com/chrisleekr/binance-trading-bot/issues/821)) ([7c1cf41](https://github.com/chrisleekr/binance-trading-bot/commit/7c1cf41248fd15ecb1e4248ccdc8281bf818b610))
+* **queue:** upgrade BullMQ to 6.5.3 and build job ids with a pipe delimiter ([#822](https://github.com/chrisleekr/binance-trading-bot/issues/822)) ([1aac94d](https://github.com/chrisleekr/binance-trading-bot/commit/1aac94d662fab885b388f6c5980f457c0c536ebe))
+
 ## [1.8.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.7.0...v1.8.0) (2026-10-24)
 
 
