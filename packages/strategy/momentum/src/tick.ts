@@ -31,6 +31,7 @@ import { obvLeadReading, type ObvLeadReading } from './obv-lead.js';
 import {
   weekendGapReading,
   weekendGapSettings,
+  isWeekendGapEntry,
   weekendGapTarget,
   type WeekendGapReading,
 } from './weekend-gap.js';
@@ -359,7 +360,10 @@ const decide = (input: MomentumInput): MomentumOutput => {
                 : config.entryTrigger === 'obvLead'
                   ? obvLead?.fired === true
                   : config.entryTrigger === 'weekendGap'
-                    ? weekendGap?.fired === true
+                    ? // Below the Friday close, else the gap-filled exit sells on the next tick and the round trip pays only fees.
+                      weekendGap?.fired === true &&
+                      weekendGap.refClose !== null &&
+                      new Decimal(market.currentPrice).lt(weekendGap.refClose)
                     : crossUp;
     // The below-trend layer's range, read only when that layer can act: the breakout or MA cluster trigger with the layer on.
     const belowTrend = config.belowTrendBreakout;
@@ -815,11 +819,12 @@ const evaluateExit = (
   // computable ATR, no armed profit leg — so hold, never sell. The resting stop
   // is cancelled by the arm below for the same reason.
   const trailHit = level.stop !== null && price.lte(level.stop);
-  // The weekend gap legs read the entry stamp, so a position without one (wallet-reconciled or adopted) fails OPEN: only the trail and the cross apply. They also need 1h candles, the only interval the Sunday and Friday hours exist on.
+  // The weekend gap legs read the entry stamp, so a position without one (wallet-reconciled or adopted) fails OPEN: only the trail and the cross apply. They also need 1h candles, the only interval the Sunday and Friday hours exist on. A stamp that is not the Sunday signal candle means another trigger opened the position (e.g. the operator switched triggers while holding), so it gets no Friday target or time limit.
   const gapLegs =
     config.entryTrigger === 'weekendGap' &&
     config.candleInterval === '1h' &&
-    entryCandleMs !== null;
+    entryCandleMs !== null &&
+    isWeekendGapEntry(entryCandleMs);
   const target = gapLegs ? weekendGapTarget(candles, entryCandleMs) : null;
   const gapFilled = target !== null && price.gte(target);
   const timeStop =
@@ -879,11 +884,11 @@ const evaluateExit = (
       ? 'operator-force-sell'
       : trailHit
         ? 'trailing-stop'
-        : gapFilled
-          ? 'gap-filled'
-          : timeStop
-            ? 'time-stop'
-            : 'ema-cross';
+        : crossDown
+          ? 'ema-cross'
+          : gapFilled
+            ? 'gap-filled'
+            : 'time-stop';
     // A force-sell exit exists to carry out the operator's override, so it
     // carries the override's id: that stamp is the only thing that lets the
     // worker tie this order's real outcome back to the row the operator is

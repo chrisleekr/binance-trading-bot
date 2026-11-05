@@ -139,6 +139,27 @@ describe('momentumPreviewLevels — flat state with a configured entry', () => {
     expect(row(model, 'entry')).toMatchObject({ price: '13', label: 'Last close' });
   });
 
+  it('projects the last close under the weekend gap trigger on 1h only', () => {
+    const candles = mkCandles(['10', '11', '12', '13']);
+    expect(
+      momentumPreviewLevels(
+        previewInput(
+          cfg({ entryTrigger: 'weekendGap', candleInterval: '4h' }),
+          RICH_ACCOUNT_WIRE,
+          candles,
+        ),
+      ),
+    ).toEqual({ sections: [] });
+    const on1h = momentumPreviewLevels(
+      previewInput(
+        cfg({ entryTrigger: 'weekendGap', candleInterval: '1h' }),
+        RICH_ACCOUNT_WIRE,
+        candles,
+      ),
+    );
+    expect(row(on1h, 'entry')).toMatchObject({ price: '13', label: 'Last close' });
+  });
+
   // A 16-candle rising step: every true range is 1, so ATR is 1 and the projected surge close is 25 + 2 = 27.
   it('projects the impulse level, the last close plus riseAtrMultiple ATRs, under the impulse trigger', () => {
     // volumeLookback 3 keeps the tick's need at 16 candles, so the window is long enough to judge.

@@ -4,7 +4,7 @@
 
 _The Momentum configuration form, as the profile's Strategy section renders it. Every field is documented in the table below. Seeded demo data, not a real account._
 
-Momentum buys when a chosen **entry trigger** fires and holds until a **stop** sells it. There is no profit target. It trades less often than Trailing Trade and can sit in cash for long stretches.
+Momentum buys when a chosen **entry trigger** fires and holds until a **stop** sells it. Only the `weekendGap` trigger has a sell target, the Friday close; every other trigger exits on a stop or a cross-down. It trades less often than Trailing Trade and can sit in cash for long stretches.
 
 Terms used on this page:
 
@@ -177,10 +177,10 @@ Buys on a closed candle where all three hold:
 
 ### `weekendGap`
 
-Works only with `candleInterval: 1h`; on any other interval it never buys. CME bitcoin futures close at 20:00 UTC on Friday and reopen at 22:00 UTC on Sunday. Buys on the closed Sunday 22:00 UTC candle when its close is more than `weekendGap.minGap` (default 1%) under the close of the Friday 20:00 UTC candle.
+Works only with `candleInterval: 1h`; on any other interval it never buys. CME bitcoin futures close at 20:00 UTC on Friday and reopen at 22:00 UTC on Sunday. Buys on the closed Sunday 22:00 UTC candle when its close is more than `weekendGap.minGap` (default 1%) under the close of the Friday 20:00 UTC candle, and the live price is still under that Friday close (otherwise the first tick after the buy would sell it at once).
 
-- Sells at the Friday close (exit reason `gap-filled`), or after `weekendGap.maxHoldBars` candles (default 72, three days; exit reason `time-stop`), whichever comes first. The trailing stop and the EMA cross-down still apply and win over both.
-- The Friday close is recomputed from the candle window on every tick, so nothing extra is stored. A position with no entry stamp, such as one adopted from the wallet, has no target and no time limit and exits on the trail or the cross only.
+- Sells at the Friday close (exit reason `gap-filled`), or after `weekendGap.maxHoldBars` candles (default 72, three days; exit reason `time-stop`), whichever comes first. The trailing stop and the EMA cross-down still apply and win over both, and the cross-down is reported as `ema-cross` when it fires on the same tick as a gap exit.
+- The Friday close is recomputed from the candle window on every tick, so nothing extra is stored. A position with no entry stamp, such as one adopted from the wallet, has no target and no time limit and exits on the trail or the cross only. The same holds for a position opened by another trigger before you switched the profile to `weekendGap`: only a position bought on the Sunday signal candle gets the target and the time limit.
 - The trace logs `refClose` and `gapPercent` (how far the close is under the Friday close). `waitingFor` names what is missing: `one-hour-candles-only`, `sunday-22utc-candle`, `weekend-gap-history` (the Friday candle is not in the window) or `close-below-friday-close`.
 - The window needs `maxHoldBars + 52` closed candles, so a held position can still find its Friday close.
 - The preview shows the last close as the entry level, since the buy waits for one fixed weekly candle.
@@ -237,11 +237,12 @@ flowchart LR
 
 ## Exit
 
-There is **no take-profit target**. A held position is sold when any of these fires:
+There is **no take-profit target**, except under the `weekendGap` trigger. A held position is sold when any of these fires:
 
 - **Trailing stop** — price falls to the trailing level (see below).
 - **EMA cross-down** — the fast EMA crosses back below the slow EMA.
 - **Operator force-sell** — you sell manually from the dashboard.
+- **Weekend gap exits** — only under the `weekendGap` trigger: price reaches the Friday close (`gap-filled`), or the position has been held `weekendGap.maxHoldBars` candles (`time-stop`). See [`weekendGap`](#weekendgap).
 
 **Adopting coins you already hold.** Add the symbol with an average entry price, or set one later (symbol screen, Logs tab, **Show advanced**, **Set average entry price**; see [Tell the bot the entry price](../../operations/troubleshooting.md#tell-the-bot-the-entry-price-for-a-coin-you-already-hold)), and the bot takes over the coins in your wallet as a held position: the cost basis is the price you give and the quantity is what the wallet holds. The trailing level starts from the higher of that price and the latest closed candle, so a holding already in profit gets a stop just under today's price, and one already more than `trailingStopPct` below the price you give is sold on the next check. Setting a price on a position the bot already holds restarts its trailing level the same way. While coins sit in the wallet with no entry price, the bot does not buy more of that symbol (`held-without-basis`), because a second buy would double the exposure and leave the first coins with no stop.
 
@@ -399,7 +400,7 @@ Per (profile, symbol), between ticks (`MomentumStateSchema`, schema version `1.0
 
 ## What it does not do
 
-- No take-profit target — every exit is a stop or a cross-down. Confirmed in the code.
+- No take-profit target except under `weekendGap` (the Friday close and a time limit); every other exit is a stop or a cross-down. Confirmed in the code.
 - No shorting or derivatives — spot long only.
 - No averaging down — one position per (profile, symbol), sized once on entry.
 - It can sit fully in cash for long stretches; that is expected, not a fault.

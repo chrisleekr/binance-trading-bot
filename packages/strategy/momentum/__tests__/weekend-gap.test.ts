@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Candle } from '@app/strategy-core';
 
 import {
+  isWeekendGapEntry,
   weekendGapNeed,
   weekendGapReading,
   weekendGapSettings,
@@ -119,12 +120,23 @@ describe('weekendGapSettings and weekendGapNeed', () => {
   it('defaults and coerces', () => {
     expect(weekendGapSettings(undefined).minGap.toString()).toBe('0.01');
     expect(weekendGapSettings(undefined).maxHoldBars).toBe(72);
-    expect(weekendGapSettings({ minGap: '-1', maxHoldBars: 0 })).toMatchObject({ maxHoldBars: 72 });
+    const bad = weekendGapSettings({ minGap: '-1', maxHoldBars: 0 });
+    expect(bad.maxHoldBars).toBe(72);
+    expect(bad.minGap.toString()).toBe('0.01');
     expect(weekendGapSettings({ minGap: '0.02', maxHoldBars: 10 }).minGap.toString()).toBe('0.02');
   });
 
   it('needs the hold limit plus 52 candles', () => {
     expect(weekendGapNeed(undefined)).toBe(124);
     expect(weekendGapNeed({ maxHoldBars: 10 })).toBe(62);
+  });
+});
+
+describe('isWeekendGapEntry', () => {
+  it('accepts only the close time of a Sunday 22:00 UTC candle', () => {
+    const w = week('98');
+    expect(isWeekendGapEntry(w.at(-1)!.closeTimeMs)).toBe(true);
+    expect(isWeekendGapEntry(w.at(-2)!.closeTimeMs)).toBe(false);
+    expect(isWeekendGapEntry(w.at(-1)!.openTimeMs)).toBe(false);
   });
 });

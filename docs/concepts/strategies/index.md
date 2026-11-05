@@ -58,7 +58,7 @@ It profits from repeated up-and-down movement in a ranging market. It does not p
 
 ## Momentum
 
-Momentum waits for its **entry trigger** (the buy signal you pick per profile), buys, and sells on a **trailing stop** (a sell line that follows the price up) or when the fast average crosses back below the slow one. It never sells at a fixed profit target.
+Momentum waits for its **entry trigger** (the buy signal you pick per profile), buys, and sells on a **trailing stop** (a sell line that follows the price up) or when the fast average crosses back below the slow one. Only the `weekendGap` trigger sells at a set price, the Friday close; no other trigger has a profit target.
 
 The triggers fall into four groups:
 

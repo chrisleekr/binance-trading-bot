@@ -100,3 +100,12 @@ export const weekendGapTarget = (
   const ref = candles.find((c) => c.openTimeMs === refOpen);
   return ref === undefined ? null : new Decimal(ref.close);
 };
+
+/**
+ * Whether an entry stamp is the close time of a Sunday 22:00 UTC signal candle, so only positions this trigger opened get its Friday target and time limit.
+ *
+ * @param lastEntryCandleMs - Close time of the candle the entry tick stamped (open time plus one hour minus one millisecond).
+ * @returns True when that candle opened on Sunday 22:00 UTC.
+ */
+export const isWeekendGapEntry = (lastEntryCandleMs: number): boolean =>
+  msSinceMondayUtc(lastEntryCandleMs + 1 - HOUR_MS) === SUNDAY_OPEN_OFFSET_MS;

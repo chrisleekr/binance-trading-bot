@@ -129,15 +129,19 @@ export const momentumPreviewLevels = (
     candles.length >= obvLeadNeed(config.obvLead)
       ? new Decimal(lastClose)
       : null;
+  // Under the weekend gap trigger the buy fires on one fixed weekly candle, so no price level can be projected; the last close is shown like the OBV lead trigger. Only 1h candles carry the Sunday and Friday hours, so other intervals never buy and show no level.
+  const weekendGap =
+    config.entryTrigger === 'weekendGap' &&
+    config.candleInterval === '1h' &&
+    lastClose !== undefined
+      ? new Decimal(lastClose)
+      : null;
   // A window too short for the trigger's rule has no entry level. Flat, every row projects from it, so show nothing; held, the stops and guards still read the position, so only the entry row goes.
   const noEntryLevel =
-    ['breakout', 'impulse', 'maCluster', 'exhaustion', 'obvLead'].includes(
+    ['breakout', 'impulse', 'maCluster', 'exhaustion', 'obvLead', 'weekendGap'].includes(
       config.entryTrigger ?? '',
-    ) && (breakout ?? impulse ?? cluster ?? exhaustion ?? obvLead) === null;
+    ) && (breakout ?? impulse ?? cluster ?? exhaustion ?? obvLead ?? weekendGap) === null;
   if (noEntryLevel && flat) return { sections: [] };
-  // Under the weekend gap trigger the buy fires on one fixed weekly candle, so no price level can be projected; the last close is shown like the OBV lead trigger.
-  const weekendGap =
-    config.entryTrigger === 'weekendGap' && lastClose !== undefined ? new Decimal(lastClose) : null;
   const band =
     breakout ??
     impulse ??

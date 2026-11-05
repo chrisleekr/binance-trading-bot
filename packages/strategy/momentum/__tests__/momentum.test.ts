@@ -5223,6 +5223,31 @@ describe('momentum.tick — weekendGap trigger', () => {
     expect(exitReason(out)).toBe('trailing-stop');
   });
 
+  it('lets the EMA cross-down win over a gap leg', () => {
+    // The last close drops from a flat 100, so the fast EMA crosses under the slow one on the same tick price reaches the Friday close of 100. The trail rests near 93, so it does not fire.
+    const out = tickHeld(wgCandles('100', 1, '90'), '100', STAMP);
+    expect(exitReason(out)).toBe('ema-cross');
+  });
+
+  it('does not buy when the live price is already at or above the Friday close', () => {
+    const at = (currentPrice: string) =>
+      momentum.tick(
+        mkInput({ closes: wgCandles('98'), currentPrice, state: flat(), config: wgCfg() }),
+      );
+    expect(at('98').decisions[0]).toMatchObject({ type: 'place-order' });
+    expect(at('100').decisions).toEqual([{ type: 'noop' }]);
+    expect(at('101').decisions).toEqual([{ type: 'noop' }]);
+  });
+
+  it('applies neither gap leg to a position another trigger opened', () => {
+    // One hour off the Sunday signal candle: the old lookup would find a 100 close and sell gap-filled.
+    const off = tickHeld(wgCandles('98', 2), '100', STAMP + HOUR);
+    expect(off.decisions).toEqual([{ type: 'noop' }]);
+    // Ten hours earlier is far past the 2 candle hold limit.
+    const old = tickHeld(wgCandles('98', 2), '99', STAMP - 10 * HOUR);
+    expect(old.decisions).toEqual([{ type: 'noop' }]);
+  });
+
   it('applies neither gap leg to other triggers or to a non-1h interval', () => {
     const c = wgCandles('98', 2);
     expect(tickHeld(c, '100', STAMP, cfg({ weekendGap: { maxHoldBars: 2 } })).decisions).toEqual([
