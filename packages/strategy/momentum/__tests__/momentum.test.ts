@@ -5256,11 +5256,14 @@ describe('momentum.tick — weekendGap trigger', () => {
     expect(exitReason(wgTimed)).toBeUndefined();
   });
 
-  it('applies neither gap leg to other triggers or to a non-1h interval', () => {
+  it('keeps both gap legs on a weekend-gap position after the operator switches triggers', () => {
+    const switched = cfg({ weekendGap: { maxHoldBars: 2 } });
+    expect(exitReason(tickHeld(wgCandles('98', 1), '100', STAMP, switched))).toBe('gap-filled');
+    expect(exitReason(tickHeld(wgCandles('98', 2), '99', STAMP, switched))).toBe('time-stop');
+  });
+
+  it('applies neither gap leg on a non-1h interval', () => {
     const c = wgCandles('98', 2);
-    expect(tickHeld(c, '100', STAMP, cfg({ weekendGap: { maxHoldBars: 2 } })).decisions).toEqual([
-      { type: 'noop' },
-    ]);
     const base = mkInput({
       closes: c,
       currentPrice: '100',

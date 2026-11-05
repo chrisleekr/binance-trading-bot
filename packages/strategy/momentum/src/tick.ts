@@ -819,12 +819,9 @@ const evaluateExit = (
   // computable ATR, no armed profit leg — so hold, never sell. The resting stop
   // is cancelled by the arm below for the same reason.
   const trailHit = level.stop !== null && price.lte(level.stop);
-  // The weekend gap legs need 1h candles, the only interval the Sunday and Friday hours exist on. The stamp names the rule that opened the position, so one another trigger opened (even on the same Sunday candle) or an adopted or wallet-reconciled one (the adapter clears entryLayer) gets no Friday target or time limit.
+  // The weekend gap legs need 1h candles, the only interval the Sunday and Friday hours exist on. The stamp names the rule that opened the position, so one another trigger opened (even on the same Sunday candle) or an adopted or wallet-reconciled one (the adapter clears entryLayer) gets no Friday target or time limit, and a weekend-gap position keeps both after the operator switches triggers.
   const gapLegs =
-    config.entryTrigger === 'weekendGap' &&
-    config.candleInterval === '1h' &&
-    entryCandleMs !== null &&
-    state.entryLayer === 'weekend-gap';
+    config.candleInterval === '1h' && entryCandleMs !== null && state.entryLayer === 'weekend-gap';
   const target = gapLegs ? weekendGapTarget(candles, entryCandleMs) : null;
   const gapFilled = target !== null && price.gte(target);
   const timeStop =
