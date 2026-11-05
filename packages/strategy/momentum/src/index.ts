@@ -19,6 +19,7 @@ import { trendPeriod } from './trend-filter.js';
 import { breakoutLookback } from './breakout.js';
 import { exhaustionNeed } from './exhaustion.js';
 import { obvLeadNeed } from './obv-lead.js';
+import { weekendGapNeed } from './weekend-gap.js';
 import { impulseNeed } from './impulse.js';
 import { maClusterNeed } from './ma-cluster.js';
 import { momentumPositionAdapter } from './position-adapter.js';
@@ -59,7 +60,7 @@ const finiteNum = (v: unknown): number => {
 };
 
 /**
- * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1`, and the impulse trigger its volume lookback plus the judged candle, and the exhaustion trigger its 400-candle average plus one, and the OBV lead trigger its lookback plus one, and the MA cluster trigger its 200-candle average plus one, when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, an enabled ATR trailing stop reads `period + 1` closes for its first true-range value, and an enabled relative-strength gate reads `lookbackBars + 1` closes for its score. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
+ * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1`, and the impulse trigger its volume lookback plus the judged candle, and the exhaustion trigger its 400-candle average plus one, and the OBV lead trigger its lookback plus one, and the weekend gap trigger its hold limit plus 52, and the MA cluster trigger its 200-candle average plus one, when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, an enabled ATR trailing stop reads `period + 1` closes for its first true-range value, and an enabled relative-strength gate reads `lookbackBars + 1` closes for its score. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
  *
  * The ATR term is a HARD need, not the trail's soft one. Risk-based entry sizing divides equity risk by the initial stop distance, and that distance is unresolvable on a short ATR window, so the entry is refused outright (`risk-sizing-unavailable`) rather than degraded. The exit trail's own shortfall behaviour is a fallback to the fixed `trailingStopPct`, which is why the term could be omitted here before entry sizing read it.
  */
@@ -80,6 +81,7 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
     belowTrendBreakout?: { enabled?: unknown; lookback?: unknown };
     impulse?: unknown;
     obvLead?: unknown;
+    weekendGap?: unknown;
     relativeStrength?: unknown;
     maCluster?: unknown;
   };
@@ -97,11 +99,13 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
           ? exhaustionNeed()
           : c.entryTrigger === 'obvLead'
             ? obvLeadNeed(c.obvLead)
-            : c.entryTrigger === 'maCluster'
-              ? maClusterNeed(c.maCluster) > layerRange
-                ? maClusterNeed(c.maCluster)
-                : layerRange + 1
-              : 0;
+            : c.entryTrigger === 'weekendGap'
+              ? weekendGapNeed(c.weekendGap)
+              : c.entryTrigger === 'maCluster'
+                ? maClusterNeed(c.maCluster) > layerRange
+                  ? maClusterNeed(c.maCluster)
+                  : layerRange + 1
+                : 0;
   const crossNeed = finiteNum(c.ema?.slow) + 1;
   const emaNeed = crossNeed > breakoutNeed ? crossNeed : breakoutNeed;
   const tf = c.trendFilter;
@@ -135,7 +139,10 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
   const widest = need > extNeed ? need : extNeed;
   const withAtr = widest > atrNeed ? widest : atrNeed;
   const rsNeed = relativeStrengthNeed(c.relativeStrength);
-  return withAtr > rsNeed ? withAtr : rsNeed;
+  // A held weekend-gap position keeps its Friday target after a trigger switch, so a kept `weekendGap` block still sizes the window. Dropping the block resets the hold limit to 72, which the default window already covers.
+  const gapNeed = c.weekendGap !== undefined ? weekendGapNeed(c.weekendGap) : 0;
+  const withRs = withAtr > rsNeed ? withAtr : rsNeed;
+  return withRs > gapNeed ? withRs : gapNeed;
 };
 
 export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> = {

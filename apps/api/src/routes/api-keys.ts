@@ -1,3 +1,4 @@
+import { verifyKeyJobId } from '@app/core/queue';
 import {
   ApiKeyPut,
   ApiKeyResponse,
@@ -93,7 +94,7 @@ export const apiKeysRouter = (di: DI): ApiHono => {
     await di.queue.add(
       'verify-key',
       { userId: operatorId, accountId },
-      { jobId: `verify-key:${accountId}:${Date.now()}` },
+      { jobId: verifyKeyJobId(accountId, Date.now()) },
     );
     // No cache eviction needed: the worker resolves Binance credentials per tick
     // (memoised only within a tick, not across), so a running profile picks up

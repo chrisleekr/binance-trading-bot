@@ -446,7 +446,7 @@ describe('createFillAdopter', () => {
           userId: USER_ID,
           accountId: ACCOUNT_ID,
         }),
-        expect.objectContaining({ jobId: expect.stringMatching(/^archive-grid:/) }),
+        expect.objectContaining({ jobId: expect.stringMatching(/^archive-grid\|/) }),
       );
     });
 

@@ -1,7 +1,7 @@
 // EventRouter: translates WS events into BullMQ tick enqueues.
 //
 //   miniTicker(symbol)   → for each profileId in profilesUsing(symbol):
-//                            tickQueue.add(jobId: tick:<profileId>:<symbol>)
+//                            tickQueue.add(jobId: tick|<profileId>|<symbol>)
 //   kline(symbol,intvl)  → if isClosed: IndicatorComputer.recompute(symbol, interval)
 //                          then enqueue tick(event='kline-close') to subscribers
 //   user event(profile)  → enqueue tick on the affected symbol(s) for that profile only
@@ -20,7 +20,7 @@ import {
 } from '@app/contracts';
 import { GLOBAL_KEYS } from '@app/db';
 import type { TickEvent, TickJobData } from 'queues/job-payloads.js';
-import { tickJobId } from 'queues/queue-names.js';
+import { tickJobId } from '@app/core/queue';
 import { buildOpenOrdersKey, buildUserStreamEventKey } from 'executor/redis-namespace.js';
 import { patchOpenOrder, removeOpenOrder } from 'executor/open-orders-cache.js';
 import {
@@ -159,15 +159,7 @@ export const createEventRouter = (deps: EventRouterDeps): EventRouter => {
       },
       {
         jobId: tickJobId(unwrapId(profileId), symbol),
-        // Tick jobs use a static jobId (`tick:<pid>:<sym>`) for in-flight
-        // coalescing: while one tick is waiting or running, additional
-        // WS events for the same (profile, symbol) collapse into it.
-        // BullMQ rejects an `.add()` whose jobId already exists in ANY
-        // state, including the retained `completed` / `failed` ZSETs —
-        // so `removeOnComplete: true` / `removeOnFail: true` is required
-        // to clear the slot at terminal state. With a count- or age-based
-        // retention every (pid, sym) silently stops re-enqueueing once
-        // its first tick lands in completed.
+        // Tick jobs use a static jobId (`tick|<pid>|<sym>`) for in-flight coalescing: while one tick is waiting or running, additional WS events for the same (profile, symbol) collapse into it. BullMQ rejects an `.add()` whose jobId already exists in ANY state, including the retained `completed` / `failed` ZSETs — so `removeOnComplete: true` / `removeOnFail: true` is required to clear the slot at terminal state. With a count- or age-based retention every (pid, sym) silently stops re-enqueueing once its first tick lands in completed.
         removeOnComplete: true,
         removeOnFail: true,
       },

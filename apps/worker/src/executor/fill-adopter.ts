@@ -54,6 +54,7 @@
 import type { Logger } from 'pino';
 import type { Queue } from 'bullmq';
 import { Decimal, isPlainDecimalString } from '@app/money';
+import { archiveGridJobId } from '@app/core/queue';
 import {
   accountRepoFromScope,
   scopeAccount,
@@ -897,6 +898,8 @@ const ensureSubscribedForPosition = async (
  * own `latestArchivedAt` short-circuit makes a duplicate delivery idempotent.
  * Best-effort: a queue failure logs at warn and is swallowed so it never fails
  * the already-committed fill.
+ * @param deps - The adopter dependencies; supplies the pipeline queue and the logger for the swallowed failure.
+ * @param event - The fill that closed the cycle; names the operator, account, profile and symbol to archive.
  */
 const enqueueArchive = async (deps: FillAdopterDeps, event: FillEvent): Promise<void> => {
   try {
@@ -908,7 +911,7 @@ const enqueueArchive = async (deps: FillAdopterDeps, event: FillEvent): Promise<
         profileId: event.profileId,
         symbol: event.symbol,
       },
-      { jobId: `archive-grid:${unwrapId(event.profileId)}:${event.symbol}:${Date.now()}` },
+      { jobId: archiveGridJobId(unwrapId(event.profileId), event.symbol, Date.now()) },
     );
   } catch (err) {
     deps.logger.warn(

@@ -75,6 +75,16 @@ describe.skipIf(!HAS_INFRA)('MCP endpoint before authentication', () => {
     // The discriminating half: a 401 that is returned for every request, verified or not, would satisfy the case above while proving nothing about verification.
     const res = await post({ authorization: 'Bearer not-a-real-token' });
     expect(res.status).toBe(401);
+    // RFC 6750 section 3.1: a refused presented token names invalid_token, so a client knows to refresh or authorize again; the discovery pointer and scopes stay.
+    const challenge = res.headers.get('www-authenticate') ?? '';
+    expect(challenge).toMatch(/^Bearer error="invalid_token", /);
+    expect(challenge).toContain('resource_metadata="');
+    expect(challenge).toContain(MCP_OFFLINE_SCOPE);
+  });
+
+  it('leaves the error attribute off the tokenless discovery challenge', async () => {
+    // RFC 6750 section 3.1: a request with no authentication information gets no error code, so the rewrite must key on a presented token, not on the 401.
+    expect((await post()).headers.get('www-authenticate') ?? '').not.toMatch(/error=/);
   });
 
   it('records a refused token as a security event, but not the tokenless discovery request every client starts with', async () => {

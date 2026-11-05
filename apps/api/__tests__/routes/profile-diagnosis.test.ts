@@ -70,7 +70,7 @@ describeIfInfra('profile-diagnosis router', () => {
     const res = await start('{}');
     expect(res.status).toBe(202);
     const run = (await res.json()) as RunBody;
-    const job = await fx.di.diagnosisQueue.getJob(`diagnosis:${run.id}`);
+    const job = await fx.di.diagnosisQueue.getJob(`diagnosis|${run.id}`);
     expect((job?.data as { liveProbe?: boolean } | undefined)?.liveProbe).toBe(true);
   });
 

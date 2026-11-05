@@ -7,6 +7,6 @@ if grep -qiF 'tampered' "$target" 2>/dev/null; then
   exit 0
 fi
 case "$target" in
-  */promtool) echo "15e75af9417292b58d8b116640a27c60c2b71c70da386887ad3b356fe5df75cd  ${target}" ;;
-  *) echo "09203151c132f36b004615de1a3dea22117ad17e6d7a59962e34f3abf328f312  ${target}" ;;
+  */promtool) echo "d0d2e0b6de44079416d2e5ea3c3fa8c9eed83bed1ad2cdd549a1bb644d8b4456  ${target}" ;;
+  *) echo "6a726885328ad9efebbf36e876ce2fb6225468a71fd1e7ce3ba666d5f4d97a84  ${target}" ;;
 esac

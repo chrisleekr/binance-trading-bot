@@ -7,12 +7,7 @@
 // finest resolution, so colliding intervals across profiles need exactly
 // one compute call each — not one per profile.
 //
-// Pure function. Worker code wires inputs from `repo.profiles.listForUser`
-// and feeds outputs into BullMQ `add(jobId, data)`; the function itself
-// has no I/O so it lives alongside `cron-config.ts` and is unit-tested
-// in isolation.
-
-import { technicalsJobId } from 'queues/queue-names.js';
+// Pure function. The technicals-compute cron builds its input from the active-profile list and passes each output job straight to its kline fetch; the function itself has no I/O, so it is unit-tested in isolation.
 
 /**
  * One Technicals subscription on a profile. Generic over the snapshot
@@ -37,37 +32,22 @@ export interface ProfileTechnicalsSubscription {
 }
 
 /**
- * One emitted job. `symbols` is the per-interval union of every
- * subscribing profile's symbols, sorted so the jobId-equivalent inputs
- * across replicas produce a byte-identical payload (and BullMQ's job
- * deduplication picks up).
+ * One emitted job. `symbols` is the per-interval union of every subscribing profile's symbols, sorted so the fetch order, and therefore the tests, are deterministic.
  */
 export interface TechnicalsBatchJob {
-  readonly jobId: string;
   readonly interval: string;
   readonly symbols: readonly string[];
 }
 
 /**
- * Aggregate per-profile Technicals subscriptions into one job per
- * distinct interval, with the symbol set unioned across profiles.
+ * Aggregate per-profile Technicals subscriptions into one job per distinct interval, with the symbol set unioned across profiles.
  *
- * `bucket30s` is the 30-second tick counter (`floor(now / 30_000)`).
- * Including it in the jobId means BullMQ coalesces re-fires of the
- * same tick (e.g. cluster failover within a 30s window) onto a single
- * compute call. The jobId format comes from {@link technicalsJobId}
- * and intentionally excludes a per-minute fragment — that resolution
- * would split a compute call into 60× more jobs while the 30s tick
- * is the only cadence the cron actually drives.
- *
- * Sort orders are stable: intervals are emitted in first-seen order
- * (which matches the operator's subscription order), and symbols
- * inside each job are sorted lexicographically so cluster replicas
- * compute the same payload bytes for the same inputs.
+ * Sort orders are stable: intervals are emitted in first-seen order (which matches the operator's subscription order), and symbols inside each job are sorted lexicographically so the fetch order is deterministic.
+ * @param profiles - Each active profile's Technicals subscriptions.
+ * @returns One job per distinct interval that has at least one symbol.
  */
 export const buildTechnicalsJobs = (
   profiles: readonly ProfileTechnicalsSubscription[],
-  bucket30s: number,
 ): readonly TechnicalsBatchJob[] => {
   const byInterval = new Map<string, Set<string>>();
   for (const profile of profiles) {
@@ -85,11 +65,7 @@ export const buildTechnicalsJobs = (
   const out: TechnicalsBatchJob[] = [];
   for (const [interval, symbols] of byInterval) {
     if (symbols.size === 0) continue;
-    out.push({
-      jobId: technicalsJobId(interval, bucket30s),
-      interval,
-      symbols: [...symbols].sort(),
-    });
+    out.push({ interval, symbols: [...symbols].sort() });
   }
   return out;
 };

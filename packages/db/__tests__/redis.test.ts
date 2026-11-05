@@ -35,6 +35,7 @@ describe('createBullMQConnection', () => {
       db: 4,
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
+      protocol: 2,
     });
   });
 });

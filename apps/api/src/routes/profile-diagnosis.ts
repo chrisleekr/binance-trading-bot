@@ -9,6 +9,7 @@
 // investigation is an action, and the panel must render without asking the
 // operator to spend request weight first.
 
+import { diagnosisJobId } from '@app/core/queue';
 import { randomUUID } from 'node:crypto';
 import {
   asProfileId,
@@ -153,7 +154,7 @@ export const profileDiagnosisRouter = (di: DI): ApiHono => {
         // a different moment. A static key would instead make the second click
         // silently return the first click's answer.
         {
-          jobId: `diagnosis:${runId}`,
+          jobId: diagnosisJobId(runId),
           removeOnComplete: { count: 100 },
           removeOnFail: { count: 100 },
         },

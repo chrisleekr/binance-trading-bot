@@ -1,0 +1,8 @@
+c89fcb30045d8c394c9d93e96cbbee3aaf2448a48326b417e811eb4e528edf88  prometheus-3.15.1.darwin-amd64.tar.gz
+0d4d3d9837d27e4fcd0bd16d115b1b8d6732a4bf3e69107f1190d9ef653ae471  prometheus-3.15.1.darwin-arm64.tar.gz
+6a726885328ad9efebbf36e876ce2fb6225468a71fd1e7ce3ba666d5f4d97a84  prometheus-3.15.1.linux-amd64.tar.gz
+ceb6d21493c37ca0b4513b147642797c68cf39a0f50a444d50e1e80c74f21b26  prometheus-3.15.1.linux-arm64.tar.gz
+c050e008a554ac27b265ef4772fe48d4597cf4b4ea926a1c6ae28307d7dfc621  prometheus-3.15.1.darwin-amd64/promtool
+56669304a38daa39b1393833fa98ea5a78556a52e527d9647d8b75b57d3f62e1  prometheus-3.15.1.darwin-arm64/promtool
+d0d2e0b6de44079416d2e5ea3c3fa8c9eed83bed1ad2cdd549a1bb644d8b4456  prometheus-3.15.1.linux-amd64/promtool
+8bb9a423b03ae056009732c458d91b6b4fe048b53a27c7eae02ecd9244af7576  prometheus-3.15.1.linux-arm64/promtool

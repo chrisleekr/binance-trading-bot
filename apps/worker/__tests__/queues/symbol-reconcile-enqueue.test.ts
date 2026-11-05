@@ -19,7 +19,7 @@ describe('createSymbolReconcileEnqueue', () => {
     // Regression, and the whole mechanism rests on it. BullMQ rejects an .add()
     // whose jobId exists in ANY state, INCLUDING the retained completed/failed
     // sets. With a count- or age-based retention the terminal job keeps occupying
-    // `reconcile-symbol:<pid>:<sym>` forever, so the FIRST reconcile for a
+    // `reconcile-symbol|<pid>|<sym>` forever, so the FIRST reconcile for a
     // (profile, symbol) runs and every later one is silently dropped — BullMQ
     // returns the existing job id rather than throwing, so nothing upstream can
     // detect it. Boolean retention is what frees the slot.
@@ -36,7 +36,7 @@ describe('createSymbolReconcileEnqueue', () => {
         cause: 'place-2010-insufficient',
       },
       {
-        jobId: `reconcile-symbol:${PROFILE}:WLDUSDT`,
+        jobId: `reconcile-symbol|${PROFILE}|WLDUSDT`,
         removeOnComplete: true,
         removeOnFail: true,
       },

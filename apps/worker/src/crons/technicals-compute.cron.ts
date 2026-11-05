@@ -26,7 +26,6 @@ export interface TechnicalsComputeDeps {
   readonly logger: Logger;
   readonly listActive: () => readonly ActiveProfile[];
   readonly fetchAndCache: (interval: string, symbols: readonly string[]) => Promise<void>;
-  readonly clock?: { nowMs(): number };
   /**
    * Jittered delay between consecutive per-interval batches in a single
    * cron tick. The batches are awaited serially anyway, but Binance's
@@ -44,17 +43,17 @@ export interface TechnicalsComputeDeps {
 
 const _defaultIntervalGapMs = (): number => 200 + Math.floor(Math.random() * 400);
 
+/**
+ * Builds the self-rescheduling cron handler that refreshes cached technicals ratings, fetching one batch per distinct interval with a jittered gap between batches so the klines calls do not burst against the Binance weight budget.
+ * @param deps - Active-profile source, kline fetch-and-cache call, logger, and optional gap/sleep overrides for tests.
+ * @returns The job handler; it ignores the job payload and logs, rather than throws, when one interval batch fails.
+ */
 export const technicalsComputeHandler =
   (deps: TechnicalsComputeDeps) =>
   async (_job: Job): Promise<void> => {
-    const clock = deps.clock ?? { nowMs: () => Date.now() };
     const intervalGapMs = deps.intervalGapMs ?? _defaultIntervalGapMs;
     const sleep = deps.sleep ?? _defaultSleep;
-    // Each active profile contributes one (interval, symbols) pair per
-    // configured Technicals row. buildTechnicalsJobs unions symbols per
-    // interval so a colliding interval across profiles is one compute
-    // call, not one per profile. An empty technicalsIntervals (operator
-    // opted out) drops the profile from the compute pass entirely.
+    // Each active profile contributes one (interval, symbols) pair per configured Technicals row. buildTechnicalsJobs unions symbols per interval so a colliding interval across profiles is one compute call, not one per profile. An empty technicalsIntervals (operator opted out) drops the profile from the compute pass entirely.
     const subscriptions = deps.listActive().map((p) => ({
       profileId: unwrapId(p.profileId),
       technicals: p.technicalsIntervals.map((interval) => ({
@@ -62,11 +61,7 @@ export const technicalsComputeHandler =
         symbols: p.symbols,
       })),
     }));
-    // buildTechnicalsJobs also mints a per-interval `jobId` from the 30s
-    // bucket for BullMQ dedup; this inline producer calls fetchAndCache
-    // directly and ignores `jobId` — the bucket arg only satisfies the
-    // shared aggregator's signature.
-    const jobs = buildTechnicalsJobs(subscriptions, Math.floor(clock.nowMs() / 30_000));
+    const jobs = buildTechnicalsJobs(subscriptions);
     let ok = 0;
     let failed = 0;
     for (const [i, job] of jobs.entries()) {

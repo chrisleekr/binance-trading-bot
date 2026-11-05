@@ -45,7 +45,8 @@ import type { ProfileTickContext } from '../../src/tick/build-tick-input.js';
 import type { SnapshotColdLoad } from '../../src/tick/snapshot-loader.js';
 import { createAuditShipper } from '../../src/audit-shipper/audit-shipper.js';
 import { buildSymbolStateKey } from '../../src/executor/redis-namespace.js';
-import { tickJobId, QUEUE_NAMES, QUEUE_SPECS } from '../../src/queues/queue-names.js';
+import { tickJobId } from '@app/core/queue';
+import { QUEUE_NAMES, QUEUE_SPECS } from '../../src/queues/queue-names.js';
 import type { TickJobData } from '../../src/queues/job-payloads.js';
 
 import { describeInfra } from './_infra-gate.js';
@@ -424,7 +425,7 @@ const enqueueTick = async (
     payload: {},
   };
   await queue.add('tick', data, {
-    jobId: tickJobId(TEST_PROFILE_ID, `${symbol}:${cidSuffix}`),
+    jobId: tickJobId(TEST_PROFILE_ID, `${symbol}-${cidSuffix}`),
   });
 };
 

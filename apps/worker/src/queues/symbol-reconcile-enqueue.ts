@@ -6,7 +6,7 @@ import type { AccountId, ProfileId } from '@app/contracts';
 import { unwrapId } from '@app/contracts';
 
 import type { SymbolReconcileCause, SymbolReconcileJobData } from 'queues/job-payloads.js';
-import { symbolReconcileJobId } from 'queues/queue-names.js';
+import { symbolReconcileJobId } from '@app/core/queue';
 
 export interface SymbolReconcileRequest {
   readonly accountId: AccountId;

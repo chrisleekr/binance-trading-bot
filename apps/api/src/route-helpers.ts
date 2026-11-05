@@ -78,20 +78,9 @@ export const requireOwnedProfile = async (
 export const RECONCILE_FEES_JOB_OPTS = { removeOnComplete: true, removeOnFail: { count: 1_000 } };
 
 /**
- * Options for the `dispose-profile` job. Same no-static-jobId rule as
- * {@link RECONCILE_FEES_JOB_OPTS} (a fixed id would let only the first disposal per profile
- * ever run), but it MUST also retry: the handler's whole design is "throw until the
- * exchange is provably clear", and BullMQ runs a job exactly once unless `attempts`
- * says otherwise — so without this, one transient Binance blip sends a half-disposed
- * profile straight to the DLQ.
+ * Options for the `dispose-profile` job. Same no-static-jobId rule as {@link RECONCILE_FEES_JOB_OPTS} (a fixed id would let only the first disposal per profile ever run), but it MUST also retry far longer than the pipeline default `PIPELINE_JOB_OPTIONS`: the handler's whole design is "throw until the exchange is provably clear", and that default's ~2s envelope is spent by any Binance outage, which would send a half-disposed profile straight to the DLQ.
  *
- * The envelope is sized against a real Binance outage, not a blip. BullMQ's
- * exponential delay is `2^(attempt-1) x delay`, so these 8 attempts span
- * 5s+10s+20s+40s+80s+160s+320s ~= 10 minutes; the 5-attempt/2s pairing this started
- * as was ~30 SECONDS, which an outage exhausts trivially — leaving a profile disabled
- * and half-disposed with only a DLQ entry to say so, while the operator has already
- * been told `202`. When the attempts DO run out, the DLQ watcher's operator notify is
- * the signal (every pipeline job routes there on final failure).
+ * The envelope is sized against a real Binance outage, not a blip. BullMQ's exponential delay is `2^(attempt-1) x delay`, so these 8 attempts span 5s+10s+20s+40s+80s+160s+320s ~= 10 minutes; the 5-attempt/2s pairing this started as was ~30 SECONDS, which an outage exhausts trivially — leaving a profile disabled and half-disposed with only a DLQ entry to say so, while the operator has already been told `202`. When the attempts DO run out, the DLQ watcher's operator notify is the signal (every pipeline job routes there on final failure).
  *
  * https://docs.bullmq.io/guide/retrying-failing-jobs
  */

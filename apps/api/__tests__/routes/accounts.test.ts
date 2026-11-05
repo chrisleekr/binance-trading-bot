@@ -120,7 +120,11 @@ describeIfInfra('accounts router — delete guard', () => {
         expect(addSpy).toHaveBeenCalledWith(
           'unsubscribe-profile',
           { userId: fx.alice.userId, accountId: fx.alice.accountId, profileId },
-          expect.objectContaining({ jobId: `unsubscribe:${profileId}` }),
+          expect.objectContaining({
+            jobId: `unsubscribe|${profileId}`,
+            removeOnComplete: true,
+            removeOnFail: true,
+          }),
         );
       }
       addSpy.mockRestore();

@@ -1,3 +1,4 @@
+import { archiveGridJobId, cancelOrderJobId, resetGridJobId } from '@app/core/queue';
 import {
   asProfileId,
   CancelOrderRequest,
@@ -30,7 +31,12 @@ import { createApiHono, type ApiHono } from 'types.js';
 const ProfileIdParam = z.object({ profileId: z.uuid() });
 const ProfileSymbolParam = z.object({
   profileId: z.uuid(),
-  symbol: z.string().min(1).max(32),
+  // Job-id parts must not carry a delimiter, and Binance symbols are alphanumeric, so a malformed symbol is refused here rather than reaching an id builder.
+  symbol: z
+    .string()
+    .min(1)
+    .max(32)
+    .regex(/^[A-Za-z0-9]+$/, 'symbol must be alphanumeric'),
 });
 
 const manualOrderRoute = createRoute({
@@ -263,7 +269,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
         symbol,
         orderId: body.orderId,
       },
-      { jobId: `cancel:${body.orderId}` },
+      { jobId: cancelOrderJobId(body.orderId), removeOnComplete: true, removeOnFail: true },
     );
     c.set('auditEvent', {
       event: 'cancel-order',
@@ -510,7 +516,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
     await di.queue.add(
       'archive-grid-trade',
       { userId: scope.operatorId, accountId: scope.accountId, profileId: scope.profileId, symbol },
-      { jobId: `archive-grid:${scope.profileId}:${symbol}:${Date.now()}` },
+      { jobId: archiveGridJobId(scope.profileId, symbol, Date.now()) },
     );
     c.set('auditEvent', {
       event: 'archive-grid-trade',
@@ -527,7 +533,7 @@ export const manualOrdersRouter = (di: DI): ApiHono => {
     await di.queue.add(
       'reset-grid-trade',
       { userId: scope.operatorId, accountId: scope.accountId, profileId: scope.profileId, symbol },
-      { jobId: `reset-grid:${scope.profileId}:${symbol}:${Date.now()}` },
+      { jobId: resetGridJobId(scope.profileId, symbol, Date.now()) },
     );
     c.set('auditEvent', {
       event: 'reset-grid-trade',

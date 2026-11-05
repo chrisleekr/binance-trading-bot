@@ -15,12 +15,13 @@
 // to abort, not the sweep's to guess at. A small age floor skips a just-created
 // run so the api's insert→enqueue gap is never misread as abandoned.
 
-import type { Job } from 'bullmq';
+import type { Job, Queue } from 'bullmq';
 import type { Logger } from 'pino';
 
 import type { CronDef } from './define.js';
 import { defineCron } from './define.js';
-import { QUEUE_NAMES, backtestJobId } from 'queues/queue-names.js';
+import { backtestJobId } from '@app/core/queue';
+import { QUEUE_NAMES } from 'queues/queue-names.js';
 import { repo } from '@app/db';
 import type { BootContext } from 'boot/boot-context.js';
 
@@ -94,6 +95,23 @@ export const backtestSweepHandler = (deps: BacktestSweepDeps) => {
   };
 };
 
+/**
+ * Looks up a run's BullMQ job state so the sweep can tell a live run from an abandoned one.
+ * @param queue - The backtest queue, narrowed to the one method the lookup needs.
+ * @returns A function from a run id to its job state, or null when no job exists.
+ */
+export const backtestJobState =
+  (queue: Pick<Queue, 'getJob'>) =>
+  async (runId: string): Promise<string | null> => {
+    const job = await queue.getJob(backtestJobId(runId));
+    return job ? await job.getState() : null;
+  };
+
+/**
+ * Builds the periodic reconciler that fails `queued`/`running` backtest runs whose BullMQ job is gone or terminal, so a run abandoned by a dead worker stops showing as running.
+ * @param ctx - The worker boot context; supplies the db, logger and the backtest queue the job-state lookup reads.
+ * @returns The cron definition, scheduled every 15 minutes on the backtest-sweep queue.
+ */
 export const buildBacktestSweepCron = (ctx: BootContext): CronDef => {
   const queue = ctx.queueSet.queues.backtest;
   return defineCron({
@@ -103,10 +121,7 @@ export const buildBacktestSweepCron = (ctx: BootContext): CronDef => {
     handler: backtestSweepHandler({
       logger: ctx.logger,
       listCandidates: (olderThan) => repo.backtestRuns.listNonTerminalOlderThan(ctx.db, olderThan),
-      jobState: async (runId) => {
-        const job = await queue.getJob(backtestJobId(runId));
-        return job ? await job.getState() : null;
-      },
+      jobState: backtestJobState(queue),
       failRun: (runId) =>
         repo.backtestRuns.failById(
           ctx.db,

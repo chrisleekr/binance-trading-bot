@@ -63,12 +63,7 @@ jobs:
           BINANCE_TESTNET_API_SECRET: ${{ secrets.BINANCE_TESTNET_API_SECRET }}
         run: bash scripts/ci/test-e2e.sh
 
-  # Standing advisory check. Renovate opens security PRs on its own, but it
-  # cannot for a dependency held below a known-bad version by an
-  # `allowedVersions` ceiling (bullmq, see docs/architecture/worker-pipeline.md)
-  # — it filters the fixed release out and says nothing. This job is what makes
-  # that case audible: `bun audit` reads the lockfile directly and ignores every
-  # Renovate rule.
+  # Standing advisory check. Renovate opens security PRs on its own, but it cannot for a dependency held below a known-bad version by an `allowedVersions` ceiling — it filters the fixed release out and says nothing. This job is what makes that case audible: `bun audit` reads the lockfile directly and ignores every Renovate rule.
   audit:
     name: audit
     runs-on: ubuntu-26.04

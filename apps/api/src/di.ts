@@ -22,6 +22,7 @@ import type { Pool } from 'pg';
 import type pino from 'pino';
 import { createMetricsRegistry, type MetricsRegistry } from '@app/observability';
 import { resolveGitSha } from '@app/core/git-sha';
+import { PIPELINE_JOB_OPTIONS } from '@app/core/queue';
 import { createAuth, SINGLE_SIGN_ON_PROVIDER_ID, type Auth } from './auth.js';
 import {
   createSecurityRedis,
@@ -82,9 +83,7 @@ export interface DI {
   // worker registers a dedicated Worker against the `tick` queue with
   // per-symbol concurrency, separate from the pipeline fan-out worker.
   tickQueue: Queue;
-  // Dedicated long-running backtest queue. The api enqueues a `backtest` job
-  // (jobId = backtest:<runId>) so a duplicate submit of the same run
-  // coalesces; the worker registers a concurrency-1 Worker against it.
+  // Dedicated long-running backtest queue. The api enqueues a `backtest` job (jobId = backtest|<runId>), so a redelivered enqueue of the same run dedupes (each submit and retry mints a fresh run id); the worker registers a concurrency-1 Worker against it.
   backtestQueue: Queue;
   // Background config-advisor queue, consumed by the worker's study role. The
   // api enqueues an `advisor` job only after the DB row's conditional upsert to
@@ -92,10 +91,7 @@ export interface DI {
   // coalescing (a stable jobId + retained completed job would silently no-op a
   // regenerate re-add).
   advisorQueue: Queue;
-  // Profile-diagnosis queue, consumed by the worker's study role. Unlike the
-  // advisor, a stable `jobId` IS correct here: it is the run id, so a duplicate
-  // submit of the same run coalesces, and the id is unique per run so a retained
-  // completed job can never swallow a later investigation.
+  // Profile-diagnosis queue, consumed by the worker's study role. Unlike the advisor, a stable `jobId` IS correct here: it is the run id, so a redelivered enqueue of the same run dedupes (each click mints a fresh run id), and a retained completed job can never swallow a later investigation.
   diagnosisQueue: Queue;
   logger: Logger;
   auth: Auth;
@@ -220,6 +216,7 @@ export const createDI = (env: Env, facts: BootFacts = {}): DI => {
   const redis = createRedis(env.REDIS_URL);
   const queue = new Queue('pipeline', {
     connection: createBullMQConnection({ url: env.REDIS_URL }),
+    defaultJobOptions: PIPELINE_JOB_OPTIONS,
   });
   const tickQueue = new Queue('tick', {
     connection: createBullMQConnection({ url: env.REDIS_URL }),

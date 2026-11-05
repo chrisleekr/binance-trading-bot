@@ -369,7 +369,7 @@ describe('archive-recovery-sweep cron', () => {
     // NOT a static jobId — the pipeline queue retains terminal jobs, so a static
     // id would be occupied forever after the first run and every later repair
     // would be silently dropped.
-    expect(opts.jobId).toMatch(/^backfill-archive:sweep:.+:TSTUSDT:\d+$/);
+    expect(opts.jobId).toMatch(/^backfill-archive\|sweep\|.+\|TSTUSDT\|\d+$/);
   });
 
   it('stops at the pass budget and counts the profiles it never reached', async () => {
