@@ -31,10 +31,16 @@ describeInfra('redis', 'pipeline queue retry policy', () => {
 
   afterAll(async () => {
     // The lane shares one Redis, so a later suite's DLQ worker must not consume this file's dead-letter entry.
-    await queueSet?.queues.pipeline.obliterate({ force: true });
-    await queueSet?.queues.dlq.obliterate({ force: true });
-    await queueSet?.closeAll();
-    await stop?.();
+    try {
+      await queueSet?.queues.pipeline.obliterate({ force: true });
+      await queueSet?.queues.dlq.obliterate({ force: true });
+    } finally {
+      try {
+        await queueSet?.closeAll();
+      } finally {
+        await stop?.();
+      }
+    }
   });
 
   it('retries a pipeline job that throws once and writes no DLQ entry', async () => {

@@ -151,4 +151,21 @@ describe('pipeline retry policy', () => {
     );
     expect(bullmq.adds.get('dlq')).toHaveBeenCalledTimes(1);
   });
+
+  it('reads the attempt budget from the job, not the queue spec', () => {
+    const queueSet = createQueueSet({ connection: {} as never, logger: pino({ level: 'silent' }) });
+    queueSet.registerWorker('pipeline', async () => undefined);
+    const failed = bullmq.failedHandlers.get('pipeline');
+    if (!failed) throw new Error('mock worker did not capture the pipeline failed handler');
+    failed(
+      { id: 'sub-1', data: {}, attemptsMade: PIPELINE_JOB_OPTIONS.attempts, opts: { attempts: 8 } },
+      new Error('transient'),
+    );
+    expect(bullmq.adds.get('dlq')).not.toHaveBeenCalled();
+    failed(
+      { id: 'sub-1', data: {}, attemptsMade: 8, opts: { attempts: 8 } },
+      new Error('transient'),
+    );
+    expect(bullmq.adds.get('dlq')).toHaveBeenCalledTimes(1);
+  });
 });

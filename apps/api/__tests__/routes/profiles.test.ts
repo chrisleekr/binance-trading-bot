@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { GLOBAL_KEYS, profileRepo, schema } from '@app/db';
 import { asProfileId, asUserId, DEFAULT_PROFILE_NOTIFY_EVENTS } from '@app/contracts';
+import { subscribeJobId, unsubscribeJobId } from '@app/core/queue';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { HAS_INFRA, setupApp, TRAILING_TRADE_VERSION, type ApiFixture } from '../_helpers.js';
 
@@ -826,11 +827,11 @@ describeIfInfra('profiles router — start/stop static job ids', () => {
   });
 
   it.each([
-    ['start', 'subscribe-profile'],
-    ['stop', 'unsubscribe-profile'],
+    ['start', 'subscribe-profile', subscribeJobId],
+    ['stop', 'unsubscribe-profile', unsubscribeJobId],
   ])(
     '%s enqueues %s with removeOnComplete/removeOnFail so a later add is not dropped',
-    async (action, job) => {
+    async (action, job, jobIdFor) => {
       const addSpy = vi.spyOn(fx.di.queue, 'add').mockResolvedValue(undefined as never);
       const res = await fx.app.request(
         `/api/accounts/${fx.alice.accountId}/profiles/${fx.alice.profileId}/${action}`,
@@ -840,7 +841,11 @@ describeIfInfra('profiles router — start/stop static job ids', () => {
       expect(addSpy).toHaveBeenCalledWith(
         job,
         expect.anything(),
-        expect.objectContaining({ removeOnComplete: true, removeOnFail: true }),
+        expect.objectContaining({
+          jobId: jobIdFor(fx.alice.profileId),
+          removeOnComplete: true,
+          removeOnFail: true,
+        }),
       );
       addSpy.mockRestore();
     },

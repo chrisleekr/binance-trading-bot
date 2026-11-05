@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { asProfileId, ENTRY_HALT_REASONS, TriggerResponse } from '@app/contracts';
 import { entryHaltKeys, profileKey } from '@app/db';
+import { cancelOrderJobId } from '@app/core/queue';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
@@ -727,7 +728,11 @@ describeIfInfra('cancel-order — static job id', () => {
     expect(addSpy).toHaveBeenCalledWith(
       'cancel-order',
       expect.anything(),
-      expect.objectContaining({ removeOnComplete: true, removeOnFail: true }),
+      expect.objectContaining({
+        jobId: cancelOrderJobId(orderId),
+        removeOnComplete: true,
+        removeOnFail: true,
+      }),
     );
     addSpy.mockRestore();
   });
