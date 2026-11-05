@@ -127,7 +127,8 @@ describe('momentum profit trail under within-candle ticking', () => {
     // The trail's stop sits at the 105 peak × 0.95 = 99.75. Its limit (× 0.98) is below that, so the armed limit is marketable and fills at the stop itself (zero slippage and spread here), not at the limit near 97.75: a gain on the 95 entry that the hard stop alone (95 × 0.9) would have given back.
     expect(Number(sell?.price)).toBe(99.75);
     expect(Number(sell?.price)).toBeGreaterThan(Number(buy?.price));
-  });
+    // Replaying every 1m tick of 17 days is the point of the test; under coverage on the CI runner it took 5.2s, past the 5s default.
+  }, 30_000);
 
   it('holds through that day when the replay ticks once per candle', async () => {
     const report = await run(false);

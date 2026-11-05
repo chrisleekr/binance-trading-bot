@@ -28,6 +28,12 @@ import { trendMaType, trendPeriod } from './trend-filter.js';
 import { breakoutLevel, breakoutLookback } from './breakout.js';
 import { exhaustionReading, type ExhaustionReading } from './exhaustion.js';
 import { obvLeadReading, type ObvLeadReading } from './obv-lead.js';
+import {
+  weekendGapReading,
+  weekendGapSettings,
+  weekendGapTarget,
+  type WeekendGapReading,
+} from './weekend-gap.js';
 import { impulseReading, type ImpulseReading } from './impulse.js';
 import {
   choppiness,
@@ -337,6 +343,8 @@ const decide = (input: MomentumInput): MomentumOutput => {
       config.entryTrigger === 'exhaustion' ? exhaustionReading(candles, config.exhaustion) : null;
     const obvLead =
       config.entryTrigger === 'obvLead' ? obvLeadReading(candles, config.obvLead) : null;
+    const weekendGap =
+      config.entryTrigger === 'weekendGap' ? weekendGapReading(candles, config) : null;
     const entrySignal =
       config.entryTrigger === 'trend'
         ? fastNow.gt(slowNow.mul(band))
@@ -350,7 +358,9 @@ const decide = (input: MomentumInput): MomentumOutput => {
                 ? exhaustion?.fired === true
                 : config.entryTrigger === 'obvLead'
                   ? obvLead?.fired === true
-                  : crossUp;
+                  : config.entryTrigger === 'weekendGap'
+                    ? weekendGap?.fired === true
+                    : crossUp;
     // The below-trend layer's range, read only when that layer can act: the breakout or MA cluster trigger with the layer on.
     const belowTrend = config.belowTrendBreakout;
     const belowBreakout =
@@ -459,6 +469,7 @@ const decide = (input: MomentumInput): MomentumOutput => {
         cluster,
         exhaustion,
         obvLead,
+        weekendGap,
         close: new Decimal(lastCandle.close),
         gate,
       },
@@ -490,6 +501,7 @@ const evaluateEntry = (
     cluster: MaClusterReading | null;
     exhaustion: ExhaustionReading | null;
     obvLead: ObvLeadReading | null;
+    weekendGap: WeekendGapReading | null;
     close: Decimal;
     gate: TrendGate;
   },
@@ -542,6 +554,26 @@ const evaluateEntry = (
               : !reading.priceToHigh.gt(0)
                 ? 'price-already-at-high'
                 : 'less-choppy-market',
+      }),
+    ]);
+  }
+  if (!entrySignal && config.entryTrigger === 'weekendGap') {
+    // Null means the interval is not 1h, so the Sunday candle can never be identified; otherwise names the first leg short of firing.
+    const reading = signal.weekendGap;
+    return hold(state, [
+      log('debug', 'momentum: flat, no weekend gap', {
+        symbol: market.symbol,
+        refClose: reading?.refClose ?? null,
+        gapPercent: reading?.gapPercent ?? null,
+        trendGate: signal.gate,
+        waitingFor:
+          reading === null
+            ? 'one-hour-candles-only'
+            : !reading.isEntryCandle
+              ? 'sunday-22utc-candle'
+              : reading.refClose === null
+                ? 'weekend-gap-history'
+                : 'close-below-friday-close',
       }),
     ]);
   }
@@ -700,7 +732,9 @@ const evaluateEntry = (
                     ? 'momentum: entry on exhausted sell-off'
                     : config.entryTrigger === 'obvLead'
                       ? 'momentum: entry on OBV leading price'
-                      : 'momentum: entry on EMA cross-up',
+                      : config.entryTrigger === 'weekendGap'
+                        ? 'momentum: entry on weekend gap below the Friday close'
+                        : 'momentum: entry on EMA cross-up',
         {
           symbol: market.symbol,
           price: market.currentPrice,
@@ -781,8 +815,19 @@ const evaluateExit = (
   // computable ATR, no armed profit leg — so hold, never sell. The resting stop
   // is cancelled by the arm below for the same reason.
   const trailHit = level.stop !== null && price.lte(level.stop);
+  // The weekend gap legs read the entry stamp, so a position without one (wallet-reconciled or adopted) fails OPEN: only the trail and the cross apply. They also need 1h candles, the only interval the Sunday and Friday hours exist on.
+  const gapLegs =
+    config.entryTrigger === 'weekendGap' &&
+    config.candleInterval === '1h' &&
+    entryCandleMs !== null;
+  const target = gapLegs ? weekendGapTarget(candles, entryCandleMs) : null;
+  const gapFilled = target !== null && price.gte(target);
+  const timeStop =
+    gapLegs &&
+    lastCandle.closeTimeMs - entryCandleMs >=
+      weekendGapSettings(config.weekendGap).maxHoldBars * 3_600_000;
 
-  if (forceSell || trailHit || crossDown) {
+  if (forceSell || trailHit || gapFilled || timeStop || crossDown) {
     if (state.heldQuantity === null) {
       // Long with no tracked quantity (entry price revived before the held-qty
       // reconciler ran). A trail / cross-down defers and self-heals: the signal
@@ -830,7 +875,15 @@ const evaluateExit = (
       // trail / cross-down skip has none.
       return forceSell ? { ...skipped, overrideDeclineReason: sized.skip } : skipped;
     }
-    const reason = forceSell ? 'operator-force-sell' : trailHit ? 'trailing-stop' : 'ema-cross';
+    const reason = forceSell
+      ? 'operator-force-sell'
+      : trailHit
+        ? 'trailing-stop'
+        : gapFilled
+          ? 'gap-filled'
+          : timeStop
+            ? 'time-stop'
+            : 'ema-cross';
     // A force-sell exit exists to carry out the operator's override, so it
     // carries the override's id: that stamp is the only thing that lets the
     // worker tie this order's real outcome back to the row the operator is

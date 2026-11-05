@@ -191,6 +191,16 @@ export const momentumNotes: FieldNotes = {
     expect:
       'In the 1h research, dropping the gate deepened the October 2025 to April 2026 loss on the majors and turned the year negative after 2.5x costs; 45 traded less and made less than 50.',
   },
+  'weekendGap.minGap': {
+    when: 'Only with `entryTrigger: weekendGap` on `1h` candles. Raise it to buy only deeper weekend dips.',
+    expect:
+      'In the 2025 to October 2026 1h research on nine pre-chosen large caps, buying the gap was profitable in every window, while buying Sundays without a gap lost in every window. It lost in 2024.',
+  },
+  'weekendGap.maxHoldBars': {
+    when: 'Only with `entryTrigger: weekendGap`. Shorten it to give up on a dip that is not recovering sooner.',
+    expect:
+      'In the 1h research price tended to climb back to the Friday close within about three days, so 72 candles is the whole recovery window; a position still open then is sold at market.',
+  },
   'impulse.volumeLookback': {
     when: 'Only with `entryTrigger: impulse`. Change it only with the candle interval: it should span about a week of candles, so 168 on `1h` and 42 on `4h`.',
     expect:

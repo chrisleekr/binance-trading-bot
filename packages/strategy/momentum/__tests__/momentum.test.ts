@@ -37,6 +37,7 @@ import {
   findForeignRestingSell,
   findRestingProtectiveStop,
 } from '../src/protective-stop.js';
+import { weekendGapTarget } from '../src/weekend-gap.js';
 import { protectiveStopClientOrderId } from '../src/client-order-id.js';
 import { ENTRY_SIZING_SKIPS, resolveEntryBudget } from '../src/sizing.js';
 import { resolveStopLevel } from '../src/stop-level.js';
@@ -5091,5 +5092,171 @@ describe('momentum.tick — below-trend breakout layer', () => {
       maxChoppiness: '',
     });
     expect(MomentumStateSchema.parse({ ...flat(), entryLayer: undefined }).entryLayer).toBeNull();
+  });
+});
+
+describe('momentum.tick — weekendGap trigger', () => {
+  const HOUR = 3_600_000;
+  const FRIDAY_OPEN = Date.parse('2026-10-30T20:00:00Z');
+  const wgCfg = (over: Record<string, unknown> = {}) =>
+    cfg({ entryTrigger: 'weekendGap', ...over });
+  // Hourly candles from Friday 20:00 UTC (close `ref`) to Sunday 22:00 UTC (close `sunday`), then `after` more candles closing at `afterClose`. Closes between are 100.
+  const wgCandles = (sunday: string, after = 0, afterClose = '100', ref = '100'): Candle[] =>
+    Array.from({ length: 51 + after }, (_, i) => {
+      const close = i === 0 ? ref : i === 50 ? sunday : i > 50 ? afterClose : '100';
+      const openTimeMs = FRIDAY_OPEN + i * HOUR;
+      return {
+        openTimeMs,
+        closeTimeMs: openTimeMs + HOUR - 1,
+        open: close,
+        high: close,
+        low: close,
+        close,
+        volume: '1',
+        isClosed: true,
+      };
+    });
+  const STAMP = FRIDAY_OPEN + 51 * HOUR - 1;
+  const heldAt = (stamp: number | null) =>
+    longState({
+      entryPrice: '98',
+      highSinceEntry: '98',
+      heldQuantity: '1',
+      lastEntryCandleMs: stamp,
+    });
+  const exitReason = (out: ReturnType<typeof momentum.tick>): string | undefined =>
+    out.metrics.find((m) => m.name === 'momentum.exit')?.tags?.reason;
+  const tickHeld = (
+    candles: Candle[],
+    currentPrice: string,
+    stamp: number | null,
+    config = wgCfg({ weekendGap: { maxHoldBars: 2 } }),
+  ) => momentum.tick(mkInput({ closes: candles, currentPrice, state: heldAt(stamp), config }));
+
+  it('enters on a Sunday 22:00 UTC candle that closed under the Friday close, and stamps its close time', () => {
+    const out = momentum.tick(
+      mkInput({ closes: wgCandles('98'), currentPrice: '98', state: flat(), config: wgCfg() }),
+    );
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+    expect(out.logs[0]?.message).toBe('momentum: entry on weekend gap below the Friday close');
+    expect(out.nextState.lastEntryCandleMs).toBe(STAMP);
+    expect(weekendGapTarget(wgCandles('98'), STAMP)?.toString()).toBe('100');
+  });
+
+  it('holds and names the leg that is short of firing', () => {
+    const at = (candles: Candle[], config = wgCfg()) =>
+      momentum.tick(mkInput({ closes: candles, currentPrice: '98', state: flat(), config }));
+    const small = at(wgCandles('99.5'));
+    expect(small.decisions).toEqual([{ type: 'noop' }]);
+    expect(small.logs[0]?.message).toBe('momentum: flat, no weekend gap');
+    expect(small.logs[0]?.context).toMatchObject({
+      refClose: '100',
+      gapPercent: '0.5',
+      waitingFor: 'close-below-friday-close',
+    });
+    expect(at(wgCandles('98', 1)).logs[0]?.context).toMatchObject({
+      refClose: null,
+      waitingFor: 'sunday-22utc-candle',
+    });
+    expect(at(wgCandles('98').slice(1)).logs[0]?.context).toMatchObject({
+      waitingFor: 'weekend-gap-history',
+    });
+  });
+
+  it('never enters on a non-1h interval', () => {
+    const candles = wgCandles('98');
+    const base = mkInput({
+      closes: candles,
+      currentPrice: '98',
+      state: flat(),
+      config: wgCfg({ candleInterval: '4h' }),
+    });
+    const out = momentum.tick({
+      ...base,
+      market: { ...base.market, candlesByInterval: { '4h': candles } },
+    });
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({ waitingFor: 'one-hour-candles-only' });
+  });
+
+  it('exits gap-filled once price reaches the Friday close, not before', () => {
+    const c = wgCandles('98', 1);
+    expect(tickHeld(c, '99.99', STAMP).decisions.some((d) => d.type === 'place-order')).toBe(false);
+    const out = tickHeld(c, '100', STAMP);
+    expect(out.decisions.some((d) => d.type === 'place-order')).toBe(true);
+    expect(exitReason(out)).toBe('gap-filled');
+  });
+
+  it('exits time-stop once the hold limit has elapsed, not before', () => {
+    expect(tickHeld(wgCandles('98', 1), '99', STAMP).decisions).toEqual([{ type: 'noop' }]);
+    const out = tickHeld(wgCandles('98', 2), '99', STAMP);
+    expect(out.decisions.some((d) => d.type === 'place-order')).toBe(true);
+    expect(exitReason(out)).toBe('time-stop');
+  });
+
+  it('reads the default 72-candle hold limit when the block is absent', () => {
+    const c = wgCandles('98', 72);
+    expect(exitReason(tickHeld(c, '99', STAMP, wgCfg()))).toBe('time-stop');
+    expect(tickHeld(wgCandles('98', 71), '99', STAMP, wgCfg()).decisions).toEqual([
+      { type: 'noop' },
+    ]);
+  });
+
+  it('keeps neither the target nor the time leg when the position has no entry stamp', () => {
+    const out = tickHeld(wgCandles('98', 2), '100', null);
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(exitReason(out)).toBeUndefined();
+  });
+
+  it('fails open on the target leg when the Friday candle left the window', () => {
+    expect(tickHeld(wgCandles('98', 1).slice(1), '100', STAMP).decisions).toEqual([
+      { type: 'noop' },
+    ]);
+  });
+
+  it('lets the trailing stop win over the gap legs', () => {
+    // Friday close 90 makes the target 90; the closes of 100 lift the high so the 5% trail rests at 95; price 94 trips both.
+    const out = tickHeld(wgCandles('80', 2, '100', '90'), '94', STAMP);
+    expect(exitReason(out)).toBe('trailing-stop');
+  });
+
+  it('applies neither gap leg to other triggers or to a non-1h interval', () => {
+    const c = wgCandles('98', 2);
+    expect(tickHeld(c, '100', STAMP, cfg({ weekendGap: { maxHoldBars: 2 } })).decisions).toEqual([
+      { type: 'noop' },
+    ]);
+    const base = mkInput({
+      closes: c,
+      currentPrice: '100',
+      state: heldAt(STAMP),
+      config: wgCfg({ candleInterval: '4h', weekendGap: { maxHoldBars: 2 } }),
+    });
+    const out = momentum.tick({
+      ...base,
+      market: { ...base.market, candlesByInterval: { '4h': c } },
+    });
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+  });
+
+  it('accepts entryTrigger weekendGap with defaults and rejects out-of-range leaves', () => {
+    expect(MomentumConfigSchema.safeParse(wgCfg()).success).toBe(true);
+    expect(MomentumConfigSchema.parse(cfg({ weekendGap: {} })).weekendGap).toEqual({
+      minGap: '0.01',
+      maxHoldBars: 72,
+    });
+    expect(MomentumConfigSchema.safeParse(cfg({ weekendGap: { maxHoldBars: 947 } })).success).toBe(
+      true,
+    );
+    for (const bad of [
+      { minGap: '0' },
+      { minGap: '1' },
+      { maxHoldBars: 0 },
+      { maxHoldBars: 1.5 },
+      { maxHoldBars: 948 },
+    ])
+      expect(MomentumConfigSchema.safeParse({ ...cfg(), weekendGap: bad }).success).toBe(false);
   });
 });

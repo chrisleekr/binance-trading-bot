@@ -68,6 +68,7 @@ Until `ema.slow + 1` candles have closed, nothing runs, exits included, and a ma
 | `maCluster` | A candle closes above four moving averages that have bunched together. | A long sideways range breaks upward. | The five majors. |
 | `exhaustion` | A one-way sell-off runs far below the long average with RSI oversold. | Sellers have run out and price bounces. | A small, separate profile with a tight trail. |
 | `obvLead` | Buying volume reaches a new high while price is still under its own high. | Price follows the volume. | A small, separate profile. |
+| `weekendGap` | The Sunday 22:00 UTC candle closes well under Friday's 20:00 UTC close. | The weekend dip is recovered within about three days. | A small, separate profile, `1h` only. |
 
 The research notes below each trigger come from 1h backtests, mostly 2025 to October 2026, with 2024 and 18-month windows as extra checks. They are not a promise of future results.
 
@@ -173,6 +174,20 @@ Buys on a closed candle where all three hold:
 ??? note "Research"
 
     With a 3x ATR trailing stop and no trend filter, it made money after 2.5x costs over the last 90 days and from April 2026 on, on both the five majors and nine pre-chosen large caps, beating every random entry with the same exit, and it made a little money in the last 60 days, where the MA cluster trigger lost every trade. Lookbacks of 120 and 240 and trails of 2x and 4x stayed profitable in both windows on the majors. It lost from October 2025 to April 2026 on both. Run it small, on its own profile.
+
+### `weekendGap`
+
+Works only with `candleInterval: 1h`; on any other interval it never buys. CME bitcoin futures close at 20:00 UTC on Friday and reopen at 22:00 UTC on Sunday. Buys on the closed Sunday 22:00 UTC candle when its close is more than `weekendGap.minGap` (default 1%) under the close of the Friday 20:00 UTC candle.
+
+- Sells at the Friday close (exit reason `gap-filled`), or after `weekendGap.maxHoldBars` candles (default 72, three days; exit reason `time-stop`), whichever comes first. The trailing stop and the EMA cross-down still apply and win over both.
+- The Friday close is recomputed from the candle window on every tick, so nothing extra is stored. A position with no entry stamp, such as one adopted from the wallet, has no target and no time limit and exits on the trail or the cross only.
+- The trace logs `refClose` and `gapPercent` (how far the close is under the Friday close). `waitingFor` names what is missing: `one-hour-candles-only`, `sunday-22utc-candle`, `weekend-gap-history` (the Friday candle is not in the window) or `close-below-friday-close`.
+- The window needs `maxHoldBars + 52` closed candles, so a held position can still find its Friday close.
+- The preview shows the last close as the entry level, since the buy waits for one fixed weekly candle.
+
+??? note "Research"
+
+    On nine pre-chosen large caps it made money in every 2025 to October 2026 window, while buying on Sundays without the gap lost in every window. It lost in 2024. Run it small, on its own profile.
 
 ## Entry gates
 

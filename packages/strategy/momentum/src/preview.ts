@@ -135,12 +135,16 @@ export const momentumPreviewLevels = (
       config.entryTrigger ?? '',
     ) && (breakout ?? impulse ?? cluster ?? exhaustion ?? obvLead) === null;
   if (noEntryLevel && flat) return { sections: [] };
+  // Under the weekend gap trigger the buy fires on one fixed weekly candle, so no price level can be projected; the last close is shown like the OBV lead trigger.
+  const weekendGap =
+    config.entryTrigger === 'weekendGap' && lastClose !== undefined ? new Decimal(lastClose) : null;
   const band =
     breakout ??
     impulse ??
     cluster ??
     exhaustion ??
     obvLead ??
+    weekendGap ??
     slowEma.mul(new Decimal(1).plus(entryMargin(config)));
   const bandStr = band.toString();
 
@@ -219,7 +223,8 @@ const buildEntryRow = (
             ? 'MA cluster top'
             : input.config.entryTrigger === 'exhaustion'
               ? 'Exhaustion level'
-              : input.config.entryTrigger === 'obvLead'
+              : input.config.entryTrigger === 'obvLead' ||
+                  input.config.entryTrigger === 'weekendGap'
                 ? 'Last close'
                 : 'Entry band',
     tone: 'entry',
