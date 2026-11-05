@@ -862,8 +862,8 @@ export const MomentumStateSchema = z.object({
     })
     .nullable()
     .default(null),
-  // Which entry rule opened the held position, so its exit trails at that rule's ATR multiple. Null for the primary rule and while flat. Stamped by the entry tick, kept by the fill adopter's buy, cleared on a full exit. Additive with `.default(null)`, same no-version-bump reason as above.
-  entryLayer: z.enum(['below-trend']).nullable().default(null),
+  // Names the rule that opened the held position: `below-trend` selects that rule's ATR multiple, `weekend-gap` arms the Friday-close target and time stop. Null for the primary rule and while flat. Stamped by the entry tick, kept by the fill adopter's buy, cleared on a full exit. Additive with `.default(null)`, same no-version-bump reason as above.
+  entryLayer: z.enum(['below-trend', 'weekend-gap']).nullable().default(null),
 });
 /** Mutable per-tick state the strategy writes back. Persisted by the executor; never read by other profiles or accounts. */
 export type MomentumState = z.infer<typeof MomentumStateSchema>;

@@ -5117,12 +5117,13 @@ describe('momentum.tick — weekendGap trigger', () => {
       };
     });
   const STAMP = FRIDAY_OPEN + 51 * HOUR - 1;
-  const heldAt = (stamp: number | null) =>
+  const heldAt = (stamp: number | null, entryLayer: 'weekend-gap' | null = 'weekend-gap') =>
     longState({
       entryPrice: '98',
       highSinceEntry: '98',
       heldQuantity: '1',
       lastEntryCandleMs: stamp,
+      entryLayer,
     });
   const exitReason = (out: ReturnType<typeof momentum.tick>): string | undefined =>
     out.metrics.find((m) => m.name === 'momentum.exit')?.tags?.reason;
@@ -5131,7 +5132,11 @@ describe('momentum.tick — weekendGap trigger', () => {
     currentPrice: string,
     stamp: number | null,
     config = wgCfg({ weekendGap: { maxHoldBars: 2 } }),
-  ) => momentum.tick(mkInput({ closes: candles, currentPrice, state: heldAt(stamp), config }));
+    entryLayer: 'weekend-gap' | null = 'weekend-gap',
+  ) =>
+    momentum.tick(
+      mkInput({ closes: candles, currentPrice, state: heldAt(stamp, entryLayer), config }),
+    );
 
   it('enters on a Sunday 22:00 UTC candle that closed under the Friday close, and stamps its close time', () => {
     const out = momentum.tick(
@@ -5143,6 +5148,7 @@ describe('momentum.tick — weekendGap trigger', () => {
     });
     expect(out.logs[0]?.message).toBe('momentum: entry on weekend gap below the Friday close');
     expect(out.nextState.lastEntryCandleMs).toBe(STAMP);
+    expect(out.nextState.entryLayer).toBe('weekend-gap');
     expect(weekendGapTarget(wgCandles('98'), STAMP)?.toString()).toBe('100');
   });
 
@@ -5239,13 +5245,15 @@ describe('momentum.tick — weekendGap trigger', () => {
     expect(at('101').decisions).toEqual([{ type: 'noop' }]);
   });
 
-  it('applies neither gap leg to a position another trigger opened', () => {
-    // One hour off the Sunday signal candle: the old lookup would find a 100 close and sell gap-filled.
-    const off = tickHeld(wgCandles('98', 2), '100', STAMP + HOUR);
-    expect(off.decisions).toEqual([{ type: 'noop' }]);
-    // Ten hours earlier is far past the 2 candle hold limit.
-    const old = tickHeld(wgCandles('98', 2), '99', STAMP - 10 * HOUR);
-    expect(old.decisions).toEqual([{ type: 'noop' }]);
+  it('applies neither gap leg to a position another trigger opened, even on the Sunday signal candle', () => {
+    // Opened by `trend` on the same Sunday 22:00 candle (no entryLayer), then the operator switched to weekendGap.
+    const wgFilled = tickHeld(wgCandles('98', 1), '100', STAMP, undefined, null);
+    expect(wgFilled.decisions).toEqual([{ type: 'noop' }]);
+    expect(exitReason(wgFilled)).toBeUndefined();
+    // Two candles past the 2 bar hold limit.
+    const wgTimed = tickHeld(wgCandles('98', 2), '99', STAMP, undefined, null);
+    expect(wgTimed.decisions).toEqual([{ type: 'noop' }]);
+    expect(exitReason(wgTimed)).toBeUndefined();
   });
 
   it('applies neither gap leg to other triggers or to a non-1h interval', () => {

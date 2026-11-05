@@ -31,7 +31,6 @@ import { obvLeadReading, type ObvLeadReading } from './obv-lead.js';
 import {
   weekendGapReading,
   weekendGapSettings,
-  isWeekendGapEntry,
   weekendGapTarget,
   type WeekendGapReading,
 } from './weekend-gap.js';
@@ -714,7 +713,8 @@ const evaluateEntry = (
     protectiveStopBlocker: null,
     exitBlocker: null,
     nativeTrail: null,
-    entryLayer: layer,
+    // The weekendGap trigger has no layer of its own; its stamp arms the Friday target and time stop.
+    entryLayer: layer ?? (config.entryTrigger === 'weekendGap' ? 'weekend-gap' : null),
   };
   return {
     nextState,
@@ -819,12 +819,12 @@ const evaluateExit = (
   // computable ATR, no armed profit leg — so hold, never sell. The resting stop
   // is cancelled by the arm below for the same reason.
   const trailHit = level.stop !== null && price.lte(level.stop);
-  // The weekend gap legs read the entry stamp, so a position without one (wallet-reconciled or adopted) fails OPEN: only the trail and the cross apply. They also need 1h candles, the only interval the Sunday and Friday hours exist on. A stamp that is not the Sunday signal candle means another trigger opened the position (e.g. the operator switched triggers while holding), so it gets no Friday target or time limit.
+  // The weekend gap legs need 1h candles, the only interval the Sunday and Friday hours exist on. The stamp names the rule that opened the position, so one another trigger opened (even on the same Sunday candle) or an adopted or wallet-reconciled one (the adapter clears entryLayer) gets no Friday target or time limit.
   const gapLegs =
     config.entryTrigger === 'weekendGap' &&
     config.candleInterval === '1h' &&
     entryCandleMs !== null &&
-    isWeekendGapEntry(entryCandleMs);
+    state.entryLayer === 'weekend-gap';
   const target = gapLegs ? weekendGapTarget(candles, entryCandleMs) : null;
   const gapFilled = target !== null && price.gte(target);
   const timeStop =
