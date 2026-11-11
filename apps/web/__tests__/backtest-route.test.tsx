@@ -918,7 +918,9 @@ describe('/profiles/$profileId/backtest', () => {
         setUpCandle(candle);
         await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
         expect(
-          within(screen.getByLabelText('Decision interval')).getByText('Automatic (1d)'),
+          within(screen.getByLabelText('Decision interval')).getByText(
+            'Automatic (follows Candle Interval)',
+          ),
         ).toBeInTheDocument();
       },
     );

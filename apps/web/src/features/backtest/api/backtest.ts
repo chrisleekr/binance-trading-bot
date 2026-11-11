@@ -11,7 +11,7 @@ import {
   type BacktestCreated,
   type BacktestInterval,
   type BacktestListResponse as BacktestListResponseType,
-  type BacktestParams,
+  type BacktestSubmit,
   type BacktestRunDetail,
   type ImproveConfigPromptResponse,
   type ImproveConfigMode,
@@ -28,7 +28,7 @@ import { accountPath } from '@/shared/lib/account-scope';
  * @param body - The run's parameters.
  * @returns The new run id to poll.
  */
-export const createBacktest = (profileId: string, body: BacktestParams): Promise<BacktestCreated> =>
+export const createBacktest = (profileId: string, body: BacktestSubmit): Promise<BacktestCreated> =>
   apiFetch(
     accountPath(`/profiles/${encodePathSegment(profileId)}/backtests`),
     BacktestCreatedSchema,

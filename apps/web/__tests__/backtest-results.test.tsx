@@ -625,7 +625,7 @@ describe('BacktestResults', () => {
     const noOos: BacktestResult = { ...RESULT, outOfSample: null };
     render(<BacktestResults result={noOos} loadChartModule={loadChartModule} />);
     expect(screen.queryByTestId('backtest-oos-table')).not.toBeInTheDocument();
-    expect(screen.getByText(/too short to set a recent period aside/)).toBeInTheDocument();
+    expect(screen.getByText(/recent-period check is unavailable/)).toBeInTheDocument();
   });
 
   it('renders an em-dash for the holdout win rate when no trades opened in the slice', () => {

@@ -597,12 +597,25 @@ describe('OhlcvFillModel volume-participation cap', () => {
     const out = capped.fill(
       input({
         side: 'BUY',
-        params: { type: 'LIMIT', price: '100', quantity: '5' },
+        params: { type: 'LIMIT', price: '100', quantity: '20' },
         detail: [barVol('0.001', '95', '105')],
         symbolInfo: strict,
       }),
     );
     expect(out).toEqual({ kind: 'rest' });
+  });
+
+  it('rejects min-notional when the full order is already below it, even if the cap binds', () => {
+    const strict = { ...SYMBOL_INFO, filters: { ...SYMBOL_INFO.filters, minNotional: '1000' } };
+    const out = capped.fill(
+      input({
+        side: 'BUY',
+        params: { type: 'LIMIT', price: '100', quantity: '5' },
+        detail: [barVol('0.001', '95', '105')],
+        symbolInfo: strict,
+      }),
+    );
+    expect(out).toMatchObject({ kind: 'rejected', reason: 'min-notional' });
   });
 
   it('fills on a later bar that has volume after a thin bar', () => {

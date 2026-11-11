@@ -200,7 +200,7 @@ const assembleAdvisorInput = async (
       strategyVersion: profile.strategyVersion,
       configSchema: plugin.configSchema,
       configSchemaDoc: descriptor.configSchema,
-      profileConfig: profile.config,
+      profileConfig: result.resolvedConfig ?? profile.config,
       result,
       priorRuns,
       policy,

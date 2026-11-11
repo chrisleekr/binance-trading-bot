@@ -174,13 +174,12 @@ export class OhlcvFillModel implements FillModel {
         : params.type === 'STOP_LOSS_LIMIT'
           ? { kind: 'rest', armed: true }
           : { kind: 'rest' };
+    if (affordable.lt(minQty)) return { kind: 'rejected', reason: 'step-size', latencyMs: 0 };
+    if (!meetsMinNotional(affordable, price, minNotional))
+      return { kind: 'rejected', reason: 'min-notional', latencyMs: 0 };
     const fillable = this.volumeCapped(affordable, bar, step);
-    const capBit = fillable.lt(affordable);
-    if (fillable.lte(0)) return onThinBar;
-    if (fillable.lt(minQty))
-      return capBit ? onThinBar : { kind: 'rejected', reason: 'step-size', latencyMs: 0 };
-    if (!meetsMinNotional(fillable, price, minNotional))
-      return capBit ? onThinBar : { kind: 'rejected', reason: 'min-notional', latencyMs: 0 };
+    if (fillable.lte(0) || fillable.lt(minQty) || !meetsMinNotional(fillable, price, minNotional))
+      return onThinBar;
 
     const fill: Fill = { price, qty: fillable, feeBps, tsMs: clock.nowMs() };
     if (fillable.lt(requestedQty)) {

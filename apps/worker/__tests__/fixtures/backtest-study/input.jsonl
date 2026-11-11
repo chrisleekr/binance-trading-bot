@@ -160,3 +160,4 @@
 {"symbol":"BTCUSDT","interval":"1m","openTimeMs":1700004420000,"closeTimeMs":1700004479999,"open":"50000","high":"50000","low":"50000","close":"50000","volume":"100000"}
 {"symbol":"BTCUSDT","interval":"1m","openTimeMs":1700004480000,"closeTimeMs":1700004539999,"open":"50000","high":"50000","low":"50000","close":"50000","volume":"100000"}
 {"symbol":"BTCUSDT","interval":"1m","openTimeMs":1700004540000,"closeTimeMs":1700004599999,"open":"50000","high":"50000","low":"50000","close":"50000","volume":"100000"}
+{"symbol":"ETHUSDT","interval":"1d","openTimeMs":1699833600000,"closeTimeMs":1699919999999,"open":"100.0","high":"100.0","low":"100.0","close":"100.0","volume":"100000"}

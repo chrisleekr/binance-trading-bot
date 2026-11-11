@@ -162,8 +162,8 @@ export function ResultsTablesSection({
           </>
         ) : (
           <p className="text-xs text-muted-fg">
-            This run is too short to set a recent period aside. Widen the backtest window to get
-            this check.
+            The recent-period check is unavailable: this run is too short to set a recent period
+            aside, or it predates the check. Widen the window or re-run to get it.
           </p>
         )}
       </section>

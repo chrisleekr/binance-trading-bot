@@ -45,7 +45,7 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
     setParam,
     applyWindowPreset,
     candleInterval,
-    autoDecisionInterval,
+    exitsWithinCandle,
     decisionInterval,
     detailIntervalTooCoarse,
     configSchema,
@@ -128,7 +128,9 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
               value={params.decisionInterval}
               onChange={setParam('decisionInterval')}
             >
-              <option value="">Automatic ({autoDecisionInterval})</option>
+              <option value="">
+                Automatic ({exitsWithinCandle ? '1m' : 'follows Candle Interval'})
+              </option>
               {BACKTEST_DECISION_INTERVALS.map((i) => (
                 <option key={i} value={i}>
                   {i}

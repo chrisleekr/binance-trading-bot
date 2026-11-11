@@ -520,6 +520,19 @@ export async function replayPrepared(
     toMs,
     detailMs,
   );
+  // Backfill is per-interval best-effort, so a gap in the strategy series is not covered by the detail check.
+  if (strategyInterval !== detailInterval) {
+    dataWarnings.push(
+      ...dataCoverageWarnings(
+        symbols,
+        candlesByKey,
+        strategyInterval,
+        fromMs,
+        toMs,
+        replayIntervalMs(strategyInterval),
+      ),
+    );
+  }
   // Modelling caveats go to `modelNotes`, not `dataWarnings`: they say where the replay departs from live, and the live gate fails a run on any data warning.
   const modelNotes = [
     ...missingDetailNotes(symbols, candlesByKey, detailInterval, fromMs, toMs, detailMs),

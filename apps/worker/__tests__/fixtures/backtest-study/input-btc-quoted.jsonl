@@ -119,3 +119,6 @@
 {"symbol":"BTCUSDT","interval":"1m","openTimeMs":1700001420000,"closeTimeMs":1700001479999,"open":"76000.0","high":"77000.0","low":"76000.0","close":"77000.0","volume":"1000000"}
 {"symbol":"BTCUSDT","interval":"1m","openTimeMs":1700001480000,"closeTimeMs":1700001539999,"open":"77000.0","high":"78000.0","low":"77000.0","close":"78000.0","volume":"1000000"}
 {"symbol":"BTCUSDT","interval":"1m","openTimeMs":1700001540000,"closeTimeMs":1700001599999,"open":"78000.0","high":"79000.0","low":"78000.0","close":"79000.0","volume":"1000000"}
+{"symbol":"ETHBTC","interval":"1d","openTimeMs":1699833600000,"closeTimeMs":1699919999999,"open":"0.05","high":"0.05","low":"0.05","close":"0.05","volume":"1000000"}
+{"symbol":"LTCBTC","interval":"1d","openTimeMs":1699833600000,"closeTimeMs":1699919999999,"open":"0.05","high":"0.05","low":"0.05","close":"0.05","volume":"1000000"}
+{"symbol":"XRPBTC","interval":"1d","openTimeMs":1699833600000,"closeTimeMs":1699919999999,"open":"0.05","high":"0.05","low":"0.05","close":"0.05","volume":"1000000"}

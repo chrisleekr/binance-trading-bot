@@ -243,6 +243,14 @@ describe('runProfileBacktest within-candle exits', () => {
 });
 
 describe('runProfileBacktest modelling notes', () => {
+  it('warns when only the strategy series has a gap', async () => {
+    repoMocks.getRange.mockImplementation(async (_db, symbol, interval, from, to) =>
+      interval === '1h' ? ([] as never) : (rowsFor(symbol, interval, from, to) as never),
+    );
+    const { dataWarnings } = await run(trailingTrade, ['BTCUSDT']);
+    expect(dataWarnings.some((w) => w.includes('BTCUSDT') && w.includes('0%'))).toBe(true);
+  });
+
   it('keeps an unset spread in dataWarnings so the live gate refuses a run whose fills are free', async () => {
     const { notes, dataWarnings } = await run(trailingTrade, ['BTCUSDT'], { spreadBps: null });
     expect(dataWarnings.some((w) => w.startsWith('no spread haircut modeled'))).toBe(true);

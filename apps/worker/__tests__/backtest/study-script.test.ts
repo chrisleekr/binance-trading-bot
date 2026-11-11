@@ -165,6 +165,28 @@ describe('missing or stale conversion is unavailable; drawdown uses full-resolut
   );
 
   it(
+    'reports BTC unavailable when the daily series the live feed reads is absent',
+    () => {
+      const { meta, candles } = fixtureRows();
+      const { report } = study(
+        variant(
+          meta,
+          candles.filter((c) => c.interval !== '1d'),
+        ),
+      );
+      const rows = report.candidates.filter((c) => c.strategy === 'trailing-trade');
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(row.btc).toEqual({
+          status: 'unavailable',
+          reason: 'missing input series: ETHUSDT|1d',
+        });
+      }
+    },
+    STUDY_TIMEOUT_MS,
+  );
+
+  it(
     'rejects an input without a usable maxConversionStalenessMs',
     () => {
       const { meta, candles } = fixtureRows();

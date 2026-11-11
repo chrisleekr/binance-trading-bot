@@ -17,7 +17,7 @@ import {
   recommendTradeOrHold,
   type BacktestListItem,
   type BacktestListResponse,
-  type BacktestParams,
+  type BacktestSubmit,
   type BacktestProgressDetail,
   type BacktestProgressPayload,
   type ProfileResponse,
@@ -182,7 +182,7 @@ export function useBacktestRun({
   }, [activeRunId, status, profileId, queryClient, setPage]);
 
   const launch = useMutation({
-    mutationFn: ({ body }: { body: BacktestParams }) => createBacktest(profileId, body),
+    mutationFn: ({ body }: { body: BacktestSubmit }) => createBacktest(profileId, body),
     onSuccess: (created, { body }) => {
       launchedRunIdRef.current = created.runId;
       showRun(created.runId);

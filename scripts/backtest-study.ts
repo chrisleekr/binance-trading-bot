@@ -290,14 +290,8 @@ async function runStudy(inputPath: string, command: string) {
       onEquityMark: (point) => marks.push({ tsMs: point.tsMs, equity: String(point.equity) }),
     });
     // A series the replay needed but the input lacks makes the run's BTC value unstated, not merely a missing conversion rate.
-    const { technicals, strategyInterval, detailInterval } = replayIntervals(config, params);
-    const required = [
-      ...new Set([
-        detailInterval,
-        strategyInterval,
-        ...(technicals?.intervals.map((r) => r.interval) ?? []),
-      ]),
-    ];
+    const { nativeIntervals, detailInterval } = replayIntervals(config, params);
+    const required = [...new Set([detailInterval, ...nativeIntervals])];
     const missing = symbols.flatMap((symbol) =>
       required
         .filter((i) => (candlesByKey.get(`${symbol}|${i}`)?.length ?? 0) === 0)
@@ -439,7 +433,14 @@ async function runStudy(inputPath: string, command: string) {
             buys.length === 0 ? 'rejected' : spent.lt(budget.times('0.98')) ? 'partial' : 'filled',
         };
       });
-      const unspentQuote = allocations.reduce((left, a) => left.minus(a.spent), initial).toFixed();
+      // Buys pay their fee out of quote too, so spent notional alone overstates what is left.
+      const buyFees = result.trades
+        .filter((t) => t.side === 'BUY')
+        .reduce((sum, t) => sum.plus(t.feeQuote), new Decimal(0));
+      const unspentQuote = allocations
+        .reduce((left, a) => left.minus(a.spent), initial)
+        .minus(buyFees)
+        .toFixed();
       return { name, costScenario, ...summary(result), unspentQuote, allocations, btc };
     } catch (err) {
       // BTC hold is the one control whose series may legitimately be absent.
@@ -573,7 +574,10 @@ if (import.meta.main) {
   try {
     const { report, markdown } = await runStudy(
       option('--input'),
-      `bun scripts/backtest-study.ts ${argv.slice(2).join(' ')}`,
+      `bun scripts/backtest-study.ts ${argv
+        .slice(2)
+        .map((a) => (/^[\w./=:@-]+$/.test(a) ? a : `'${a.replaceAll("'", `'\\''`)}'`))
+        .join(' ')}`,
     );
     writeFileSync(option('--out-json'), `${JSON.stringify(report, null, 2)}\n`);
     writeFileSync(option('--out-md'), markdown);

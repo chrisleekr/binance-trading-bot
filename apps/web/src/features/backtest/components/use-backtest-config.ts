@@ -13,7 +13,9 @@ import {
   candleIntervalMs,
   exceedsReplayBudget,
   maxReplayDays,
+  type BacktestDecisionInterval,
   type BacktestParams,
+  type BacktestSubmit,
   type ProfileResponse,
   type StrategyDescriptor,
 } from '@app/contracts';
@@ -86,7 +88,11 @@ const paramStateFromResult = (p: BacktestParams): ParamState => ({
   from: toLocalInput(p.fromMs),
   to: toLocalInput(p.toMs),
   strategyInterval: p.strategyInterval,
-  decisionInterval: p.decisionInterval ?? '',
+  decisionInterval:
+    p.decisionInterval ??
+    ((BACKTEST_DECISION_INTERVALS as readonly string[]).includes(p.strategyInterval)
+      ? p.strategyInterval
+      : ''),
   detailInterval: p.detailInterval,
   initialQuoteBalance: p.initialQuoteBalance,
   makerBps: String(p.fees.makerBps),
@@ -276,7 +282,6 @@ export function useBacktestConfig({
         : null;
   const candleInterval = configInterval ?? params.strategyInterval;
   const exitsWithinCandle = descriptor?.exitsWithinCandle === true;
-  const autoDecisionInterval = defaultDecisionInterval(candleInterval, exitsWithinCandle);
   const decisionFor = (p: ParamState, candle: string): string =>
     p.decisionInterval === ''
       ? defaultDecisionInterval(candle, exitsWithinCandle)
@@ -311,7 +316,7 @@ export function useBacktestConfig({
     // the autorun path passes a freshly windowed copy, whose `setParams` has not
     // been applied to `params` yet.
     p: ParamState = params,
-  ): Omit<BacktestParams, 'strategyConfigOverride'> | null => {
+  ): Omit<BacktestSubmit, 'strategyConfigOverride'> | null => {
     setBanner(null);
     const symbols = isBasket
       ? basketSymbolsFromConfig(configValues ?? {})
@@ -388,7 +393,7 @@ export function useBacktestConfig({
       fromMs,
       toMs: windowEndMs,
       strategyInterval: runInterval as BacktestParams['strategyInterval'],
-      decisionInterval: runDecision as BacktestParams['decisionInterval'],
+      decisionInterval: runDecision as BacktestDecisionInterval,
       detailInterval: p.detailInterval as BacktestParams['detailInterval'],
       initialQuoteBalance: asDecimalString(p.initialQuoteBalance),
       fees: { makerBps: Number(p.makerBps), takerBps: Number(p.takerBps) },
@@ -562,7 +567,7 @@ export function useBacktestConfig({
     setParam,
     applyWindowPreset,
     candleInterval,
-    autoDecisionInterval,
+    exitsWithinCandle,
     decisionInterval,
     detailIntervalTooCoarse,
     configSchema,

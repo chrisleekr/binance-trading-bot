@@ -379,6 +379,7 @@ const ensureBacktestResult = async (page, ids) => {
         fees: { makerBps: 10, takerBps: 10 },
         slippageBps: 5,
         spreadBps: 2,
+        volumeCapPct: 5,
       },
     },
   );

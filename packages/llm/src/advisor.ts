@@ -194,6 +194,7 @@ export interface BuildImproveInputArgs {
   configSchema: z.ZodType;
   // The JSON-schema doc the model reads (the fields it may change, with bounds).
   configSchemaDoc: unknown;
+  // The config the run executed (its recorded resolved config, else the profile config for legacy runs), not the live profile config that may have been edited since.
   profileConfig: unknown;
   // The finished run's stored result. The caller has already proven the run is
   // `done` with a non-null result before calling.
@@ -222,15 +223,7 @@ export const buildImproveInput = (
   // — which the merge guard and the configSchema re-parse below still contain.
   const parsedParams = BacktestParamsSchema.safeParse(result.params);
   const params = parsedParams.data ?? result.params;
-  // The config that produced these metrics: the run parsed the profile config,
-  // merged its override onto it, then re-parsed (backtest-runner.ts). The override
-  // is a PARTIAL diff — a run override carries only the changed keys — so
-  // using it raw as the base feeds a partial config to the schema and drops every
-  // suggestion. Mirror the runner's parse-then-merge: parsing the base first
-  // default-fills it, so a numeric override coerces onto a decimal-string
-  // field (mergeConfig only stringifies a number when the base key already holds a
-  // string). Fall back to the raw config when the stored base no longer parses, so
-  // a still-completable override can recover; an unrecoverable merge throws.
+  // The config that produced these metrics is `profileConfig` (the run's frozen snapshot) with its override re-applied; merging replaces values, so re-applying is idempotent. The override is a PARTIAL diff, so using it raw as the base feeds a partial config to the schema and drops every suggestion. Parsing the base first default-fills it, so a numeric override coerces onto a decimal-string field (mergeConfig only stringifies a number when the base key already holds a string). Fall back to the raw config when the base no longer parses, so a still-completable override can recover; an unrecoverable merge throws.
   const parsedBase = configSchema.safeParse(args.profileConfig);
   const merged = configSchema.safeParse(
     mergeConfig(
