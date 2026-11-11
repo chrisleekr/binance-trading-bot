@@ -60,5 +60,20 @@ export const lintMomentumConfig = (config: MomentumConfig): readonly ConfigDiagn
     }
   }
 
+  // A native trailing order carries a distance, not a price, so the floor cannot rest on Binance; only the bot's own per-tick check enforces it.
+  if (
+    config.breakEvenLock?.enabled === true &&
+    config.protectiveStop?.enabled === true &&
+    config.protectiveStop.mode === 'native-trail'
+  ) {
+    out.push({
+      level: 'info',
+      code: 'break-even-lock-not-on-exchange',
+      message:
+        'The break-even lock cannot be placed on Binance as a native trailing stop, which has no fixed price. The bot enforces it on every check while it is running, but the order resting at Binance will not carry the lock. Use the priced protective stop mode to have the lock rest there too.',
+      path: ['breakEvenLock', 'enabled'],
+    });
+  }
+
   return out;
 };

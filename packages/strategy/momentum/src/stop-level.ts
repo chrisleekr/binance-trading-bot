@@ -61,7 +61,7 @@ export const profitTrailEpoch = (oneMinuteCandles: readonly Candle[]): number | 
  * window. `max` is monotone, so folding the WHOLE window every tick is
  * idempotent and self-heals a worker outage that missed boundaries.
  *
- * The window is `market.candlesByInterval['1m']`, which the live worker feeds for every symbol regardless of `candleInterval`. A single-symbol backtest feeds it too, because momentum declares `exitsWithinCandle`: the runner ticks a held position on every 1-minute bar and hands it the bars closed since its previous tick, a slice rather than a rolling window, which folds to the same mark because the fold is a monotone max. A multi-symbol backtest, or one longer than the runner's 1-minute load cap, does not, so there this leg never arms, and the run says so in its warnings.
+ * The window is `market.candlesByInterval['1m']`, which the live worker feeds for every symbol regardless of `candleInterval`. A backtest feeds the 1m bars closed by each decision, for every symbol. On a decision interval coarser than 1m the mark advances later than live, and the run says so in its model notes.
  *
  * Floored at `entryPrice` so a revived state can never produce a mark below the
  * position's own cost basis. Candles that opened before `sinceMs` (see
@@ -94,6 +94,32 @@ export const ratchetProfitHigh = (
   return high;
 };
 
+/**
+ * The break-even lock's floor once the close high-water mark has reached activation, read defensively because the worker ticks raw stored config.
+ *
+ * A malformed value, or a floor at or above the activation, yields no floor: unparsed config can bypass the schema's cross-field rule, and a floor above the activation would sit above where the trade was when it armed.
+ *
+ * @param config - The possibly unparsed momentum config carrying the optional `breakEvenLock` block.
+ * @param entryPrice - The open position's cost basis, which both thresholds are measured from.
+ * @param effectiveHigh - The close high-water mark the hard leg resolved against, compared with the activation level.
+ * @returns `entryPrice x (1 + floorPct)` when the lock is on and armed, otherwise null.
+ */
+export const breakEvenFloor = (
+  config: MomentumConfig,
+  entryPrice: Decimal,
+  effectiveHigh: Decimal,
+): Decimal | null => {
+  const lock = config.breakEvenLock;
+  if (lock?.enabled !== true) return null;
+  const activation = decOrNull(lock.activationPct);
+  const floor = decOrNull(lock.floorPct);
+  if (activation === null || floor === null) return null;
+  // floor >= 0 and floor < activation already imply activation > 0.
+  if (!activation.lt(1) || floor.lt(0) || floor.gte(activation)) return null;
+  if (effectiveHigh.lt(entryPrice.mul(activation.plus(1)))) return null;
+  return entryPrice.mul(floor.plus(1));
+};
+
 /** The stop level for a held long, plus the profit mark the tick persists. */
 export interface StopResolution {
   /** Trail high-water mark the hard leg resolved against on this tick. */
@@ -101,9 +127,9 @@ export interface StopResolution {
   /** Profit-side high-water mark, or null when the profit trail is off. Persisted by `tick()`. */
   readonly profitHigh: Decimal | null;
   /**
-   * `max` of whichever legs resolved — what the in-process trail fires on and
+   * `max` of whichever legs resolved (hard, profit, break-even floor) — what the in-process trail fires on and
    * what the resting stop mirrors. Null only when NEITHER resolved: no usable
-   * `trailingStopPct`, no computable ATR, and no armed profit leg. That means
+   * `trailingStopPct`, no computable ATR, no armed profit leg, and no armed break-even lock. That means
    * "no trail this tick", never "sell".
    */
   readonly stop: Decimal | null;
@@ -119,6 +145,8 @@ export interface StopResolution {
  * Resolve the one stop level for a held long from marks the caller already advanced, keeping the in-process exit, exchange order, and operator preview on one number.
  *
  * The hard leg is the ATR chandelier when enabled and computable, otherwise `effectiveHigh × (1 - trailingStopPct)`. The profit leg is `profitHigh × (1 - trailPct)` after activation. Taking their maximum lets the profit leg tighten protection without loosening the hard leg.
+ *
+ * The optional break-even lock adds a third leg: once `effectiveHigh` has reached the activation level the stop cannot sit below `entryPrice x (1 + floorPct)`. It joins the same maximum, so it resolves even when it is the only leg, and it is applied before the exchange-band clamp.
  *
  * The profit leg is floored at `entryPrice` so unparsed stored config cannot manufacture a loss after bypassing the schema's cross-field rule.
  *
@@ -160,9 +188,11 @@ export const resolveStopLevel = (
       ? null
       : Decimal.max(entryPrice, profitHigh.mul(new Decimal(1).minus(profitDistance)));
 
-  // The max of whichever legs resolved; null only when neither did.
-  const stop =
-    hard !== null && profitStop !== null ? Decimal.max(hard, profitStop) : (hard ?? profitStop);
+  // The max of whichever legs resolved; null only when none did.
+  const legs = [hard, profitStop, breakEvenFloor(config, entryPrice, effectiveHigh)].filter(
+    (leg) => leg !== null,
+  );
+  const stop = legs.length > 0 ? Decimal.max(...legs) : null;
 
   // Optional chaining throughout: the live worker ticks RAW stored config, so a
   // profile saved before this leaf existed carries no `onBandBlock` key at all.

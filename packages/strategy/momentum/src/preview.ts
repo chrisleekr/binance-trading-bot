@@ -23,6 +23,7 @@ import { exhaustionLevel } from './exhaustion.js';
 import { impulseLevel } from './impulse.js';
 import { maClusterReading } from './ma-cluster.js';
 import { obvLeadNeed } from './obv-lead.js';
+import { trendQualityLevel } from './trend-quality.js';
 import { coerceInt } from './config-coerce.js';
 import type { MomentumConfig, MomentumState } from './schema.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
@@ -136,11 +137,22 @@ export const momentumPreviewLevels = (
     lastClose !== undefined
       ? new Decimal(lastClose)
       : null;
+  // Under the trend quality trigger the line leg asks the close to clear the fitted trend line, so that line's value is the projected entry; the next candle's line sits higher, and the R-squared and freshness legs cannot be projected.
+  const trendQuality =
+    config.entryTrigger === 'trendQuality' ? trendQualityLevel(candles, config.trendQuality) : null;
   // A window too short for the trigger's rule has no entry level. Flat, every row projects from it, so show nothing; held, the stops and guards still read the position, so only the entry row goes.
   const noEntryLevel =
-    ['breakout', 'impulse', 'maCluster', 'exhaustion', 'obvLead', 'weekendGap'].includes(
-      config.entryTrigger ?? '',
-    ) && (breakout ?? impulse ?? cluster ?? exhaustion ?? obvLead ?? weekendGap) === null;
+    [
+      'breakout',
+      'impulse',
+      'maCluster',
+      'exhaustion',
+      'obvLead',
+      'weekendGap',
+      'trendQuality',
+    ].includes(config.entryTrigger ?? '') &&
+    (breakout ?? impulse ?? cluster ?? exhaustion ?? obvLead ?? weekendGap ?? trendQuality) ===
+      null;
   if (noEntryLevel && flat) return { sections: [] };
   const band =
     breakout ??
@@ -149,6 +161,7 @@ export const momentumPreviewLevels = (
     exhaustion ??
     obvLead ??
     weekendGap ??
+    trendQuality ??
     slowEma.mul(new Decimal(1).plus(entryMargin(config)));
   const bandStr = band.toString();
 
@@ -230,7 +243,9 @@ const buildEntryRow = (
               : input.config.entryTrigger === 'obvLead' ||
                   input.config.entryTrigger === 'weekendGap'
                 ? 'Last close'
-                : 'Entry band',
+                : input.config.entryTrigger === 'trendQuality'
+                  ? 'Trend line'
+                  : 'Entry band',
     tone: 'entry',
     price: bandStr,
     chartLine: true,

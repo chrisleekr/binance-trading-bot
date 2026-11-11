@@ -372,6 +372,41 @@ const MomentumProfitTrailSchema = z
   });
 
 /**
+ * Break-even lock: once the trade's close high-water mark has reached `entry x (1 + activationPct)`, the stop may not sit below `entry x (1 + floorPct)`. Folded into the shared stop resolution as one more leg, so the in-process exit, the resting stop and the preview move together.
+ *
+ * Optional so the live worker, which reads stored config WITHOUT schema-parsing, reads an absent block as off.
+ */
+const MomentumBreakEvenLockSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Once a trade has been well in profit, never let the stop drop back below a small gain over your entry price. A winner that gives all its gain back and turns into a loss is the case this removes. Trades that never get that far in profit behave as before.',
+      ),
+    activationPct: decimalString('activationPct must be in (0, 1)', { gt: 0, lt: 1 })
+      .default('0.015')
+      .describe(
+        '@ui:percent-of How far a trade must get in profit, measured on candle closes, before the lock switches on. 1.5 means once a close has been 1.5% above your entry price.',
+      ),
+    floorPct: decimalString('floorPct must be in [0, 1)', { gte: 0, lt: 1 })
+      .default('0.005')
+      .describe(
+        '@ui:percent-of Where the stop is held once the lock is on, as a gain over your entry price. 0 is break-even, meaning the stop sits exactly at the price you paid, so selling there neither gains nor loses before fees. 0.5 holds it 0.5% above your entry. It must be below the activation.',
+      ),
+  })
+  .superRefine((v, ctx) => {
+    if (v.enabled && new Decimal(v.floorPct).gte(new Decimal(v.activationPct))) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['floorPct'],
+        message:
+          'floorPct must be below activationPct, or the lock would hold the stop above where the trade was when it armed',
+      });
+    }
+  });
+
+/**
  * Entry sizing: a fixed quote amount per buy, or a percent of account equity.
  * Modeled as an object so the operator picks exactly one mode in the UI and the
  * unused field stays blank; the worker reads the active field at tick time. The
@@ -496,6 +531,27 @@ const MomentumObvLeadSchema = z
       ),
   })
   .describe('OBV lead trigger only: when buying volume counts as leading price.');
+
+/** Thresholds for `entryTrigger: 'trendQuality'`. Defaults are the 1h setting the 2025-26 research chose (48 closes, R-squared above 0.9). */
+const MomentumTrendQualitySchema = z
+  .object({
+    lookback: z
+      .number()
+      .int()
+      // Three points is the fewest a line fit can leave a nonzero residual on. One more candle is read for the previous fit.
+      .min(3)
+      .max(MAX_CANDLE_WINDOW - 1)
+      .default(48)
+      .describe(
+        'How many closes the straight-line fit covers. 48 on a 1h interval is two days. Longer asks for a longer, steadier climb and fires less often.',
+      ),
+    minRSquared: decimalString('minRSquared must be in (0, 1)', { gt: 0, lt: 1 })
+      .default('0.9')
+      .describe(
+        'How straight the climb must be. R-squared is how closely the closes follow a straight line on a log price scale: 1 means perfectly straight, 0 means no line at all. The buy needs it above this value. Higher waits for cleaner climbs.',
+      ),
+  })
+  .describe('Trend quality trigger only: how straight a rising trend must be.');
 
 /** Thresholds for `entryTrigger: 'weekendGap'`. Defaults are the 1h setting the 2025-26 research chose (a gap of more than 1%, three days to recover). */
 const MomentumWeekendGapSchema = z
@@ -648,6 +704,8 @@ export const MomentumConfigSchema = z.object({
   // level is the max of the two. Off by default so existing configs and golden
   // replays stay byte-identical.
   profitTrail: MomentumProfitTrailSchema.optional(),
+  // Floors the stop at a small gain over entry once the trade has been in profit. Off by default so existing configs and golden replays stay byte-identical.
+  breakEvenLock: MomentumBreakEvenLockSchema.optional(),
   // Entry confirmation band: the fast EMA must clear the slow EMA by this
   // fraction for a cross-up to count, filtering marginal crosses that whipsaw
   // in a chop near the MAs. [0, 1); 0 (or absent) reproduces a bare cross.
@@ -668,10 +726,11 @@ export const MomentumConfigSchema = z.object({
       'exhaustion',
       'obvLead',
       'weekendGap',
+      'trendQuality',
     ])
     .optional()
     .describe(
-      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle. "Breakout" buys when a candle closes above the highest price of the previous `breakoutLookback` candles; the EMAs then only matter for the cross-down exit, and the entry margin is not applied. "Impulse" buys after a heavy-volume up candle (see `impulse`), betting the surge continues; the EMAs then only matter for the cross-down exit. "MA cluster" buys when a candle closes above the 20, 50, 100 and 200 candle averages after they have bunched together (see `maCluster`); the EMAs then only matter for the cross-down exit. "Exhaustion" buys a fast slide that has run far under the 400-candle average with RSI oversold (see `exhaustion`), betting on a bounce; it buys against the trend, so it needs the trend filter off or on its "below" side, and is meant for a small profile with a tight ATR trail. "OBV lead" buys when on-balance volume makes a new high over `obvLead.lookback` candles while the close is still under its own high and the market is not choppy (see `obvLead`), betting price follows the volume; it is meant for a small profile. "Weekend gap" buys the Sunday 22:00 UTC candle (the hour CME bitcoin futures reopen) when it closes more than `weekendGap.minGap` under the Friday 20:00 UTC candle (the hour CME closes), betting price climbs back to the Friday close within about three days (see `weekendGap`); it sells at the Friday close or after `weekendGap.maxHoldBars` candles. It only works with `candleInterval` set to `1h`: on any other interval it never buys. It lost in 2024, so it is meant for a small profile.',
+      'When to buy. "Cross" buys only on the candle where the fast average crosses above the slow one, so a coin that is already trending when it is added waits for it to dip and cross again. "Trend" buys on any candle close while the fast average is above the slow one, still subject to the trend filter and extension guard, at most once per candle. "Breakout" buys when a candle closes above the highest price of the previous `breakoutLookback` candles; the EMAs then only matter for the cross-down exit, and the entry margin is not applied. "Impulse" buys after a heavy-volume up candle (see `impulse`), betting the surge continues; the EMAs then only matter for the cross-down exit. "MA cluster" buys when a candle closes above the 20, 50, 100 and 200 candle averages after they have bunched together (see `maCluster`); the EMAs then only matter for the cross-down exit. "Exhaustion" buys a fast slide that has run far under the 400-candle average with RSI oversold (see `exhaustion`), betting on a bounce; it buys against the trend, so it needs the trend filter off or on its "below" side, and is meant for a small profile with a tight ATR trail. "OBV lead" buys when on-balance volume makes a new high over `obvLead.lookback` candles while the close is still under its own high and the market is not choppy (see `obvLead`), betting price follows the volume; it is meant for a small profile. "Weekend gap" buys the Sunday 22:00 UTC candle (the hour CME bitcoin futures reopen) when it closes more than `weekendGap.minGap` under the Friday 20:00 UTC candle (the hour CME closes), betting price climbs back to the Friday close within about three days (see `weekendGap`); it sells at the Friday close or after `weekendGap.maxHoldBars` candles. It only works with `candleInterval` set to `1h`: on any other interval it never buys. It lost in 2024, so it is meant for a small profile. "Trend quality" buys when the last `trendQuality.lookback` closes sit on a straight rising line (R-squared above `trendQuality.minRSquared`), the close is above that line, and the trend was not already straight a candle ago (see `trendQuality`); the EMAs then only matter for the cross-down exit. It is meant for a small profile with a wide ATR trail.',
     ),
   // Read only under `entryTrigger: 'breakout'`. Capped so `lookback + 1` candles fit the hard window ceiling; a longer range could never fill and would suppress every entry.
   breakoutLookback: z
@@ -693,6 +752,8 @@ export const MomentumConfigSchema = z.object({
   obvLead: MomentumObvLeadSchema.optional(),
   // Read only under `entryTrigger: 'weekendGap'`. Optional so existing configs and golden replays are unchanged.
   weekendGap: MomentumWeekendGapSchema.optional(),
+  // Read only under `entryTrigger: 'trendQuality'`. Optional so existing configs and golden replays are unchanged.
+  trendQuality: MomentumTrendQualitySchema.optional(),
   // Read only under `entryTrigger: 'maCluster'`. Optional so existing configs and golden replays are unchanged.
   maCluster: MomentumMaClusterSchema.optional(),
   // Cross-symbol entry gate over the profile KV store. Optional so existing configs and golden replays are unchanged.
@@ -732,6 +793,7 @@ export const MomentumOverrideConfigSchema = z
     atrTrailingStop: MomentumConfigSchema.shape.atrTrailingStop.unwrap(),
     riskSizing: MomentumConfigSchema.shape.riskSizing.unwrap(),
     profitTrail: MomentumConfigSchema.shape.profitTrail.unwrap(),
+    breakEvenLock: MomentumConfigSchema.shape.breakEvenLock.unwrap(),
     // The signal shape and risk of a discovery-picked altcoin differ from the
     // BTC-tuned profile default, so these gate/exit levers are per-symbol
     // overridable. Each block's leaves default, so a partial override validates;

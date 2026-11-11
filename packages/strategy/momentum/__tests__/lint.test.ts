@@ -71,4 +71,16 @@ describe('lintMomentumConfig', () => {
       ),
     ).toEqual([]);
   });
+
+  it('flags the break-even lock under a native trailing protective stop only', () => {
+    const lock = { breakEvenLock: { enabled: true } };
+    const native = { protectiveStop: { enabled: true, mode: 'native-trail' } };
+    expect(codes(base({ ...lock, ...native }))).toEqual(['break-even-lock-not-on-exchange']);
+    expect(codes(base({ ...lock, protectiveStop: { enabled: true, mode: 'priced' } }))).toEqual([]);
+    expect(
+      codes(base({ ...lock, protectiveStop: { enabled: false, mode: 'native-trail' } })),
+    ).toEqual([]);
+    expect(codes(base({ breakEvenLock: { enabled: false }, ...native }))).toEqual([]);
+    expect(codes(base(native))).toEqual([]);
+  });
 });

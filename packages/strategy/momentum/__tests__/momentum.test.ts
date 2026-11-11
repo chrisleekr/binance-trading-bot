@@ -819,6 +819,79 @@ describe('momentum.tick — entry', () => {
       expect(MomentumConfigSchema.safeParse({ ...cfg(), obvLead: bad }).success).toBe(false);
   });
 
+  // Six closes with a 5-close fit: each series isolates one leg of the trend quality rule (R-squared above 0.9, rising, close above the fitted line, previous fit not already straight and rising).
+  const tqCfg = (over: Record<string, unknown> = {}) =>
+    cfg({ entryTrigger: 'trendQuality', trendQuality: { lookback: 5, ...over } });
+  const tqTick = (closes: readonly string[], over: Record<string, unknown> = {}) =>
+    momentum.tick(
+      mkInput({
+        closes: mkCandles(closes),
+        currentPrice: '106',
+        state: flat(),
+        config: tqCfg(over),
+      }),
+    );
+  const TQ_FIRE = ['100', '99', '100', '101', '103', '106'];
+
+  it('enters under entryTrigger trendQuality on a fresh straight climb above its line', () => {
+    const out = tqTick(TQ_FIRE);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+    expect(out.logs[0]?.message).toBe('momentum: entry on a fresh straight rising trend');
+  });
+
+  it('holds under entryTrigger trendQuality and names the binding leg', () => {
+    const ragged = tqTick(['100', '98', '101', '104', '102', '99']);
+    const belowLine = tqTick(['100', '97', '99', '102', '105', '105']);
+    const stale = tqTick(['100', '101', '102', '103', '105', '108']);
+    const strict = tqTick(TQ_FIRE, { minRSquared: '0.95' });
+    for (const out of [ragged, belowLine, stale, strict])
+      expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(ragged.logs[0]?.message).toBe('momentum: flat, no trend quality');
+    expect(ragged.logs[0]?.context).toMatchObject({ waitingFor: 'straight-rising-trend' });
+    expect(strict.logs[0]?.context).toMatchObject({ waitingFor: 'straight-rising-trend' });
+    expect(belowLine.logs[0]?.context).toMatchObject({
+      rSquared: '0.945',
+      aboveLinePercent: '-1.01',
+      previousArmed: false,
+      trendGate: 'pass',
+      waitingFor: 'close-above-trend-line',
+    });
+    expect(stale.logs[0]?.context).toMatchObject({
+      previousArmed: true,
+      waitingFor: 'fresh-trend',
+    });
+  });
+
+  it('reports trend-quality-history while the window is shorter than the trigger reads', () => {
+    const out = tqTick(TQ_FIRE.slice(1));
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      rSquared: null,
+      slopePercentPerCandle: null,
+      aboveLinePercent: null,
+      previousArmed: null,
+      waitingFor: 'trend-quality-history',
+    });
+  });
+
+  it('accepts entryTrigger trendQuality and rejects a trendQuality leaf out of range', () => {
+    expect(MomentumConfigSchema.safeParse(tqCfg()).success).toBe(true);
+    expect(MomentumConfigSchema.parse(cfg({ trendQuality: {} })).trendQuality).toEqual({
+      lookback: 48,
+      minRSquared: '0.9',
+    });
+    for (const bad of [
+      { lookback: 2 },
+      { lookback: 1.5 },
+      { minRSquared: '0' },
+      { minRSquared: '1' },
+    ])
+      expect(MomentumConfigSchema.safeParse({ ...cfg(), trendQuality: bad }).success).toBe(false);
+  });
+
   // CROSS_UP closes 12, 10, 8, 14 score below 1 over 3 returns, so a sibling published at 5 on the same candle outranks it.
   const rsCfg = (over: Record<string, unknown> = {}) =>
     cfg({ relativeStrength: { enabled: true, lookbackBars: 3, topK: 1 }, ...over });
@@ -5294,5 +5367,60 @@ describe('momentum.tick — weekendGap trigger', () => {
       { maxHoldBars: 948 },
     ])
       expect(MomentumConfigSchema.safeParse({ ...cfg(), weekendGap: bad }).success).toBe(false);
+  });
+});
+
+describe('momentum.tick — break-even lock', () => {
+  // The high passed the 1.5% activation (entry 100), then price fell back. The 50% retrace keeps the hard leg far below the floor at 100.5.
+  const lockCfg = (over: Record<string, unknown> = {}) =>
+    cfg({
+      trailingStopPct: '0.5',
+      breakEvenLock: { enabled: true, activationPct: '0.015', floorPct: '0.005' },
+      ...over,
+    });
+  const held = () => longState({ highSinceEntry: '110' });
+
+  it('exits when price falls through the floor', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(FLAT_SERIES),
+        currentPrice: '100',
+        state: held(),
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { reason: 'exit' } });
+    expect(out.metrics).toEqual([
+      { name: 'momentum.exit', value: 1, tags: { reason: 'trailing-stop' } },
+    ]);
+  });
+
+  it('holds at the same price when the lock is off', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(FLAT_SERIES),
+        currentPrice: '100',
+        state: held(),
+        config: lockCfg({ breakEvenLock: undefined }),
+      }),
+    );
+    expect(out.decisions[0]).toEqual({ type: 'noop' });
+  });
+
+  it('rests the protective stop at the floored trigger', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(FLAT_SERIES),
+        currentPrice: '105',
+        state: held(),
+        config: lockCfg({ protectiveStop: { enabled: true } }),
+        balances: ARM_BALANCES,
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { reason: 'protective-stop' },
+      params: { type: 'STOP_LOSS_LIMIT', stopPrice: '100.50' },
+    });
   });
 });

@@ -28,6 +28,7 @@ import { trendMaType, trendPeriod } from './trend-filter.js';
 import { breakoutLevel, breakoutLookback } from './breakout.js';
 import { exhaustionReading, type ExhaustionReading } from './exhaustion.js';
 import { obvLeadReading, type ObvLeadReading } from './obv-lead.js';
+import { trendQualityReading, type TrendQualityReading } from './trend-quality.js';
 import {
   weekendGapReading,
   weekendGapSettings,
@@ -345,6 +346,10 @@ const decide = (input: MomentumInput): MomentumOutput => {
       config.entryTrigger === 'obvLead' ? obvLeadReading(candles, config.obvLead) : null;
     const weekendGap =
       config.entryTrigger === 'weekendGap' ? weekendGapReading(candles, config) : null;
+    const trendQuality =
+      config.entryTrigger === 'trendQuality'
+        ? trendQualityReading(candles, config.trendQuality)
+        : null;
     const entrySignal =
       config.entryTrigger === 'trend'
         ? fastNow.gt(slowNow.mul(band))
@@ -363,7 +368,9 @@ const decide = (input: MomentumInput): MomentumOutput => {
                       weekendGap?.fired === true &&
                       weekendGap.refClose !== null &&
                       new Decimal(market.currentPrice).lt(weekendGap.refClose)
-                    : crossUp;
+                    : config.entryTrigger === 'trendQuality'
+                      ? trendQuality?.fired === true
+                      : crossUp;
     // The below-trend layer's range, read only when that layer can act: the breakout or MA cluster trigger with the layer on.
     const belowTrend = config.belowTrendBreakout;
     const belowBreakout =
@@ -473,6 +480,7 @@ const decide = (input: MomentumInput): MomentumOutput => {
         exhaustion,
         obvLead,
         weekendGap,
+        trendQuality,
         close: new Decimal(lastCandle.close),
         gate,
       },
@@ -505,6 +513,7 @@ const evaluateEntry = (
     exhaustion: ExhaustionReading | null;
     obvLead: ObvLeadReading | null;
     weekendGap: WeekendGapReading | null;
+    trendQuality: TrendQualityReading | null;
     close: Decimal;
     gate: TrendGate;
   },
@@ -577,6 +586,28 @@ const evaluateEntry = (
               : reading.refClose === null
                 ? 'weekend-gap-history'
                 : 'close-below-friday-close',
+      }),
+    ]);
+  }
+  if (!entrySignal && config.entryTrigger === 'trendQuality') {
+    // Names the first leg short of firing, in the order the rule reads them; null means the window is still too short. A trend that was already straight a candle ago waits for a fresh one even when the close is above its line.
+    const reading = signal.trendQuality;
+    return hold(state, [
+      log('debug', 'momentum: flat, no trend quality', {
+        symbol: market.symbol,
+        rSquared: reading?.rSquared.toFixed(3) ?? null,
+        slopePercentPerCandle: reading?.slope.times(100).toFixed(3) ?? null,
+        aboveLinePercent: reading?.aboveLine.times(100).toFixed(2) ?? null,
+        previousArmed: reading?.previousArmed ?? null,
+        trendGate: signal.gate,
+        waitingFor:
+          reading === null
+            ? 'trend-quality-history'
+            : !reading.armed
+              ? 'straight-rising-trend'
+              : reading.previousArmed
+                ? 'fresh-trend'
+                : 'close-above-trend-line',
       }),
     ]);
   }
@@ -738,7 +769,9 @@ const evaluateEntry = (
                       ? 'momentum: entry on OBV leading price'
                       : config.entryTrigger === 'weekendGap'
                         ? 'momentum: entry on weekend gap below the Friday close'
-                        : 'momentum: entry on EMA cross-up',
+                        : config.entryTrigger === 'trendQuality'
+                          ? 'momentum: entry on a fresh straight rising trend'
+                          : 'momentum: entry on EMA cross-up',
         {
           symbol: market.symbol,
           price: market.currentPrice,

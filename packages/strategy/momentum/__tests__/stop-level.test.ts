@@ -440,3 +440,114 @@ describe('stop-level — resolveStopLevel', () => {
     });
   });
 });
+
+describe('stop-level — break-even lock', () => {
+  const entry = new Decimal('100');
+  // Activation sits at 101.5, floor at 100.5. The 0.5 retrace puts the hard leg far below both so the floor is visible.
+  const LOCK = { breakEvenLock: { enabled: true, activationPct: '0.015', floorPct: '0.005' } };
+  const wide = { trailingStopPct: '0.5' };
+  const stopOf = (config: MomentumConfig, high: string): string | undefined =>
+    resolveStopLevel(config, entry, new Decimal(high), null, [], NO_BAND, null).stop?.toString();
+
+  it('leaves the stop byte-identical when absent or disabled', () => {
+    const off = stopOf(cfg(wide), '120');
+    expect(stopOf(cfg({ ...wide, breakEvenLock: { enabled: false } }), '120')).toBe(off);
+    expect(off).toBe('60');
+  });
+
+  it('applies no floor while the high is below activation', () => {
+    expect(stopOf(cfg({ ...wide, ...LOCK }), '101.49')).toBe('50.745');
+  });
+
+  it('applies the floor when the high is exactly at activation', () => {
+    expect(stopOf(cfg({ ...wide, ...LOCK }), '101.5')).toBe('100.5');
+  });
+
+  it('raises the stop above an ATR or fixed leg that sits lower', () => {
+    expect(stopOf(cfg({ ...wide, ...LOCK }), '120')).toBe('100.5');
+  });
+
+  it('lets a hard leg above the floor win', () => {
+    expect(stopOf(cfg(LOCK), '120')).toBe('114');
+  });
+
+  it('resolves when the floor is the only leg', () => {
+    expect(stopOf(rawCfg({ trailingStopPct: 'nope', ...LOCK }), '120')).toBe('100.5');
+  });
+
+  it('applies the floor before the exchange-band clamp', () => {
+    const band: StopBandContext = {
+      reference: '120',
+      band: {
+        bidMultiplierUp: '5',
+        bidMultiplierDown: '0.2',
+        askMultiplierUp: '5',
+        askMultiplierDown: '0.95',
+        avgPriceMins: 5,
+      },
+    };
+    const clamp = { protectiveStop: { enabled: true, onBandBlock: 'clamp' } };
+    const high = new Decimal('120');
+    // Clamp floor is about 117.49. A floor under it is raised by the clamp.
+    const under = resolveStopLevel(
+      cfg({ ...wide, ...LOCK, ...clamp }),
+      entry,
+      high,
+      null,
+      [],
+      band,
+      null,
+    );
+    expect(under.floorClamped).toBe(true);
+    expect(under.stop?.toString()).not.toBe('100.5');
+    // A floor above the clamp floor wins and the clamp has nothing to raise.
+    const above = cfg({
+      ...wide,
+      ...clamp,
+      breakEvenLock: { enabled: true, activationPct: '0.2', floorPct: '0.19' },
+    });
+    const out = resolveStopLevel(above, entry, high, null, [], band, null);
+    expect(out.stop?.toString()).toBe('119');
+    expect(out.floorClamped).toBe(false);
+  });
+
+  it.each([
+    ['unparseable activation', { activationPct: 'x' }],
+    ['unparseable floor', { floorPct: 'x' }],
+    ['activation of one', { activationPct: '1' }],
+    ['negative floor', { floorPct: '-0.01' }],
+    ['floor equal to activation', { floorPct: '0.015' }],
+    ['floor above activation', { floorPct: '0.02' }],
+  ])('applies no floor for %s in raw config', (_name, over) => {
+    const config = rawCfg({
+      trailingStopPct: '0.9',
+      breakEvenLock: { enabled: true, activationPct: '0.015', floorPct: '0.005', ...over },
+    });
+    // High 300 clears even an activation of 1 and the 90% retrace leaves the hard leg at 30, so only the guards keep a floor off.
+    expect(stopOf(config, '300')).toBe('30');
+  });
+
+  it('applies no floor when the block is not an enabled lock', () => {
+    expect(stopOf(rawCfg({ ...wide, breakEvenLock: { enabled: 'yes' } }), '120')).toBe('60');
+  });
+
+  describe('schema', () => {
+    const parse = (breakEvenLock: Record<string, unknown>) =>
+      MomentumConfigSchema.safeParse({
+        candleInterval: '1h',
+        entrySizing: { mode: 'fixed', amount: '140' },
+        ema: { fast: 2, slow: 3 },
+        breakEvenLock,
+      });
+
+    it('rejects a floor at or above the activation when enabled', () => {
+      const out = parse({ enabled: true, activationPct: '0.01', floorPct: '0.01' });
+      expect(out.success).toBe(false);
+    });
+
+    it('accepts the same pair while disabled, and the defaults when enabled', () => {
+      expect(parse({ enabled: false, activationPct: '0.01', floorPct: '0.02' }).success).toBe(true);
+      expect(parse({ enabled: true }).success).toBe(true);
+    });
+  });
+});

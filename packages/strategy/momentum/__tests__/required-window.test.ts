@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { momentumRequiredWindow } from '../src/index.js';
+import { resolveCandleWindow } from '@app/strategy-core';
+import { momentum, momentumCandleWindow, momentumRequiredWindow } from '../src/index.js';
 import type { MomentumConfig } from '../src/index.js';
 
 // requiredWindow reports the candle lookback a config needs so live and backtest
@@ -81,6 +82,30 @@ describe('momentumRequiredWindow', () => {
     expect(
       momentumRequiredWindow(
         cfg({ ema: { fast: 9, slow: 50 }, entryTrigger: 'obvLead', obvLead: { lookback: 20 } }),
+      ),
+    ).toBe(51);
+  });
+
+  it('needs the trend quality lookback plus one, or the slow EMA when that is longer', () => {
+    expect(
+      momentumRequiredWindow(cfg({ ema: { fast: 9, slow: 20 }, entryTrigger: 'trendQuality' })),
+    ).toBe(49);
+    expect(
+      momentumRequiredWindow(
+        cfg({
+          ema: { fast: 9, slow: 20 },
+          entryTrigger: 'trendQuality',
+          trendQuality: { lookback: 100 },
+        }),
+      ),
+    ).toBe(101);
+    expect(
+      momentumRequiredWindow(
+        cfg({
+          ema: { fast: 9, slow: 50 },
+          entryTrigger: 'trendQuality',
+          trendQuality: { lookback: 5 },
+        }),
       ),
     ).toBe(51);
   });
@@ -343,5 +368,42 @@ describe('momentumRequiredWindow — below-trend layer under the MA cluster trig
         }),
       ),
     ).toBe(201);
+  });
+});
+
+describe('momentumCandleWindow', () => {
+  const live = { ema: { fast: 50, slow: 200 }, entryTrigger: 'maCluster' };
+
+  it('asks for five slow periods so the slow EMA has converged', () => {
+    expect(momentumCandleWindow(cfg({ ema: { fast: 9, slow: 50 } }))).toBe(251);
+    expect(momentumCandleWindow(cfg(live))).toBe(999);
+  });
+
+  it('is the window the strategy hands the worker and the backtest engine', () => {
+    expect(momentum.requiredWindow?.(cfg(live))).toBe(999);
+  });
+
+  it('caps the convergence floor at the shared ceiling', () => {
+    expect(momentumCandleWindow(cfg({ ema: { fast: 50, slow: 998 } }))).toBe(999);
+  });
+
+  it('keeps a longer decision need over the convergence floor', () => {
+    expect(
+      momentumCandleWindow(cfg({ ema: { fast: 3, slow: 5 }, entryTrigger: 'exhaustion' })),
+    ).toBe(401);
+  });
+
+  // The defect: the ATR gate lengthened the window from 201 to 496, which moved the EMA cross-down onto different bars. One DOGE trade went from +26% to -0.7% with no change to the exit rule.
+  it('loads the same window whether or not an unrelated gate lengthens it', () => {
+    const gated = cfg({ ...live, maCluster: { maxAtrPercentile: '0.4', confirmBreak: true } });
+    expect(resolveCandleWindow(momentumCandleWindow(gated))).toBe(
+      resolveCandleWindow(momentumCandleWindow(cfg(live))),
+    );
+    expect(resolveCandleWindow(momentumCandleWindow(cfg(live)))).toBe(999);
+  });
+
+  it('coerces an unparsed config and never throws on missing fields', () => {
+    expect(momentumCandleWindow(cfg({ ema: { slow: '50' } }))).toBe(251);
+    expect(momentumCandleWindow(cfg({}))).toBe(1);
   });
 });
