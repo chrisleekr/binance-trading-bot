@@ -204,7 +204,7 @@ const armOut = (
       band: input.market.symbolInfo.filters.percentPriceBySide,
     },
     previousStop,
-    typeof state.lastEntryCandleMs === 'number',
+    typeof state.profitTrailSinceMs === 'number' ? state.profitTrailSinceMs : null,
   );
   // `floorClamped` comes from the same resolve, not a hand-written false: a clamp
   // widens the re-arm drift band, so passing false would exercise the operator
@@ -5379,12 +5379,15 @@ describe('momentum.tick — break-even lock', () => {
       breakEvenLock: { enabled: true, activationPct: '0.015', floorPct: '0.005' },
       ...over,
     });
-  const held = () => longState({ highSinceEntry: '110', lastEntryCandleMs: 1 });
+  const held = () =>
+    longState({ highSinceEntry: '110', lastEntryCandleMs: 1, profitTrailSinceMs: 0 });
+  // Flat closes well above the 101.5 activation, all closed after the epoch of 0, so the lock reads its own high from them.
+  const HIGH_CLOSES = ['110', '110', '110', '110'];
 
   it('exits when price falls through the floor', () => {
     const out = momentum.tick(
       mkInput({
-        closes: mkCandles(FLAT_SERIES),
+        closes: mkCandles(HIGH_CLOSES),
         currentPrice: '100',
         state: held(),
         config: lockCfg(),
@@ -5396,12 +5399,12 @@ describe('momentum.tick — break-even lock', () => {
     ]);
   });
 
-  it('holds at the same price when the entry candle is unknown', () => {
+  it('holds at the same price when the position epoch is unknown', () => {
     const out = momentum.tick(
       mkInput({
-        closes: mkCandles(FLAT_SERIES),
+        closes: mkCandles(HIGH_CLOSES),
         currentPrice: '100',
-        state: longState({ highSinceEntry: '110', lastEntryCandleMs: null }),
+        state: longState({ highSinceEntry: '110', lastEntryCandleMs: 1, profitTrailSinceMs: null }),
         config: lockCfg(),
       }),
     );
@@ -5411,7 +5414,7 @@ describe('momentum.tick — break-even lock', () => {
   it('holds at the same price when the lock is off', () => {
     const out = momentum.tick(
       mkInput({
-        closes: mkCandles(FLAT_SERIES),
+        closes: mkCandles(HIGH_CLOSES),
         currentPrice: '100',
         state: held(),
         config: lockCfg({ breakEvenLock: undefined }),
@@ -5423,7 +5426,7 @@ describe('momentum.tick — break-even lock', () => {
   it('rests the protective stop at the floored trigger', () => {
     const out = momentum.tick(
       mkInput({
-        closes: mkCandles(FLAT_SERIES),
+        closes: mkCandles(HIGH_CLOSES),
         currentPrice: '105',
         state: held(),
         config: lockCfg({ protectiveStop: { enabled: true } }),
@@ -5435,5 +5438,28 @@ describe('momentum.tick — break-even lock', () => {
       intent: { reason: 'protective-stop' },
       params: { type: 'STOP_LOSS_LIMIT', stopPrice: '100.50' },
     });
+  });
+
+  it('holds a position adopted after an exit when the only high is a close from before it', () => {
+    // The adapter leaves the old entry stamp and clears the epoch and high on an adopted buy. The 110 close predates the position, so it must not arm the lock; the first held tick sets the epoch to the newest 1m close.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        oneMinute: mkCandles(['110']).map((c) => ({
+          ...c,
+          openTimeMs: LAST_CLOSE_MS,
+          closeTimeMs: LAST_CLOSE_MS + 60_000,
+        })),
+        currentPrice: '100',
+        state: longState({
+          highSinceEntry: null,
+          lastEntryCandleMs: 1,
+          profitTrailSinceMs: null,
+        }),
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toEqual({ type: 'noop' });
+    expect(out.nextState.profitTrailSinceMs).toBe(LAST_CLOSE_MS + 60_000);
   });
 });

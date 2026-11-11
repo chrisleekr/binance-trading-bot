@@ -105,25 +105,23 @@ export const ratchetProfitHigh = (
  *
  * @param config - The possibly unparsed momentum config carrying the optional `breakEvenLock` block.
  * @param entryPrice - The open position's cost basis, which both thresholds are measured from.
- * @param effectiveHigh - The close high-water mark the hard leg resolved against, compared with the activation level.
- * @param entryStamped - Whether the position carries a recorded entry candle; a wallet-adopted position has none, and its high may include a pre-entry close, so it never arms.
+ * @param lockHigh - The highest close since the position start, compared with the activation level; null when no close qualifies.
  * @returns `entryPrice x (1 + floorPct)` when the lock is on and armed, otherwise null.
  */
 export const breakEvenFloor = (
   config: MomentumConfig,
   entryPrice: Decimal,
-  effectiveHigh: Decimal,
-  entryStamped: boolean,
+  lockHigh: Decimal | null,
 ): Decimal | null => {
   const lock = config.breakEvenLock;
-  if (lock?.enabled !== true || !entryStamped) return null;
+  if (lock?.enabled !== true || lockHigh === null) return null;
   // Stored config is unparsed, so an absent percentage takes the schema default here; an explicit malformed value still yields no floor.
   const activation = decOrNull(lock.activationPct ?? BREAK_EVEN_ACTIVATION_DEFAULT);
   const floor = decOrNull(lock.floorPct ?? BREAK_EVEN_FLOOR_DEFAULT);
   if (activation === null || floor === null) return null;
   // floor >= 0 and floor < activation already imply activation > 0.
   if (!activation.lt(1) || floor.lt(0) || floor.gte(activation)) return null;
-  if (effectiveHigh.lt(entryPrice.mul(activation.plus(1)))) return null;
+  if (lockHigh.lt(entryPrice.mul(activation.plus(1)))) return null;
   return entryPrice.mul(floor.plus(1));
 };
 
@@ -170,7 +168,7 @@ export interface StopResolution {
  * @param tradingCandles - The closed trading-interval candles used to resolve an ATR hard leg.
  * @param bandContext - The current reference price and Binance price band used to derive a clamp floor when configured.
  * @param previousStop - The trigger of our own resting PRICED stop, or null; it is a monotone floor outside clamp mode and is never pinned under clamp mode so the clamp can follow the market down.
- * @param entryStamped - Whether the position carries a recorded entry candle; the break-even lock never arms without one.
+ * @param positionSinceMs - The position-start epoch (`profitTrailEpoch`), or null when unknown; the break-even lock arms only on closes after it, so null never arms.
  * @returns The shared stop level, its input marks, and whether the exchange floor raised it.
  */
 export const resolveStopLevel = (
@@ -181,7 +179,7 @@ export const resolveStopLevel = (
   tradingCandles: readonly Candle[],
   bandContext: StopBandContext,
   previousStop: Decimal | null,
-  entryStamped: boolean,
+  positionSinceMs: number | null,
 ): StopResolution => {
   let hard = atrTrailingStopPrice(config, tradingCandles, effectiveHigh);
   if (hard === null) {
@@ -200,7 +198,16 @@ export const resolveStopLevel = (
       : Decimal.max(entryPrice, profitHigh.mul(new Decimal(1).minus(profitDistance)));
 
   // The max of whichever legs resolved; null only when none did.
-  const lockFloor = breakEvenFloor(config, entryPrice, effectiveHigh, entryStamped);
+  // The persisted hard-leg high can hold a close from before an adopted or reconciled position and folds only the newest close per tick, so the lock re-derives its high from the window since the position start, which excludes the first and recovers closes missed in an outage.
+  let lockHigh: Decimal | null = null;
+  if (positionSinceMs !== null && config.breakEvenLock?.enabled === true) {
+    for (const candle of tradingCandles) {
+      if (!candle.isClosed || candle.closeTimeMs <= positionSinceMs) continue;
+      const close = new Decimal(candle.close);
+      if (lockHigh === null || close.gt(lockHigh)) lockHigh = close;
+    }
+  }
+  const lockFloor = breakEvenFloor(config, entryPrice, lockHigh);
   const legs = [hard, profitStop, lockFloor].filter((leg) => leg !== null);
   const stop = legs.length > 0 ? Decimal.max(...legs) : null;
 
@@ -253,8 +260,9 @@ export const resolveStopLevel = (
           profitHigh,
           tradingCandles,
           bandContext,
-          previousStop,
-          entryStamped,
+          // The resting trigger's origin is unknown and may be the lock floor itself, so it must not pin the native baseline.
+          null,
+          positionSinceMs,
         ).stop;
   return { ...resolved, stop: pinnedStop, nativeStop };
 };

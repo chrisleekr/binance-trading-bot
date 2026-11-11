@@ -74,7 +74,7 @@ describe('desiredTrailDistance', () => {
         candles,
         noBand,
         null,
-        true,
+        0,
       );
       return desiredTrailDistance(cfg, resolved, entry);
     };
@@ -98,10 +98,41 @@ describe('desiredTrailDistance', () => {
       [],
       { reference: null, band: undefined },
       new Decimal('95'),
-      true,
+      null,
     );
     expect(resolved.stop?.toString()).toBe('95');
     expect(desiredTrailDistance(cfg, resolved, new Decimal('100'))?.toString()).toBe('0.05');
+  });
+
+  it('does not pin the native distance to a resting stop the lock itself raised', () => {
+    // Entry 100, high 102 arms the lock (floor 100.5); the resting 100.5 is the lock's own trigger, so the native distance stays the 20% hard leg, not 1.5%.
+    const cfg = config({
+      trailingStopPct: '0.2',
+      atrTrailingStop: { enabled: true, period: 3, multiple: '2' },
+      breakEvenLock: { enabled: true, activationPct: '0.015', floorPct: '0.005' },
+    });
+    const closed = {
+      openTimeMs: 0,
+      closeTimeMs: 3_600_000,
+      open: '102',
+      high: '102',
+      low: '102',
+      close: '102',
+      volume: '1',
+      isClosed: true,
+    };
+    const resolved = resolveStopLevel(
+      cfg,
+      new Decimal('100'),
+      new Decimal('102'),
+      null,
+      [closed],
+      { reference: null, band: undefined },
+      new Decimal('100.5'),
+      0,
+    );
+    expect(resolved.stop?.toString()).toBe('100.5');
+    expect(desiredTrailDistance(cfg, resolved, new Decimal('100'))?.toString()).toBe('0.2');
   });
 
   it('falls back to the fixed configured retrace', () => {

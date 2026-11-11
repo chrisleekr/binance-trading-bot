@@ -846,8 +846,7 @@ const evaluateExit = (
       band: market.symbolInfo.filters.percentPriceBySide,
     },
     previousStop,
-    // A null stamp fails open for the hard leg above, but the lock must not arm on a high that may hold a pre-entry close.
-    entryCandleMs !== null,
+    profitSinceMs,
   );
   const price = new Decimal(market.currentPrice);
   // A null level means NEITHER leg resolved — no usable retrace fraction, no
