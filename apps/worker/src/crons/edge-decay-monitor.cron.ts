@@ -17,6 +17,7 @@ import {
   EnablementPolicy,
   assessEdgeDecay,
   profitFactorFromGross,
+  simulationSupports,
   summarizeClosedTrades,
   type EdgeDecayVerdict,
   type AccountId,
@@ -25,6 +26,7 @@ import {
 } from '@app/contracts';
 import { profileRepo, profileKey, repo as dbRepo } from '@app/db';
 import { fanOutBounded } from '@app/core/fan-out';
+import { BACKTEST_ENGINE_REVISION, configFingerprint } from '@app/strategy-core';
 import type { BootContext } from 'boot/boot-context.js';
 import { defineCron, type CronDef } from './define.js';
 import { QUEUE_NAMES } from 'queues/queue-names.js';
@@ -224,6 +226,19 @@ export const buildEdgeDecayMonitorCron = (ctx: BootContext): CronDef =>
           if (runRow) {
             const parsed = BacktestResultSchema.safeParse(runRow.result);
             if (parsed.success) {
+              // Abstain with null, never `no-baseline`: that verdict would clear the latch and log a recovery nobody measured. The baseline is only a yardstick when the current engine produced it from the strategy and config running now.
+              const { strategyName, config } = row as { strategyName: string; config: unknown };
+              const current = ctx.strategies.get(strategyName)?.configSchema.safeParse(config);
+              if (
+                !simulationSupports(parsed.data, {
+                  strategyName,
+                  engineRevision: BACKTEST_ENGINE_REVISION,
+                }) ||
+                !current?.success ||
+                configFingerprint(current.data) !== runRow.configFingerprint
+              ) {
+                return null;
+              }
               hasBaseline = true;
               baselineProfitFactor = parsed.data.metrics.profitFactor;
             }

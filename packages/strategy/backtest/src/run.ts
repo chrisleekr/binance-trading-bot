@@ -24,6 +24,7 @@ import type {
   EquityPoint,
   FillModel,
   MarketDataSource,
+  MarketTick,
   StreamRequest,
 } from './types.js';
 
@@ -62,6 +63,21 @@ const canonicalTags = (tags?: Readonly<Record<string, string>>): string =>
 // dependent and the backtest report must be byte-reproducible across runtimes.
 const codepointCompare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
+/**
+ * The order a basket executes and is signed in. Shared-wallet funding depends on who is evaluated first, so input order must not decide it. This reproduces a deterministic allocation rule, not live message arrival order.
+ *
+ * @param symbols - The requested symbols, in any order.
+ * @returns The symbols sorted by codepoint.
+ * @throws When a symbol appears twice, since one balance would be replayed against itself.
+ */
+export function canonicalSymbols(symbols: readonly string[]): readonly string[] {
+  const sorted = [...symbols].sort(codepointCompare);
+  sorted.forEach((symbol, i) => {
+    if (i > 0 && sorted[i - 1] === symbol) throw new Error(`duplicate backtest symbol: ${symbol}`);
+  });
+  return sorted;
+}
+
 export interface RunBacktestOptions<C, S, B extends Readonly<Record<string, unknown>>> {
   readonly strategy: Strategy<C, S, B>;
   readonly config: C;
@@ -92,26 +108,18 @@ export interface RunBacktestOptions<C, S, B extends Readonly<Record<string, unkn
     readonly symbol: string;
     readonly interval: CandleInterval;
     readonly window: readonly Candle[];
+    /** The decision instant; a provider must not read past it. */
+    readonly asOfMs: number;
   }) => B;
   /**
-   * Read-only candle windows for intervals OTHER than the streamed one, merged
-   * into `market.candlesByInterval` each tick. Mirrors live, where the worker
-   * subscribes the daily regime candle for every symbol on top of the trading
-   * interval, so a daily-regime gate (regime filter / regime exit) sees its
-   * window in backtest too. The streamed interval always wins on key collision.
-   * `asOfMs` is the current candle's closeTime; the provider MUST return only
-   * candles closed at or before it (no lookahead). Default: none — the snapshot
-   * carries the streamed interval alone, exactly as before.
+   * Read-only candle windows merged into `market.candlesByInterval` each tick, mirroring the windows live feeds. Without a {@link decisionClock} the streamed interval wins on key collision; with one, these are the strategy's only windows. `asOfMs` is the decision instant; the provider MUST return only candles closed at or before it. Default: none.
    */
   readonly auxiliaryWindows?: (args: {
     readonly symbol: string;
     readonly asOfMs: number;
   }) => Partial<Record<CandleInterval, readonly Candle[]>>;
   /**
-   * Called once per processed candle with the running count, so a caller that
-   * knows the total can report progress. The engine consumes a stream and does
-   * not know the total, so it reports a count, not a percentage. Keep the
-   * callback cheap (throttle any I/O) — it fires on every candle.
+   * Called once per valued frame with the running count, so a caller that knows the total can report progress and a cancellation can land between decisions. The engine consumes a stream and does not know the total, so it reports a count, not a percentage. Keep the callback cheap (throttle any I/O): it fires on every frame.
    */
   readonly onProgress?: (processed: number) => void;
   /**
@@ -125,15 +133,17 @@ export interface RunBacktestOptions<C, S, B extends Readonly<Record<string, unkn
    */
   readonly onBeforeMetrics?: () => void | Promise<void>;
   /**
-   * Tick the strategy on every detail bar inside a candle while it holds a position, and hand it the bars that closed since its previous tick under `interval`. Live ticks on every price update, so an exit level that moves on 1-minute closes (momentum's profit trail) fires mid-candle; one tick per candle cannot see that. The detail bars must be of `interval` for the strategy to read them as such.
-   *
-   * Single-symbol only: the within-candle ticks advance the clock inside each candle, so a second symbol would replay its bars after the first symbol's later ones and mutate the shared account out of time order. The loop throws on a second symbol. Default: none, one tick per candle exactly as before.
+   * Separates when the strategy is called from when fills and marks are processed. The stream then carries detail candles: every frame marks prices, evaluates resting orders and values the portfolio, and only a frame closing on a whole multiple of `intervalMs` calls the strategy. Frames outside `[request.fromMs, request.toMs)` are ignored, so warm-up can never trade. Absent, every streamed candle is a decision and warm-up is `startupCandleCount`.
    */
-  readonly intraCandle?: { readonly interval: CandleInterval };
+  readonly decisionClock?: {
+    readonly intervalMs: number;
+    /** The interval the strategy's bundle window is read from. */
+    readonly strategyInterval: CandleInterval;
+  };
   /**
-   * Awaited after each within-candle tick. A held daily candle replays 1,440 minute ticks inside one streamed candle, so a host that shares its process with live trading injects a throttled event-loop yield here, the same one that paces the stream. The engine only awaits the injected function; it does no I/O itself. Default: none.
+   * Called with every portfolio valuation before the stored curve is downsampled, so a caller can measure drawdown at full resolution. Default: none.
    */
-  readonly onIntraCandleTick?: () => void | Promise<void>;
+  readonly onEquityMark?: (point: EquityPoint) => void;
 }
 
 const PROFILE_ID = 'backtest';
@@ -146,17 +156,12 @@ const ZERO = new Decimal(0);
 const ONE = new Decimal(1);
 
 /**
- * Event-driven backtest over a historical candle stream. Each closed candle
- * advances the simulated clock, is appended to its window, and (past
- * warm-up) drives one `tick()` whose decisions flow through the
- * {@link BacktestExecutor}. State is threaded forward per symbol. Determinism
- * comes from the {@link SyntheticClock} and seeded {@link SeededRng}, so a
- * fixed `(strategy, data, fillModel, seed)` yields a byte-identical report.
+ * Event-driven backtest over a historical candle stream. Candles with equal close times form one frame: every symbol's price is marked first, resting orders are evaluated and adopted in canonical symbol order, a decision boundary then ticks each symbol in that order, and one closing valuation is recorded. State is threaded forward per symbol. Determinism comes from the {@link SyntheticClock} and seeded {@link SeededRng}, so a fixed `(strategy, data, fillModel, seed)` yields a byte-identical report.
  *
- * Precondition: each symbol streams exactly ONE interval (the strategy's
- * configured candleInterval). Per-symbol state, warm-up, and the marked
- * last-price are all symbol-scoped, so two intervals for one symbol would
- * interleave incorrectly; the loop throws rather than silently miscount.
+ * Precondition: each symbol streams exactly ONE interval. Per-symbol state and the marked last-price are symbol-scoped, so two intervals for one symbol would interleave incorrectly; the loop throws rather than silently miscount.
+ *
+ * @param opts - The strategy, its data, its fill model and the replay clocks.
+ * @returns The finished report.
  */
 export async function runBacktest<C, S, B extends Readonly<Record<string, unknown>>>(
   opts: RunBacktestOptions<C, S, B>,
@@ -181,11 +186,8 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
   const states = new Map<string, S>();
   const seen = new Map<string, number>();
   const equityCurve: EquityPoint[] = [];
-  // The first requested symbol is the regime benchmark: its post-warm-up close
-  // series drives the market-regime attribution and the per-regime buy-and-hold
-  // comparator. Single-symbol runs (the live case) align it 1:1 with the equity
-  // curve; for a basket it is the primary symbol's regime, labelled as such.
-  const benchmarkSymbol = request.symbols[0];
+  // The canonically first symbol is the regime benchmark: its post-warm-up close series drives the market-regime attribution and the per-regime buy-and-hold comparator. Canonical, so reversing a basket cannot move the baseline.
+  const benchmarkSymbol = canonicalSymbols(request.symbols)[0];
   const benchmarkPrices: { tsMs: number; close: string }[] = [];
   // Portfolio equity sampled on the SAME benchmark cadence as benchmarkPrices, so
   // the regime split compounds the strategy return and the hold return over one
@@ -317,7 +319,7 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
   };
 
   /**
-   * Whether the strategy holds a position on `symbol`, read through its position capability. Gates the within-candle ticks: they exist to replay a held position's exit, and skipping them while flat keeps a long minute-bar replay affordable. The cost is an entry live would take mid-candle after a price-dependent gate deferred it past the close; the replay takes it at the next close instead.
+   * Whether the strategy holds a position on `symbol`, read through its position capability. Used to spot a refused BUY that a strategy already recorded at placement.
    *
    * @param symbol - The symbol whose replayed state is read.
    * @returns True only when the position view parses to a held quantity above zero; a strategy with no position capability, or no state yet, reads as flat.
@@ -335,23 +337,10 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     }
   };
 
-  // Within-candle bars that closed since the symbol's previous tick, handed to the next tick under `intraCandle.interval`. The strategy keeps its own high-water marks in state, so the bars since the last tick are all it needs, and the buffer never outgrows one trading candle because every close ticks and drains it.
-  const pendingBars = new Map<string, Candle[]>();
-  const takePendingBars = (symbol: string): readonly Candle[] => {
-    const bars = pendingBars.get(symbol) ?? [];
-    pendingBars.set(symbol, []);
-    return bars;
-  };
-  const addPendingBar = (symbol: string, bar: Candle): void => {
-    const bars = pendingBars.get(symbol);
-    if (bars) bars.push(bar);
-    else pendingBars.set(symbol, [bar]);
-  };
-
   /**
-   * One strategy tick: assemble the snapshot, run `tick()`, fold its diagnostics, and apply its decisions. Shared by the per-candle close and the within-candle ticks so the two cannot drift in what the strategy sees.
+   * One strategy tick: assemble the snapshot, run `tick()`, fold its diagnostics, and apply its decisions.
    *
-   * @param args - The symbol and its streamed interval; its trading window, which ends at the last CLOSED trading candle (mid-candle it excludes the candle in progress); the price the tick sees; the instant auxiliary windows are cut at, so none reaches past it; and the trigger handed to the strategy.
+   * @param args - The symbol and the interval its bundle reads; the streamed rolling window, used only without a decision clock; the price the tick sees; and the decision instant auxiliary windows are cut at.
    * @returns Resolves once every decision has been applied and any immediate fills adopted.
    */
   const runTick = async (args: {
@@ -360,27 +349,20 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     readonly window: readonly Candle[];
     readonly price: string;
     readonly asOfMs: number;
-    readonly trigger: TickInput<C, S, B>['trigger'];
   }): Promise<void> => {
-    const { symbol, interval, window } = args;
+    const { symbol, interval, asOfMs } = args;
     const symbolInfo = symbolInfos.get(symbol);
     if (!symbolInfo) throw new Error(`no SymbolInfo provided for ${symbol}`);
 
     const state = states.get(symbol) ?? strategy.initialState(config);
-    const auxWindows = opts.auxiliaryWindows?.({ symbol, asOfMs: args.asOfMs });
-    const intraKey = opts.intraCandle?.interval;
-    // The streamed interval's rolling window is authoritative; auxiliary
-    // windows (e.g. the daily regime candle) fill OTHER intervals only, so the
-    // streamed key is spread last to win any collision.
-    const candlesByInterval: Partial<Record<CandleInterval, readonly Candle[]>> = {
-      ...(auxWindows ?? {}),
-      ...(intraKey !== undefined ? { [intraKey]: takePendingBars(symbol) } : {}),
-      [interval]: window,
-    };
-    // Per-interval indicator snapshots, mirroring what the live worker writes to Redis and reads into `market.indicatorsByInterval`. Without this an armed indicatorGate (RSI/SMA/EMA bias) reads `undefined` and fails closed with `indicator-unavailable` on every tick, so the profile can never trade — or pass the live-enablement gate — in a backtest. `snapshotComputer.step` reuses the same incremental indicators as live for byte-parity. The within-candle bars are skipped: they are a since-last-tick slice, not a rolling window an indicator can be computed over, and `step` requires each call to advance one closed candle.
+    const auxWindows = opts.auxiliaryWindows?.({ symbol, asOfMs }) ?? {};
+    // With a decision clock the stream holds detail bars, so every window comes from the provider. Without one the streamed window is authoritative and fills only its own key.
+    const candlesByInterval: Partial<Record<CandleInterval, readonly Candle[]>> =
+      opts.decisionClock !== undefined ? auxWindows : { ...auxWindows, [interval]: args.window };
+    const window = candlesByInterval[interval] ?? [];
+    // Per-interval indicator snapshots, mirroring what the live worker writes to Redis and reads into `market.indicatorsByInterval`. Without this an armed indicatorGate (RSI/SMA/EMA bias) reads `undefined` and fails closed with `indicator-unavailable` on every tick.
     const indicatorsByInterval: Partial<Record<CandleInterval, IndicatorSnapshot>> = {};
     for (const iv of Object.keys(candlesByInterval) as CandleInterval[]) {
-      if (iv === intraKey && iv !== interval) continue;
       const win = candlesByInterval[iv];
       const snap = win ? snapshotComputer.step(`${symbol}|${iv}`, win) : null;
       if (snap) indicatorsByInterval[iv] = snap;
@@ -395,7 +377,7 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     const input: TickInput<C, S, B> = {
       clock,
       rng,
-      trigger: args.trigger,
+      trigger: { kind: 'tick' },
       profile: {
         id: PROFILE_ID,
         userId: USER_ID,
@@ -411,7 +393,7 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
         deployedQuoteAcrossProfiles: accountDeployedQuote(),
       },
       openOrders: executor.openOrders(symbol),
-      bundle: buildBundle({ symbol, interval, window }),
+      bundle: buildBundle({ symbol, interval, window, asOfMs }),
       limits: { weightUsed1m: 0, weightLimit1m: 1200, headroomBps: 10_000 },
       // Cross-symbol KV: mirror the live read gating — only a strategy
       // that opts in sees the store, so per-symbol strategies stay byte-identical.
@@ -443,19 +425,101 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     adoptFills(symbol);
   };
 
+  /**
+   * Replay one frame: every candle sharing one close time, marked before any order is evaluated so a shared balance cannot be spent against a stale price.
+   *
+   * @param frame - The candles of this frame, one per symbol.
+   * @param closeTimeMs - The close time they share.
+   * @returns Resolves once the frame is valued.
+   */
+  const processFrame = async (frame: readonly MarketTick[], closeTimeMs: number): Promise<void> => {
+    const decisionClock = opts.decisionClock;
+    if (
+      decisionClock !== undefined &&
+      (frame.some((t) => t.candle.openTimeMs < request.fromMs) || closeTimeMs >= request.toMs)
+    ) {
+      return;
+    }
+
+    clock.advanceTo(closeTimeMs);
+    const ordered = [...frame].sort((a, b) => codepointCompare(a.symbol, b.symbol));
+    for (const { symbol, candle, detailCandles } of ordered) {
+      executor.updateMark(symbol, new Decimal(candle.close), candle, detailCandles);
+    }
+    // Resting orders may have filled against this candle; adopt them before the tick so the strategy sees the resulting position (signal-N, fill-N+1, position-visible-N+1, the live ordering). Evaluating before ticking is also what stops an order filling from the candle that decided it.
+    for (const { symbol } of ordered) {
+      executor.evaluateResting(symbol);
+      adoptFills(symbol);
+    }
+
+    // Mark opening equity once the first candle has set a price, so a non-quote opening balance is valued, not zeroed.
+    if (startingBalance === null) startingBalance = executor.equityInQuote(quoteAsset);
+
+    const tradable: MarketTick[] = [];
+    for (const tick of ordered) {
+      const key = `${tick.symbol}|${tick.interval}`;
+      if (decisionClock === undefined) {
+        const window = windows.get(key) ?? [];
+        window.push(tick.candle);
+        if (window.length > windowCap) window.shift();
+        windows.set(key, window);
+      }
+      const count = (seen.get(tick.symbol) ?? 0) + 1;
+      seen.set(tick.symbol, count);
+      if (decisionClock !== undefined || count > startup) tradable.push(tick);
+    }
+    if (tradable.length === 0) return; // warm-up: accumulate, do not trade
+
+    const boundary =
+      decisionClock === undefined || (closeTimeMs + 1) % decisionClock.intervalMs === 0;
+    for (const { symbol, candle } of tradable) {
+      // Anchored on the first traded candle so the hold baseline spans the same window as the strategy's equity curve.
+      const price = new Decimal(candle.close);
+      if (!firstClose.has(symbol)) firstClose.set(symbol, price);
+      lastClose.set(symbol, price);
+      // Averaged on the decision clock, the slices an operator would buy at. A non-positive close cannot anchor a percentage benchmark, so it is dropped.
+      if (boundary && price.gt(0)) {
+        closeInvSum.set(symbol, (closeInvSum.get(symbol) ?? ZERO).add(ONE.div(price)));
+        closeCount.set(symbol, (closeCount.get(symbol) ?? 0) + 1);
+      }
+    }
+
+    if (boundary) {
+      for (const { symbol, interval, candle } of tradable) {
+        await runTick({
+          symbol,
+          interval: decisionClock?.strategyInterval ?? interval,
+          window: windows.get(`${symbol}|${interval}`) ?? [],
+          price: candle.close,
+          asOfMs: closeTimeMs,
+        });
+      }
+    }
+
+    const equity = executor.equityInQuote(quoteAsset).toString();
+    const point = { tsMs: clock.nowMs(), equity };
+    equityCurve.push(point);
+    opts.onEquityMark?.(point);
+    // On the benchmark symbol's cadence, sample both its close and the portfolio equity so the regime split's strategy and hold returns share one set of steps.
+    const benchmark = tradable.find((t) => t.symbol === benchmarkSymbol);
+    if (benchmark !== undefined) {
+      benchmarkPrices.push({ tsMs: closeTimeMs, close: benchmark.candle.close });
+      benchmarkEquity.push({ tsMs: closeTimeMs, equity });
+    }
+    processed += 1;
+    opts.onProgress?.(processed);
+  };
+
+  let frame: MarketTick[] = [];
   for await (const tick of dataSource.stream(request)) {
     const { symbol, interval, candle } = tick;
-    const detailCandles = tick.detailCandles;
 
-    // Enforce the MarketDataSource ordering contract: the shared account must
-    // mutate in true time order, so an out-of-order tick would silently
-    // mis-sequence a portfolio's balance. Fail loudly instead.
+    // Enforce the MarketDataSource ordering contract: the shared account must mutate in true time order, so an out-of-order tick would silently mis-sequence a portfolio's balance.
     if (candle.closeTimeMs < lastCloseMs) {
       throw new Error(
         `market data out of order: ${symbol} closeTime ${candle.closeTimeMs} < ${lastCloseMs}`,
       );
     }
-    lastCloseMs = candle.closeTimeMs;
 
     const priorInterval = intervalOf.get(symbol);
     if (priorInterval && priorInterval !== interval) {
@@ -466,109 +530,14 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     }
     intervalOf.set(symbol, interval);
 
-    const key = `${symbol}|${interval}`;
-    const window = windows.get(key) ?? [];
-
-    // Bars the closing step crosses resting orders against. Under within-candle ticking every bar but the last has already been crossed by its own tick, so the close crosses only the last one.
-    let closeBars = detailCandles;
-    if (opts.intraCandle !== undefined && detailCandles !== undefined && detailCandles.length > 0) {
-      // Within-candle ticks advance the clock inside each candle, so a second symbol would replay its bars after this one's later ones and mutate the shared account out of time order.
-      if (symbol !== benchmarkSymbol) {
-        throw new Error(
-          `within-candle ticking replays one symbol; ${symbol} is not the run's only symbol`,
-        );
-      }
-      if (!coversCandle(detailCandles, candle)) {
-        // A hole in the bars hides minutes the coarse candle's high and low still include, so cross the whole candle once and tick only on its close.
-        for (const bar of detailCandles) addPendingBar(symbol, bar);
-        closeBars = undefined;
-      } else {
-        for (const bar of detailCandles.slice(0, -1)) {
-          clock.advanceTo(bar.closeTimeMs);
-          executor.setMarketContext(symbol, new Decimal(bar.close), bar, [bar]);
-          adoptFills(symbol);
-          addPendingBar(symbol, bar);
-          // Warm-up never reaches here holding anything: no tick has run, so no order has filled.
-          if (!holdsPosition(symbol)) continue;
-          // The trading window still ends at the previous close: this candle has not closed yet, exactly as live sees it mid-candle.
-          await runTick({
-            symbol,
-            interval,
-            window,
-            price: bar.close,
-            asOfMs: bar.closeTimeMs,
-            trigger: { kind: 'tick' },
-          });
-          await opts.onIntraCandleTick?.();
-        }
-        const last = detailCandles[detailCandles.length - 1];
-        if (last !== undefined) addPendingBar(symbol, last);
-        closeBars = detailCandles.slice(-1);
-      }
+    if (frame.length > 0 && candle.closeTimeMs !== lastCloseMs) {
+      await processFrame(frame, lastCloseMs);
+      frame = [];
     }
-
-    window.push(candle);
-    if (window.length > windowCap) window.shift();
-    windows.set(key, window);
-
-    clock.advanceTo(candle.closeTimeMs);
-    const price = new Decimal(candle.close);
-    // When the data source supplies the finer detail bars for this candle, the
-    // OHLCV model crosses orders against them in time order; otherwise it falls
-    // back to the coarse candle. The data source owns the grouping.
-    executor.setMarketContext(symbol, price, candle, closeBars);
-    // Resting orders may have filled against this candle; adopt them before
-    // the tick so the strategy sees the resulting position this candle
-    // (signal-N, fill-N+1, position-visible-N+1 — the live ordering).
-    adoptFills(symbol);
-
-    // Mark opening equity once the first candle has set a price, so a
-    // non-quote opening balance is valued, not zeroed.
-    if (startingBalance === null) startingBalance = executor.equityInQuote(quoteAsset);
-
-    const count = (seen.get(symbol) ?? 0) + 1;
-    seen.set(symbol, count);
-    if (count <= startup) {
-      // Warm-up bars feed no tick, so drop them rather than handing a stale pre-trading slice to the first traded tick.
-      pendingBars.set(symbol, []);
-      continue; // warm-up: accumulate, do not trade
-    }
-
-    // Buy-and-hold / DCA benchmark accumulators, anchored on the first TRADED
-    // candle (post-warmup) so the hold baseline spans the same window as the
-    // strategy's equity curve. Accumulating during warmup would measure the
-    // benchmark over the extra warmup candles the operator never asked to
-    // evaluate, distorting alphaVsHold.
-    if (!firstClose.has(symbol)) firstClose.set(symbol, price);
-    lastClose.set(symbol, price);
-    // A non-positive close cannot anchor a percentage benchmark; skip it from
-    // both accumulators (the same drop rule the buy-and-hold mean applies).
-    if (price.gt(0)) {
-      closeInvSum.set(symbol, (closeInvSum.get(symbol) ?? ZERO).add(ONE.div(price)));
-      closeCount.set(symbol, (closeCount.get(symbol) ?? 0) + 1);
-    }
-
-    await runTick({
-      symbol,
-      interval,
-      window,
-      price: candle.close,
-      asOfMs: candle.closeTimeMs,
-      trigger: { kind: 'candle-close', interval, openTimeMs: candle.openTimeMs },
-    });
-
-    const equity = executor.equityInQuote(quoteAsset).toString();
-    equityCurve.push({ tsMs: clock.nowMs(), equity });
-    // On the benchmark symbol's cadence, sample both its close and the portfolio
-    // equity so the regime split's strategy and hold returns share one set of
-    // steps (apples-to-apples, including multi-symbol baskets).
-    if (symbol === benchmarkSymbol) {
-      benchmarkPrices.push({ tsMs: candle.closeTimeMs, close: candle.close });
-      benchmarkEquity.push({ tsMs: candle.closeTimeMs, equity });
-    }
-    processed += 1;
-    opts.onProgress?.(processed);
+    lastCloseMs = candle.closeTimeMs;
+    frame.push(tick);
   }
+  if (frame.length > 0) await processFrame(frame, lastCloseMs);
 
   // No candle ever streamed → no opening mark; report a flat empty run.
   const start = startingBalance ?? ZERO;
@@ -700,17 +669,4 @@ function dcaBenchmarkPct(
   let acc = ZERO;
   for (const c of changes) acc = acc.add(c);
   return acc.div(changes.length).toNumber();
-}
-
-/**
- * Whether the detail bars tile the coarse candle with no gap, which within-candle replay needs before it can cross each bar on its own and the close against only the last one.
- *
- * @param bars - The candle's detail bars, in time order.
- * @param candle - The coarse candle they belong to.
- * @returns True when the first bar opens at the candle's open, each bar opens the millisecond after the previous one closed, and the last closes at the candle's close.
- */
-function coversCandle(bars: readonly Candle[], candle: Candle): boolean {
-  if (bars[0]?.openTimeMs !== candle.openTimeMs) return false;
-  if (bars[bars.length - 1]?.closeTimeMs !== candle.closeTimeMs) return false;
-  return bars.every((bar, i) => i === 0 || bar.openTimeMs === (bars[i - 1]?.closeTimeMs ?? 0) + 1);
 }

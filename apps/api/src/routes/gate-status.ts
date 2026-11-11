@@ -1,8 +1,6 @@
 // Live-gate status for a profile. Read-only ADVISORY view behind the gate-status
 // card: it re-runs the SAME evaluation the API admission gate uses (shared
-// `evaluateBacktestGate`) against the profile's current config and reports whether
-// the config is still proven by a recent passing backtest. This is surface-only —
-// the bot never pauses buys for a failing gate; it just flags the problem here.
+// `evaluateBacktestGate`) against the profile's current config and reports whether a recent backtest of it cleared the thresholds. This is surface-only: the bot never pauses buys for a failing gate; it just flags the problem here.
 
 import {
   asProfileId,
@@ -18,7 +16,7 @@ import {
   type GateOutcome,
 } from '@app/contracts';
 import { repo, type ProfileRepo } from '@app/db';
-import { configFingerprint } from '@app/strategy-core';
+import { BACKTEST_ENGINE_REVISION, configFingerprint } from '@app/strategy-core';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
 import { requireUser } from 'middleware/require-user.js';
@@ -66,7 +64,7 @@ const buildGateStatus = async (
       applicability: 'gated',
       ok: false,
       failure: 'no-matching-backtest',
-      detail: 'The strategy is not registered, so no backtest can prove this config.',
+      detail: 'The strategy is not registered, so no backtest can be matched to this config.',
       failedChecks: [],
     };
   }
@@ -78,7 +76,10 @@ const buildGateStatus = async (
     outcome = evaluateBacktestGate({
       policy,
       currentFingerprint: fingerprint,
-      candidates: toGateCandidates(recent),
+      candidates: toGateCandidates(recent, {
+        strategyName: profile.strategyName,
+        engineRevision: BACKTEST_ENGINE_REVISION,
+      }),
       nowMs: Date.now(),
     });
   } catch {

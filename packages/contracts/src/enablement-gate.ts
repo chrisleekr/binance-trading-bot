@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod';
-import { BacktestResultSchema } from './backtest.js';
+import { BacktestResultSchema, simulationSupports } from './backtest.js';
 
 /** The three gate-relevant figures, shared by the full run and its holdout. */
 export interface GateMetricsCore {
@@ -29,10 +29,7 @@ export interface GateMetricsCore {
 /** Gate-relevant metrics pulled from a backtest run's result. */
 export interface GateMetrics extends GateMetricsCore {
   /**
-   * The same three figures over the out-of-sample holdout (most-recent slice of
-   * the run), or `null` when the run carries no holdout (persisted before the
-   * field shipped, or too short to carve one). When `requireOutOfSample` is on,
-   * `null` fails the gate.
+   * The same three figures over the Recent-period check (most-recent slice of the run), or `null` when the run carries no recent slice (persisted before the field shipped, or too short to carve one). When `requireOutOfSample` is on, `null` fails the gate.
    */
   readonly outOfSample: GateMetricsCore | null;
   /**
@@ -54,6 +51,8 @@ export interface GateCandidate {
   readonly createdAtMs: number;
   /** Parsed metrics, or `null` when the stored result was unreadable. */
   readonly metrics: GateMetrics | null;
+  /** False for a run from before the current replay rules or from another strategy, which cannot stand behind a verdict. */
+  readonly simulationSupported: boolean;
 }
 
 /** The numeric thresholds the gate enforces (a subset of `EnablementPolicy`). */
@@ -124,15 +123,12 @@ export function gateThresholdChecks(
     },
   ];
 
-  // Out-of-sample defence against curve-fitting: the edge must clear the same
-  // profit-factor and alpha bars in the holdout (most-recent slice the tuning
-  // never targeted). A run with no holdout — too short, or persisted before the
-  // field shipped — fails the check, so the operator re-runs the backtest.
+  // The edge must clear the same profit-factor and alpha bars over the most-recent slice of the run. A run with no such slice, too short or stored before the field shipped, fails the check so the operator re-runs the backtest.
   if (thresholds.requireOutOfSample) {
     const oos = metrics.outOfSample;
     if (oos === null) {
       checks.push({
-        label: 'out-of-sample validation',
+        label: 'recent-period check',
         ok: false,
         actual: 'missing',
         need: 're-run backtest',
@@ -140,19 +136,19 @@ export function gateThresholdChecks(
     } else {
       checks.push(
         {
-          label: 'out-of-sample trades',
+          label: 'recent-period trades',
           ok: oos.totalTrades >= thresholds.minOutOfSampleTrades,
           actual: String(oos.totalTrades),
           need: `>= ${thresholds.minOutOfSampleTrades}`,
         },
         {
-          label: 'out-of-sample profit factor',
+          label: 'recent-period profit factor',
           ok: oos.profitFactor !== null && oos.profitFactor >= thresholds.minProfitFactor,
           actual: oos.profitFactor === null ? 'n/a' : oos.profitFactor.toFixed(2),
           need: `>= ${thresholds.minProfitFactor}`,
         },
         {
-          label: 'out-of-sample alpha vs hold',
+          label: 'recent-period alpha vs hold',
           ok: oos.alphaVsHoldPct >= thresholds.minAlphaVsHoldPct,
           actual: `${oos.alphaVsHoldPct.toFixed(2)}%`,
           need: `>= ${thresholds.minAlphaVsHoldPct}%`,
@@ -180,6 +176,7 @@ export type GateOutcome =
       readonly ageDays: number;
     }
   | { readonly ok: false; readonly failure: 'unreadable-result'; readonly runId: string }
+  | { readonly ok: false; readonly failure: 'unsupported-simulation'; readonly runId: string }
   | {
       readonly ok: false;
       readonly failure: 'thresholds';
@@ -211,7 +208,7 @@ export const RECENT_DONE_SCAN = 25;
  * it against the gate thresholds. Callers handle the policy master switch and the
  * live-mode guard; this answers only "is there proof for this exact config".
  *
- * Order matches the admission gate: match → freshness → readability → thresholds.
+ * Order: match, freshness, readability, supported simulation, thresholds.
  */
 export function evaluateBacktestGate(input: GateEvalInput): GateOutcome {
   const { policy, currentFingerprint, candidates, nowMs } = input;
@@ -227,6 +224,10 @@ export function evaluateBacktestGate(input: GateEvalInput): GateOutcome {
     return { ok: false, failure: 'unreadable-result', runId: matching.runId };
   }
 
+  if (!matching.simulationSupported) {
+    return { ok: false, failure: 'unsupported-simulation', runId: matching.runId };
+  }
+
   const checks = gateThresholdChecks(matching.metrics, policy);
   if (checks.some((c) => !c.ok)) {
     return { ok: false, failure: 'thresholds', runId: matching.runId, checks };
@@ -238,7 +239,7 @@ export function evaluateBacktestGate(input: GateEvalInput): GateOutcome {
  * One line per failed threshold check, in the admission gate's phrasing.
  *
  * @param checks - Every evaluated check; passing ones are dropped.
- * @returns The failed checks, e.g. `out-of-sample alpha vs hold -16.84% (need >= 0%)`.
+ * @returns The failed checks, e.g. `recent-period alpha vs hold -16.84% (need >= 0%)`.
  */
 export function failedCheckLines(checks: readonly GateCheck[]): string[] {
   return checks.filter((c) => !c.ok).map((c) => `${c.label} ${c.actual} (need ${c.need})`);
@@ -258,18 +259,23 @@ export interface BacktestRunLike {
 }
 
 /**
- * Map `backtest_runs` rows (newest-first) to gate candidates, parsing each result
- * for metrics. The single adapter shared by the API admission gate, the API
- * gate-status route, and the worker enforcer cron, so all three feed
- * {@link evaluateBacktestGate} identically.
+ * Map `backtest_runs` rows (newest-first) to gate candidates, parsing each result for metrics. The single adapter feeding {@link evaluateBacktestGate}.
+ *
+ * @param rows - The runs, newest first.
+ * @param current - The strategy this profile runs and the engine revision now deployed, which decide whether a run is supported.
+ * @returns One candidate per row.
  */
-export function toGateCandidates(rows: readonly BacktestRunLike[]): GateCandidate[] {
+export function toGateCandidates(
+  rows: readonly BacktestRunLike[],
+  current: { readonly strategyName: string; readonly engineRevision: number },
+): GateCandidate[] {
   return rows.map((r) => {
     const res = BacktestResultSchema.safeParse(r.result);
     return {
       runId: r.id,
       configFingerprint: r.configFingerprint,
       createdAtMs: r.createdAt.getTime(),
+      simulationSupported: res.success && simulationSupports(res.data, current),
       metrics: res.success
         ? {
             profitFactor: res.data.metrics.profitFactor,
@@ -294,7 +300,7 @@ export function toGateCandidates(rows: readonly BacktestRunLike[]): GateCandidat
  * the gate-status UI so they read the same. Pure.
  */
 export function describeGateOutcome(outcome: GateOutcome): string {
-  if (outcome.ok) return 'current config is validated by a recent passing backtest';
+  if (outcome.ok) return 'a recent backtest of the current config cleared the thresholds';
   switch (outcome.failure) {
     case 'no-matching-backtest':
       return 'no recent backtest was run on the current configuration';
@@ -302,8 +308,10 @@ export function describeGateOutcome(outcome: GateOutcome): string {
       return `the matching backtest is ${Math.floor(outcome.ageDays)} days old`;
     case 'unreadable-result':
       return 'the matching backtest result could not be read';
+    case 'unsupported-simulation':
+      return 'the matching backtest ran under older replay rules or another strategy, so run it again';
     case 'thresholds':
-      return `the backtest does not clear the gate — ${failedChecksDetail(outcome.checks)}`;
+      return `the backtest does not clear the gate: ${failedChecksDetail(outcome.checks)}`;
   }
 }
 
@@ -318,7 +326,15 @@ export function describeGateOutcome(outcome: GateOutcome): string {
 export const GateStatusResponse = z.object({
   applicability: z.enum(['gated', 'not-live', 'gate-off']),
   ok: z.boolean(),
-  failure: z.enum(['no-matching-backtest', 'stale', 'unreadable-result', 'thresholds']).nullable(),
+  failure: z
+    .enum([
+      'no-matching-backtest',
+      'stale',
+      'unreadable-result',
+      'unsupported-simulation',
+      'thresholds',
+    ])
+    .nullable(),
   detail: z.string(),
   // The failed checks as separate lines, so a reader can count and list them without parsing `detail`, whose wording is free to change.
   failedChecks: z.array(z.string()).default(() => []),

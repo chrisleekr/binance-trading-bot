@@ -49,30 +49,23 @@ function groupDetailByCoarse(
 }
 
 /**
- * Merge several per-symbol candle series into one stream ordered by
- * `closeTimeMs` across all symbols — the k-way merge a portfolio run needs so
- * its shared account is mutated in true time order. Symbols may use different
- * intervals, so close-times interleave irregularly. Ties (equal close-times)
- * break by the input order of the series, which is deterministic.
+ * Lazily merge several per-symbol candle series into one stream ordered by `closeTimeMs` across all symbols, the k-way merge a portfolio run needs so its shared account is mutated in true time order. Lazy because a long one-minute run would otherwise hold every merged tick in memory beside the candles it was built from. Ties break by the input order of the series; the engine re-sorts equal-close frames canonically.
  *
- * Each series is assumed already ascending by open time (the candle store
- * returns them that way); the merge advances a per-series cursor and rescans
- * the cursors for the minimum each step, so it is O(total candles × symbols)
- * with no full sort — fine for a profile's handful of symbols.
+ * Each series is assumed already ascending by open time (the candle store returns them that way). The merge advances a per-series cursor and rescans the cursors for the minimum each step, so it is O(total candles x symbols) with no full sort.
+ *
+ * @param series - Per-symbol candle series, each ascending by open time.
+ * @returns A generator of ticks in close-time order.
  */
-export function mergeCandleTicks(series: readonly SymbolCandles[]): MarketTick[] {
+export function* iterateCandleTicks(series: readonly SymbolCandles[]): Generator<MarketTick> {
   const cursors = series.map(() => 0);
-  const out: MarketTick[] = [];
-  const total = series.reduce((n, s) => n + s.candles.length, 0);
-  // Pre-group each series' detail bars under their coarse candle once, so the
-  // merge can attach them in O(1) per emitted tick.
+  // Pre-group each series' detail bars under their coarse candle once, so the merge can attach them in O(1) per emitted tick.
   const detailGroups = series.map((s) =>
     s.detailCandles && s.detailCandles.length > 0
       ? groupDetailByCoarse(s.candles, s.detailCandles)
       : null,
   );
 
-  for (let emitted = 0; emitted < total; emitted++) {
+  for (;;) {
     let pick = -1;
     let pickClose = Number.POSITIVE_INFINITY;
     for (let i = 0; i < series.length; i++) {
@@ -83,22 +76,20 @@ export function mergeCandleTicks(series: readonly SymbolCandles[]): MarketTick[]
         pick = i;
       }
     }
-    if (pick === -1) break; // all series exhausted
+    if (pick === -1) return; // all series exhausted
     const chosen = series[pick];
     const candle = chosen?.candles[cursors[pick] ?? 0];
-    if (!chosen || !candle) break;
+    if (!chosen || !candle) return;
     cursors[pick] = (cursors[pick] ?? 0) + 1;
     const detailCandles = detailGroups[pick]?.get(candle.openTimeMs);
-    out.push({
+    yield {
       kind: 'candle-close',
       symbol: chosen.symbol,
       interval: chosen.interval,
       candle,
       ...(detailCandles ? { detailCandles } : {}),
-    });
+    };
   }
-
-  return out;
 }
 
 /**
@@ -108,11 +99,10 @@ export function mergeCandleTicks(series: readonly SymbolCandles[]): MarketTick[]
  * {@link MarketDataSource}.
  */
 export function arrayMarketDataSource(series: readonly SymbolCandles[]): MarketDataSource {
-  const merged = mergeCandleTicks(series);
   return {
     stream(_req: StreamRequest): AsyncIterable<MarketTick> {
       async function* gen(): AsyncGenerator<MarketTick> {
-        for (const tick of merged) yield tick;
+        yield* iterateCandleTicks(series);
       }
       return gen();
     },

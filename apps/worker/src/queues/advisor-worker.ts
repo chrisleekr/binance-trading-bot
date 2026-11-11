@@ -5,6 +5,7 @@ import {
   asProfileId,
   asUserId,
   BacktestParamsSchema,
+  comparisonContextOf,
   DEFAULT_ENABLEMENT_POLICY,
   EnablementPolicy,
   toConfigJsonSchema,
@@ -42,24 +43,19 @@ export interface AdvisorWorkerDeps {
 
 type ScopedRepo = Awaited<ReturnType<typeof profileRepo>>;
 
-// Prior same-market runs for the advisor's history. The metric-key set, cap, and
-// pure shaping now live in @app/llm's shapePriorRuns, shared with the api's thin
-// wrapper so a server call and this background job reason over the identical
-// context; only the DB read stays per-site to keep @app/llm DB-free. Same-market
-// only (identical symbols + window + interval); the current run is excluded by its
-// OWN stored signature so editing the config after the run cannot make it reappear
-// inside its own history. Empty when the params do not parse (no reliable market key).
+// Prior runs in the same replay context for the advisor's history. The metric-key set, cap, and pure shaping live in @app/llm's shapePriorRuns, shared with the api's thin wrapper so a server call and this background job reason over the identical context; only the DB read stays per-site to keep @app/llm DB-free. Same replay context only (identical symbols, window, costs, clocks, data and build); the current run is excluded by its OWN stored signature so editing the config after the run cannot make it reappear inside its own history. Empty when the params do not parse (no reliable market key).
 async function buildPriorRuns(
   p: ScopedRepo,
   strategyId: string,
   parsedParams: ReturnType<typeof BacktestParamsSchema.safeParse>,
   currentSignature: string | null,
+  contextFingerprint: string | null,
 ): Promise<AdvisorPriorRuns> {
   if (!parsedParams.success) return { total: 0, sample: [] };
   const pp = parsedParams.data;
   const rows = await p.resultLedger.listForMarket({
     symbols: pp.symbols,
-    window: { fromMs: pp.fromMs, toMs: pp.toMs, interval: pp.strategyInterval },
+    window: { fromMs: pp.fromMs, toMs: pp.toMs, interval: pp.strategyInterval, contextFingerprint },
     strategyId,
   });
   return shapePriorRuns(rows, currentSignature);
@@ -99,6 +95,7 @@ async function assembleAdvisorInput(
     profile.strategyName,
     parsedParams,
     run.backtestSignature,
+    comparisonContextOf(result),
   );
   const parsedPolicy = EnablementPolicy.safeParse(profile.enablementPolicy ?? {});
   const policy = parsedPolicy.success ? parsedPolicy.data : DEFAULT_ENABLEMENT_POLICY;

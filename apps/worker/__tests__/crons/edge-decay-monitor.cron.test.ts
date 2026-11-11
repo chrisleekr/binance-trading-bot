@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
 import type { Job } from 'bullmq';
 import type { AccountId, EdgeDecayVerdict, ProfileId, UserId } from '@app/contracts';
+import { BACKTEST_ENGINE_REVISION, configFingerprint } from '@app/strategy-core';
 import type { BootContext } from '../../src/boot/boot-context.js';
 
 const dbMocks = vi.hoisted(() => ({
@@ -36,8 +37,16 @@ const A = 'a1' as unknown as AccountId;
 const P = 'p1' as unknown as ProfileId;
 const job = {} as Job;
 
+const BASELINE_CONFIG = { tag: 'baseline' };
+
+// The registry the cron reads the running config through; the identity parse keeps the fingerprint under the test's control.
+const strategies = {
+  get: () => ({ configSchema: { safeParse: (c: unknown) => ({ success: true, data: c }) } }),
+};
+
 /** A pinned baseline run whose result parses, so the cron gets past `hasBaseline` and can reach a real verdict. Profit factor 1.8; every other figure is filler the monitor never reads. */
 const baselineRun = {
+  configFingerprint: configFingerprint(BASELINE_CONFIG),
   result: {
     params: {
       symbols: ['BTCUSDT'],
@@ -82,6 +91,15 @@ const baselineRun = {
     drawdownSeries: [],
     trades: [],
     perSymbol: [],
+    simulation: {
+      engineRevision: BACKTEST_ENGINE_REVISION,
+      buildId: 'abc1234',
+      strategyName: 'trailing-trade',
+      strategyVersion: '1.0.0',
+      decisionInterval: '1h',
+      dataFingerprint: 'd',
+      contextFingerprint: 'c',
+    },
   },
 };
 
@@ -157,6 +175,8 @@ describe('edgeDecayMonitorHandler', () => {
             monitor: { mode: 'warn', minTrades: 10, warnFactor: 0.85, breachFactor: 0.6 },
           },
           baselineBacktestRunId: 'baseline-1',
+          strategyName: 'trailing-trade',
+          config: BASELINE_CONFIG,
         }),
       },
       tradeArchive: { listForProfileInRange },
@@ -168,6 +188,7 @@ describe('edgeDecayMonitorHandler', () => {
       listActive: () => [{ operatorId: U, accountId: A, profileId: P }],
       redis: { exists: wasNotified, set: vi.fn(), del: vi.fn() },
       notifyEvent: notify,
+      strategies,
     } as unknown as BootContext;
 
     await buildEdgeDecayMonitorCron(ctx).handler(job);
@@ -203,6 +224,8 @@ describe('edgeDecayMonitorHandler', () => {
             monitor: { mode: 'warn', minTrades: 10, warnFactor: 0.85, breachFactor: 0.6 },
           },
           baselineBacktestRunId: 'baseline-1',
+          strategyName: 'trailing-trade',
+          config: BASELINE_CONFIG,
         }),
       },
       tradeArchive: { listForProfileInRange },
@@ -214,6 +237,7 @@ describe('edgeDecayMonitorHandler', () => {
       listActive: () => [{ operatorId: U, accountId: A, profileId: P }],
       redis: { exists: wasNotified, set: vi.fn(), del: vi.fn() },
       notifyEvent: notify,
+      strategies,
     } as unknown as BootContext;
 
     await buildEdgeDecayMonitorCron(ctx).handler(job);
@@ -247,6 +271,8 @@ describe('edgeDecayMonitorHandler', () => {
             monitor: { mode: 'warn', minTrades: 10, warnFactor: 0.85, breachFactor: 0.6 },
           },
           baselineBacktestRunId: 'baseline-1',
+          strategyName: 'trailing-trade',
+          config: BASELINE_CONFIG,
         }),
       },
       tradeArchive: { listForProfileInRange },
@@ -258,6 +284,7 @@ describe('edgeDecayMonitorHandler', () => {
       listActive: () => [{ operatorId: U, accountId: A, profileId: P }],
       redis: { exists: vi.fn(async () => 0), set: vi.fn(), del: vi.fn() },
       notifyEvent: notify,
+      strategies,
     } as unknown as BootContext;
 
     await buildEdgeDecayMonitorCron(ctx).handler(job);
@@ -298,6 +325,8 @@ describe('edgeDecayMonitorHandler', () => {
             monitor: { mode: 'warn', minTrades: 5, warnFactor: 0.85, breachFactor: 0.6 },
           },
           baselineBacktestRunId: 'baseline-1',
+          strategyName: 'trailing-trade',
+          config: BASELINE_CONFIG,
         }),
       },
       tradeArchive: { listForProfileInRange },
@@ -309,6 +338,7 @@ describe('edgeDecayMonitorHandler', () => {
       listActive: () => [{ operatorId: U, accountId: A, profileId: P }],
       redis: { exists: vi.fn(async () => 0), set, del: vi.fn() },
       notifyEvent: notify,
+      strategies,
     } as unknown as BootContext;
 
     await buildEdgeDecayMonitorCron(ctx).handler(job);
@@ -321,6 +351,92 @@ describe('edgeDecayMonitorHandler', () => {
       windowTradeCount: number;
     };
     expect(marker).toMatchObject({ liveTradeCount: 6, windowTradeCount: 40 });
+  });
+
+  describe('baseline yardstick unusable or usable', () => {
+    // Ten winners and ten heavy losers are a breach against a usable baseline, so silence proves the abstention and the control proves the same rows would alert.
+    const runCron = async (
+      run: unknown,
+      config: unknown,
+      latchSet: boolean,
+      registry: unknown = strategies,
+    ) => {
+      const listForProfileInRange = vi.fn(async () =>
+        Array.from({ length: 20 }, (_, n) => ({
+          quoteAsset: 'USDT',
+          source: 'manual',
+          profit: n < 10 ? '1' : '-10',
+          feesQuote: '0',
+          feeBasis: 'exact',
+        })),
+      );
+      const del = vi.fn();
+      const set = vi.fn();
+      const notify = vi.fn<EdgeDecayMonitorDeps['notify']>(async () => undefined);
+      dbMocks.binanceModeById.mockResolvedValueOnce('live');
+      dbMocks.profileRepo.mockResolvedValueOnce({
+        profile: {
+          findById: async () => ({
+            quoteAsset: 'USDT',
+            enablementPolicy: {
+              monitor: { mode: 'warn', minTrades: 5, warnFactor: 0.85, breachFactor: 0.6 },
+            },
+            baselineBacktestRunId: 'baseline-1',
+            strategyName: 'trailing-trade',
+            config,
+          }),
+        },
+        tradeArchive: { listForProfileInRange },
+        backtestRuns: { get: vi.fn(async () => run) },
+      });
+      const ctx = {
+        db: {},
+        logger: silent,
+        listActive: () => [{ operatorId: U, accountId: A, profileId: P }],
+        redis: { exists: vi.fn(async () => (latchSet ? 1 : 0)), set, del },
+        notifyEvent: notify,
+        strategies: registry,
+      } as unknown as BootContext;
+      await buildEdgeDecayMonitorCron(ctx).handler(job);
+      return { notify, set, del };
+    };
+
+    it('alerts when the baseline is usable (control)', async () => {
+      const { notify } = await runCron(baselineRun, BASELINE_CONFIG, false);
+      expect(notify).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+      [
+        'an older engine produced the baseline',
+        {
+          ...baselineRun,
+          result: {
+            ...baselineRun.result,
+            simulation: { ...baselineRun.result.simulation, engineRevision: 1 },
+          },
+        },
+        BASELINE_CONFIG,
+        strategies,
+      ],
+      ['the running config changed since the pin', baselineRun, { tag: 'edited' }, strategies],
+      [
+        'the running config no longer parses',
+        baselineRun,
+        BASELINE_CONFIG,
+        { get: () => ({ configSchema: { safeParse: () => ({ success: false }) } }) },
+      ],
+      ['the strategy is not registered', baselineRun, BASELINE_CONFIG, { get: () => undefined }],
+    ])(
+      'returns null, does not alert or clear latch when %s',
+      async (_name, run, config, registry) => {
+        const unset = await runCron(run, config, false, registry);
+        expect(unset.notify).not.toHaveBeenCalled();
+        expect(unset.set).not.toHaveBeenCalled();
+        const set = await runCron(run, config, true, registry);
+        expect(set.del).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it('judges only the trades recorded since the baseline was pinned', async () => {
@@ -355,6 +471,8 @@ describe('edgeDecayMonitorHandler', () => {
             monitor: { mode: 'warn', minTrades: 10, warnFactor: 0.85, breachFactor: 0.6 },
           },
           baselineBacktestRunId: 'baseline-1',
+          strategyName: 'trailing-trade',
+          config: BASELINE_CONFIG,
           baselinePinnedAt: pinnedAt,
         }),
       },
@@ -367,6 +485,7 @@ describe('edgeDecayMonitorHandler', () => {
       listActive: () => [{ operatorId: U, accountId: A, profileId: P }],
       redis: { exists: vi.fn(async () => 0), set: vi.fn(), del: vi.fn() },
       notifyEvent: notify,
+      strategies,
     } as unknown as BootContext;
 
     await buildEdgeDecayMonitorCron(ctx).handler(job);
@@ -421,6 +540,8 @@ describe('edgeDecayMonitorHandler', () => {
             monitor: { mode: 'warn', minTrades: 10, warnFactor: 0.85, breachFactor: 0.6 },
           },
           baselineBacktestRunId: 'baseline-1',
+          strategyName: 'trailing-trade',
+          config: BASELINE_CONFIG,
         }),
       },
       tradeArchive: { listForProfileInRange },
@@ -432,6 +553,7 @@ describe('edgeDecayMonitorHandler', () => {
       listActive: () => [{ operatorId: U, accountId: A, profileId: P }],
       redis: { exists: vi.fn(async () => 0), set: vi.fn(), del: vi.fn() },
       notifyEvent: notify,
+      strategies,
     } as unknown as BootContext;
 
     await buildEdgeDecayMonitorCron(ctx).handler(job);

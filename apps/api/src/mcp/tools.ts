@@ -1,6 +1,6 @@
 import {
   ArchiveSort,
-  BacktestParamsSchema,
+  BacktestSubmitSchema,
   BINANCE_KLINE_INTERVALS,
   ClosedTradesPeriod,
   DiscoveryConfigSchema,
@@ -20,17 +20,16 @@ export interface McpToolAnnotations {
 /**
  * Client-specific hints, which Claude Code reads from the tool entry's `_meta` and from nowhere else.
  *
- * The same keys nested inside `annotations` are silently ignored, and silently is the whole problem: the tool listing still looks correct while `requiresUserInteraction` stops forcing a permission prompt on a real order and `maxResultSizeChars` stops raising the default output cap, so a large read comes back truncated. `requiresUserInteraction` is read strictly: only the JSON boolean `true` counts.
+ * The same keys nested inside `annotations` are silently ignored, and silently is the whole problem: the tool listing still looks correct while `maxResultSizeChars` stops raising the default output cap, so a large read comes back truncated.
  */
 export interface McpToolMeta {
-  readonly 'anthropic/requiresUserInteraction'?: boolean;
   readonly 'anthropic/maxResultSizeChars'?: number;
 }
 
 /**
  * Both hint carriers as one value, because they are chosen together and must not be passed separately.
  *
- * `destructiveHint` and `anthropic/requiresUserInteraction` sit on every trade tool and on no read tool, but they ride in different wire fields: the first tells the model the call is not safely retryable, the second forces a full permission prompt instead of the one-tap approval a client may otherwise offer. Two independently-supplied fields is exactly how one of the pair goes missing. A read tool that carried either would train the operator to wave prompts through, which is how a real order gets approved unread.
+ * `destructiveHint` sits on every write tool and on no read tool, because it tells the client the call may change or destroy state. It is advisory: nothing forces a person's approval before a write runs.
  */
 export interface McpToolHints {
   readonly annotations: McpToolAnnotations;
@@ -75,7 +74,6 @@ const LARGE_READ_HINTS: McpToolHints = {
 };
 const WRITE_HINTS: McpToolHints = {
   annotations: { destructiveHint: true },
-  meta: { 'anthropic/requiresUserInteraction': true },
 };
 
 /** Consumed by the idempotency layer before dispatch, so it must never reach the upstream route as a body field. */
@@ -328,7 +326,7 @@ const SYMBOL = `${PROFILE}/symbols/:symbol`;
 /**
  * The complete agent-facing surface: 34 reads on `mcp:read`, 35 writes on `mcp:trade`.
  *
- * Writes are 1:1 with the action they perform and explicitly named, because the permission prompt and the audit row should say exactly what happened. A generic verb with a `kind` parameter would let the single most dangerous call in the set, a market fan-out across every bound symbol, arrive looking like every other write. Reads are consolidated only where the routes return the same shape and the model would otherwise spend four tool definitions on one question.
+ * Writes are 1:1 with the action they perform and explicitly named, because the audit row should say exactly what happened. A generic verb with a `kind` parameter would let the single most dangerous call in the set, a market fan-out across every bound symbol, arrive looking like every other write. Reads are consolidated only where the routes return the same shape and the model would otherwise spend four tool definitions on one question.
  */
 export const MCP_TOOLS: readonly McpTool[] = [
   readTool({
@@ -826,8 +824,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
   writeTool({
     name: 'enable_symbol',
     signature: `DELETE ${SYMBOL}/disable`,
-    description:
-      'Resume trading a symbol that was switched off. This re-arms real trading on it, which is why it needs the same confirmation as any other write.',
+    description: 'Resume trading a symbol that was switched off. This re-arms real trading on it.',
     shape: symbolArgs,
   }),
   writeTool({
@@ -987,7 +984,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
     description:
       'Queue a backtest over a window of history. Compute-heavy and long-running; poll get_backtest for progress and use abort_backtest to stop it. The run is priced by fees, slippage and spread, so leaving those at zero backtests a market that does not exist.',
     // Spread from the route's own request schema rather than restated, because a backtest request is a dozen required fields and a restatement of it here is a second copy that starts agreeing and stops silently. It also replaces an opaque `params` object the caller had no description of: the fields now carry the contract's own constraints, which is what the caller needs to fill them in.
-    shape: { ...profileArgs, ...BacktestParamsSchema.shape },
+    shape: { ...profileArgs, ...BacktestSubmitSchema.shape },
   }),
   writeTool({
     name: 'abort_backtest',

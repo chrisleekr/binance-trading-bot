@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   type BacktestParams,
+  type BacktestResult,
   BacktestCreatedSchema,
   BacktestListItemSchema,
   BacktestParamsSchema,
@@ -8,12 +9,12 @@ import {
   BacktestRunDetailSchema,
   BacktestRunStatusSchema,
   coerceImproveConfigModelShape,
+  comparableBacktests,
   type ConfigSuggestion,
   marketOf,
   mergeImproveResponses,
   parseImproveConfigModelOutput,
   recommendTradeOrHold,
-  sameMarket,
   tokenizePath,
 } from '../src/backtest.js';
 import { asDecimalString } from '../src/decimal.js';
@@ -301,32 +302,8 @@ describe('tokenizePath', () => {
 });
 
 describe('BacktestCreatedSchema', () => {
-  it('carries a deduped flag, defaulting to false when omitted (a fresh enqueue)', () => {
-    // A normal create response predates the dedup flag, so the schema must
-    // default `deduped` to false rather than leave it undefined — the route
-    // reads it to decide between "queued a fresh run" and "showing an existing".
-    const parsed = BacktestCreatedSchema.parse({ runId: UUID });
-    expect(parsed.deduped).toBe(false);
-  });
-
-  it('accepts deduped: true (the create matched an existing completed run)', () => {
-    const parsed = BacktestCreatedSchema.parse({ runId: UUID, deduped: true });
-    expect(parsed.deduped).toBe(true);
-  });
-
-  // Only a launch that could not be fully checked sets the advisories, so the
-  // field has to stay optional or every clean launch response throws.
-  it('omits the save diagnostics when the response carries none', () => {
-    expect(BacktestCreatedSchema.parse({ runId: UUID })).not.toHaveProperty('diagnostics');
-  });
-
-  it('round-trips the findings a launch attaches', () => {
-    const diagnostics = [
-      { level: 'warn' as const, code: 'config-unverified', message: 'Settings unreadable.' },
-    ];
-    expect(BacktestCreatedSchema.parse({ runId: UUID, diagnostics }).diagnostics).toEqual(
-      diagnostics,
-    );
+  it('carries only the new run id, because every submission executes afresh', () => {
+    expect(BacktestCreatedSchema.parse({ runId: UUID, deduped: true })).toEqual({ runId: UUID });
   });
 });
 
@@ -384,13 +361,13 @@ describe('BacktestRunDetailSchema', () => {
   });
 });
 
-describe('sameMarket', () => {
-  // Every market dim set so each can be mutated independently below.
-  const baseMarket: BacktestParams = {
+describe('comparableBacktests', () => {
+  const params: BacktestParams = {
     symbols: ['BTCUSDT', 'ETHUSDT'],
     fromMs: 1_000,
     toMs: 5_000,
     strategyInterval: '1h',
+    decisionInterval: '5m',
     detailInterval: '5m',
     initialQuoteBalance: asDecimalString('1000'),
     fees: { makerBps: 10, takerBps: 12 },
@@ -399,74 +376,84 @@ describe('sameMarket', () => {
     volumeCapPct: 25,
     discoveryMode: false,
   };
+  const simulation = {
+    engineRevision: 3,
+    buildId: 'abc1234',
+    strategyName: 'trailing-trade',
+    strategyVersion: '1.0.0',
+    decisionInterval: '5m',
+    dataFingerprint: 'data',
+    contextFingerprint: 'context',
+  };
+  // Only params and simulation decide comparability.
+  const result = (p: Partial<BacktestParams> = {}, sim: object | undefined = simulation) =>
+    ({ params: { ...params, ...p }, simulation: sim }) as unknown as BacktestResult;
+  const other = { ...simulation, contextFingerprint: 'other' };
 
-  it('is true for two params equal on every market dim', () => {
-    expect(sameMarket(baseMarket, { ...baseMarket })).toBe(true);
+  it('compares two runs sharing a context, whatever their config', () => {
+    const edited = { strategyConfigOverride: { buy: { enabled: true } } };
+    expect(comparableBacktests(result(), result(edited))).toEqual({
+      comparable: true,
+      reason: null,
+    });
   });
 
-  it('is true when symbols differ only in order (order-insensitive)', () => {
-    expect(sameMarket(baseMarket, { ...baseMarket, symbols: ['ETHUSDT', 'BTCUSDT'] })).toBe(true);
+  it('refuses a legacy run even beside itself', () => {
+    const legacy = { ...result(), simulation: undefined };
+    expect(comparableBacktests(legacy, legacy).comparable).toBe(false);
   });
 
-  it('is independent of strategyConfigOverride (a differing override is still the same market)', () => {
+  it('refuses an unknown build even when the fingerprints match', () => {
+    const unknown = result({}, { ...simulation, buildId: 'unknown' });
+    expect(comparableBacktests(unknown, unknown).reason).toMatch(/unknown build/);
+  });
+
+  it.each([
+    ['symbols', { symbols: ['BTCUSDT'] }, /market window/],
+    ['fromMs', { fromMs: 2_000 }, /market window/],
+    ['toMs', { toMs: 6_000 }, /market window/],
+    ['discoveryMode', { discoveryMode: true }, /market window/],
+    ['strategyInterval', { strategyInterval: '4h' }, /replay intervals/],
+    ['decisionInterval', { decisionInterval: '1m' }, /replay intervals/],
+    ['detailInterval', { detailInterval: '1m' }, /replay intervals/],
+    ['fees', { fees: { makerBps: 1, takerBps: 12 } }, /trading costs/],
+    ['takerBps', { fees: { makerBps: 10, takerBps: 1 } }, /trading costs/],
+    ['slippageBps', { slippageBps: 9 }, /trading costs/],
+    ['spreadBps', { spreadBps: 9 }, /trading costs/],
+    ['volumeCapPct', { volumeCapPct: 9 }, /trading costs/],
+    ['initialQuoteBalance', { initialQuoteBalance: asDecimalString('9') }, /different balances/],
+  ] as const)('names the difference when %s differs', (_dim, change, reason) => {
+    const verdict = comparableBacktests(result(), result(change as Partial<BacktestParams>, other));
+    expect(verdict.comparable).toBe(false);
+    expect(verdict.reason).toMatch(reason);
+  });
+
+  it('names a different build', () => {
     expect(
-      sameMarket(
-        { ...baseMarket, strategyConfigOverride: { buy: { enabled: true } } },
-        { ...baseMarket, strategyConfigOverride: { buy: { enabled: false } } },
-      ),
-    ).toBe(true);
+      comparableBacktests(result(), result({}, { ...other, buildId: 'def5678' })).reason,
+    ).toMatch(/different builds/);
   });
 
-  // Drift guard: each entry mutates exactly one market dim, after which sameMarket
-  // must be false. The enumerated set IS the contract — adding or removing a
-  // market dim without also updating this list (and sameMarket) deliberately
-  // breaks one of the assertions below.
-  const MARKET_DIM_MUTATIONS: {
-    dim: string;
-    mutate: (p: BacktestParams) => BacktestParams;
-  }[] = [
-    { dim: 'symbols', mutate: (p) => ({ ...p, symbols: ['XRPUSDT'] }) },
-    { dim: 'fromMs', mutate: (p) => ({ ...p, fromMs: p.fromMs + 1 }) },
-    { dim: 'toMs', mutate: (p) => ({ ...p, toMs: p.toMs + 1 }) },
-    { dim: 'strategyInterval', mutate: (p) => ({ ...p, strategyInterval: '4h' }) },
-    { dim: 'detailInterval', mutate: (p) => ({ ...p, detailInterval: '15m' }) },
-    {
-      dim: 'fees.makerBps',
-      mutate: (p) => ({ ...p, fees: { ...p.fees, makerBps: p.fees.makerBps + 1 } }),
-    },
-    {
-      dim: 'fees.takerBps',
-      mutate: (p) => ({ ...p, fees: { ...p.fees, takerBps: p.fees.takerBps + 1 } }),
-    },
-    { dim: 'slippageBps', mutate: (p) => ({ ...p, slippageBps: p.slippageBps + 1 }) },
-    { dim: 'spreadBps', mutate: (p) => ({ ...p, spreadBps: (p.spreadBps ?? 0) + 1 }) },
-    { dim: 'volumeCapPct', mutate: (p) => ({ ...p, volumeCapPct: (p.volumeCapPct ?? 0) + 1 }) },
-    { dim: 'discoveryMode', mutate: (p) => ({ ...p, discoveryMode: !p.discoveryMode }) },
-    {
-      dim: 'initialQuoteBalance',
-      mutate: (p) => ({ ...p, initialQuoteBalance: asDecimalString('2000') }),
-    },
-  ];
-
-  it('enumerates exactly the 12 market dims (drift guard)', () => {
-    expect(MARKET_DIM_MUTATIONS.map((d) => d.dim)).toEqual([
-      'symbols',
-      'fromMs',
-      'toMs',
-      'strategyInterval',
-      'detailInterval',
-      'fees.makerBps',
-      'fees.takerBps',
-      'slippageBps',
-      'spreadBps',
-      'volumeCapPct',
-      'discoveryMode',
-      'initialQuoteBalance',
-    ]);
+  it.each([
+    ['engineRevision', { engineRevision: 2 }],
+    ['strategyName', { strategyName: 'momentum' }],
+    ['strategyVersion', { strategyVersion: '0.9.0' }],
+  ] as const)('names different builds or strategy versions when %s differs', (_dim, change) => {
+    const verdict = comparableBacktests(result(), result({}, { ...other, ...change }));
+    expect(verdict.comparable).toBe(false);
+    expect(verdict.reason).toMatch(/different builds or strategy versions/);
+    expect(comparableBacktests(result({}, { ...other, ...change }), result()).reason).toMatch(
+      /different builds or strategy versions/,
+    );
   });
 
-  it.each(MARKET_DIM_MUTATIONS)('is false when $dim differs', ({ mutate }) => {
-    expect(sameMarket(baseMarket, mutate(baseMarket))).toBe(false);
+  it('names a legacy run as predating replay metadata', () => {
+    const legacy = { ...result(), simulation: undefined } as unknown as BacktestResult;
+    expect(comparableBacktests(legacy, result()).reason).toMatch(/predates replay metadata/);
+  });
+
+  it('names different candles when nothing else explains the fingerprints', () => {
+    expect(comparableBacktests(result(), result({}, other)).reason).toMatch(/different candles/);
   });
 });
 
@@ -487,12 +474,13 @@ describe('marketOf', () => {
 
   // Drift guard: marketOf IS the single enumeration of the market dims. Adding or
   // removing a dim without updating this list breaks the assertion.
-  it('enumerates exactly the 12 flat market dims (drift guard)', () => {
+  it('enumerates exactly the 13 flat market dims (drift guard)', () => {
     expect(Object.keys(marketOf(params))).toEqual([
       'symbols',
       'fromMs',
       'toMs',
       'strategyInterval',
+      'decisionInterval',
       'detailInterval',
       'makerBps',
       'takerBps',

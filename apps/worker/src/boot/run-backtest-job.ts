@@ -1,5 +1,4 @@
-// The `backtest` queue's run callback: load the durable run + profile, replay
-// the strategy over the window, and build the ledger entry the caller persists.
+// The `backtest` queue's run callback: load the durable run, replay its frozen config over the window, and build the ledger entry the caller persists.
 //
 // This is backtest DOMAIN logic, not boot wiring — it re-validates stored params, replays the window, and stamps the ledger signature. It lives here rather than inline in the worker entrypoint so `index.ts` stays the orchestrator it declares itself to be, and so a ledger-shape change edits a backtest module instead of the boot file.
 
@@ -9,17 +8,20 @@ import {
   asAccountId,
   asProfileId,
   asUserId,
-  BacktestParamsSchema,
+  BacktestStoredParamsSchema,
   marketOf,
   type BacktestProgressUpdate,
   type BacktestResult,
 } from '@app/contracts';
 import { profileRepo, type Database, type LedgerEntry } from '@app/db';
-import { signatureForBacktest, type StrategyRegistry, type SymbolInfo } from '@app/strategy-core';
+import {
+  BACKTEST_ENGINE_REVISION,
+  signatureForBacktest,
+  type StrategyRegistry,
+  type SymbolInfo,
+} from '@app/strategy-core';
 
 import { runProfileBacktest } from 'backtest/backtest-runner.js';
-import type { LruCandleCache } from 'backtest/candle-cache.js';
-import type { LruSignalCache } from 'backtest/signal-cache.js';
 
 export interface RunBacktestJobDeps {
   readonly db: Database;
@@ -29,11 +31,10 @@ export interface RunBacktestJobDeps {
   readonly getSymbolInfo: (symbol: string) => Promise<SymbolInfo>;
   readonly strategies: StrategyRegistry;
   readonly clock: { nowMs(): number };
-  /** Process-wide caches shared across runs over the same window. */
-  readonly signalCache: LruSignalCache;
-  readonly candleCache: LruCandleCache;
   /** Fraction of one core a replay may use; throttled under ROLE=all. */
   readonly cpuShare: number;
+  /** The deployed build, or `unknown`. A queued run frozen on another build cannot be replayed. */
+  readonly buildId: string;
 }
 
 export interface RunBacktestJobResult {
@@ -42,10 +43,16 @@ export interface RunBacktestJobResult {
   readonly ledgerEntry: LedgerEntry;
 }
 
+const RESUBMIT_HINT = 'resubmit the backtest to run it on the current version';
+
+// `unknown` on either side means the build cannot be told apart, so it executes and the result is simply never comparable.
+const sameBuild = (a: string, b: string): boolean => a === 'unknown' || b === 'unknown' || a === b;
+
 /**
- * Build the `run` callback `registerBacktestWorker` invokes per job. Throws on a
- * missing run, missing profile, malformed params, or unknown strategy — the
- * queue marks the row `error` and routes to the DLQ.
+ * Build the `run` callback `registerBacktestWorker` invokes per job. Throws on a missing run, a run that cannot be replayed faithfully, or an unknown strategy; the queue marks the row `error` and routes to the DLQ.
+ *
+ * @param deps - The candle store, exchange access, strategy registry and build id.
+ * @returns The per-job callback.
  */
 export const createRunBacktestJob =
   (deps: RunBacktestJobDeps) =>
@@ -65,12 +72,21 @@ export const createRunBacktestJob =
     );
     const run = await p.backtestRuns.get(runId);
     if (!run) throw new Error(`backtest run not found: ${runId}`);
-    const profile = await p.profile.findById();
-    if (!profile) throw new Error(`profile not found for backtest run: ${runId}`);
-    // Re-validate the stored params: the durable row is read minutes after the
-    // API validated it, so parse defensively rather than trusting the jsonb — a
-    // malformed row fails cleanly instead of deref-ing deep in the engine.
-    const params = BacktestParamsSchema.parse(run.params);
+    // Re-validate the stored row rather than trusting the jsonb: one queued before the snapshot existed cannot be executed, because its config was never frozen.
+    const parsed = BacktestStoredParamsSchema.safeParse(run.params);
+    if (!parsed.success) {
+      throw new Error(`backtest run ${runId} predates frozen configs; ${RESUBMIT_HINT}`);
+    }
+    const { snapshot, ...params } = parsed.data;
+    const strategy = deps.strategies.get(snapshot.strategyName);
+    if (!strategy) throw new Error(`unknown strategy: ${snapshot.strategyName}`);
+    if (
+      snapshot.strategyVersion !== strategy.version ||
+      snapshot.engineRevision !== BACKTEST_ENGINE_REVISION ||
+      !sameBuild(snapshot.buildId, deps.buildId)
+    ) {
+      throw new Error(`backtest run ${runId} was queued on another version; ${RESUBMIT_HINT}`);
+    }
     const { result, configFingerprint } = await runProfileBacktest(
       {
         db: deps.db,
@@ -79,42 +95,39 @@ export const createRunBacktestJob =
         strategies: deps.strategies,
         clock: deps.clock,
         logger: deps.logger,
-        signalCache: deps.signalCache,
-        candleCache: deps.candleCache,
         cpuShare: deps.cpuShare,
+        buildId: deps.buildId,
       },
       {
         params,
-        strategyName: profile.strategyName,
-        profileConfig: profile.config,
+        strategyName: snapshot.strategyName,
+        effectiveConfig: snapshot.effectiveConfig,
         onProgress,
         shouldCancel,
       },
     );
-    // Build the durable ledger entry through the shared signature seam so the
-    // worker stamp and any later re-run dedup key off one identical signature.
-    // runProfileBacktest already resolved this strategy (it throws on an unknown
-    // one), so this lookup cannot miss; the guard is for the type.
-    const strategy = deps.strategies.get(profile.strategyName);
-    if (!strategy) throw new Error(`unknown strategy: ${profile.strategyName}`);
+    const contextFingerprint = result.simulation?.contextFingerprint ?? null;
+    // The frozen config already carries the override, so it is not applied twice.
     const { signature, config: effectiveConfig } = signatureForBacktest({
-      strategyId: profile.strategyName,
+      strategyId: snapshot.strategyName,
       parseConfig: (c) => strategy.configSchema.parse(c),
-      profileConfig: profile.config,
-      override: params.strategyConfigOverride ?? null,
-      market: marketOf(params),
+      profileConfig: snapshot.effectiveConfig,
+      override: null,
+      market: { ...marketOf(params), contextFingerprint },
     });
     const ledgerEntry: LedgerEntry = {
       backtestSignature: signature,
       configFingerprint,
-      strategyId: profile.strategyName,
+      strategyId: snapshot.strategyName,
       symbols: params.symbols,
-      window: { fromMs: params.fromMs, toMs: params.toMs, interval: params.strategyInterval },
+      window: {
+        fromMs: params.fromMs,
+        toMs: params.toMs,
+        interval: params.strategyInterval,
+        contextFingerprint,
+      },
       params: effectiveConfig,
-      // The full metrics block (no heavy series) so a cached trial can be scored
-      // against ANY objective (sortino/calmar/sqn/...) and priors can read any
-      // objective metric. `gatePassed` is objective-relative, so it is derived at
-      // read time, not stored.
+      // The full metrics block (no heavy series) so a cached trial can be scored against any objective. `gatePassed` is objective-relative, so it is derived at read time, not stored.
       outcome: result.metrics,
     };
     return { result, configFingerprint, ledgerEntry };

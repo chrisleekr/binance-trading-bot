@@ -1,13 +1,11 @@
 // History slice of the backtest workbench: the past-runs list with its outcome /
 // type filters, cursor pagination, rows-per-page, multi-select for bulk delete,
-// and the single confirm dialog that gates every irreversible deletion. The
-// dedup dialog state also lives here (the launch mutation in the run slice sets
-// it when an identical re-run is deduped).
+// and the single confirm dialog that gates every irreversible deletion.
 
 import { useCallback, useMemo, useState, type SetStateAction } from 'react';
 import { useMutation, useQuery, type QueryClient } from '@tanstack/react-query';
 
-import { BACKTEST_LIST_DEFAULT_PAGE_SIZE, type BacktestParams } from '@app/contracts';
+import { BACKTEST_LIST_DEFAULT_PAGE_SIZE } from '@app/contracts';
 import { errorMessage } from '@/shared/lib/api';
 import {
   backtestListQueryKey,
@@ -103,12 +101,6 @@ export function useBacktestHistory({
   // One confirm dialog gates every (irreversible) deletion.
   const [confirmDelete, setConfirmDelete] = useState<PendingDelete | null>(null);
 
-  // A blocking choice when a launch dedups onto an identical finished run.
-  const [pendingDedup, setPendingDedup] = useState<{
-    runId: string;
-    params: BacktestParams;
-  } | null>(null);
-
   // Every delete mutation closes the confirm dialog and surfaces the failure the
   // same way; only their success paths differ.
   const onDeleteError = (err: unknown): void => {
@@ -191,8 +183,6 @@ export function useBacktestHistory({
     deleteBusy,
     del,
     bulkDel,
-    pendingDedup,
-    setPendingDedup,
     // Consumed by the run slice's launch optimistic write and page resets.
     runsFilterParam,
     runsLimitParam,

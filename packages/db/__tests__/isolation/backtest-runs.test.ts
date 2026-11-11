@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { asProfileId } from '@app/contracts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -8,7 +7,6 @@ import {
   type ProfileRepo,
 } from '../../src/repo/index.js';
 import { backtestRuns } from '../../src/schema/backtest-runs.js';
-import { profiles } from '../../src/schema/profiles.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js';
 
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
@@ -183,75 +181,6 @@ describeIfDb('backtest_runs account-scoped lifecycle', () => {
     const run = await alice.backtestRuns.create({ symbols: ['BTCUSDT'], params: PARAMS });
     expect(run.backtestSignature).toBeNull();
     expect((await alice.backtestRuns.get(run.id))?.backtestSignature).toBeNull();
-  });
-
-  it('findDoneBySignature returns the newest done standalone run with a result for the signature', async () => {
-    // Re-run dedup keys off this: an identical backtest already completed should
-    // surface its run instead of enqueuing a new one.
-    const localFx = await setupFixture();
-    try {
-      const a = await profileRepo(
-        localFx.db,
-        localFx.alice.userId,
-        localFx.alice.accountId,
-        localFx.alice.profileId,
-      );
-      const sig = `sig-${randomUUID()}`;
-
-      // A done standalone run whose signature is stamped at completion, the match.
-      const done = await a.backtestRuns.create({ symbols: ['BTCUSDT'], params: PARAMS });
-      await a.backtestRuns.markRunning(done.id);
-      await a.backtestRuns.complete(done.id, { metrics: { totalReturnPct: 3 } }, null, sig);
-
-      // A queued (non-done) run carrying the SAME signature must be ignored. A
-      // queued run never reaches complete(), so seed the signature directly to
-      // exercise the status='done' guard rather than a trivially-null row.
-      await localFx.db.insert(backtestRuns).values({
-        id: randomUUID(),
-        profileId: localFx.alice.profileId,
-        symbols: ['BTCUSDT'],
-        params: PARAMS,
-        status: 'queued',
-        progress: 0,
-        backtestSignature: sig,
-      });
-
-      // A SECOND profile under the SAME user, with a done standalone run carrying
-      // the SAME signature, must not leak across the per-row profile_id filter.
-      const otherProfileId = asProfileId(randomUUID());
-      await localFx.db.insert(profiles).values({
-        id: otherProfileId,
-        accountId: localFx.alice.accountId as unknown as string,
-        name: 'second',
-        strategyName: 'trailing-trade',
-        strategyVersion: '2.0.0',
-        config: {},
-        state: {},
-      });
-      const other = await profileRepo(
-        localFx.db,
-        localFx.alice.userId,
-        localFx.alice.accountId,
-        otherProfileId,
-      );
-      const otherDone = await other.backtestRuns.create({ symbols: ['BTCUSDT'], params: PARAMS });
-      await other.backtestRuns.markRunning(otherDone.id);
-      await other.backtestRuns.complete(
-        otherDone.id,
-        { metrics: { totalReturnPct: 9 } },
-        null,
-        sig,
-      );
-
-      const found = await a.backtestRuns.findDoneBySignature(sig);
-      expect(found?.id).toBe(done.id);
-      // The other profile's identical-signature run is invisible to this scope.
-      expect(found?.id).not.toBe(otherDone.id);
-      // No completed standalone run carries this signature.
-      expect(await a.backtestRuns.findDoneBySignature('no-such-signature')).toBeNull();
-    } finally {
-      await localFx.cleanup();
-    }
   });
 
   it('markRunning is a no-op on a done run (retry after complete cannot resurrect)', async () => {

@@ -38,8 +38,8 @@ vi.mock('@app/db', async (importOriginal) => {
   };
 });
 
-const { runProfileBacktest, BacktestCancelledError } =
-  await import('../../src/backtest/backtest-runner.js');
+const { runProfileBacktest } = await import('../../src/backtest/backtest-runner.js');
+const { BacktestCancelledError } = await import('../../src/backtest/replay.js');
 
 const silentLogger = pino({ level: 'silent' });
 
@@ -66,14 +66,9 @@ const EMPTY_REPORT = {
   regimeBreakdown: [],
 };
 
-interface CallOpts {
-  nowMs?: () => number;
-  candleCache?: { get: (k: string) => unknown; set: (k: string, v: unknown) => void };
-}
-
 // deps/args shaped to satisfy runProfileBacktest; the heavy data path is mocked,
 // so only the fields the runner reads before runBacktest need to be present.
-function makeCall(shouldCancel: () => boolean, onProgress?: (u: unknown) => void, opts?: CallOpts) {
+function makeCall(shouldCancel: () => boolean, onProgress?: (u: unknown) => void) {
   const deps = {
     db: {},
     getKlines: vi.fn(),
@@ -85,18 +80,20 @@ function makeCall(shouldCancel: () => boolean, onProgress?: (u: unknown) => void
     strategies: {
       get: () => ({
         name: 'tt',
+        version: '1.0.0',
         configSchema: { parse: (c: unknown) => c },
         capabilities: { bundleProviders: [] as string[] },
       }),
     },
-    clock: { nowMs: opts?.nowMs ?? (() => 0) },
+    clock: { nowMs: () => 0 },
     logger: silentLogger,
-    ...(opts?.candleCache ? { candleCache: opts.candleCache } : {}),
+    buildId: 'abc1234',
   };
   const args = {
     params: {
       symbols: ['BTCUSDT'],
       strategyInterval: '1h',
+      decisionInterval: '1h',
       detailInterval: '1h',
       fromMs: 0,
       toMs: 250 * 3_600_000,
@@ -105,7 +102,7 @@ function makeCall(shouldCancel: () => boolean, onProgress?: (u: unknown) => void
       initialQuoteBalance: '1000',
     },
     strategyName: 'tt',
-    profileConfig: {},
+    effectiveConfig: {},
     shouldCancel,
     ...(onProgress ? { onProgress } : {}),
   };
@@ -136,9 +133,8 @@ describe('runProfileBacktest cancellation', () => {
     await expect(makeCall(() => false)).resolves.toBeDefined();
   });
 
-  it('emits backfill → warmup → replay → finalize phases via onProgress', async () => {
-    // 230 candles − 200 warm-up = 30 tradeable ticks; the mocked engine fires one
-    // replay tick so the runner reports a replay frame with processed/total.
+  it('emits backfill, replay and finalize phases via onProgress', async () => {
+    // The total is the frames the range should hold, however many candles the store returned.
     repoMocks.getRange.mockResolvedValue(Array.from({ length: 230 }, (_, i) => candleRow(i)));
     runBacktest.mockImplementation(async (opts: { onProgress?: (n: number) => void }) => {
       opts.onProgress?.(1);
@@ -149,44 +145,8 @@ describe('runProfileBacktest cancellation', () => {
       () => false,
       (u) => phases.push(u as (typeof phases)[number]),
     );
-    expect(phases.map((p) => p.phase)).toEqual(['backfill', 'warmup', 'replay', 'finalize']);
+    expect(phases.map((p) => p.phase)).toEqual(['backfill', 'replay', 'finalize']);
     expect(phases[0]).toMatchObject({ phase: 'backfill', symbol: 'BTCUSDT' });
-    expect(phases[2]).toMatchObject({ phase: 'replay', processed: 1, total: 30 });
-    // No count is carried on warm-up (the "candle X of Y" view is replay-only).
-    expect(phases[1]).toEqual({ pct: 0, phase: 'warmup' });
-  });
-});
-
-describe('runProfileBacktest candle-cache hygiene', () => {
-  // now far past the 250h window so the last closed bar sits at the window end.
-  const FAR_NOW = () => 1000 * 3_600_000;
-
-  it('does not pin a window that stops short of the last closed bar, but still replays it', async () => {
-    // 230 candles (newest opens 229h) over a window ending at 249h: a truncated
-    // tail. The window must still feed the replay (runBacktest runs), but the
-    // sparse fetch must not be pinned for later trials.
-    repoMocks.getRange.mockResolvedValue(Array.from({ length: 230 }, (_, i) => candleRow(i)));
-    runBacktest.mockResolvedValue(EMPTY_REPORT);
-    const candleCache = { get: vi.fn(() => undefined), set: vi.fn() };
-
-    await expect(
-      makeCall(() => false, undefined, { nowMs: FAR_NOW, candleCache }),
-    ).resolves.toBeDefined();
-
-    expect(candleCache.set).not.toHaveBeenCalled();
-    expect(runBacktest).toHaveBeenCalled();
-  });
-
-  it('pins a window that reaches the last closed bar', async () => {
-    // 250 candles (newest opens 249h) reaches the last closed bar at 249h.
-    repoMocks.getRange.mockResolvedValue(Array.from({ length: 250 }, (_, i) => candleRow(i)));
-    runBacktest.mockResolvedValue(EMPTY_REPORT);
-    const candleCache = { get: vi.fn(() => undefined), set: vi.fn() };
-
-    await expect(
-      makeCall(() => false, undefined, { nowMs: FAR_NOW, candleCache }),
-    ).resolves.toBeDefined();
-
-    expect(candleCache.set).toHaveBeenCalled();
+    expect(phases[1]).toMatchObject({ phase: 'replay', processed: 1, total: 250 });
   });
 });

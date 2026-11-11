@@ -142,6 +142,15 @@ const sampleDashboard = {
 };
 
 const doneResult = (override?: Record<string, unknown>) => ({
+  simulation: {
+    engineRevision: 3,
+    buildId: 'abc1234',
+    strategyName: 'trailing-trade',
+    strategyVersion: '1.0.0',
+    decisionInterval: '1h',
+    dataFingerprint: 'data',
+    contextFingerprint: 'context',
+  },
   params: {
     symbols: ['BTCUSDT'],
     fromMs: 1,
@@ -505,21 +514,27 @@ describe('/profiles/$profileId/backtest', () => {
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
     await user.clear(screen.getByLabelText('From'));
-    await user.type(screen.getByLabelText('From'), '2026-01-01T00:00');
+    await user.type(screen.getByLabelText('From'), '2026-01-01T00:07');
     await user.clear(screen.getByLabelText('To'));
-    await user.type(screen.getByLabelText('To'), '2026-02-01T00:00');
+    await user.type(screen.getByLabelText('To'), '2026-02-01T00:08');
     await user.click(screen.getByText('Run backtest'));
 
     await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument());
     const body = postBody as {
       symbols: string[];
       strategyInterval: string;
+      decisionInterval: string;
       fromMs: number;
+      toMs: number;
       strategyConfigOverride: { symbol: string };
     };
     expect(body.symbols).toEqual(['BTCUSDT']);
     expect(body.strategyInterval).toBe('1h');
+    expect(body.decisionInterval).toBe('1h');
     expect(Number.isNaN(body.fromMs)).toBe(false);
+    // The server rejects an off-grid window, so the form floors it to the 5m detail grid.
+    expect(body.fromMs % 300_000).toBe(0);
+    expect(body.toMs % 300_000).toBe(0);
     // The override carries the edited config with the picked symbol folded in.
     expect(body.strategyConfigOverride.symbol).toBe('BTCUSDT');
   });
@@ -660,7 +675,7 @@ describe('/profiles/$profileId/backtest', () => {
           params: doneResult().params,
           status: 'running',
           progress: 0,
-          progressDetail: { phase: 'warmup' },
+          progressDetail: { phase: 'replay' },
           error: null,
           createdAt: '2026-05-10T05:00:00.000Z',
           startedAt: '2026-05-10T05:00:01.000Z',
@@ -678,7 +693,7 @@ describe('/profiles/$profileId/backtest', () => {
     await user.type(screen.getByLabelText('To'), '2026-02-01T00:00');
     await user.click(screen.getByText('Run backtest'));
     const detail = await screen.findByTestId('bt-progress-detail');
-    expect(detail).toHaveTextContent('Warming up indicators');
+    expect(detail).toHaveTextContent('Replaying strategy');
     expect(detail).not.toHaveTextContent('candle');
   });
 
@@ -781,38 +796,45 @@ describe('/profiles/$profileId/backtest', () => {
     await waitFor(() => expect(screen.getByText('Pick a From and To date.')).toBeInTheDocument());
   });
 
-  it('blocks submit when the detail interval is coarser than the strategy interval', async () => {
-    let posted = false;
-    setUp((url, init) => {
-      const b = base(url);
-      if (b) return b;
-      if (url.endsWith('/backtests') && (init?.method ?? 'GET') === 'POST') posted = true;
-      return url.endsWith('/backtests') ? runsList([]) : new Response('nf', { status: 404 });
-    });
-    const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
-    await user.clear(screen.getByLabelText('From'));
-    await user.type(screen.getByLabelText('From'), '2026-01-01T00:00');
-    await user.clear(screen.getByLabelText('To'));
-    await user.type(screen.getByLabelText('To'), '2026-02-01T00:00');
-    // The decision interval is the config's candleInterval ('1h' here); a detail
-    // interval coarser than it ('1d') must block the run. The standalone strategy-
-    // interval field was removed (#578); the constraint now names the Candle Interval.
-    await user.selectOptions(screen.getByLabelText('Detail interval'), '1d');
-    await user.click(screen.getByText('Run backtest'));
-    await waitFor(() =>
-      expect(
-        screen.getByText(/Detail interval must be the same as or finer than your Candle Interval/),
-      ).toBeInTheDocument(),
+  it('offers only detail intervals that divide the decision and are no coarser than the candle', async () => {
+    setUp(
+      (url) =>
+        base(url) ??
+        (url.endsWith('/backtests') ? runsList([]) : new Response('nf', { status: 404 })),
     );
-    expect(posted).toBe(false);
+    await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
+    const offered = (): string[] =>
+      within(screen.getByLabelText('Detail interval'))
+        .getAllByRole('option')
+        .map((o) => o.textContent ?? '');
+    // Automatic follows the config's 1h candle.
+    expect(offered()).toEqual(['1m', '3m', '5m', '15m', '30m', '1h']);
+    await userEvent.setup().selectOptions(screen.getByLabelText('Decision interval'), '5m');
+    expect(offered()).toEqual(['1m', '5m']);
+  });
+
+  it('defaults to a 1m clock and 1m detail for a strategy that exits within a candle', async () => {
+    setUp((url) => {
+      if (url.endsWith('/strategies')) {
+        return json(sampleStrategies.map((s) => ({ ...s, exitsWithinCandle: true })));
+      }
+      return (
+        base(url) ??
+        (url.endsWith('/backtests') ? runsList([]) : new Response('nf', { status: 404 }))
+      );
+    });
+    await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText('Detail interval')).toHaveValue('1m'));
+    expect(
+      within(screen.getByLabelText('Decision interval')).getByText('Automatic (1m)'),
+    ).toBeInTheDocument();
   });
 
   it('clamps the seeded 5m detail interval down to a finer strategy interval so a fresh form is runnable', async () => {
     // A strategy whose candleInterval is finer than the fixed 5m default (here 1m)
     // must not seed the form blocked: the detail interval clamps to the decision
     // interval so Run is enabled without a manual fix, while an explicit coarser
-    // pick still surfaces the error (covered by the test above).
+    // pick is never offered (covered by the test above).
     const fineSchema = {
       ...rebalanceConfigSchema,
       properties: {
@@ -849,9 +871,84 @@ describe('/profiles/$profileId/backtest', () => {
     // detail interval clamps down to 1m so the run is not seeded blocked.
     await waitFor(() => expect(screen.getByLabelText('Detail interval')).toHaveValue('1m'));
     expect(
-      screen.queryByText(/Detail interval must be the same as or finer than your Candle Interval/),
+      screen.queryByText(/Detail interval must divide the decision interval/),
     ).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Run backtest' })).not.toBeDisabled();
+  });
+
+  describe('decision and detail clocks for a given candle', () => {
+    // Serves a two-symbol rebalance profile whose candle is `candle`, so Run reaches the window checks.
+    const setUpCandle = (candle: string): void => {
+      const schema = {
+        ...rebalanceConfigSchema,
+        properties: {
+          ...rebalanceConfigSchema.properties,
+          candleInterval: { type: 'string', enum: [candle] },
+        },
+      };
+      const strategies = [
+        {
+          ...rebalanceStrategies[0],
+          configSchema: schema,
+          overrideConfigSchema: schema,
+          defaultConfig: { enabled: false, candleInterval: candle, targets: [] },
+        },
+      ];
+      const targets = [
+        { symbol: 'BTCUSDT', weight: '0.5' },
+        { symbol: 'ETHUSDT', weight: '0.5' },
+      ];
+      const profile = {
+        ...rebalanceProfile(targets),
+        config: { enabled: false, candleInterval: candle, targets },
+      };
+      setUp((url) => {
+        if (url.endsWith('/profiles/p1/dashboard')) return json(sampleDashboard);
+        if (url.endsWith('/profiles/p1')) return json(profile);
+        if (url.endsWith('/strategies')) return json(strategies);
+        if (url.endsWith('/exchange-info')) return json(exchangeInfo);
+        if (url.endsWith('/backtests')) return runsList([]);
+        return new Response('nf', { status: 404 });
+      });
+    };
+
+    it.each(['1w', '3d'])(
+      'caps the automatic decision clock at 1d for a %s candle',
+      async (candle) => {
+        setUpCandle(candle);
+        await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
+        expect(
+          within(screen.getByLabelText('Decision interval')).getByText('Automatic (1d)'),
+        ).toBeInTheDocument();
+      },
+    );
+
+    it('falls back to a 1m detail interval when the decision clock is coarser than the candle', async () => {
+      setUpCandle('3m');
+      await waitFor(() => expect(screen.getByLabelText('Detail interval')).toHaveValue('3m'));
+      await userEvent.setup().selectOptions(screen.getByLabelText('Decision interval'), '5m');
+      await waitFor(() => expect(screen.getByLabelText('Detail interval')).toHaveValue('1m'));
+      // A select shows its first option for an unlisted value, so the banner is what proves the stored value is valid.
+      expect(
+        screen.queryByText(/Detail interval must divide the decision interval/),
+      ).not.toBeInTheDocument();
+    });
+
+    it('rejects a window shorter than one detail candle', async () => {
+      setUpCandle('1h');
+      const user = userEvent.setup();
+      await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
+      await user.clear(screen.getByLabelText('From'));
+      await user.type(screen.getByLabelText('From'), '2026-01-01T00:00');
+      await user.clear(screen.getByLabelText('To'));
+      await user.type(screen.getByLabelText('To'), '2026-01-01T00:02');
+      await user.click(screen.getByText('Run backtest'));
+      await waitFor(() =>
+        expect(
+          screen.getByText('From must be earlier than To by at least one 5m candle.'),
+        ).toBeInTheDocument(),
+      );
+    });
   });
 
   it('sends the strategy interval from the config candleInterval (parity)', async () => {
@@ -969,6 +1066,55 @@ describe('/profiles/$profileId/backtest', () => {
     await waitFor(() =>
       expect(
         screen.getByText('Add at least two symbols to the basket under Strategy config.'),
+      ).toBeInTheDocument(),
+    );
+    expect(posted).toBe(false);
+  });
+
+  it('seeds a two-symbol basket inside the replay budget on the Configure landing', async () => {
+    const profile = rebalanceProfile([
+      { symbol: 'BTCUSDT', weight: '0.5' },
+      { symbol: 'ETHUSDT', weight: '0.5' },
+    ]);
+    setUp((url) => {
+      const b = rebalanceBase(profile)(url);
+      if (b) return b;
+      if (url.endsWith('/backtests')) return runsList([]);
+      return new Response('not found', { status: 404 });
+    }, `/accounts/${ACCOUNT_ID}/profiles/p1/backtest?view=configure`);
+    const from = (await screen.findByLabelText('From')) as HTMLInputElement;
+    const to = screen.getByLabelText('To') as HTMLInputElement;
+    await waitFor(() => expect(from.value).not.toBe(''));
+    const span = new Date(to.value).getTime() - new Date(from.value).getTime();
+    // 2 symbols x 1440 bars per day must stay within 576000 bars, with one DST hour of slack.
+    expect(2 * Math.floor((span - 3_600_000) / 60_000)).toBeLessThanOrEqual(576_000);
+    expect(span).toBeGreaterThan(90 * 86_400_000);
+  });
+
+  it('blocks a run whose window exceeds the replay budget and says what to shorten', async () => {
+    let posted = false;
+    const profile = rebalanceProfile([
+      { symbol: 'BTCUSDT', weight: '0.5' },
+      { symbol: 'ETHUSDT', weight: '0.5' },
+    ]);
+    setUp((url, init) => {
+      const b = rebalanceBase(profile)(url);
+      if (b) return b;
+      if (url.endsWith('/backtests') && (init?.method ?? 'GET') === 'POST') posted = true;
+      return url.endsWith('/backtests') ? runsList([]) : new Response('nf', { status: 404 });
+    });
+    const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
+    await user.clear(screen.getByLabelText('From'));
+    await user.type(screen.getByLabelText('From'), '2025-01-01T00:00');
+    await user.clear(screen.getByLabelText('To'));
+    await user.type(screen.getByLabelText('To'), '2026-01-01T00:00');
+    await user.click(screen.getByText('Run backtest'));
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          'This run is too large to replay. Shorten the date range or choose fewer symbols.',
+        ),
       ).toBeInTheDocument(),
     );
     expect(posted).toBe(false);
@@ -1156,91 +1302,6 @@ describe('/profiles/$profileId/backtest', () => {
     expect(await screen.findByText(`Run ${RUN_ID.slice(0, 8)} — done`)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText('Max Purchase Amount')).toHaveValue('10'));
     expect(screen.queryByTestId('backtest-reset-live')).not.toBeInTheDocument();
-  });
-
-  it('blocks on a dedup dialog instead of auto-navigating when a re-run dedups (#547 C7)', async () => {
-    // The API matched an identical completed run and returned it with
-    // deduped:true instead of enqueuing. The route must NOT silently anchor to
-    // it: it presents a blocking choice (load existing vs run fresh anyway).
-    const EXISTING_ID = 'c7777777-7777-4777-8777-777777777777';
-    setUp((url, init) => {
-      const method = init?.method ?? 'GET';
-      const b = base(url);
-      if (b) return b;
-      if (url.endsWith('/backtests') && method === 'POST') {
-        return json({ runId: EXISTING_ID, deduped: true }, 202);
-      }
-      if (url.endsWith('/backtests') && method === 'GET') return runsList([]);
-      if (url.endsWith(`/backtests/${EXISTING_ID}`)) {
-        return json(runDetailBody(EXISTING_ID, 'done', { result: doneResult() }));
-      }
-      if (url.includes('/candles')) return json([]);
-      return new Response('not found', { status: 404 });
-    });
-
-    const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
-    await user.clear(screen.getByLabelText('From'));
-    await user.type(screen.getByLabelText('From'), '2026-01-01T00:00');
-    await user.clear(screen.getByLabelText('To'));
-    await user.type(screen.getByLabelText('To'), '2026-02-01T00:00');
-    await user.click(screen.getByText('Run backtest'));
-
-    // The blocking dialog appears with both choices...
-    const dialog = await screen.findByTestId('backtest-dedup-dialog');
-    expect(within(dialog).getByTestId('backtest-dedup-load-existing')).toBeInTheDocument();
-    expect(within(dialog).getByTestId('backtest-dedup-run-fresh')).toBeInTheDocument();
-    // ...and the route did NOT auto-navigate to the existing run.
-    expect(screen.queryByText(`Run ${EXISTING_ID.slice(0, 8)} — done`)).not.toBeInTheDocument();
-
-    // Choosing "load existing" anchors to the already-completed run.
-    await user.click(within(dialog).getByTestId('backtest-dedup-load-existing'));
-    expect(await screen.findByText(`Run ${EXISTING_ID.slice(0, 8)} — done`)).toBeInTheDocument();
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-  });
-
-  it('re-requests with ?force=true and navigates when "run fresh anyway" is chosen (#557 C9)', async () => {
-    // Same identical-config launch: the first POST dedups. "Run fresh anyway"
-    // must re-POST with ?force=true (which the API answers deduped:false), then
-    // anchor to the fresh queued run.
-    const EXISTING_ID = 'c7777777-7777-4777-8777-777777777777';
-    const FRESH_ID = 'd8888888-8888-4888-8888-888888888888';
-    const forcedUrls: string[] = [];
-    setUp((url, init) => {
-      const method = init?.method ?? 'GET';
-      const b = base(url);
-      if (b) return b;
-      if (url.includes('/backtests') && !url.includes(`/${EXISTING_ID}`) && method === 'POST') {
-        // The forced re-request carries ?force=true and creates a fresh run.
-        if (url.includes('force=true')) {
-          forcedUrls.push(url);
-          return json({ runId: FRESH_ID, deduped: false }, 202);
-        }
-        return json({ runId: EXISTING_ID, deduped: true }, 202);
-      }
-      if (url.endsWith('/backtests') && method === 'GET') return runsList([]);
-      if (url.includes(`/backtests/${FRESH_ID}`)) {
-        return json(runDetailBody(FRESH_ID, 'queued'));
-      }
-      if (url.includes('/candles')) return json([]);
-      return new Response('not found', { status: 404 });
-    });
-
-    const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByText('Run backtest')).toBeInTheDocument());
-    await user.clear(screen.getByLabelText('From'));
-    await user.type(screen.getByLabelText('From'), '2026-01-01T00:00');
-    await user.clear(screen.getByLabelText('To'));
-    await user.type(screen.getByLabelText('To'), '2026-02-01T00:00');
-    await user.click(screen.getByText('Run backtest'));
-
-    const dialog = await screen.findByTestId('backtest-dedup-dialog');
-    await user.click(within(dialog).getByTestId('backtest-dedup-run-fresh'));
-
-    // A forced re-request went out, and the route anchored to the fresh run.
-    await waitFor(() => expect(forcedUrls.length).toBe(1));
-    expect(await screen.findByText(`Run ${FRESH_ID.slice(0, 8)} — queued`)).toBeInTheDocument();
-    expect(screen.queryByTestId('backtest-dedup-dialog')).not.toBeInTheDocument();
   });
 
   it('renders a Configure/Results/History tab bar and shows the anchored run on Results', async () => {
@@ -2078,7 +2139,7 @@ describe('/profiles/$profileId/backtest', () => {
     const from = (await screen.findByLabelText('From')) as HTMLInputElement;
     const to = screen.getByLabelText('To') as HTMLInputElement;
     // Filled without any interaction.
-    expect(from.value).not.toBe('');
+    await waitFor(() => expect(from.value).not.toBe(''));
     expect(to.value).not.toBe('');
     // ~365 days wide, one DST hour of slack in the local round-trip.
     const span = new Date(to.value).getTime() - new Date(from.value).getTime();
@@ -2130,7 +2191,7 @@ describe('/profiles/$profileId/backtest', () => {
     const from = screen.getByLabelText('From') as HTMLInputElement;
     const to = screen.getByLabelText('To') as HTMLInputElement;
     // Filled without any interaction.
-    expect(from.value).not.toBe('');
+    await waitFor(() => expect(from.value).not.toBe(''));
     expect(to.value).not.toBe('');
     // ~365 days wide, one DST hour of slack in the local round-trip.
     const span = new Date(to.value).getTime() - new Date(from.value).getTime();
@@ -2654,6 +2715,7 @@ describe('/profiles/$profileId/backtest', () => {
     const parentResult = {
       ...doneResult(),
       params: { ...doneResult().params, symbols: ['ETHUSDT'] },
+      simulation: { ...doneResult().simulation, contextFingerprint: 'other' },
     };
     setUp((url, init) => {
       const b = base(url);
@@ -2680,7 +2742,7 @@ describe('/profiles/$profileId/backtest', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByTestId('backtest-compare-parent'));
     expect(
-      await screen.findByText('Not comparable — different market window.'),
+      await screen.findByText('Not comparable: these runs cover a different market window.'),
     ).toBeInTheDocument();
     expect(screen.queryByTestId('backtest-compare-deltas')).toBeNull();
   });

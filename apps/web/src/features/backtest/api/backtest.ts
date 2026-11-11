@@ -22,24 +22,19 @@ import { apiFetch, encodePathSegment } from '@/shared/lib/api';
 import { accountPath } from '@/shared/lib/account-scope';
 
 /**
- * Launch a backtest for the profile; returns the run id to poll. With
- * `opts.force` the API bypasses its identical-config dedup and always creates a
- * fresh run (`deduped:false`) — the "run fresh anyway" path off the dedup dialog.
- * `force` is a query param, kept out of {@link BacktestParams} so it can never
- * perturb the run signature the dedup keys on.
+ * Launch a backtest for the profile; every submission executes afresh.
+ *
+ * @param profileId - The profile to replay.
+ * @param body - The run's parameters.
+ * @returns The new run id to poll.
  */
-export const createBacktest = (
-  profileId: string,
-  body: BacktestParams,
-  opts: { force?: boolean } = {},
-): Promise<BacktestCreated> =>
+export const createBacktest = (profileId: string, body: BacktestParams): Promise<BacktestCreated> =>
   apiFetch(
     accountPath(`/profiles/${encodePathSegment(profileId)}/backtests`),
     BacktestCreatedSchema,
     {
       method: 'POST',
       body,
-      query: { force: opts.force ? true : undefined },
     },
   );
 

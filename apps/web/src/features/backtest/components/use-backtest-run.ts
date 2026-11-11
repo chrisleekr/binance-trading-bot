@@ -27,7 +27,6 @@ import { mergeConfig } from '@app/strategy-core';
 import { useProfileSocketHandlers, type SocketFrame } from '@/features/profile/socket';
 import { buildProfileWsUrl } from '@/shared/lib/ws';
 import { ApiError, errorMessage } from '@/shared/lib/api';
-import { notifySaveDiagnostics } from '@/shared/lib/save-diagnostics';
 import { gateCandidate } from '@/features/backtest/lib/gate-candidate';
 import {
   abortBacktest,
@@ -61,7 +60,6 @@ export interface BacktestRunArgs {
   // Owned by the history slice; run resets the page and writes the optimistic
   // list row through these.
   setPage: (p: { cursor: string | null; history: readonly (string | null)[] }) => void;
-  setPendingDedup: (v: { runId: string; params: BacktestParams } | null) => void;
   runFilter: RunFilter;
   runsLimitParam: number | null;
   runsFilterParam: RunFilter | null;
@@ -77,7 +75,6 @@ export function useBacktestRun({
   profile,
   queryClient,
   setPage,
-  setPendingDedup,
   runFilter,
   runsLimitParam,
   runsFilterParam,
@@ -185,19 +182,11 @@ export function useBacktestRun({
   }, [activeRunId, status, profileId, queryClient, setPage]);
 
   const launch = useMutation({
-    mutationFn: ({ body, force }: { body: BacktestParams; force?: boolean }) =>
-      createBacktest(profileId, body, force ? { force: true } : {}),
+    mutationFn: ({ body }: { body: BacktestParams }) => createBacktest(profileId, body),
     onSuccess: (created, { body }) => {
-      // The API dedups an identical re-run: instead of a new run it returns the
-      // existing completed one with `deduped:true`. Block on an explicit choice.
-      if (created.deduped) {
-        setPendingDedup({ runId: created.runId, params: body });
-        return;
-      }
       launchedRunIdRef.current = created.runId;
       showRun(created.runId);
       setBanner({ kind: 'ok', message: 'Backtest queued.' });
-      notifySaveDiagnostics(created.diagnostics);
       setPage({ cursor: null, history: [] });
       // Show the queued row instantly instead of waiting for the list refetch.
       if (runFilter === 'all') {

@@ -122,12 +122,29 @@ export class BacktestExecutor implements Executor {
   }
 
   /**
-   * Advance a symbol's market context to a new candle and re-evaluate its
-   * resting orders against it. Because an order placed on candle N rests
-   * (the realistic model returns `rest` on placement), the first context it
-   * is evaluated against is candle N+1 — the standard signal-N / fill-N+1
-   * rule. `detailCandles` are the finer intra-candle bars for timeframe-detail
-   * crossing; absent, the model uses `lastCandle` itself.
+   * Record a symbol's latest price and candle without touching its resting orders, so every symbol of a frame is marked before any order is evaluated against the shared balance.
+   *
+   * @param symbol - The symbol being marked.
+   * @param lastPrice - The price the symbol is valued at.
+   * @param lastCandle - The candle resting orders are evaluated against, also the fill's timestamp source.
+   * @param detailCandles - Finer bars inside `lastCandle` for timeframe-detail crossing; absent, the model uses `lastCandle` itself.
+   */
+  updateMark(
+    symbol: string,
+    lastPrice: Decimal,
+    lastCandle: Candle,
+    detailCandles?: readonly Candle[],
+  ): void {
+    this.market.set(symbol, { lastPrice, lastCandle, detailCandles });
+  }
+
+  /**
+   * Advance a symbol's market context to a new candle and re-evaluate its resting orders against it. An order placed on candle N rests (the realistic model returns `rest` on placement), so the first context it is evaluated against is candle N+1, the standard signal-N / fill-N+1 rule.
+   *
+   * @param symbol - The symbol being advanced.
+   * @param lastPrice - The price the symbol is valued at.
+   * @param lastCandle - The candle resting orders are evaluated against.
+   * @param detailCandles - Finer bars inside `lastCandle` for timeframe-detail crossing.
    */
   setMarketContext(
     symbol: string,
@@ -135,7 +152,7 @@ export class BacktestExecutor implements Executor {
     lastCandle: Candle,
     detailCandles?: readonly Candle[],
   ): void {
-    this.market.set(symbol, { lastPrice, lastCandle, detailCandles });
+    this.updateMark(symbol, lastPrice, lastCandle, detailCandles);
     this.evaluateResting(symbol);
   }
 
@@ -372,12 +389,11 @@ export class BacktestExecutor implements Executor {
   }
 
   /**
-   * Re-evaluate every resting order for a symbol against its current context.
-   * The fill timestamp is the candle's close time (deterministic, candle-
-   * driven). Filled orders leave the book; a partial keeps resting with its
-   * quantity reduced; a `rest` outcome stays; a `rejected` outcome is dropped.
+   * Re-evaluate every resting order for a symbol against its current context. The fill timestamp is the candle's close time (deterministic, candle-driven). Filled orders leave the book; a partial keeps resting with its quantity reduced; a `rest` outcome stays; a `rejected` outcome is dropped.
+   *
+   * @param symbol - The symbol whose resting orders are checked; a symbol with no market context or symbol info is left untouched.
    */
-  private evaluateResting(symbol: string): void {
+  evaluateResting(symbol: string): void {
     const ctx = this.market.get(symbol);
     if (!ctx) return;
     const symbolInfo = this.symbols.get(symbol);

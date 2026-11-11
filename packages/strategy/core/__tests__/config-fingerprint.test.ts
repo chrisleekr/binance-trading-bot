@@ -78,10 +78,10 @@ describe('backtestSignature', () => {
   });
 
   it('hashes the engine revision, so a semantics bump stops the ledger serving an older result', () => {
-    // Pinned for revision 2. Dropping the revision from the hash, or bumping it, moves this value: a bump must update both lines here, which is the point of the pin.
-    expect(BACKTEST_ENGINE_REVISION).toBe(2);
+    // Pinned for revision 3. Dropping the revision from the hash, or bumping it, moves this value: a bump must update both lines here, which is the point of the pin.
+    expect(BACKTEST_ENGINE_REVISION).toBe(3);
     expect(backtestSignature({ strategyId: 'tt', config: { x: 1 }, market: market() })).toBe(
-      'ab83afe00fc67470',
+      '92ae232180d39df1',
     );
   });
 

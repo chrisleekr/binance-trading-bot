@@ -123,12 +123,6 @@ interface FeasibilityOptions {
   /** Symbols to check; defaults to the profile's bound symbols. */
   readonly symbols?: readonly string[];
   /**
-   * A clean, known quote balance the full grid must fit — pass ONLY for a
-   * backtest (`initialQuoteBalance`). Applied identically to every symbol. Takes
-   * precedence over {@link fundFromAccountValue} if both are set.
-   */
-  readonly availableQuoteOverride?: string;
-  /**
    * Fund the full grid from the profile's live account value on a per-symbol
    * basis: free+locked quote cash plus the COST BASIS of any base position
    * already built for that symbol (`avgEntryPrice × quantity` from the ledger).
@@ -192,12 +186,7 @@ interface LedgerCost {
 }
 
 /**
- * Resolve the quote balance the full grid must fit for one symbol. A backtest's
- * clean override wins; otherwise value the account against this symbol —
- * free+locked quote cash + the cost basis of the base position already built
- * (`avgEntryPrice × quantity`, drawdown-invariant). Returns `undefined` (skip the
- * funding check, keep per-order minimums) when no account snapshot is available
- * or an amount is malformed.
+ * Resolve the quote balance the full grid must fit for one symbol: value the account against this symbol, as free+locked quote cash + the cost basis of the base position already built (`avgEntryPrice × quantity`, drawdown-invariant). Returns `undefined` (skip the funding check, keep per-order minimums) when no account snapshot is available or an amount is malformed.
  */
 const resolveAvailableQuote = (
   opts: FeasibilityOptions,
@@ -205,7 +194,6 @@ const resolveAvailableQuote = (
   symbolInfo: z.infer<typeof SymbolInfoForFeasibility>,
   ledger: LedgerCost | null,
 ): string | undefined => {
-  if (opts.availableQuoteOverride !== undefined) return opts.availableQuoteOverride;
   if (!accInfo) return undefined;
   try {
     const q = accInfo.balances[symbolInfo.quoteAsset];
@@ -238,9 +226,7 @@ const resolveAvailableQuote = (
  * strategy with no order-feasibility check at all. Both lists come back empty
  * only when the strategy declares neither.
  *
- * The full-grid funding check runs only when `availableQuoteOverride` or
- * `fundFromAccountValue` is set (see {@link FeasibilityOptions}); otherwise only
- * the per-order minimum checks run.
+ * The full-grid funding check runs only when `fundFromAccountValue` is set (see {@link FeasibilityOptions}); otherwise only the per-order minimum checks run.
  *
  * Findings come back split by provenance, see {@link SplitDiagnostics}.
  */
@@ -266,7 +252,7 @@ const runFeasibility = async (
   // plus one batched ledger read (deployed cost basis per symbol) for the whole
   // basket. The ledger read is skipped when there is no account snapshot, since
   // the funding check is skipped anyway.
-  const fundLive = Boolean(opts.fundFromAccountValue) && opts.availableQuoteOverride === undefined;
+  const fundLive = Boolean(opts.fundFromAccountValue);
   const accInfoRaw = fundLive ? await r.get(profileKey(p.scope, 'accountInfo')) : null;
   const accInfo = accInfoRaw ? safeJson(AccountInfoSnapshot, accInfoRaw) : null;
   const ledgerBySymbol = new Map<string, LedgerCost>();

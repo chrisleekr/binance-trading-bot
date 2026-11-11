@@ -33,19 +33,19 @@ export function describeGate(data: GateStatusResponse): {
   if (data.ok) {
     return {
       tone: 'up',
-      title: 'Live trading validated.',
+      title: 'Backtest check cleared.',
       body: 'A recent backtest on the current settings clears the gate.',
     };
   }
   return {
     tone: 'warning',
-    title: 'Unproven config.',
-    body: `${cap(data.detail)}. This is only a heads-up — trading continues and going live is never blocked. Re-run a backtest on the current settings to prove the config.`,
+    title: 'Backtest check not cleared.',
+    body: `${cap(data.detail)}. This is only a heads-up — trading continues and going live is never blocked. Re-run a backtest on the current settings to check them again.`,
   };
 }
 
 /**
- * Shows whether this profile's LIVE trading is validated by a recent backtest on
+ * Shows whether this profile's LIVE trading has cleared a recent backtest on
  * its current config. Advisory only — the bot never pauses buys for a failing
  * gate. Renders nothing for testnet profiles (the gate guards real money only).
  */

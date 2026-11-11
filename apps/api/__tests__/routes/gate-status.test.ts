@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { profileRepo } from '@app/db';
-import { configFingerprint } from '@app/strategy-core';
+import { BACKTEST_ENGINE_REVISION, configFingerprint } from '@app/strategy-core';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
 /**
@@ -156,7 +156,23 @@ describeIfInfra('gate-status router', () => {
     await p.backtestRuns.markRunning(run.id);
     await p.backtestRuns.complete(
       run.id,
-      { params, metrics, equityCurve: [], drawdownSeries: [], trades: [], perSymbol: [] },
+      {
+        params,
+        metrics,
+        equityCurve: [],
+        drawdownSeries: [],
+        trades: [],
+        perSymbol: [],
+        simulation: {
+          engineRevision: BACKTEST_ENGINE_REVISION,
+          buildId: 'abc1234',
+          strategyName: row.strategyName,
+          strategyVersion: plugin.version,
+          decisionInterval: '1h',
+          dataFingerprint: 'data',
+          contextFingerprint: 'context',
+        },
+      },
       fingerprint,
     );
 

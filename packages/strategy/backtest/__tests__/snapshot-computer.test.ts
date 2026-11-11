@@ -47,6 +47,22 @@ describe('createSnapshotComputer', () => {
     // vitest runs in parallel under turbo with v8 coverage).
   }, 20_000);
 
+  it('folds every bar closed since the last step', () => {
+    const candles = gen(60);
+    const comp = createSnapshotComputer();
+    // Stops at 55 so the final call folds five bars at once, not one.
+    for (let n = 30; n <= 55; n += 5) comp.step('K|5m', candles.slice(0, n));
+    expect(comp.step('K|5m', candles)).toEqual(computeIndicatorSnapshot(candles));
+  });
+
+  it('re-seeds when the window no longer reaches the previous close', () => {
+    const candles = gen(80);
+    const comp = createSnapshotComputer();
+    comp.step('K|5m', candles.slice(0, 30));
+    const window = candles.slice(40, 70);
+    expect(comp.step('K|5m', window)).toEqual(computeIndicatorSnapshot(window));
+  });
+
   it('returns null until the window reaches each indicator minimum', () => {
     const candles = gen(20);
     const comp = createSnapshotComputer();

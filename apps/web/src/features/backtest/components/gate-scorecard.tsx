@@ -84,7 +84,7 @@ export function GateScorecard({
 
       <p className="text-xs text-muted-fg">
         {passed
-          ? 'These results clear the gate’s quality thresholds — a green light that this config is proven. Enabling live is never blocked by the gate; this is advisory.'
+          ? 'These results clear the gate’s quality thresholds. That is evidence, not proof it will work live. Enabling live is never blocked by the gate; this is advisory.'
           : 'These results do not clear the gate’s quality thresholds. Enabling live is never blocked, but if you turn on “pause new buys when unproven” for this profile, a live config that stops passing has its new buys paused until a run clears the gate (open positions still sell). Tune the config and re-run.'}
         {policy.enabled ? null : ' The live gate is currently turned off for this profile.'}
       </p>

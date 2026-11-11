@@ -48,32 +48,6 @@ export async function create(
   return row;
 }
 
-/**
- * The profile's most-recent COMPLETED run for a backtest signature, or null. The
- * create handler uses this to dedup an identical re-run: returning the existing
- * result instead of enqueuing a duplicate. Scoped to `done` runs with a stored
- * result (a finished, reusable outcome).
- */
-export async function findDoneBySignature(
-  scope: ProfileScope,
-  signature: string,
-): Promise<BacktestRunRow | null> {
-  const rows = await scope.db
-    .select()
-    .from(backtestRuns)
-    .where(
-      and(
-        eq(backtestRuns.profileId, scope.profileId),
-        eq(backtestRuns.backtestSignature, signature),
-        eq(backtestRuns.status, 'done'),
-        sql`${backtestRuns.result} is not null`,
-      ),
-    )
-    .orderBy(desc(backtestRuns.createdAt))
-    .limit(1);
-  return rows[0] ?? null;
-}
-
 /** A run by id, scoped to the profile (cross-account reads return null). */
 export async function get(scope: ProfileScope, runId: string): Promise<BacktestRunRow | null> {
   const rows = await scope.db
@@ -261,11 +235,7 @@ export async function updateProgress(
  * 'done': completing the aborted run would defeat the cancel. Same status-guard
  * discipline as `updateProgress`.
  *
- * `backtestSignature` is the signature of the config that ACTUALLY ran (computed
- * by the worker at execution, not at enqueue). Stamped here so a later identical
- * re-run deduping via {@link findDoneBySignature} matches only rows whose stored
- * signature names the executed config. Written in the same atomic set as the
- * result under the `status = 'running'` guard, so a retry after `done` no-ops.
+ * `backtestSignature` is the signature of the config that actually ran, computed by the worker at execution rather than at enqueue so a row never names a config that did not run. Written in the same atomic set as the result under the `status = 'running'` guard, so a retry after `done` no-ops.
  */
 export async function complete(
   scope: ProfileScope,

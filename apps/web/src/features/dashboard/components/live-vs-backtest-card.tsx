@@ -151,6 +151,11 @@ export function LiveVsBacktestCard({ profileId }: { profileId: string }): React.
               Pin a finished backtest as this profile's baseline (from the Backtest screen) to check
               whether your live edge still matches it.
             </p>
+          ) : baseline.data?.result && !baseline.data.matchesProfile ? (
+            <p className="text-xs text-muted-fg" data-testid="live-vs-backtest-abstain">
+              The pinned backtest used another config or older replay rules, so it cannot be
+              compared with live results. Run a new backtest and pin it.
+            </p>
           ) : baseline.data?.result ? (
             <div className="space-y-1 border-t border-border pt-2">
               <p className="text-xs text-muted-fg">

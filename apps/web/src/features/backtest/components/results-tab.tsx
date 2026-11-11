@@ -17,7 +17,6 @@ import type { BacktestWorkbench } from './use-backtest-workbench';
 /** Plain-language label for each running-backtest phase. */
 const PHASE_LABEL: Record<BacktestPhase, string> = {
   backfill: 'Loading price history',
-  warmup: 'Warming up indicators',
   replay: 'Replaying strategy',
   finalize: 'Finalizing results',
 };
@@ -167,7 +166,7 @@ export function ResultsTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Element
                 <p className="text-xs text-muted-fg">
                   Find a better config from this run. Each option below loads changes into the
                   Configure tab for you to review and run yourself — nothing here touches your live
-                  config, and the out-of-sample gate still stands before going live.
+                  config, and a run still has to clear your live gate on its own.
                 </p>
               </div>
               <BacktestRecommendations

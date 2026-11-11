@@ -4,10 +4,7 @@
 // config clears these net-of-fee thresholds. Seeded from the profile's effective
 // policy and saved via PATCH /profiles/:id { enablementPolicy }.
 //
-// The 80% case is two controls: is the check shown, and what profit-factor bar. The
-// remaining fields — trade counts, alpha, out-of-sample, age, and the live
-// edge-decay monitor — are tuning the operator rarely touches, so they live behind
-// an "Advanced" disclosure.
+// The 80% case is two controls: is the check shown, and what profit-factor bar. The remaining fields (trade counts, alpha, recent-period, age, and the live edge-decay monitor) are tuning the operator rarely touches, so they live behind an "Advanced" disclosure.
 
 import { EnablementPolicy } from '@app/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -142,7 +139,7 @@ export function EnablementPolicyPanel({
       {/* Essentials — the on/off, the bar, and block-vs-flag. */}
       <Panel
         title="Backtest quality check"
-        description="An advisory check that this profile's most recent backtest on its current settings clears these net-of-fee bars. Going live is never blocked by it — it just tells you whether the config has proven itself first."
+        description="An advisory check that this profile's most recent backtest on its current settings clears these net-of-fee bars. Going live is never blocked by it — it only says whether this backtest cleared these bars, which is not proof of live readiness."
       >
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
@@ -170,12 +167,10 @@ export function EnablementPolicyPanel({
         </div>
       </Panel>
 
-      {/* Advanced — trade-count/alpha/out-of-sample/age bars and the live monitor.
-          Collapsed by default: rarely-touched tuning, the same "tucked" treatment
-          the config form's Advanced fold gets. */}
+      {/* Collapsed by default because these bars are rarely touched, the same "tucked" treatment the config form's Advanced fold gets. */}
       <Panel
         title="Advanced thresholds"
-        description="Trade-count, alpha, out-of-sample, and age bars, plus the live edge-decay monitor. Rarely touched."
+        description="Trade-count, alpha, recent-period, and age bars, plus the live edge-decay monitor. Rarely touched."
         collapsible
         defaultOpen={false}
         summaryTestId="gate-advanced-toggle"
@@ -184,7 +179,7 @@ export function EnablementPolicyPanel({
           <NumberField
             id="gate-trades"
             label="Min closed trades"
-            hint="A profit factor over a tiny sample is noise. Out-of-sample below is the real curve-fit defence, not this count."
+            hint="A profit factor over a tiny sample is noise. This count only keeps the sample large enough to read."
             value={form.minTrades}
             onChange={(n) => patch('minTrades', n)}
           />
@@ -200,11 +195,11 @@ export function EnablementPolicyPanel({
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <Label htmlFor="gate-oos">Require out-of-sample validation</Label>
+                <Label htmlFor="gate-oos">Require the Recent-period check</Label>
                 <p className="text-xs text-muted-fg">
                   The edge must also clear the profit-factor and alpha bars in the most-recent 30%
-                  of the backtest — the slice you didn&apos;t tune against. The real defence against
-                  curve-fitting a single window.
+                  of the backtest. You may already have examined that period while tuning, so a pass
+                  is evidence, not proof.
                 </p>
               </div>
               <Switch
@@ -216,8 +211,8 @@ export function EnablementPolicyPanel({
             {form.requireOutOfSample ? (
               <NumberField
                 id="gate-oos-trades"
-                label="Min out-of-sample trades"
-                hint="The holdout is ~30% of the run, so it holds fewer trades. Below this its metrics are too noisy to trust."
+                label="Min recent-period trades"
+                hint="The recent period is ~30% of the run, so it holds fewer trades. Below this its metrics are too noisy to trust."
                 value={form.minOutOfSampleTrades}
                 onChange={(n) => patch('minOutOfSampleTrades', n)}
               />
@@ -226,7 +221,7 @@ export function EnablementPolicyPanel({
           <NumberField
             id="gate-age"
             label="Max backtest age (days)"
-            hint="Reject proof older than this — markets and config drift."
+            hint="Ignore a backtest older than this — markets and config drift."
             value={form.maxBacktestAgeDays}
             onChange={(n) => patch('maxBacktestAgeDays', n)}
           />

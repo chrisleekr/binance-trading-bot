@@ -67,6 +67,8 @@ export function useEdgeVerdict(profileId: string): ReturnType<typeof assessEdgeD
   const bucket = mergeRollupBuckets(archive.data.bySource, profile.data?.quoteAsset ?? '');
   // The same bar `edge-decay-monitor.cron.ts` applies before it sends the Slack alert, over the same window narrowed to the same quote: a badge on screen that the alert channel would never send is a disagreement the operator has no way to see. Only `unknown` withholds the verdict, because only `unknown` is missing a charge.
   if (bucket.feeBasis === 'unknown') return null;
+  // The worker abstains the same way: a baseline from older replay rules or another config measures nothing about what runs now.
+  if (baseline.data?.result && !baseline.data.matchesProfile) return null;
   return assessEdgeDecay({
     policy: monitor,
     hasBaseline: baselineId !== null && !!baseline.data?.result,

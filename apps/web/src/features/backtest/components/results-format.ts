@@ -23,7 +23,7 @@ export const num = formatFixed2;
 export const numN = (n: number | null): string => (n === null ? '—' : formatFixed2(n));
 export const pctN = (n: number | null): string => (n === null ? '—' : formatPercent(n));
 
-/** "30%" from a holdout fraction (0.3), rounded without Math import dependence. */
+/** "30%" from a recent-period fraction (0.3), rounded without Math import dependence. */
 export const oosPctLabel = (fraction: number): string => `${Math.round(fraction * 100)}%`;
 
 /**

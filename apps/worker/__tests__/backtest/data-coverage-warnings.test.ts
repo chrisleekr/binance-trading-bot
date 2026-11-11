@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Candle } from '@app/strategy-core';
-import { dataCoverageWarnings } from '../../src/backtest/backtest-runner.js';
+import { dataCoverageWarnings } from '../../src/backtest/replay.js';
 
 const HOUR = 3_600_000;
 

@@ -113,9 +113,9 @@ describe('<EnablementPolicyPanel>', () => {
     await screen.findByLabelText('Min profit factor');
     await expandAdvanced();
     // Seeded on (default), so the floor field is visible.
-    expect(screen.getByLabelText('Min out-of-sample trades')).toBeInTheDocument();
-    await userEvent.click(screen.getByLabelText('Require out-of-sample validation'));
-    expect(screen.queryByLabelText('Min out-of-sample trades')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Min recent-period trades')).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('Require the Recent-period check'));
+    expect(screen.queryByLabelText('Min recent-period trades')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('enablement-policy-save'));
     await waitFor(() =>

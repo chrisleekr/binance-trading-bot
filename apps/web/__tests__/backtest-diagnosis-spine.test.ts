@@ -141,9 +141,7 @@ describe('buildDiagnosisSpine', () => {
       } as never,
     });
     const items = buildDiagnosisSpine(result, TT_ATTR, {});
-    expect(items.some((i) => i.kind === 'segment' && /out-of-sample|holdout/i.test(i.title))).toBe(
-      true,
-    );
+    expect(items.some((i) => i.kind === 'segment' && /recent period/i.test(i.title))).toBe(true);
   });
 
   it('yields exactly one "no deterministic cause" item when a loss has no provable cause', () => {

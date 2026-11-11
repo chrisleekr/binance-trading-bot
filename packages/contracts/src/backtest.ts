@@ -1,8 +1,11 @@
 import { z } from 'zod';
-import { SaveDiagnostics } from './config-lint.js';
 import { DecimalString, PositiveDecimalString } from './decimal.js';
 import { MarketRegimeSchema } from './market-trend.js';
-import { BACKTEST_INTERVALS } from './kline-intervals.js';
+import {
+  BACKTEST_DECISION_INTERVALS,
+  BACKTEST_INTERVALS,
+  candleIntervalMs,
+} from './kline-intervals.js';
 
 // The zod schema + inferred type live here, alongside the params validator that
 // uses them, deriving off the single-sourced tuple in `./kline-intervals.js` so
@@ -11,22 +14,43 @@ import { BACKTEST_INTERVALS } from './kline-intervals.js';
 export const BacktestInterval = z.enum(BACKTEST_INTERVALS);
 export type BacktestInterval = z.infer<typeof BacktestInterval>;
 
+export const BacktestDecisionInterval = z.enum(BACKTEST_DECISION_INTERVALS);
+export type BacktestDecisionInterval = z.infer<typeof BacktestDecisionInterval>;
+
 const intervalRank = (interval: BacktestInterval): number => BACKTEST_INTERVALS.indexOf(interval);
+// Every BacktestInterval is a fixed-duration interval, so the lookup cannot miss.
+const intervalMsOf = (interval: BacktestInterval): number => candleIntervalMs(interval) as number;
 
 /**
  * Request to launch a backtest for a profile. `strategyConfigOverride` is
  * opaque at the contract layer (validated server-side against the strategy's
  * own override schema) so contracts stays a leaf with no strategy dependency.
  */
-// Bounds on a backtest request so a single malformed call cannot enqueue an
-// unbounded backfill. A basket of 50 symbols is far above any real run, and a
-// 5-year span bounds the per-symbol bar count — both generous for legitimate
-// use, both fatal to the pathological `symbols:[...5000]` / `toMs: 9e15`. These
-// cap each axis, not their product: the worst legitimate-shape request
-// (50 symbols × 5y × 1m) is still large, accepted as a single-operator risk (the
-// route is behind per-profile ownership; see docs/architecture/backtesting.md).
+// Bounds on each axis of a backtest so one malformed call cannot enqueue an unbounded backfill. Their product is capped separately by MAX_REPLAY_SYMBOL_CANDLES on a new submission.
 const MAX_BACKTEST_SYMBOLS = 50;
 const MAX_BACKTEST_SPAN_MS = 5 * 365 * 24 * 60 * 60 * 1000;
+// Most candles one run may hold in the process that also trades live under ROLE=all: about 4 symbols for 100 days of 1-minute bars.
+export const MAX_REPLAY_SYMBOL_CANDLES = 576_000;
+const REPLAY_BUDGET_BAR_MS = 60_000;
+
+/**
+ * Whether a run is too large to replay. The budget counts 1-minute bars whatever the detail interval, so the form and the schema must agree on one count.
+ *
+ * @param symbolCount - Symbols the run loads, each holding its own 1-minute series.
+ * @param spanMs - Window length, `toMs - fromMs`.
+ * @returns True when `symbolCount` times the whole 1-minute bars in the window exceeds `MAX_REPLAY_SYMBOL_CANDLES`.
+ */
+export const exceedsReplayBudget = (symbolCount: number, spanMs: number): boolean =>
+  symbolCount * Math.floor(spanMs / REPLAY_BUDGET_BAR_MS) > MAX_REPLAY_SYMBOL_CANDLES;
+
+/**
+ * Longest whole-day window a basket can replay, so a seeded default never starts over budget.
+ *
+ * @param symbolCount - Symbols the run loads; a count below one is treated as one.
+ * @returns Whole days of 1-minute bars that fit `MAX_REPLAY_SYMBOL_CANDLES` across `symbolCount` symbols.
+ */
+export const maxReplayDays = (symbolCount: number): number =>
+  Math.floor(MAX_REPLAY_SYMBOL_CANDLES / Math.max(1, symbolCount) / 1440);
 
 export const BacktestParamsSchema = z
   .object({
@@ -34,6 +58,8 @@ export const BacktestParamsSchema = z
     fromMs: z.number().int().nonnegative(),
     toMs: z.number().int().nonnegative(),
     strategyInterval: BacktestInterval,
+    // How often the strategy is called. Optional here so rows stored before this field decode; a new submission must set it.
+    decisionInterval: BacktestInterval.optional(),
     detailInterval: BacktestInterval,
     initialQuoteBalance: PositiveDecimalString,
     fees: z.object({
@@ -41,13 +67,7 @@ export const BacktestParamsSchema = z
       takerBps: z.number().nonnegative(),
     }),
     slippageBps: z.number().nonnegative(),
-    // Half the bid/ask spread, in bps, charged on EVERY fill (including LIMIT):
-    // a backtested "limit at X" assumes perfect queue priority and no adverse
-    // selection, which live execution does not give. Applied as a half-spread
-    // haircut (BUY pays up, SELL receives less) on top of slippage for market /
-    // stop fills. `nullish`, not just `optional`: absent and null both mean no
-    // spread, so the fill model treats them as 0 and a run persisted before this
-    // field shipped reproduces byte-for-byte.
+    // Half the bid/ask spread, in bps. A MARKET or stop fill pays it on top of slippage. A LIMIT never fills past its limit, so there the spread only tightens the crossing test. `nullish`: absent and null both mean no spread.
     spreadBps: z.number().nonnegative().nullish(),
     // Volume-participation cap: a single fill may take at most this percentage
     // of the filling bar's base volume; the remainder rests and works across
@@ -93,15 +113,58 @@ export const BacktestParamsSchema = z
 export type BacktestParams = z.infer<typeof BacktestParamsSchema>;
 
 /**
- * Project a backtest request onto the dimensions that define what it traded and
- * how fills were modelled, flattened and normalised into ONE object. This is
- * the single enumeration of the market dims: `sameMarket` compares it and the
- * ledger's backtest signature hashes it, so a new dim is added here and nowhere
- * else. Symbols are sorted because a basket is a set.
- * `spreadBps`/`volumeCapPct` collapse absent and null to null (both mean "not
- * set"), so a legacy run that serialised them as absent keys the same as one
- * that sent null. `initialQuoteBalance` stays a decimal-string: it is money,
- * never coerced.
+ * A new submission. Stricter than {@link BacktestParamsSchema}, which must keep decoding rows stored before these rules existed. Refines live here so a historical row can still render.
+ */
+export const BacktestSubmitSchema = BacktestParamsSchema.safeExtend({
+  decisionInterval: BacktestDecisionInterval,
+})
+  .refine((p) => new Set(p.symbols).size === p.symbols.length, {
+    message: 'symbols must not repeat',
+    path: ['symbols'],
+  })
+  .refine((p) => intervalMsOf(p.decisionInterval) % intervalMsOf(p.detailInterval) === 0, {
+    message: 'detailInterval must be no coarser than decisionInterval and divide it exactly',
+    path: ['detailInterval'],
+  })
+  .refine((p) => p.fromMs % intervalMsOf(p.detailInterval) === 0, {
+    message: 'fromMs must fall on a detailInterval boundary',
+    path: ['fromMs'],
+  })
+  .refine((p) => p.toMs % intervalMsOf(p.detailInterval) === 0, {
+    message: 'toMs must fall on a detailInterval boundary',
+    path: ['toMs'],
+  })
+  // Every run loads the full 1-minute series whatever detailInterval is, so the budget counts 1-minute bars.
+  .refine((p) => !exceedsReplayBudget(p.symbols.length, p.toMs - p.fromMs), {
+    message: 'this run is too large to replay: shorten the date range or choose fewer symbols',
+    path: ['symbols'],
+  });
+export type BacktestSubmit = z.infer<typeof BacktestSubmitSchema>;
+
+/**
+ * What the server froze when a run was accepted, so a later profile edit cannot change what the run executes or how it is signed.
+ */
+export const BacktestRunSnapshotSchema = z.object({
+  strategyName: z.string().min(1),
+  strategyVersion: z.string().min(1),
+  engineRevision: z.number().int(),
+  buildId: z.string().min(1),
+  effectiveConfig: z.record(z.string(), z.unknown()),
+});
+export type BacktestRunSnapshot = z.infer<typeof BacktestRunSnapshotSchema>;
+
+/** A queued run as the worker must find it. A row failing this cannot be executed and has to be resubmitted. */
+export const BacktestStoredParamsSchema = BacktestParamsSchema.safeExtend({
+  decisionInterval: BacktestDecisionInterval,
+  snapshot: BacktestRunSnapshotSchema,
+});
+export type BacktestStoredParams = z.infer<typeof BacktestStoredParamsSchema>;
+
+/**
+ * Project a backtest request onto the dimensions that define what it traded and how fills were modelled, flattened and normalised into one object. The ledger's backtest signature and the replay context both hash it, so a new dimension is added here and nowhere else. Symbols are sorted because a basket is a set. `spreadBps` and `volumeCapPct` collapse absent and null to null, and `initialQuoteBalance` stays a decimal-string because it is money.
+ *
+ * @param params - The run's parameters.
+ * @returns The flat market dimensions.
  */
 export function marketOf(params: BacktestParams) {
   return {
@@ -109,6 +172,7 @@ export function marketOf(params: BacktestParams) {
     fromMs: params.fromMs,
     toMs: params.toMs,
     strategyInterval: params.strategyInterval,
+    decisionInterval: params.decisionInterval ?? null,
     detailInterval: params.detailInterval,
     makerBps: params.fees.makerBps,
     takerBps: params.fees.takerBps,
@@ -118,21 +182,6 @@ export function marketOf(params: BacktestParams) {
     discoveryMode: params.discoveryMode,
     initialQuoteBalance: params.initialQuoteBalance,
   };
-}
-
-/**
- * Whether two backtests ran the SAME market window: equal on every dimension
- * that defines what was traded and how fills were modelled. Two runs that are
- * `sameMarket` are comparable — their return, alpha, and drawdown measure the
- * same underlying conditions, so a delta between them reflects the strategy
- * change, not a different world. A run differing on any one dim is not
- * comparable. `strategyConfigOverride` is deliberately NOT a market dim:
- * changing the config is exactly the A/B the comparison exists to measure.
- * Both sides normalise through {@link marketOf}, so symbol order and
- * absent-vs-null fill knobs do not create a false difference.
- */
-export function sameMarket(a: BacktestParams, b: BacktestParams): boolean {
-  return JSON.stringify(marketOf(a)) === JSON.stringify(marketOf(b));
 }
 
 // 'cancelled' is terminal and distinct from 'error': the operator can abort a
@@ -153,12 +202,9 @@ export const BacktestRunListFilter = z.enum(['profit', 'loss', 'error']);
 export type BacktestRunListFilter = z.infer<typeof BacktestRunListFilter>;
 
 /**
- * Coarse phase of a running backtest. `backfill` loads price history, `warmup`
- * feeds the indicator warm-up window (no trades yet), `replay` is the strategy
- * tick loop, `finalize` computes metrics. The phase label lets the UI explain a
- * bar that sits near 0 during a long warm-up instead of reading as wedged.
+ * Coarse phase of a running backtest. `backfill` loads price history, `replay` is the strategy tick loop, `finalize` computes metrics. The phase label lets the UI explain a bar that sits near 0 during a long backfill instead of reading as wedged.
  */
-export const BacktestPhase = z.enum(['backfill', 'warmup', 'replay', 'finalize']);
+export const BacktestPhase = z.enum(['backfill', 'replay', 'finalize']);
 export type BacktestPhase = z.infer<typeof BacktestPhase>;
 
 /**
@@ -365,13 +411,7 @@ export const RegimeSegmentSchema = z.object({
 export type RegimeSegment = z.infer<typeof RegimeSegmentSchema>;
 
 /**
- * Metrics recomputed over only the most-recent `fraction` of a run's time span
- * (the holdout). An operator tunes a config against the full window, so its
- * metrics are in-sample and can be curve-fit; this slice the tuning never
- * targeted is the honest test set. `alphaVsHoldPct` here clearing the same bar as
- * the full run is the honest defence against a config that only looks good
- * in-sample. Surfaced on the backtest results page, and the live-enablement gate
- * can require it to clear the same bar (`EnablementPolicy.requireOutOfSample`).
+ * Metrics recomputed over only the most-recent `fraction` of a run's time span, shown as the Recent-period check. The operator may already have examined this period while tuning, so clearing it is evidence and never proof. The live-enablement gate can require it to clear the same bar as the full run (`EnablementPolicy.requireOutOfSample`).
  */
 export const OutOfSampleSegmentSchema = z.object({
   fraction: z.number(),
@@ -425,6 +465,18 @@ export const DecisionBreakdownSchema = z.object({
 });
 export type DecisionBreakdown = z.infer<typeof DecisionBreakdownSchema>;
 
+/** What a finished replay ran on, so two results can be compared and an old one recognised. */
+export const BacktestSimulationSchema = z.object({
+  engineRevision: z.number().int(),
+  buildId: z.string(),
+  strategyName: z.string(),
+  strategyVersion: z.string(),
+  decisionInterval: BacktestInterval,
+  dataFingerprint: z.string(),
+  contextFingerprint: z.string(),
+});
+export type BacktestSimulation = z.infer<typeof BacktestSimulationSchema>;
+
 /** Full result, embedded in the status response once `status === 'done'`. */
 export const BacktestResultSchema = z.object({
   params: BacktestParamsSchema,
@@ -445,14 +497,14 @@ export const BacktestResultSchema = z.object({
   // Also carries order-feasibility findings: a config whose orders the exchange would refuse never places most of its buys, so its metrics are equally void.
   // Factory default keeps runs persisted before this field shipped parseable.
   dataWarnings: z.array(z.string()).default(() => []),
-  // How the replay was modeled where it departs from live: fills inside one bar assumed favourably, a within-candle exit not replayed. These are honest caveats about the simulation, not missing data, so they sit apart from `dataWarnings`: the live gate fails a run on any `dataWarnings` entry, and mixing these in failed almost every run on "data coverage". Runs stored before this field shipped keep such caveats inside `dataWarnings` and default this to empty.
+  // How the replay was modeled where it departs from live: fills inside one bar assumed favourably, a within-candle exit decided slower than a minute. These are honest caveats about the simulation, not missing data, so they sit apart from `dataWarnings`: the live gate fails a run on any `dataWarnings` entry, and mixing these in failed almost every run on "data coverage". Runs stored before this field shipped keep such caveats inside `dataWarnings` and default this to empty.
   modelNotes: z.array(z.string()).default(() => []),
   // Performance split by market regime. Defaulted so runs persisted before this
   // field shipped still parse (empty = not computed / window too short to label).
   regimeBreakdown: z.array(RegimeSegmentSchema).default(() => []),
-  // Out-of-sample holdout metrics (most-recent slice of the run). Nullable +
+  // Recent-period check metrics (most-recent slice of the run). Nullable +
   // defaulted so runs persisted before this field shipped still parse; `null`
-  // also means "too short to carve a holdout".
+  // also means "too short to carve a recent period".
   outOfSample: OutOfSampleSegmentSchema.nullable().default(null),
   // The full strategy config the run actually executed: the profile base merged
   // with the run's override, then schema-parsed. Persisted so the results UI can
@@ -462,8 +514,93 @@ export const BacktestResultSchema = z.object({
   // Nullable + defaulted so runs persisted before this field shipped still parse;
   // the UI then falls back to merging the current profile config with the override.
   resolvedConfig: z.record(z.string(), z.unknown()).nullable().default(null),
+  // Absent on a run stored before replay metadata existed; such a run is never comparable.
+  simulation: BacktestSimulationSchema.optional(),
 });
 export type BacktestResult = z.infer<typeof BacktestResultSchema>;
+
+/**
+ * The context two results must share before a delta between them can be read as a strategy change.
+ *
+ * @param result - A finished run.
+ * @returns Its context fingerprint, or null for a legacy run or one from an unknown build, whose inputs cannot be vouched for.
+ */
+export function comparisonContextOf(result: BacktestResult): string | null {
+  const simulation = result.simulation;
+  return simulation === undefined || simulation.buildId === 'unknown'
+    ? null
+    : simulation.contextFingerprint;
+}
+
+export type BacktestComparability =
+  | { readonly comparable: true; readonly reason: null }
+  | { readonly comparable: false; readonly reason: string };
+
+const notComparable = (reason: string): BacktestComparability => ({ comparable: false, reason });
+
+/**
+ * Whether a delta between two results measures the strategy and nothing else. Changing the config is the experiment, so it does not count against them.
+ *
+ * @param a - One finished run.
+ * @param b - The other finished run.
+ * @returns Whether they compare, and if not, the first difference in plain words.
+ */
+export function comparableBacktests(a: BacktestResult, b: BacktestResult): BacktestComparability {
+  const contextA = comparisonContextOf(a);
+  const contextB = comparisonContextOf(b);
+  if (contextA === null || contextB === null) {
+    return notComparable(
+      'one of these runs predates replay metadata or came from an unknown build',
+    );
+  }
+  if (contextA === contextB) return { comparable: true, reason: null };
+  const marketA = marketOf(a.params);
+  const marketB = marketOf(b.params);
+  const differs = (...keys: readonly (keyof typeof marketA)[]): boolean =>
+    keys.some((key) => JSON.stringify(marketA[key]) !== JSON.stringify(marketB[key]));
+  if (differs('symbols', 'fromMs', 'toMs', 'discoveryMode')) {
+    return notComparable('these runs cover a different market window');
+  }
+  if (differs('strategyInterval', 'decisionInterval', 'detailInterval')) {
+    return notComparable('these runs use different replay intervals');
+  }
+  if (differs('makerBps', 'takerBps', 'slippageBps', 'spreadBps', 'volumeCapPct')) {
+    return notComparable('these runs assume different trading costs');
+  }
+  if (differs('initialQuoteBalance')) {
+    return notComparable('these runs start from different balances');
+  }
+  const simA = a.simulation;
+  const simB = b.simulation;
+  if (
+    simA?.buildId !== simB?.buildId ||
+    simA?.engineRevision !== simB?.engineRevision ||
+    simA?.strategyName !== simB?.strategyName ||
+    simA?.strategyVersion !== simB?.strategyVersion
+  ) {
+    return notComparable('these runs came from different builds or strategy versions');
+  }
+  return notComparable('these runs replayed different candles or exchange filters');
+}
+
+/**
+ * Whether a stored result was produced by this strategy under the current replay rules, which is what lets it stand behind an automatic verdict.
+ *
+ * @param result - The stored run's result.
+ * @param current - The strategy expected and the engine revision now running.
+ * @returns False for a legacy run, a different strategy or an older engine.
+ */
+export function simulationSupports(
+  result: Pick<BacktestResult, 'simulation'>,
+  current: { readonly strategyName: string; readonly engineRevision: number },
+): boolean {
+  const simulation = result.simulation;
+  return (
+    simulation !== undefined &&
+    simulation.strategyName === current.strategyName &&
+    simulation.engineRevision === current.engineRevision
+  );
+}
 
 /** Row in the runs list for a profile. */
 export const BacktestListItemSchema = z.object({
@@ -498,24 +635,8 @@ export const BacktestListResponse = z.object({
 });
 export type BacktestListResponse = z.infer<typeof BacktestListResponse>;
 
-/**
- * Response of POST .../backtests — the id to poll. `deduped` is true when the
- * create matched an already-completed standalone run with an identical backtest
- * signature: the API returns that existing run instead of enqueuing a new one,
- * so the client anchors to it rather than showing a fresh in-progress run.
- * Defaulted to false so a fresh enqueue (and any response predating the flag)
- * parses as not-deduped.
- */
-export const BacktestCreatedSchema = z.object({
-  runId: z.uuid(),
-  deduped: z.boolean().default(false),
-  /**
-   * Present only on a launch that went through but could not be fully checked
-   * against the run's target symbols. Absent on a clean launch and on a dedup
-   * hit, which enqueues nothing and therefore checks nothing.
-   */
-  diagnostics: SaveDiagnostics,
-});
+/** Response of POST .../backtests: the id to poll. Every accepted submission is a fresh run. */
+export const BacktestCreatedSchema = z.object({ runId: z.uuid() });
 export type BacktestCreated = z.infer<typeof BacktestCreatedSchema>;
 
 /**
@@ -534,6 +655,8 @@ export const BacktestRunDetailSchema = BacktestRunStatusSchema.extend({
   // standalone run. Defaulted so a row/fixture predating the column parses as
   // standalone; the route always emits the real value.
   parentRunId: z.uuid().nullable().default(null),
+  // Whether this finished run executed the config the profile holds now. Server-computed because the web has no strategy schemas to fingerprint with; false until the run is done.
+  matchesProfile: z.boolean().default(false),
 });
 export type BacktestRunDetail = z.infer<typeof BacktestRunDetailSchema>;
 

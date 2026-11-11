@@ -2,7 +2,7 @@
 // backtest's outcome, shown above the evidence. Every item is a fact the run's
 // own data states — a counted entry-blocker, a live-gate threshold the metrics
 // miss, or a segment read (zero trades, lost to hold, a losing regime, a weak
-// holdout). It NEVER guesses from a PnL or drawdown heuristic: a deep drawdown
+// recent period). It NEVER guesses from a PnL or drawdown heuristic: a deep drawdown
 // or a red number is an outcome, not a cause. When a run lost and nothing
 // provable explains it, the spine says exactly that and routes the operator to
 // the advisor instead of inventing a reason.
@@ -109,13 +109,13 @@ export function buildDiagnosisSpine(
       items.push({
         id: 'segment:oos-short',
         kind: 'segment',
-        title: 'Out-of-sample holdout was too short to trade',
+        title: 'Recent period was too short to trade',
       });
     } else if (oos.alphaVsHoldPct < 0) {
       items.push({
         id: 'segment:oos-under',
         kind: 'segment',
-        title: `Out-of-sample holdout underperformed hold (${oos.alphaVsHoldPct.toFixed(2)}%)`,
+        title: `Recent period underperformed hold (${oos.alphaVsHoldPct.toFixed(2)}%)`,
       });
     }
   }

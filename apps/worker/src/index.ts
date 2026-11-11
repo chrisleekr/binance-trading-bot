@@ -42,8 +42,6 @@ import { registerBacktestWorker } from './queues/backtest-worker.js';
 import { registerAdvisorWorker } from './queues/advisor-worker.js';
 import { registerDiagnosisWorker } from './queues/diagnosis-worker.js';
 import { createRunBacktestJob } from './boot/run-backtest-job.js';
-import { LruCandleCache } from './backtest/candle-cache.js';
-import { LruSignalCache } from './backtest/signal-cache.js';
 import { createBinanceRest } from '@app/binance';
 import { repo, toAiProviderConfig } from '@app/db';
 import { createLlm, type LlmAssist } from '@app/llm';
@@ -309,15 +307,6 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
       credentials: { apiKey: '', secretKey: '' },
       weightGovernor: ctx.weightGovernor,
     });
-    // One cache for the whole process: the technicals signal (minus its read-time
-    // timestamp) is config-independent, so separate backtest runs over the same
-    // window share derived signals instead of each recomputing the series (the
-    // dominant per-tick cost on low-power hosts).
-    const signalCache = new LruSignalCache();
-    // Same rationale for the source candles: separate runs over the same window
-    // replay the same candles, so load + materialise them once for the process
-    // instead of per run.
-    const candleCache = new LruCandleCache();
     registerBacktestWorker(queueSet, {
       db: ctx.db,
       redis,
@@ -333,9 +322,8 @@ export const boot = async (env: BootEnv): Promise<WorkerHandle> => {
         getSymbolInfo: ctx.getSymbolInfo,
         strategies: ctx.strategies,
         clock: { nowMs: () => Date.now() },
-        signalCache,
-        candleCache,
         cpuShare: studyCpuShare,
+        buildId: gitSha,
       }),
     });
 

@@ -46,6 +46,15 @@ const TT_ATTR = {
 };
 
 const RESULT: BacktestResult = {
+  simulation: {
+    engineRevision: 3,
+    buildId: 'abc1234',
+    strategyName: 'trailing-trade',
+    strategyVersion: '1.0.0',
+    decisionInterval: '1h',
+    dataFingerprint: 'data',
+    contextFingerprint: 'context',
+  },
   params: {
     symbols: ['BTCUSDT'],
     fromMs: 1,
@@ -237,6 +246,12 @@ describe('BacktestResults', () => {
     expect(screen.getByTestId('backtest-data-warnings')).toBeInTheDocument();
     expect(screen.getByText(/These results may be unreliable/)).toBeInTheDocument();
     expect(screen.getByText(/DEADUSDT: only 12%/)).toBeInTheDocument();
+  });
+
+  it('still renders a completed run stored before replay metadata existed', () => {
+    const { simulation: _simulation, ...legacy } = RESULT;
+    render(<BacktestResults result={legacy} loadChartModule={loadChartModule} />);
+    expect(screen.getByText(/Recent-period check/)).toBeInTheDocument();
   });
 
   it('renders no data-warning banner for a clean run', () => {
@@ -599,7 +614,7 @@ describe('BacktestResults', () => {
     };
     render(<BacktestResults result={withOos} loadChartModule={loadChartModule} />);
     expect(screen.getByTestId('backtest-oos-table')).toBeInTheDocument();
-    expect(screen.getByText(/Out-of-sample check/)).toBeInTheDocument();
+    expect(screen.getByText(/Recent-period check/)).toBeInTheDocument();
     expect(screen.getByText(/recent 30%/)).toBeInTheDocument();
     expect(screen.getByText('3.30%')).toBeInTheDocument(); // holdout return
     expect(screen.getByText('2.20%')).toBeInTheDocument(); // holdout alpha vs hold
@@ -610,7 +625,7 @@ describe('BacktestResults', () => {
     const noOos: BacktestResult = { ...RESULT, outOfSample: null };
     render(<BacktestResults result={noOos} loadChartModule={loadChartModule} />);
     expect(screen.queryByTestId('backtest-oos-table')).not.toBeInTheDocument();
-    expect(screen.getByText(/too short to carve a holdout/)).toBeInTheDocument();
+    expect(screen.getByText(/too short to set a recent period aside/)).toBeInTheDocument();
   });
 
   it('renders an em-dash for the holdout win rate when no trades opened in the slice', () => {

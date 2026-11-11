@@ -25,8 +25,7 @@ export interface BacktestRecommendationsProps {
  * Guarded entry-gate suggestions for a run that blocked (nearly) every entry.
  * The operator selects any combination, then loads them together into the Setup
  * form for a re-run they trigger themselves. Selecting changes nothing live and
- * runs nothing; the out-of-sample gate still stands between a tested config and
- * going live. Renders nothing when no armed constraint is biting.
+ * runs nothing. Renders nothing when no armed constraint is biting.
  */
 export function BacktestRecommendations({
   breakdown,
@@ -110,8 +109,7 @@ export function BacktestRecommendations({
             : `Load ${chosen.length} change${chosen.length > 1 ? 's' : ''} into Setup`}
         </Button>
         <p className="text-xs text-muted-fg">
-          Loads into the Setup form for review. You run the backtest, and the new run must clear the
-          out-of-sample gate before you can apply it to live.
+          Loads into the Setup form for review. You run the backtest and judge the new run yourself.
         </p>
       </div>
     </section>

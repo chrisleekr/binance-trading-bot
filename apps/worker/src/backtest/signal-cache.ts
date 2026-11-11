@@ -1,30 +1,14 @@
 import type { TechnicalsSignal } from '@app/contracts';
 
 /**
- * Minimal read/write surface a backtest run needs from a signal cache. `Map`
- * satisfies it structurally, so a single run can still pass a plain `Map` for
- * per-run memoisation; the shared process-level cache below implements the same
- * surface with a bound.
+ * Minimal read/write surface a backtest run needs from a signal cache. `Map` satisfies it structurally; the bounded cache below implements the same surface.
  */
 export interface SignalCache {
   get(key: string): TechnicalsSignal | undefined;
   set(key: string, value: TechnicalsSignal): void;
 }
 
-// The technicals signal (minus its read-time `receivedAtMs`) is a pure function
-// of the candle window (symbol, interval, the closes feeding it), never of the
-// strategy config or profile. Separate backtest runs over the SAME candles with
-// only the config varying otherwise each derive an identical signal series. A
-// process-level cache (market candles are public, not account-scoped) collapses
-// that to one compute per (symbol, interval, window) for the process: the
-// dominant per-tick cost (~30 rating indicators, the ema5/sma5 courtesy replays,
-// and the ~33-field Zod parse), gone for later runs and for every same-window
-// tick within a run. The caller re-stamps `receivedAtMs` on read so freshness
-// still tracks the tick. The bound sizes for the guided wizard's domain (a
-// 12-month single-symbol run over a few technicals intervals is ~11k distinct
-// keys); much longer or multi-symbol windows partially evict, which only
-// forfeits some reuse, never correctness. A
-// post-Zod signal is a small flat object of ~33 numbers, so the cap is a few MB.
+// The technicals signal (minus its read-time `receivedAtMs`) is a pure function of the candle window, so a run derives each distinct window once. The derive is the dominant per-decision cost (about 30 rating indicators plus a Zod parse). Each run owns its cache, so no run can read another run's derived values. The caller re-stamps `receivedAtMs` on read so freshness still tracks the decision. The bound fits a 12-month single-symbol run over a few technicals intervals (about 11k keys); longer windows evict, which forfeits reuse and never correctness. A parsed signal is about 33 numbers, so the cap is a few MB.
 const DEFAULT_MAX_ENTRIES = 15_000;
 
 /**

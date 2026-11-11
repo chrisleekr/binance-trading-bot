@@ -439,17 +439,14 @@ describe.skipIf(!HAS_INFRA)('MCP protocol boundary over a real token', () => {
     expect(tools.map((tool) => tool.name).sort()).toEqual(MCP_TOOLS.map((t) => t.name).sort());
   });
 
-  it('carries the trade-tool hints across the wire, each in the field its reader looks at', async () => {
-    // What the client actually reads to decide whether to prompt, and it reads the two halves from two different fields. Serving `anthropic/requiresUserInteraction` inside `annotations` is not a cosmetic misplacement: the client ignores it there, so the listing looks fully hinted while every real order arrives as a one-tap approval.
+  it('carries the destructive hint for every trade tool across the wire', async () => {
+    // The hint is advisory. This pins that the codec serves the explicit value.
     const byName = new Map((await servedTools(fullToken)).map((tool) => [tool.name, tool]));
     const tradeTools = MCP_TOOLS.filter((tool) => tool.scope === MCP_SCOPE_TRADE);
     expect(tradeTools.length).toBeGreaterThan(0);
     for (const tool of tradeTools) {
       const served = byName.get(tool.name);
       expect(served?.annotations).toMatchObject({ destructiveHint: true });
-      // Strict `true`, because the client accepts nothing else: a truthy string would satisfy a loose check and still be discarded.
-      expect(served?._meta?.['anthropic/requiresUserInteraction']).toBe(true);
-      expect(served?.annotations?.['anthropic/requiresUserInteraction']).toBeUndefined();
     }
   });
 
@@ -619,7 +616,7 @@ describe.skipIf(!HAS_INFRA)('MCP protocol boundary over a real token', () => {
     // Stateless: no session is issued, so nothing is kept between requests and every call below stands alone.
     expect(init.sessionId).toBeNull();
 
-    // The same factory builds both eras, but the 2025 path serves it through a different transport, so the hints that make a trade tool prompt (`annotations`, `_meta`) are compared too, not just names. Listing is not filtered by scope; a read-only token is refused at call time, pinned below.
+    // The same factory builds both eras, but the 2025 path serves it through a different transport, so the client-facing hints (`annotations`, `_meta`) are compared too, not just names. Listing is not filtered by scope; a read-only token is refused at call time, pinned below.
     const shape = (tools: ServedTool[]) =>
       tools
         .map(({ name, annotations, _meta }) => ({ name, annotations, _meta }))

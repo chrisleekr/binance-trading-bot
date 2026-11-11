@@ -10,7 +10,7 @@ import {
 } from '@app/contracts';
 import { profileRepo, repo, type Database } from '@app/db';
 import type { LedgerEntry } from '@app/db';
-import { BacktestCancelledError } from 'backtest/backtest-runner.js';
+import { BacktestCancelledError } from 'backtest/replay.js';
 import { emitEvent } from 'executor/event-emitter.js';
 import type { NotifyEvent } from 'notifiers/notify-event.js';
 import type { QueueSet } from './queue-set.js';
@@ -140,26 +140,20 @@ export function registerBacktestWorker(queueSet: QueueSet, deps: BacktestWorkerD
           () => cancelled,
         );
 
-        // Stamp the signature of the config that actually ran (built from the
-        // config read fresh at pickup), not the POST-time signature. This is the
-        // dedup key a later identical re-run matches on.
+        // The signature names the frozen config that ran, so the row cannot claim a config it did not execute.
         await p.backtestRuns.complete(
           runId,
           result,
           configFingerprint,
           ledgerEntry.backtestSignature,
         );
-        // Durable results ledger: record the outcome keyed by full backtest
-        // signature so a later identical re-run can reuse it even after the run
-        // is deleted. Best-effort — the run is already complete, so a write
-        // failure must never fail the run. A cancelled run takes the catch branch
-        // above and never reaches here.
+        // The ledger outlives the run row, so the advisor's history still sees this outcome after the run is deleted. Best-effort: the run is already complete, so a write failure must not fail it. A cancelled run takes the catch branch above and never reaches here.
         await p.resultLedger
           .upsert(ledgerEntry)
           .catch((err: unknown) =>
             deps.logger.error(
               { runId, err: err },
-              'result-ledger upsert failed; outcome not recorded for dedup',
+              'result-ledger upsert failed; outcome missing from advisor history',
             ),
           );
         await emitEvent(eventDeps, accountId, profileId, 'backtest-complete', { runId }).catch(

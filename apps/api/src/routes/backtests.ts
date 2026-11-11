@@ -4,12 +4,16 @@ import {
   AdvisorResultSchema,
   asProfileId,
   BACKTEST_LIST_DEFAULT_PAGE_SIZE,
+  candleIntervalMs,
   BacktestCreatedSchema,
   BacktestListResponse,
   BacktestParamsSchema,
   BacktestProgressDetailSchema,
   BacktestRunDetailSchema,
   BacktestRunListFilter,
+  BacktestSubmitSchema,
+  comparisonContextOf,
+  simulationSupports,
   coerceImproveConfigModelShape,
   DEFAULT_ENABLEMENT_POLICY,
   EnablementPolicy,
@@ -35,36 +39,45 @@ import {
   type AdvisorPriorRuns,
   type ImproveConfigInput,
 } from '@app/llm';
-import { mergeConfig } from '@app/strategy-core';
+import { BACKTEST_ENGINE_REVISION, configFingerprint, mergeConfig } from '@app/strategy-core';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
-import { assertOrderFeasibleForProfile, withDiagnostics } from 'lib/order-feasibility.js';
 import { HttpError } from 'middleware/error.js';
 import { requireNotDemo } from 'middleware/require-not-demo.js';
 import { requireUser } from 'middleware/require-user.js';
-import { signatureForRun } from 'backtest-signature.js';
 import { requireOwnedProfile, scopeOf } from 'route-helpers.js';
 import { createApiHono, type ApiHono } from 'types.js';
 
-/** Map a run row to the GET/abort detail response (status + embedded result). */
-const toRunDetail = (run: BacktestRunRow): z.infer<typeof BacktestRunDetailSchema> => ({
-  runId: run.id,
-  profileId: run.profileId,
-  status: run.status as BacktestStatus,
-  progress: run.progress,
-  // Validate the opaque jsonb at the response boundary; a malformed/legacy value
-  // degrades to null rather than 500-ing or shipping an off-contract shape.
-  progressDetail: BacktestProgressDetailSchema.safeParse(run.progressDetail).data ?? null,
-  error: run.error,
-  parentRunId: run.parentRunId,
-  createdAt: run.createdAt.toISOString(),
-  startedAt: run.startedAt?.toISOString() ?? null,
-  finishedAt: run.finishedAt?.toISOString() ?? null,
-  // Launch params, validated at creation, so the UI can seed Configure from a
-  // run whose `result` is still null (queued/running).
-  params: run.params as BacktestParams,
-  result: capResultCurves((run.result as BacktestResult | null) ?? null),
-});
+/**
+ * Map a run row to the GET/abort detail response (status plus embedded result). The frozen snapshot stays on the server: it holds the whole effective config, which no reader of this response needs.
+ *
+ * @param run - The stored run.
+ * @param matchesProfile - Whether the finished run executed the profile's current config.
+ * @returns The wire detail.
+ */
+const toRunDetail = (
+  run: BacktestRunRow,
+  matchesProfile: boolean,
+): z.infer<typeof BacktestRunDetailSchema> => {
+  const { snapshot: _snapshot, ...params } = run.params as BacktestParams & { snapshot?: unknown };
+  return {
+    runId: run.id,
+    profileId: run.profileId,
+    status: run.status as BacktestStatus,
+    progress: run.progress,
+    // Validate the opaque jsonb at the response boundary; a malformed/legacy value degrades to null rather than 500-ing or shipping an off-contract shape.
+    progressDetail: BacktestProgressDetailSchema.safeParse(run.progressDetail).data ?? null,
+    error: run.error,
+    parentRunId: run.parentRunId,
+    createdAt: run.createdAt.toISOString(),
+    startedAt: run.startedAt?.toISOString() ?? null,
+    finishedAt: run.finishedAt?.toISOString() ?? null,
+    // So the UI can seed Configure from a run whose `result` is still null.
+    params,
+    result: capResultCurves((run.result as BacktestResult | null) ?? null),
+    matchesProfile,
+  };
+};
 
 // Map a raw advisor row to the wire `AdvisorResult`. jsonb columns are null
 // until the row reaches `done`, so both suggestion arrays default to empty;
@@ -80,6 +93,28 @@ const toAdvisorResult = (row: AdvisorResultRow): AdvisorResult => ({
   errorReason: (row.errorReason as AdvisorResult['errorReason'] | null) ?? null,
   updatedAt: row.updatedAt.toISOString(),
 });
+
+/**
+ * Whether a finished run executed the strategy and config the profile holds now. A stored config that no longer parses reads as a mismatch.
+ *
+ * @param di - Gives the strategy registry.
+ * @param profile - The owning profile.
+ * @param run - The stored run.
+ * @returns True only for a finished run recording this strategy and the profile's current config.
+ */
+const runMatchesProfile = (di: DI, profile: OwnedProfile, run: BacktestRunRow): boolean => {
+  if (run.status !== 'done' || run.configFingerprint === null) return false;
+  if (
+    !simulationSupports((run.result ?? {}) as BacktestResult, {
+      strategyName: profile.strategyName,
+      engineRevision: BACKTEST_ENGINE_REVISION,
+    })
+  ) {
+    return false;
+  }
+  const current = di.strategies.get(profile.strategyName)?.configSchema.safeParse(profile.config);
+  return current?.success === true && configFingerprint(current.data) === run.configFingerprint;
+};
 
 const ProfileIdParam = z.object({ profileId: z.uuid() });
 const RunParam = z.object({ profileId: z.uuid(), runId: z.uuid() });
@@ -122,13 +157,7 @@ const capResultCurves = (result: BacktestResult | null): BacktestResult | null =
         drawdownSeries: downsample(result.drawdownSeries, CHART_SAMPLE),
       };
 
-// Fetch what the advisor reads from a finished run — the strategy plugin (for
-// re-validation), prior same-market history, and the enablement policy — then
-// hand the plain data to the pure `buildImproveInput` in @app/llm. The
-// DB/registry reads live here so the advisor composition stays pure and DB-free.
-// Throws 409 if the run has no result yet, 404 if its strategy is unknown. Does
-// NOT gate on the AI provider being configured — the manual paths build the
-// prompt / validate a reply with no server-side provider.
+// Fetch what the advisor reads from a finished run (the strategy plugin for re-validation, prior same-replay-context history, and the enablement policy), then hand the plain data to the pure `buildImproveInput` in @app/llm. The DB/registry reads live here so the advisor composition stays pure and DB-free. Throws 409 if the run has no result yet, 404 if its strategy is unknown. Does NOT gate on the AI provider being configured: the manual paths build the prompt / validate a reply with no server-side provider.
 const assembleAdvisorInput = async (
   di: DI,
   p: ScopedRepo,
@@ -147,17 +176,13 @@ const assembleAdvisorInput = async (
   if (!plugin || !descriptor) throw new HttpError('NOT_FOUND', 'strategy');
   const result = run.result as BacktestResult;
   const parsedParams = BacktestParamsSchema.safeParse(result.params);
-  // Prior configs tried on the SAME market (same symbols + window + interval,
-  // varying config) and how they scored, newest first — what turns the advisor
-  // from a stateless one-shot into something that reasons over the response
-  // surface. Same-market only; the current run is excluded by its own stored
-  // signature. Empty when params do not parse (no reliable market key) or nothing
-  // else has run here yet.
+  // Prior configs tried in the SAME replay context (same symbols, window, costs, clocks, data and build, varying config) and how they scored, newest first, which turns the advisor from a stateless one-shot into something that reasons over the response surface. The current run is excluded by its own stored signature. Empty when params do not parse (no reliable market key) or nothing else has run here yet.
   const priorRuns = await buildPriorRuns(
     p,
     profile.strategyName,
     parsedParams,
     run.backtestSignature,
+    comparisonContextOf(result),
   );
   // The profile's enablement policy: the gate thresholds this run's checklist is
   // scored against, fed to the advisor so it aims at the bars that decide go-live.
@@ -183,25 +208,19 @@ const assembleAdvisorInput = async (
   }
 };
 
-// Prior same-market runs for the advisor's history. Fetch the same-market ledger
-// rows here (the DB read) then hand them to the pure `shapePriorRuns` in @app/llm,
-// which excludes the current run by its OWN stored signature (`run.backtestSignature`,
-// stamped at completion, not recomputed from the live profile config, so editing
-// the config after the run cannot make it reappear inside its own history), caps at
-// the newest HISTORY_CAP, and reports the full count as `total`. Returns an empty
-// history when the run's params do not parse: without a reliable (symbols, window,
-// interval) key there is no comparable set to pull.
+// Prior runs sharing this run's replay context, for the advisor's history. Fetch the matching ledger rows here (the DB read) then hand them to the pure `shapePriorRuns` in @app/llm, which excludes the current run by its OWN stored signature (`run.backtestSignature`, stamped at completion, not recomputed from the live profile config, so editing the config after the run cannot make it reappear inside its own history), caps at the newest HISTORY_CAP, and reports the full count as `total`. Returns an empty history when the run's params do not parse: without a reliable (symbols, window, interval) key there is no comparable set to pull.
 const buildPriorRuns = async (
   p: ScopedRepo,
   strategyId: string,
   parsedParams: ReturnType<typeof BacktestParamsSchema.safeParse>,
   currentSignature: string | null,
+  contextFingerprint: string | null,
 ): Promise<AdvisorPriorRuns> => {
   if (!parsedParams.success) return { total: 0, sample: [] };
   const pp = parsedParams.data;
   const rows = await p.resultLedger.listForMarket({
     symbols: pp.symbols,
-    window: { fromMs: pp.fromMs, toMs: pp.toMs, interval: pp.strategyInterval },
+    window: { fromMs: pp.fromMs, toMs: pp.toMs, interval: pp.strategyInterval, contextFingerprint },
     strategyId,
   });
   return shapePriorRuns(rows, currentSignature);
@@ -240,7 +259,7 @@ const BacktestListQuery = z.object({
 });
 
 const CreateBacktestQuery = z.object({
-  // Preserve the existing bare `?force` shortcut while rejecting misspellings that would otherwise bypass dedup silently. The web sends `true`; `false` is the explicit opt-out.
+  // Every submission is a fresh run, so this does nothing; it stays accepted so an older client sending it is not refused.
   force: z.enum(['', 'true', 'false']).optional(),
 });
 
@@ -251,7 +270,7 @@ const createRouteDef = createRoute({
   request: {
     params: ProfileIdParam,
     query: CreateBacktestQuery,
-    body: { content: { 'application/json': { schema: BacktestParamsSchema } } },
+    body: { content: { 'application/json': { schema: BacktestSubmitSchema } } },
   },
   responses: {
     202: {
@@ -447,60 +466,38 @@ export const backtestsRouter = (di: DI): ApiHono => {
   app.openapi(createRouteDef, async (c) => {
     const profileId = asProfileId(c.req.valid('param').profileId);
     const params = c.req.valid('json');
-    // requireOwnedProfile (not scopeOf): the dedup signature is derived from the
-    // profile's own config merged with the run override, so the handler needs the
-    // profile row, not just the scope.
     const { p, profile } = await requireOwnedProfile(c, di, profileId);
     const { operatorId, accountId } = p.scope;
 
-    // `?force` (query-only, outside BacktestParams so it can never perturb the
-    // backtestSignature) is the "Run fresh anyway" choice from the dedup dialog:
-    // skip the dedup short-circuit and always create + enqueue a new run. A bare
-    // `?force` (empty value) counts; only an explicit `?force=false` opts out.
-    const forceParam = c.req.valid('query').force;
-    const force = forceParam !== undefined && forceParam !== 'false';
-
-    // Same completion-signature seam the worker stamps on a finished run, so a
-    // manual re-run recognises an identical completed run. Null when the
-    // strategy is unknown or the config no longer parses → fall back to a normal
-    // run (no dedup, no stamp).
-    const sig = signatureForRun(
-      di.strategies,
-      profile.strategyName,
-      profile.config,
-      params.strategyConfigOverride ?? null,
-      params,
+    const plugin = di.strategies.get(profile.strategyName);
+    if (!plugin)
+      throw new HttpError('VALIDATION_FAILED', `unknown strategy: ${profile.strategyName}`);
+    // Freeze the config now so a later profile edit cannot change what this run executes. The base parses first because mergeConfig coerces a numeric override only against a key the base already holds as a string.
+    const merged = plugin.configSchema.safeParse(
+      mergeConfig(
+        plugin.configSchema.safeParse(profile.config).data ?? profile.config,
+        params.strategyConfigOverride ?? {},
+      ),
     );
-    if (sig && !force) {
-      const existing = await p.backtestRuns.findDoneBySignature(sig.signature);
-      if (existing) {
-        c.set('auditEvent', {
-          event: 'run-backtest',
-          payload: { profileId, runId: existing.id, deduped: true },
-        });
-        return c.json({ runId: existing.id, deduped: true }, 202);
+    if (!merged.success) {
+      throw new HttpError(
+        'VALIDATION_FAILED',
+        `config is not valid for this strategy: ${merged.error.issues[0]?.message ?? 'invalid'}`,
+      );
+    }
+    const effectiveConfig = merged.data as Record<string, unknown>;
+    // The form validates against the requested strategy interval, but the replay reads the interval the effective config declares.
+    const candleInterval = effectiveConfig['candleInterval'];
+    if (typeof candleInterval === 'string') {
+      const candleMs = candleIntervalMs(candleInterval);
+      const detailMs = candleIntervalMs(params.detailInterval);
+      if (candleMs === null || detailMs === null || detailMs > candleMs) {
+        throw new HttpError(
+          'VALIDATION_FAILED',
+          `detailInterval ${params.detailInterval} must not be coarser than the config's candle interval ${candleInterval}`,
+        );
       }
     }
-
-    // Refuse a manual run whose config cannot place a valid order or fund its
-    // grid from the STARTING balance on a target symbol — a run where most buys
-    // never place wastes the whole backfill + replay. Funds against the run's
-    // `initialQuoteBalance` (exact); the per-order minimums use the current price
-    // (the window series isn't backfilled yet). Only this operator create
-    // endpoint gates feasibility before enqueuing a run.
-    // Gated against PRODUCTION filters regardless of the account's environment,
-    // because that is what the run itself uses: the engine replays production
-    // klines and reads its filters through `getSymbolInfo`, which resolves the
-    // live keyspace. Sizing the gate off testnet filters would refuse runs the
-    // engine would have executed, and admit ones it would not.
-    const saveDiagnostics = await assertOrderFeasibleForProfile(
-      di,
-      p,
-      profile,
-      mergeConfig(profile.config, params.strategyConfigOverride ?? {}),
-      'live',
-      { symbols: params.symbols, availableQuoteOverride: params.initialQuoteBalance },
-    );
 
     // Validate the lineage pointer against ownership before persisting it: a
     // parent that is not an owned run of this profile (cross-account, or simply
@@ -511,9 +508,19 @@ export const backtestsRouter = (di: DI): ApiHono => {
         ? params.parentRunId
         : null;
 
+    // The server writes the snapshot last, so nothing a client sends can reach it.
     const run = await p.backtestRuns.create({
       symbols: params.symbols,
-      params,
+      params: {
+        ...params,
+        snapshot: {
+          strategyName: profile.strategyName,
+          strategyVersion: plugin.version,
+          engineRevision: BACKTEST_ENGINE_REVISION,
+          buildId: di.gitSha,
+          effectiveConfig,
+        },
+      },
       parentRunId,
     });
     try {
@@ -530,24 +537,23 @@ export const backtestsRouter = (di: DI): ApiHono => {
       throw err;
     }
     c.set('auditEvent', { event: 'run-backtest', payload: { profileId, runId: run.id } });
-    return c.json(withDiagnostics({ runId: run.id, deduped: false }, saveDiagnostics), 202);
+    return c.json({ runId: run.id }, 202);
   });
 
   app.openapi(getRouteDef, async (c) => {
     const { profileId: rawProfileId, runId } = c.req.valid('param');
     const profileId = asProfileId(rawProfileId);
-    const p = await scopeOf(c, di, profileId);
+    const { p, profile } = await requireOwnedProfile(c, di, profileId);
     const run = await p.backtestRuns.get(runId);
     if (!run) throw new HttpError('NOT_FOUND', 'backtest-run');
-    return c.json(toRunDetail(run), 200);
+    return c.json(toRunDetail(run, runMatchesProfile(di, profile, run)), 200);
   });
 
   // Abort a queued/running run on demand. Marks it `cancelled` (the worker's
   // mid-run status poll then stops a live job cleanly via BacktestCancelledError;
   // a dead job has nothing to stop). Idempotent: a run already terminal is left
-  // as-is and its current detail is returned. Frees the in-flight slot so a new
-  // run can start, and lets the operator clear a hung run without waiting for the
-  // periodic sweep.
+  // as-is and its current detail is returned. Lets the operator clear a hung run
+  // without waiting for the periodic sweep.
   app.openapi(abortRouteDef, async (c) => {
     const { profileId: rawProfileId, runId } = c.req.valid('param');
     const profileId = asProfileId(rawProfileId);
@@ -558,7 +564,7 @@ export const backtestsRouter = (di: DI): ApiHono => {
     const after = await p.backtestRuns.get(runId);
     if (!after) throw new HttpError('NOT_FOUND', 'backtest-run');
     c.set('auditEvent', { event: 'abort-backtest', payload: { profileId, runId } });
-    return c.json(toRunDetail(after), 200);
+    return c.json(toRunDetail(after, false), 200);
   });
 
   // Retry a finished-but-not-done run: re-run its exact stored config as a fresh
@@ -592,8 +598,7 @@ export const backtestsRouter = (di: DI): ApiHono => {
       event: 'retry-backtest',
       payload: { profileId, runId: retried.id, retriedFrom: runId },
     });
-    // A retry is always a fresh run, never a dedup hit.
-    return c.json({ runId: retried.id, deduped: false }, 202);
+    return c.json({ runId: retried.id }, 202);
   });
 
   // Delete a finished run from the history. Refused (409) when the run is still

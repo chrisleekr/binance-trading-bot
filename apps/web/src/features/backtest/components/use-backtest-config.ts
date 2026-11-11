@@ -9,7 +9,10 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
 import {
   asDecimalString,
-  BACKTEST_INTERVALS,
+  BACKTEST_DECISION_INTERVALS,
+  candleIntervalMs,
+  exceedsReplayBudget,
+  maxReplayDays,
   type BacktestParams,
   type ProfileResponse,
   type StrategyDescriptor,
@@ -32,6 +35,8 @@ export interface ParamState {
   from: string;
   to: string;
   strategyInterval: string;
+  // Empty string follows the default for this strategy until the operator picks one.
+  decisionInterval: string;
   detailInterval: string;
   initialQuoteBalance: string;
   makerBps: string;
@@ -50,6 +55,7 @@ const INITIAL_PARAMS: ParamState = {
   from: '',
   to: '',
   strategyInterval: '1h',
+  decisionInterval: '',
   detailInterval: '5m',
   initialQuoteBalance: '1000',
   makerBps: '10',
@@ -80,6 +86,7 @@ const paramStateFromResult = (p: BacktestParams): ParamState => ({
   from: toLocalInput(p.fromMs),
   to: toLocalInput(p.toMs),
   strategyInterval: p.strategyInterval,
+  decisionInterval: p.decisionInterval ?? '',
   detailInterval: p.detailInterval,
   initialQuoteBalance: p.initialQuoteBalance,
   makerBps: String(p.fees.makerBps),
@@ -89,8 +96,32 @@ const paramStateFromResult = (p: BacktestParams): ParamState => ({
   volumeCapPct: p.volumeCapPct == null ? '' : String(p.volumeCapPct),
 });
 
-const intervalRank = (i: string): number =>
-  BACKTEST_INTERVALS.indexOf(i as BacktestParams['strategyInterval']);
+const msOf = (interval: string): number => candleIntervalMs(interval) as number;
+
+/**
+ * A detail interval the replay accepts: it divides the decision clock and is no coarser than the candle.
+ *
+ * @param detail - The fill interval being tested.
+ * @param decision - The clock it must divide.
+ * @param candle - The strategy candle it must not exceed.
+ * @returns True when the replay accepts this detail interval.
+ */
+export const detailFits = (detail: string, decision: string, candle: string): boolean =>
+  msOf(decision) % msOf(detail) === 0 && msOf(detail) <= msOf(candle);
+
+/**
+ * The decision clock a run uses when the operator has not chosen one.
+ *
+ * @param candleInterval - The strategy's candle interval.
+ * @param exitsWithinCandle - Whether live exits this strategy on 1-minute prices, which only a 1-minute clock replays.
+ * @returns The interval to decide on, capped to the coarsest clock the replay supports.
+ */
+const defaultDecisionInterval = (candleInterval: string, exitsWithinCandle: boolean): string => {
+  if (exitsWithinCandle) return '1m';
+  return (BACKTEST_DECISION_INTERVALS as readonly string[]).includes(candleInterval)
+    ? candleInterval
+    : '1d';
+};
 
 type Banner = { kind: 'ok' | 'err'; message: string } | null;
 type LaunchMutation = ReturnType<typeof useBacktestRun>['launch'];
@@ -218,6 +249,9 @@ export function useBacktestConfig({
   // from the live config.
   const effectiveConfigDefaults = runConfigSeed ?? configDefaults;
 
+  // Symbols the run will load, for sizing the default window. A basket reads them from the config the form seeds from.
+  const symbolCount = isBasket ? basketSymbolsFromConfig(effectiveConfigDefaults).length : 1;
+
   const previewPrice = tradedSymbols.find((s) => s.symbol === symbol)?.currentPrice ?? null;
   // Synthetic account for the generic preview: the operator's typed starting
   // quote balance as free cash, nothing deployed — the backtest has no live
@@ -240,19 +274,32 @@ export function useBacktestConfig({
       : typeof defaultInterval === 'string'
         ? defaultInterval
         : null;
-  const decisionInterval = configInterval ?? params.strategyInterval;
+  const candleInterval = configInterval ?? params.strategyInterval;
+  const exitsWithinCandle = descriptor?.exitsWithinCandle === true;
+  const autoDecisionInterval = defaultDecisionInterval(candleInterval, exitsWithinCandle);
+  const decisionFor = (p: ParamState, candle: string): string =>
+    p.decisionInterval === ''
+      ? defaultDecisionInterval(candle, exitsWithinCandle)
+      : p.decisionInterval;
+  const decisionInterval = decisionFor(params, candleInterval);
+  const detailIntervalTooCoarse = !detailFits(
+    params.detailInterval,
+    decisionInterval,
+    candleInterval,
+  );
 
-  // The detail interval must be the same as or finer than the decision interval.
-  const detailIntervalTooCoarse =
-    intervalRank(params.detailInterval) > intervalRank(decisionInterval);
-
-  // Clamp a now-too-coarse detail interval down to the decision interval, during
-  // render, so the too-coarse frame never commits.
-  const [clampedForInterval, setClampedForInterval] = useState<string | null>(null);
-  if (decisionInterval !== clampedForInterval) {
-    setClampedForInterval(decisionInterval);
+  // Move a detail interval the clocks no longer accept to the finest common one, during render, so the invalid frame never commits.
+  const clockKey = `${candleInterval}|${decisionInterval}`;
+  const [clampedForClocks, setClampedForClocks] = useState<string | null>(null);
+  if (clockKey !== clampedForClocks) {
+    setClampedForClocks(clockKey);
     if (detailIntervalTooCoarse) {
-      setParams((p) => ({ ...p, detailInterval: decisionInterval }));
+      setParams((p) => ({
+        ...p,
+        detailInterval: detailFits(decisionInterval, decisionInterval, candleInterval)
+          ? decisionInterval
+          : '1m',
+      }));
     }
   }
 
@@ -290,10 +337,29 @@ export function useBacktestConfig({
       configValues && typeof configValues['candleInterval'] === 'string'
         ? (configValues['candleInterval'] as string)
         : p.strategyInterval;
-    if (intervalRank(p.detailInterval) > intervalRank(runInterval)) {
+    const runDecision = decisionFor(p, runInterval);
+    if (!detailFits(p.detailInterval, runDecision, runInterval)) {
       setBanner({
         kind: 'err',
-        message: `Detail interval must be the same as or finer than your Candle Interval (${runInterval}).`,
+        message: `Detail interval must divide the decision interval (${runDecision}) and be no coarser than your Candle Interval (${runInterval}).`,
+      });
+      return null;
+    }
+    // The server rejects an off-grid window rather than shifting it, so the form snaps it down first and says so in its help text.
+    const detailMs = msOf(p.detailInterval);
+    const fromMs = Math.floor(toMs(p.from) / detailMs) * detailMs;
+    const windowEndMs = Math.floor(toMs(p.to) / detailMs) * detailMs;
+    if (fromMs >= windowEndMs) {
+      setBanner({
+        kind: 'err',
+        message: `From must be earlier than To by at least one ${p.detailInterval} candle.`,
+      });
+      return null;
+    }
+    if (exceedsReplayBudget(symbols.length, windowEndMs - fromMs)) {
+      setBanner({
+        kind: 'err',
+        message: 'This run is too large to replay. Shorten the date range or choose fewer symbols.',
       });
       return null;
     }
@@ -319,9 +385,10 @@ export function useBacktestConfig({
     }
     return {
       symbols,
-      fromMs: toMs(p.from),
-      toMs: toMs(p.to),
+      fromMs,
+      toMs: windowEndMs,
       strategyInterval: runInterval as BacktestParams['strategyInterval'],
+      decisionInterval: runDecision as BacktestParams['decisionInterval'],
       detailInterval: p.detailInterval as BacktestParams['detailInterval'],
       initialQuoteBalance: asDecimalString(p.initialQuoteBalance),
       fees: { makerBps: Number(p.makerBps), takerBps: Number(p.takerBps) },
@@ -368,7 +435,9 @@ export function useBacktestConfig({
         ? params
         : {
             ...params,
-            from: toLocalInput(now - AUTORUN_WINDOW_DAYS * 86_400_000),
+            from: toLocalInput(
+              now - Math.min(AUTORUN_WINDOW_DAYS, maxReplayDays(symbolCount)) * 86_400_000,
+            ),
             to: toLocalInput(now),
           };
     // Keep the visible form in step with what was actually run.
@@ -486,11 +555,14 @@ export function useBacktestConfig({
 
   return {
     isBasket,
+    symbolCount,
     symbol,
     setSymbol,
     params,
     setParam,
     applyWindowPreset,
+    candleInterval,
+    autoDecisionInterval,
     decisionInterval,
     detailIntervalTooCoarse,
     configSchema,

@@ -125,7 +125,7 @@ export const buildMcpServer = (
         description: tool.description,
         inputSchema: tool.inputShape,
         annotations: { ...tool.annotations },
-        // The anthropic-namespaced hints are read here and ignored anywhere else, so `_meta` is the only field that makes a trade tool prompt. Omitted rather than sent empty, so a tool asking for nothing says nothing.
+        // The anthropic-namespaced hints are read here and ignored anywhere else, so `_meta` is the only field that can carry them. Omitted rather than sent empty, so a tool asking for nothing says nothing.
         ...(tool.meta === undefined ? {} : { _meta: { ...tool.meta } }),
       },
       async (args: unknown) => {

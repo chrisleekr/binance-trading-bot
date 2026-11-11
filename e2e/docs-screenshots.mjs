@@ -352,7 +352,8 @@ const ensureBacktestResult = async (page, ids) => {
   // A 30-day window on the profile's own trading interval. Long enough to
   // produce round-trips and a readable equity curve, short enough that the
   // candle backfill is one page per symbol.
-  const toMs = FROZEN_AT_MS;
+  // The API rejects a window off the detail-candle grid.
+  const toMs = FROZEN_AT_MS - (FROZEN_AT_MS % (60 * 60 * 1000));
   const fromMs = toMs - 30 * 24 * 60 * 60 * 1000;
   const runId = await page.evaluate(
     async ({ a, p, body }) => {
@@ -372,6 +373,7 @@ const ensureBacktestResult = async (page, ids) => {
         fromMs,
         toMs,
         strategyInterval: '1h',
+        decisionInterval: '1h',
         detailInterval: '1h',
         initialQuoteBalance: '1000',
         fees: { makerBps: 10, takerBps: 10 },

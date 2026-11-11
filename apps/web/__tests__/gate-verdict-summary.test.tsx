@@ -78,6 +78,7 @@ const runDetailBody = {
   progress: 100,
   createdAt: '2026-06-19T00:00:00.000Z',
   params: paramsBody,
+  matchesProfile: true,
   result: {
     params: paramsBody,
     metrics: {
@@ -268,6 +269,17 @@ describe('GateVerdictSummary', () => {
     );
     const archiveUrl = urls.find((u) => u.includes('/trade-archive')) as string;
     expect(new URL(archiveUrl, 'http://localhost').searchParams.get('from')).toBe(PINNED_AT);
+  });
+
+  it('declines the comparison when the baseline no longer matches this profile', async () => {
+    renderSummary({ run: { ...runDetailBody, matchesProfile: false } });
+    await waitFor(() =>
+      expect(screen.getByTestId('gate-verdict-edge')).toHaveTextContent(
+        /no comparison.*another config or older replay rules/,
+      ),
+    );
+    expect(screen.getByTestId('gate-verdict-edge')).not.toHaveTextContent(/profit factor/);
+    expect(screen.queryByTestId('gate-verdict-edge-detail')).toBeNull();
   });
 
   it('renders a non-threshold failure detail once, as a sentence', async () => {

@@ -114,48 +114,6 @@ function BacktestPage(): React.JSX.Element {
           </FormActions>
         </DialogContent>
       </Dialog>
-
-      <Dialog
-        open={wb.history.pendingDedup !== null}
-        onOpenChange={(o) => {
-          if (!o) wb.history.setPendingDedup(null);
-        }}
-      >
-        <DialogContent data-testid="backtest-dedup-dialog">
-          <DialogHeader>
-            <DialogTitle>You already ran this exact backtest.</DialogTitle>
-            <DialogDescription>
-              A finished run with this exact config and window already exists. Load its saved
-              result, or run it fresh anyway to queue a new run.
-            </DialogDescription>
-          </DialogHeader>
-          <FormActions className="mt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                if (wb.history.pendingDedup)
-                  wb.run.launch.mutate({ body: wb.history.pendingDedup.params, force: true });
-                wb.history.setPendingDedup(null);
-              }}
-              data-testid="backtest-dedup-run-fresh"
-            >
-              Run fresh anyway
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => {
-                if (wb.history.pendingDedup) wb.showRun(wb.history.pendingDedup.runId);
-                wb.history.setPendingDedup(null);
-              }}
-              data-testid="backtest-dedup-load-existing"
-            >
-              Load existing result
-            </Button>
-          </FormActions>
-        </DialogContent>
-      </Dialog>
     </Page>
   );
 }

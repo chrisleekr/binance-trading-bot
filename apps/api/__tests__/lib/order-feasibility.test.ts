@@ -96,7 +96,7 @@ const account = (balances: Record<string, { free: string; locked: string }>): st
   JSON.stringify({ balances });
 
 describe('orderFeasibilityDiagnostics', () => {
-  it('does NOT run the full-grid funding check on the live path (no override)', async () => {
+  it('does NOT run the full-grid funding check without fundFromAccountValue', async () => {
     // Grid totals 60; without a clean starting balance the funding check must not
     // fire, so a running/invested profile can still be checked without a false block.
     expect(
@@ -121,36 +121,6 @@ describe('orderFeasibilityDiagnostics', () => {
     expect(diags).toHaveLength(1);
     expect(diags[0]).toMatchObject({ level: 'block', code: 'order-below-min-notional' });
     expect(diags[0]?.message).toMatch(/^BTCUSDT: /);
-  });
-
-  it('runs the funding check against availableQuoteOverride (backtest balance)', async () => {
-    const diags = await orderFeasibilityDiagnostics(
-      makeDi(LIVE),
-      fakeP([]),
-      trailingTrade,
-      gridConfig,
-      {
-        symbols: ['BTCUSDT'],
-        availableQuoteOverride: '50',
-        mode: 'live',
-      },
-    );
-    expect(diags.map((d) => d.code)).toEqual(['grid-underfunded']);
-    expect(diags[0]?.message).toContain('2 of 3');
-  });
-
-  it('is clean when the override funds the full grid', async () => {
-    const diags = await orderFeasibilityDiagnostics(
-      makeDi(LIVE),
-      fakeP(['BTCUSDT']),
-      trailingTrade,
-      gridConfig,
-      {
-        availableQuoteOverride: '100000',
-        mode: 'live',
-      },
-    );
-    expect(diags).toEqual([]);
   });
 
   it('reports a symbol with no filters or price snapshot as unchecked, not clean', async () => {
@@ -375,25 +345,6 @@ describe('orderFeasibilityDiagnostics', () => {
     );
     expect(diags.map((d) => d.code)).toEqual(['grid-underfunded']);
     expect(diags[0]?.message).toContain('0 of 3');
-  });
-
-  it('lets availableQuoteOverride win over fundFromAccountValue when both are set', async () => {
-    // Backtest override (clean balance) must take precedence over live account
-    // value — an underfunded live snapshot is ignored when an override is given.
-    const store = { ...LIVE, [ACCOUNT_KEY]: account({ USDT: { free: '1', locked: '0' } }) };
-    expect(
-      await orderFeasibilityDiagnostics(
-        makeDi(store),
-        fakeP(['BTCUSDT']),
-        trailingTrade,
-        gridConfig,
-        {
-          fundFromAccountValue: true,
-          availableQuoteOverride: '100000',
-          mode: 'live',
-        },
-      ),
-    ).toEqual([]);
   });
 
   it('skips the funding check when fundFromAccountValue is set but no snapshot exists', async () => {
@@ -901,7 +852,7 @@ describe('assertOrderFeasibleForProfile', () => {
 
 describe('withDiagnostics', () => {
   it('omits the field entirely when there is nothing to report', () => {
-    const body = { runId: 'r1', deduped: false };
+    const body = { runId: 'r1' };
     // Not `diagnostics: []`. Absence is what keeps a clean response identical to
     // what every existing client already parses.
     expect(withDiagnostics(body, [])).not.toHaveProperty('diagnostics');
@@ -909,7 +860,7 @@ describe('withDiagnostics', () => {
   });
 
   it('attaches a copy without mutating the body it was given', () => {
-    const body = { runId: 'r1', deduped: false };
+    const body = { runId: 'r1' };
     const diags = [{ level: 'warn' as const, code: 'filters-unavailable', message: 'x' }];
     expect(withDiagnostics(body, diags)).toEqual({ ...body, diagnostics: diags });
     expect(body).not.toHaveProperty('diagnostics');

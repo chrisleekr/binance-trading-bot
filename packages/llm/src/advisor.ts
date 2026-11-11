@@ -248,15 +248,17 @@ export const buildImproveInput = (
   const baseConfig = merged.data as Record<string, unknown>;
   // The live-enablement gate's own checklist for THIS run: the exact bars that
   // decide go-live (coverage, profit factor, closed trades, alpha, and the
-  // out-of-sample trio), each with its current pass/fail, under this profile's
+  // Recent-period trio), each with its current pass/fail, under this profile's
   // policy. Feeding the advisor the target it must clear, and which checks fail,
   // aims its suggestions at the binding constraint instead of an abstract
   // "improve performance", and steers it off the risk-adjusted metrics the gate
   // ignores. Same evaluation the gate-status card and admission gate use, so the
   // advisor never reasons against a different bar than the operator sees.
   const gateMetrics =
-    toGateCandidates([{ id: 'advisor', configFingerprint: null, createdAt: EPOCH, result }])[0]
-      ?.metrics ?? null;
+    toGateCandidates([{ id: 'advisor', configFingerprint: null, createdAt: EPOCH, result }], {
+      strategyName: args.strategyName,
+      engineRevision: result.simulation?.engineRevision ?? 0,
+    })[0]?.metrics ?? null;
   const gateChecks = gateMetrics ? gateThresholdChecks(gateMetrics, policy) : [];
   // The honest "should this trade live at all" baseline: HOLD when the run lost
   // to a fee-free buy-and-hold or closed no trades. Anchors the advisor to the
@@ -309,6 +311,8 @@ export const buildImproveInput = (
         dataWarnings: result.dataWarnings ?? [],
         // Where the replay departs from live (an exit not replayed minute by minute). Not a data fault, but the advisor should still discount results these flatter.
         modelNotes: result.modelNotes ?? [],
+        // Which replay produced these numbers; null marks a run from before replay metadata existed, whose figures are not comparable with newer ones.
+        simulation: result.simulation ?? null,
         // Honest trade-or-hold baseline and the fill-model assumptions, so the
         // advisor discounts optimistic profits and does not over-tune a no-edge run.
         tradeOrHold,

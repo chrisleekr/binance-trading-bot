@@ -141,6 +141,7 @@ const runDetailBody = {
   progress: 100,
   createdAt: '2026-06-19T00:00:00.000Z',
   params: paramsBody,
+  matchesProfile: true,
   result: {
     params: paramsBody,
     metrics,
@@ -598,6 +599,26 @@ describe('LiveVsBacktestCard', () => {
       expect(screen.getByText(/Couldn't load the pinned backtest baseline/i)).toBeInTheDocument(),
     );
     expect(document.querySelectorAll('[data-skeleton-bar]')).toHaveLength(0);
+  });
+
+  it('states no comparison and no verdict when the baseline no longer matches this profile', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/equity-snapshots')) return jsonOf(equityBody);
+        if (url.includes('/trade-archive')) return jsonOf(archiveBody);
+        if (url.includes('/backtests/')) return jsonOf({ ...runDetailBody, matchesProfile: false });
+        return jsonOf(profileBody(RUN_ID));
+      }),
+    );
+    render(
+      <QueryClientProvider client={createQueryClient()}>
+        <LiveVsBacktestCard profileId={PROFILE_ID} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('live-vs-backtest-abstain')).toBeInTheDocument();
+    expect(screen.queryByText(/Profit factor \(bt → live\)/)).toBeNull();
   });
 
   it('says the pinned run has no result yet rather than pulsing forever', async () => {

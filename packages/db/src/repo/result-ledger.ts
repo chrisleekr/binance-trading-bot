@@ -9,6 +9,8 @@ export interface LedgerWindow {
   readonly fromMs: number;
   readonly toMs: number;
   readonly interval: string;
+  /** The replay context the outcome was measured in; null when the run recorded none. */
+  readonly contextFingerprint: string | null;
 }
 
 export interface LedgerEntry {
@@ -53,16 +55,17 @@ export async function upsert(scope: ProfileScope, entry: LedgerEntry): Promise<v
 }
 
 /**
- * Every prior outcome for one market (same symbols + window + strategy), newest
- * first. The same market is the only place a past config→outcome is informative
- * about a new run. Symbols are compared as a sorted text[] (stored sorted by
- * {@link upsert}); window fields are read out of the jsonb so the comparison is
- * exact.
+ * Every prior outcome for one replay context (same symbols, window, strategy and context), newest first. Only a shared context makes a past config and outcome informative about a new run. Symbols are compared as a sorted text[] (stored sorted by {@link upsert}); window fields are read out of the jsonb so the comparison is exact, and a legacy row has no context key so it never matches.
+ *
+ * @param scope - The owning profile.
+ * @param q - The market to match; a null `window.contextFingerprint` matches nothing, because such a run cannot be compared with any other.
+ * @returns The matching rows, newest first.
  */
 export async function listForMarket(
   scope: ProfileScope,
   q: { symbols: readonly string[]; window: LedgerWindow; strategyId: string },
 ): Promise<BacktestResultLedgerRow[]> {
+  if (q.window.contextFingerprint === null) return [];
   const sorted = [...q.symbols].sort();
   return scope.db
     .select()
@@ -77,6 +80,7 @@ export async function listForMarket(
         sql`${backtestResultLedger.window}->>'interval' = ${q.window.interval}`,
         sql`(${backtestResultLedger.window}->>'fromMs')::bigint = ${q.window.fromMs}`,
         sql`(${backtestResultLedger.window}->>'toMs')::bigint = ${q.window.toMs}`,
+        sql`${backtestResultLedger.window}->>'contextFingerprint' = ${q.window.contextFingerprint}`,
       ),
     )
     .orderBy(desc(backtestResultLedger.updatedAt));

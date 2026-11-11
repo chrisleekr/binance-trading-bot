@@ -8,12 +8,12 @@
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Logger } from 'pino';
+import { BACKTEST_ENGINE_REVISION } from '@app/strategy-core';
 
-const { profileRepoSpy, runProfileBacktestSpy, getRun, findProfile } = vi.hoisted(() => ({
+const { profileRepoSpy, runProfileBacktestSpy, getRun } = vi.hoisted(() => ({
   profileRepoSpy: vi.fn(),
   runProfileBacktestSpy: vi.fn(),
   getRun: vi.fn(),
-  findProfile: vi.fn(),
 }));
 
 vi.mock('@app/db', async (importOriginal) => {
@@ -30,12 +30,20 @@ const { createRunBacktestJob } = await import('../../src/boot/run-backtest-job.j
 const VALID_PARAMS = {
   symbols: ['BTCUSDT'],
   strategyInterval: '1h',
+  decisionInterval: '1h',
   detailInterval: '1h',
   fromMs: 0,
   toMs: 250 * 3_600_000,
   fees: { makerBps: 0, takerBps: 0 },
   slippageBps: 0,
   initialQuoteBalance: '1000',
+  snapshot: {
+    strategyName: 'trailing-trade',
+    strategyVersion: '1.0.0',
+    engineRevision: BACKTEST_ENGINE_REVISION,
+    buildId: 'abc1234',
+    effectiveConfig: { tag: 'cfg' },
+  },
 };
 
 const RUN_ID = 'run-1';
@@ -43,14 +51,9 @@ const USER_ID = '11111111-1111-4111-8111-111111111111';
 const ACCOUNT_ID = '33333333-3333-4333-8333-333333333333';
 const PROFILE_ID = '22222222-2222-4222-8222-222222222222';
 
-const aProfile = (overrides: Record<string, unknown> = {}) => ({
-  strategyName: 'trailing-trade',
-  config: { tag: 'cfg' },
-  ...overrides,
-});
-
 const strategy = {
   name: 'trailing-trade',
+  version: '1.0.0',
   configSchema: { parse: (c: unknown) => c },
 };
 
@@ -62,9 +65,8 @@ const buildDeps = (overrides: Record<string, unknown> = {}) =>
     getSymbolInfo: vi.fn(),
     strategies: { get: vi.fn(() => strategy) },
     clock: { nowMs: () => 0 },
-    signalCache: {},
-    candleCache: {},
     cpuShare: 1,
+    buildId: 'abc1234',
     ...overrides,
   }) as never;
 
@@ -73,11 +75,9 @@ const invoke = (deps = buildDeps()) =>
 
 beforeEach(() => {
   getRun.mockReset();
-  findProfile.mockReset();
   runProfileBacktestSpy.mockReset();
   profileRepoSpy.mockReset().mockResolvedValue({
     backtestRuns: { get: getRun },
-    profile: { findById: findProfile },
   });
 });
 
@@ -90,10 +90,10 @@ describe('createRunBacktestJob', () => {
   });
 
   it('throws when the profile was deleted between enqueue and run', async () => {
-    getRun.mockResolvedValue({ params: VALID_PARAMS });
-    findProfile.mockResolvedValue(null);
+    // The scope proves the ownership chain, so a deleted profile fails there, before the frozen config could run.
+    profileRepoSpy.mockRejectedValue(new Error('profile not found'));
 
-    await expect(invoke()).rejects.toThrow(`profile not found for backtest run: ${RUN_ID}`);
+    await expect(invoke()).rejects.toThrow('profile not found');
     expect(runProfileBacktestSpy).not.toHaveBeenCalled();
   });
 
@@ -101,15 +101,15 @@ describe('createRunBacktestJob', () => {
     // The row was validated by the api minutes earlier; it is parsed again here
     // so a malformed blob fails cleanly instead of deref-ing deep in the engine.
     getRun.mockResolvedValue({ params: { ...VALID_PARAMS, symbols: [] } });
-    findProfile.mockResolvedValue(aProfile());
 
     await expect(invoke()).rejects.toThrow();
     expect(runProfileBacktestSpy).not.toHaveBeenCalled();
   });
 
-  it('throws when the profile names a strategy the registry does not know', async () => {
-    getRun.mockResolvedValue({ params: VALID_PARAMS });
-    findProfile.mockResolvedValue(aProfile({ strategyName: 'ghost' }));
+  it('throws when the snapshot names a strategy the registry does not know', async () => {
+    getRun.mockResolvedValue({
+      params: { ...VALID_PARAMS, snapshot: { ...VALID_PARAMS.snapshot, strategyName: 'ghost' } },
+    });
     runProfileBacktestSpy.mockResolvedValue({
       result: { metrics: { netProfit: '0' } },
       configFingerprint: 'fp',
@@ -122,7 +122,6 @@ describe('createRunBacktestJob', () => {
 
   it('builds the ledger entry from the run window and the engine metrics', async () => {
     getRun.mockResolvedValue({ params: VALID_PARAMS });
-    findProfile.mockResolvedValue(aProfile());
     runProfileBacktestSpy.mockResolvedValue({
       result: { metrics: { netProfit: '12.5' } },
       configFingerprint: 'fp-1',

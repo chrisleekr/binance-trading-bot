@@ -154,6 +154,42 @@ describe('registerAdvisorWorker', () => {
     });
   });
 
+  describe('prior-run history', () => {
+    const params = {
+      symbols: ['BTCUSDT'],
+      fromMs: 300_000,
+      toMs: 600_000,
+      strategyInterval: '1h',
+      decisionInterval: '5m',
+      detailInterval: '5m',
+      initialQuoteBalance: '1000',
+      fees: { makerBps: 10, takerBps: 10 },
+      slippageBps: 5,
+    };
+
+    it.each([
+      ['a known build', 'build-1', 'context-a'],
+      ['an unknown build', 'unknown', null],
+    ])('reads the ledger under the comparison context of %s', async (_label, buildId, expected) => {
+      repoMocks.runGet.mockResolvedValue({
+        status: 'done',
+        result: {
+          params,
+          metrics: {},
+          simulation: { buildId, contextFingerprint: 'context-a' },
+        },
+        backtestSignature: 'sig1',
+      });
+      await register(availableLlm)(JOB);
+      expect(repoMocks.listForMarket).toHaveBeenCalledOnce();
+      expect(repoMocks.listForMarket).toHaveBeenCalledWith(
+        expect.objectContaining({
+          window: expect.objectContaining({ contextFingerprint: expected }),
+        }),
+      );
+    });
+  });
+
   it('records error(failed) and rethrows (→ DLQ) when the advisor throws', async () => {
     llmMocks.runAdvisor.mockRejectedValueOnce(new Error('model boom'));
     const invoke = register(availableLlm);

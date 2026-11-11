@@ -183,7 +183,6 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
     // recovery + the cross-profile backtest sweep).
     backtestRuns: bindModule(scope, backtestRuns, [
       'create',
-      'findDoneBySignature',
       'get',
       'recentDone',
       'list',

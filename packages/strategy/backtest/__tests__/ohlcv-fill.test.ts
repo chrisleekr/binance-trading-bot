@@ -187,7 +187,7 @@ describe('OhlcvFillModel', () => {
     if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('87.56'); // 88 x (1 - 50bps)
   });
 
-  it('never fills a marketable SELL stop-limit below its limit', () => {
+  it('rests a SELL stop-limit armed when slippage would take it below its limit', () => {
     const out = model.fill(
       input({
         side: 'SELL',
@@ -195,8 +195,7 @@ describe('OhlcvFillModel', () => {
         detail: [bar('85', '95', '92')], // slippage would take 90 to 89.55, below the limit
       }),
     );
-    expect(out.kind).toBe('filled');
-    if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('89.9');
+    expect(out).toEqual({ kind: 'rest', armed: true });
   });
 
   it('keeps resting a SELL stop whose low has not reached the stop', () => {
@@ -301,11 +300,8 @@ describe('OhlcvFillModel', () => {
     expect(out).toMatchObject({ kind: 'rejected', reason: 'insufficient-balance' });
   });
 
-  it('shrinks an all-in BUY to a partial under the spread haircut, not a rejection', () => {
-    // Funded at the order price (100 * 1 = 100 <= 100 free) but the 50bps
-    // half-spread lifts the fill to 100.5, so the last sliver cannot fill: the
-    // order partials rather than rejecting as a false -2010. A live limit buy
-    // fills at the limit, so a whole rejection here would be wrong.
+  it('fills an all-in BUY LIMIT whole, because the spread never lifts its price', () => {
+    // A limit never executes past its limit, so a balance funding exactly the order price covers the fill.
     const spreadOnly = new OhlcvFillModel({
       makerBps: 0,
       takerBps: 0,
@@ -320,11 +316,7 @@ describe('OhlcvFillModel', () => {
         acct: account('100'), // exactly the order-price notional
       }),
     );
-    expect(out.kind).toBe('partial');
-    if (out.kind === 'partial') {
-      expect(new Decimal(out.fills[0]?.qty ?? '0').lt(1)).toBe(true);
-      expect(out.remainingQty.gt(0)).toBe(true);
-    }
+    expect(out).toMatchObject({ kind: 'filled', fills: [{ price: new Decimal('100') }] });
   });
 
   it('fills a BUY stop-limit at the stop plus slippage when the arming bar opened below the stop', () => {
@@ -342,7 +334,7 @@ describe('OhlcvFillModel', () => {
     }
   });
 
-  it('never fills a marketable BUY stop-limit above its limit', () => {
+  it('rests a BUY stop-limit armed when slippage would take it above its limit', () => {
     const out = model.fill(
       input({
         side: 'BUY',
@@ -350,8 +342,7 @@ describe('OhlcvFillModel', () => {
         detail: [bar('100', '115', '100')], // slippage would take 110 to 110.55, above the limit
       }),
     );
-    expect(out.kind).toBe('filled');
-    if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('110.2');
+    expect(out).toEqual({ kind: 'rest', armed: true });
   });
 
   it('fills a BUY stop-limit at the arming bar open plus slippage when that bar gapped above the stop', () => {
@@ -380,23 +371,21 @@ describe('OhlcvFillModel', () => {
     expect(out.kind).toBe('rest');
   });
 
-  it('fills a gapped-through stop-limit at its limit regardless of slippageBps', () => {
-    // The bar opened below the limit, so the armed limit rests and later fills at its own rate: slippage does not apply to a resting limit.
+  it('rests a gapped-through stop-limit armed, ignoring the same-bar recovery', () => {
+    // The bar opened below the limit, and an OHLC bar does not say whether its high came after the trigger.
     const hiSlip = new OhlcvFillModel({ makerBps: 10, takerBps: 20, slippageBps: 500 });
     const out = hiSlip.fill(
       input({
         side: 'SELL',
         params: { type: 'STOP_LOSS_LIMIT', stopPrice: '90', price: '89', quantity: '1' },
-        detail: [bar('75', '95', '80')], // armed (low<=90), crossed (high 95 > 89)
+        detail: [bar('75', '95', '80')], // armed (low<=90), high 95 belongs to the arming bar
       }),
     );
-    expect(out.kind).toBe('filled');
-    if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('89');
+    expect(out).toEqual({ kind: 'rest', armed: true });
   });
 
-  it('arms from the FIRST bar that reaches the stop, then fills at the limit', () => {
-    // bar[0] low 92 > stop 90 (no arm); bar[1] low 80 <= stop (arms) and high 90
-    // > limit 89 (crosses). Proves firstStopBar picks bar[1], then the limit fills.
+  it('arms from the FIRST bar that reaches the stop, and needs a later bar to fill', () => {
+    // bar[0] low 92 > stop 90 (no arm); bar[1] low 80 <= stop (arms) with its open 85 below the limit.
     const out = model.fill(
       input({
         side: 'SELL',
@@ -404,8 +393,7 @@ describe('OhlcvFillModel', () => {
         detail: [bar('92', '95', '94'), bar('80', '90', '85')],
       }),
     );
-    expect(out.kind).toBe('filled');
-    if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('89');
+    expect(out).toEqual({ kind: 'rest', armed: true });
   });
 
   it('rejects when the rounded quantity falls below minQty', () => {
@@ -437,12 +425,12 @@ describe('OhlcvFillModel', () => {
   });
 });
 
-describe('OhlcvFillModel half-spread haircut', () => {
+describe('OhlcvFillModel half-spread', () => {
   // spreadBps 100 → half-spread 50bps = 0.005. slippage isolated to 0 so the
   // spread effect is the only price move, including on the maker LIMIT path.
   const spread = new OhlcvFillModel({ makerBps: 10, takerBps: 20, slippageBps: 0, spreadBps: 100 });
 
-  it('lifts a BUY LIMIT fill by the half-spread', () => {
+  it('fills a BUY LIMIT at its limit whatever the half-spread', () => {
     const out = spread.fill(
       input({
         side: 'BUY',
@@ -452,12 +440,12 @@ describe('OhlcvFillModel half-spread haircut', () => {
     );
     expect(out.kind).toBe('filled');
     if (out.kind === 'filled') {
-      expect(out.fills[0]?.price.toString()).toBe('100.5'); // 100 * (1 + 50bps)
-      expect(out.fills[0]?.feeBps).toBe(10); // still maker — spread is not a fee
+      expect(out.fills[0]?.price.toString()).toBe('100');
+      expect(out.fills[0]?.feeBps).toBe(10); // still maker, spread is not a fee
     }
   });
 
-  it('cuts a SELL LIMIT fill by the half-spread', () => {
+  it('fills a SELL LIMIT at its limit whatever the half-spread', () => {
     const out = spread.fill(
       input({
         side: 'SELL',
@@ -466,7 +454,7 @@ describe('OhlcvFillModel half-spread haircut', () => {
       }),
     );
     expect(out.kind).toBe('filled');
-    if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('109.45'); // 110 * (1 - 50bps)
+    if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('110');
   });
 
   it('stacks the half-spread on top of slippage for a MARKET BUY', () => {
@@ -507,24 +495,17 @@ describe('OhlcvFillModel half-spread haircut', () => {
     if (out.kind === 'filled') expect(out.fills[0]?.price.toString()).toBe('99.0025');
   });
 
-  it('applies the half-spread to a stop-limit fill (at the limit, no slippage)', () => {
-    // Armed and crossed; fills at the limit 89 cut by the 50bps half-spread:
-    // 89 * 0.995 = 88.555. No slippage — a limit is not market-slippaged.
+  it('rests a stop-limit whose open is already past its limit with a half-spread set', () => {
     const out = spread.fill(
       input({
         side: 'SELL',
         params: { type: 'STOP_LOSS_LIMIT', stopPrice: '90', price: '89', quantity: '1' },
-        detail: [bar('75', '95', '80')], // armed (low<=90), crossed (high 95 > limit 89)
+        detail: [bar('75', '95', '80')], // armed (low<=90), only the arming bar crossed
       }),
     );
-    expect(out.kind).toBe('filled');
-    if (out.kind === 'filled') {
-      expect(out.fills[0]?.price.toString()).toBe('88.555');
-      expect(out.fills[0]?.feeBps).toBe(20); // taker
-    }
+    expect(out).toEqual({ kind: 'rest', armed: true });
   });
-  it('caps a marketable stop-limit at its spread-adjusted limit, the price a crossed limit fills at', () => {
-    // Slippage and the half-spread together would push both fills past the limit. The cap is the limit after its half-spread, the same price the crossing path charges, so a clean trigger never beats a gapped one.
+  it('rests a stop-limit armed when slippage and the half-spread push it past the limit, never clamping', () => {
     const both = new OhlcvFillModel({
       makerBps: 10,
       takerBps: 20,
@@ -538,8 +519,7 @@ describe('OhlcvFillModel half-spread haircut', () => {
         detail: [bar('85', '95', '92')], // 90 x 0.995 x 0.995 = 89.10 < limit 89.9
       }),
     );
-    expect(sell.kind).toBe('filled');
-    if (sell.kind === 'filled') expect(sell.fills[0]?.price.toString()).toBe('89.4505'); // 89.9 x 0.995
+    expect(sell).toEqual({ kind: 'rest', armed: true });
     const buy = both.fill(
       input({
         side: 'BUY',
@@ -547,8 +527,7 @@ describe('OhlcvFillModel half-spread haircut', () => {
         detail: [bar('100', '115', '100')], // 110 x 1.005 x 1.005 = 111.10 > limit 110.2
       }),
     );
-    expect(buy.kind).toBe('filled');
-    if (buy.kind === 'filled') expect(buy.fills[0]?.price.toString()).toBe('110.751'); // 110.2 x 1.005
+    expect(buy).toEqual({ kind: 'rest', armed: true });
   });
 });
 
@@ -590,7 +569,7 @@ describe('OhlcvFillModel volume-participation cap', () => {
     if (out.kind === 'filled') expect(out.fills[0]?.qty.toString()).toBe('1');
   });
 
-  it('rejects with liquidity on a zero-volume bar', () => {
+  it('rests on a zero-volume bar instead of cancelling', () => {
     const out = capped.fill(
       input({
         side: 'BUY',
@@ -598,12 +577,22 @@ describe('OhlcvFillModel volume-participation cap', () => {
         detail: [barVol('0', '95', '105')],
       }),
     );
-    expect(out).toMatchObject({ kind: 'rejected', reason: 'liquidity' });
+    expect(out).toEqual({ kind: 'rest' });
   });
 
-  it('rejects with liquidity (not min-notional) when the cap shrinks below minNotional', () => {
-    // cap 25% of volume 0.001 = 0.00025; at price 100 the notional is 0.025,
-    // below a 1000 minNotional. The cap is the binding constraint → liquidity.
+  it('keeps a stop-limit armed on a zero-volume bar so activation survives', () => {
+    const out = capped.fill(
+      input({
+        side: 'SELL',
+        params: { type: 'STOP_LOSS_LIMIT', stopPrice: '90', price: '89', quantity: '1' },
+        detail: [barVol('0', '85', '95')],
+      }),
+    );
+    expect(out).toEqual({ kind: 'rest', armed: true });
+  });
+
+  it('rests (not min-notional) when the cap shrinks the fill below minNotional', () => {
+    // cap 25% of volume 0.001 = 0.00025; at price 100 the notional is 0.025, below a 1000 minNotional. The cap is the binding constraint, so the order waits.
     const strict = { ...SYMBOL_INFO, filters: { ...SYMBOL_INFO.filters, minNotional: '1000' } };
     const out = capped.fill(
       input({
@@ -613,7 +602,15 @@ describe('OhlcvFillModel volume-participation cap', () => {
         symbolInfo: strict,
       }),
     );
-    expect(out).toMatchObject({ kind: 'rejected', reason: 'liquidity' });
+    expect(out).toEqual({ kind: 'rest' });
+  });
+
+  it('fills on a later bar that has volume after a thin bar', () => {
+    const params: OrderParams = { type: 'LIMIT', price: '100', quantity: '1' };
+    const thin = capped.fill(input({ side: 'BUY', params, detail: [barVol('0', '95', '105')] }));
+    expect(thin).toEqual({ kind: 'rest' });
+    const later = capped.fill(input({ side: 'BUY', params, detail: [barVol('10', '95', '105')] }));
+    expect(later.kind).toBe('filled');
   });
 
   it('leaves fills unchanged when no cap is configured', () => {
@@ -662,6 +659,17 @@ describe('OhlcvFillModel volume-participation cap', () => {
       expect(out.fills[0]?.price.toString()).toBe('100'); // open, no slippage/spread on this model
       expect(out.remainingQty.toString()).toBe('2.5');
     }
+  });
+
+  it('refuses a MARKET on a zero-volume bar so the next tick re-decides', () => {
+    const out = capped.fill(
+      input({
+        side: 'BUY',
+        params: { type: 'MARKET', quantity: '5' },
+        detail: [barVol('0', '90', '110', '100', '105')],
+      }),
+    );
+    expect(out).toEqual({ kind: 'rejected', reason: 'no-fill', latencyMs: 0 });
   });
 });
 
