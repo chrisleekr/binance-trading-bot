@@ -138,8 +138,9 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
               ))}
             </Select>
             <p className="text-xs text-muted-fg">
-              How often the strategy gets to act in the replay. Live acts every minute; a slower
-              setting runs faster but reacts later than live would.
+              How often the strategy gets to act in the replay. Live acts on every price update, so
+              even a 1-minute replay reacts slightly later than live; a slower setting runs faster
+              but reacts later still.
             </p>
           </div>
           <div className="space-y-1">
