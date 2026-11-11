@@ -101,13 +101,7 @@ describe('desiredTrailDistance', () => {
       true,
     );
     expect(resolved.stop?.toString()).toBe('95');
-    expect(
-      desiredTrailDistance(
-        cfg,
-        { ...resolved, nativeStop: resolved.stop },
-        new Decimal('100'),
-      )?.toString(),
-    ).toBe('0.05');
+    expect(desiredTrailDistance(cfg, resolved, new Decimal('100'))?.toString()).toBe('0.05');
   });
 
   it('falls back to the fixed configured retrace', () => {

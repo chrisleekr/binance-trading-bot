@@ -233,4 +233,15 @@ describe('trendQualityReading memo', () => {
     const changed = [...closes.slice(0, -1), closes[closes.length - 1]! + 5];
     expect(trendQualityReading(candles(changed), {})).not.toBe(a);
   });
+
+  // A rotation of more symbols than the cache holds must still hit for a window touched since the oldest insert, which first-in-first-out eviction would drop.
+  it('evicts the least recently used reading, not the oldest inserted', () => {
+    const window = (seed: number) => candles([100 + seed, 101 + seed, 103 + seed, 102 + seed]);
+    const cfg3 = { lookback: 3 };
+    const first = trendQualityReading(window(0), cfg3);
+    for (let i = 1; i < 512; i++) trendQualityReading(window(i * 1000), cfg3);
+    expect(trendQualityReading(window(0), cfg3)).toBe(first);
+    trendQualityReading(window(999_999), cfg3);
+    expect(trendQualityReading(window(0), cfg3)).toBe(first);
+  });
 });

@@ -79,8 +79,8 @@ export interface TrendQualityReading {
   readonly aboveLine: Decimal;
 }
 
-/** Bound on memoised readings, enough for the symbols one worker ticks. */
-const READING_CACHE_SIZE = 64;
+/** Bound on memoised readings. Each symbol holds one live entry, so this must exceed the symbols ticked in rotation or every entry is evicted before its next tick; a key is at most about 10 KB (998 closes), so the cap stays near 5 MB. */
+const READING_CACHE_SIZE = 512;
 const readingCache = new Map<string, TrendQualityReading>();
 
 /**
@@ -100,7 +100,12 @@ export const trendQualityReading = (
   // The tick runs about once a second per symbol on the same closed candles, and the Decimal ln plus regressions cost milliseconds. The key holds every input, so symbols cannot collide.
   const key = `${s.lookback}|${s.minRSquared.toString()}|${window.map((c) => c.close).join(',')}`;
   const hit = readingCache.get(key);
-  if (hit) return hit;
+  if (hit) {
+    // Re-insert so eviction drops the least recently used entry, not the oldest inserted.
+    readingCache.delete(key);
+    readingCache.set(key, hit);
+    return hit;
+  }
   const ys = window.map((c) => new Decimal(c.close).ln());
   const now = fitLine(ys.slice(1));
   const before = fitLine(ys.slice(0, -1));
