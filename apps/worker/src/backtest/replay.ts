@@ -520,16 +520,19 @@ export async function replayPrepared(
     toMs,
     detailMs,
   );
-  // Backfill is per-interval best-effort, so a gap in the strategy series is not covered by the detail check.
-  if (strategyInterval !== detailInterval) {
+  // Backfill is per-interval best-effort, so a gap in a series the strategy reads is not covered by the detail check.
+  for (const interval of nativeIntervals) {
+    if (interval === detailInterval) continue;
+    const intervalMs = replayIntervalMs(interval);
+    // The window is on the detail grid, not this one, and a run ending now has not closed its last coarse bar, so that edge bar is not counted as missing.
     dataWarnings.push(
       ...dataCoverageWarnings(
         symbols,
         candlesByKey,
-        strategyInterval,
+        interval,
         fromMs,
-        toMs,
-        replayIntervalMs(strategyInterval),
+        toMs - intervalMs,
+        intervalMs,
       ),
     );
   }

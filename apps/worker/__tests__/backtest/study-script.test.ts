@@ -187,6 +187,27 @@ describe('missing or stale conversion is unavailable; drawdown uses full-resolut
   );
 
   it(
+    'reports BTC unavailable when the daily series only has candles after the window',
+    () => {
+      const { meta, candles } = fixtureRows();
+      const toMs = meta['toMs'] as number;
+      const late = candles.map((c) =>
+        c.interval === '1d' ? { ...c, openTimeMs: toMs, closeTimeMs: toMs + 86_400_000 - 1 } : c,
+      );
+      const { report } = study(variant(meta, late));
+      const rows = report.candidates.filter((c) => c.strategy === 'trailing-trade');
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(row.btc).toEqual({
+          status: 'unavailable',
+          reason: 'missing input series: ETHUSDT|1d',
+        });
+      }
+    },
+    STUDY_TIMEOUT_MS,
+  );
+
+  it(
     'rejects an input without a usable maxConversionStalenessMs',
     () => {
       const { meta, candles } = fixtureRows();

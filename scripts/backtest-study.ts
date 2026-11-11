@@ -294,7 +294,11 @@ async function runStudy(inputPath: string, command: string) {
     const required = [...new Set([detailInterval, ...nativeIntervals])];
     const missing = symbols.flatMap((symbol) =>
       required
-        .filter((i) => (candlesByKey.get(`${symbol}|${i}`)?.length ?? 0) === 0)
+        // Only a candle closed before the window ends can reach a replay window.
+        .filter(
+          (i) =>
+            !(candlesByKey.get(`${symbol}|${i}`) ?? []).some((c) => c.closeTimeMs < params.toMs),
+        )
         .map((i) => `${symbol}|${i}`),
     );
     const btc: BtcResult =
