@@ -149,6 +149,14 @@ describe('dataCoverageWarnings', () => {
       ).toEqual([]);
     });
 
+    it('does not let an unfinished tail candle cover a missing closed one', () => {
+      // [0, 2.5d) closes days 0 and 1; day 1 is missing and day 2 is still open at the end.
+      const byKey = new Map<string, Candle[]>([['BTCUSDT|1d', daily([0, 2])]]);
+      expect(
+        dataCoverageWarnings(['BTCUSDT'], byKey, '1d', 0, 2 * DAY + DAY / 2, DAY),
+      ).toHaveLength(1);
+    });
+
     it('still expects the one candle a day-aligned 24-hour range closes', () => {
       const byKey = new Map<string, Candle[]>([['BTCUSDT|1d', []]]);
       expect(dataCoverageWarnings(['BTCUSDT'], byKey, '1d', DAY, 2 * DAY, DAY)).toHaveLength(1);

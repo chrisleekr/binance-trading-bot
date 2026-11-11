@@ -194,7 +194,8 @@ export function dataCoverageWarnings(
     const expected =
       Math.floor((toMs - offset) / intervalMs) - Math.ceil((fromMs - offset) / intervalMs);
     if (expected <= 0) continue;
-    const inWindow = series.filter((c) => c.openTimeMs >= fromMs && c.openTimeMs < toMs);
+    // An unfinished tail candle is not expected, so it cannot stand in for a missing closed one.
+    const inWindow = series.filter((c) => c.openTimeMs >= fromMs && c.closeTimeMs < toMs);
     if (inWindow.length / expected < COVERAGE_WARN_THRESHOLD) {
       const pct = Math.round((inWindow.length / expected) * 100);
       warnings.push(
