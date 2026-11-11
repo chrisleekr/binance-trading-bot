@@ -154,6 +154,25 @@ describe('registerAdvisorWorker', () => {
     });
   });
 
+  it('advises on the config the run executed, not the profile edited since', async () => {
+    const resolvedConfig = { candleInterval: '1h', sell: { triggerPercentage: '1.03' } };
+    repoMocks.runGet.mockResolvedValue({
+      status: 'done',
+      result: { params: {}, metrics: {}, resolvedConfig },
+      backtestSignature: 'sig1',
+    });
+    repoMocks.findById.mockResolvedValue({
+      strategyName: 'trailing-trade',
+      strategyVersion: '1.0.0',
+      config: { candleInterval: '1h', sell: { triggerPercentage: '1.09' } },
+      enablementPolicy: null,
+    });
+    await register(availableLlm)(JOB);
+    expect(llmMocks.buildImproveInput).toHaveBeenCalledWith(
+      expect.objectContaining({ profileConfig: resolvedConfig }),
+    );
+  });
+
   describe('prior-run history', () => {
     const params = {
       symbols: ['BTCUSDT'],

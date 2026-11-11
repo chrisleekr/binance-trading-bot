@@ -107,7 +107,8 @@ async function assembleAdvisorInput(
     strategyVersion: profile.strategyVersion,
     configSchema: plugin.configSchema,
     configSchemaDoc,
-    profileConfig: profile.config,
+    // The run executed its frozen config, so a profile edited since must not reshape the prompt or the suggestion diff.
+    profileConfig: result.resolvedConfig ?? profile.config,
     result,
     priorRuns,
     policy,
