@@ -204,6 +204,7 @@ const armOut = (
       band: input.market.symbolInfo.filters.percentPriceBySide,
     },
     previousStop,
+    typeof state.lastEntryCandleMs === 'number',
   );
   // `floorClamped` comes from the same resolve, not a hand-written false: a clamp
   // widens the re-arm drift band, so passing false would exercise the operator
@@ -5378,7 +5379,7 @@ describe('momentum.tick — break-even lock', () => {
       breakEvenLock: { enabled: true, activationPct: '0.015', floorPct: '0.005' },
       ...over,
     });
-  const held = () => longState({ highSinceEntry: '110' });
+  const held = () => longState({ highSinceEntry: '110', lastEntryCandleMs: 1 });
 
   it('exits when price falls through the floor', () => {
     const out = momentum.tick(
@@ -5393,6 +5394,18 @@ describe('momentum.tick — break-even lock', () => {
     expect(out.metrics).toEqual([
       { name: 'momentum.exit', value: 1, tags: { reason: 'trailing-stop' } },
     ]);
+  });
+
+  it('holds at the same price when the entry candle is unknown', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(FLAT_SERIES),
+        currentPrice: '100',
+        state: longState({ highSinceEntry: '110', lastEntryCandleMs: null }),
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toEqual({ type: 'noop' });
   });
 
   it('holds at the same price when the lock is off', () => {

@@ -189,6 +189,8 @@ export const momentumPreviewLevels = (
     { reference: input.currentPrice, band: input.filters?.percentPriceBySide },
     // A preview projects from config and candles alone; it never sees live open orders, so it cannot pin against a resting order's stop price.
     null,
+    // Same stamp rule as the tick: the lock only projects for a position with a recorded entry candle.
+    typeof input.state?.lastEntryCandleMs === 'number',
   ).stop;
 
   const entryRows: PreviewRow[] = noEntryLevel ? [] : [buildEntryRow(input, bandStr, candles)];

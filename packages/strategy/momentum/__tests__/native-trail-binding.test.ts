@@ -18,7 +18,7 @@ const config = (over: Record<string, unknown> = {}): MomentumConfig =>
 const level = (over: Partial<StopResolution> = {}): StopResolution => ({
   effectiveHigh: new Decimal('100'),
   profitHigh: null,
-  hardStop: new Decimal('90'),
+  nativeStop: new Decimal('90'),
   stop: new Decimal('90'),
   floorClamped: false,
   ...over,
@@ -41,7 +41,7 @@ describe('desiredTrailDistance', () => {
   it('measures the resolved ATR-mode level from the effective high', () => {
     const distance = desiredTrailDistance(
       config({ atrTrailingStop: { enabled: true, period: 3, multiple: '2' } }),
-      level({ hardStop: new Decimal('85'), stop: new Decimal('85') }),
+      level({ nativeStop: new Decimal('85'), stop: new Decimal('85') }),
       new Decimal('100'),
     );
 
@@ -74,6 +74,7 @@ describe('desiredTrailDistance', () => {
         candles,
         noBand,
         null,
+        true,
       );
       return desiredTrailDistance(cfg, resolved, entry);
     };
@@ -83,6 +84,32 @@ describe('desiredTrailDistance', () => {
     expect(withLock?.gt('0.05')).toBe(true);
   });
 
+  it('keeps the pinned and clamped distance when the lock is off', () => {
+    // Pin 95 under high 100 with a 20% ATR-style hard leg: the pre-lock distance was 1 - 95/100, not 1 - 80/100.
+    const cfg = config({
+      trailingStopPct: '0.2',
+      atrTrailingStop: { enabled: true, period: 3, multiple: '2' },
+    });
+    const resolved = resolveStopLevel(
+      cfg,
+      new Decimal('100'),
+      new Decimal('100'),
+      null,
+      [],
+      { reference: null, band: undefined },
+      new Decimal('95'),
+      true,
+    );
+    expect(resolved.stop?.toString()).toBe('95');
+    expect(
+      desiredTrailDistance(
+        cfg,
+        { ...resolved, nativeStop: resolved.stop },
+        new Decimal('100'),
+      )?.toString(),
+    ).toBe('0.05');
+  });
+
   it('falls back to the fixed configured retrace', () => {
     expect(desiredTrailDistance(config(), level(), new Decimal('100'))?.toString()).toBe('0.1');
   });
@@ -90,7 +117,7 @@ describe('desiredTrailDistance', () => {
   it('returns null when no branch yields a usable distance', () => {
     const invalid = { ...config(), trailingStopPct: 'not-a-distance' } as MomentumConfig;
     expect(
-      desiredTrailDistance(invalid, level({ hardStop: null, stop: null }), new Decimal('100')),
+      desiredTrailDistance(invalid, level({ nativeStop: null, stop: null }), new Decimal('100')),
     ).toBeNull();
   });
 });

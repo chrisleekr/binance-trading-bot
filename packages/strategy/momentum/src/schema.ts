@@ -371,6 +371,10 @@ const MomentumProfitTrailSchema = z
     }
   });
 
+// Shared with the unparsed-config read in `breakEvenFloor`, so an absent percentage resolves to the same default the schema applies.
+export const BREAK_EVEN_ACTIVATION_DEFAULT = '0.015';
+export const BREAK_EVEN_FLOOR_DEFAULT = '0.005';
+
 /**
  * Break-even lock: once the trade's close high-water mark has reached `entry x (1 + activationPct)`, the stop may not sit below `entry x (1 + floorPct)`. Folded into the shared stop resolution as one more leg, so the in-process exit, the resting stop and the preview move together.
  *
@@ -385,12 +389,12 @@ const MomentumBreakEvenLockSchema = z
         'Once a trade has been well in profit, never let the stop drop back below a small gain over your entry price. A winner that gives all its gain back and turns into a loss is the case this removes. Trades that never get that far in profit behave as before.',
       ),
     activationPct: decimalString('activationPct must be in (0, 1)', { gt: 0, lt: 1 })
-      .default('0.015')
+      .default(BREAK_EVEN_ACTIVATION_DEFAULT)
       .describe(
         '@ui:percent-of How far a trade must get in profit, measured on candle closes, before the lock switches on. 1.5 means once a close has been 1.5% above your entry price.',
       ),
     floorPct: decimalString('floorPct must be in [0, 1)', { gte: 0, lt: 1 })
-      .default('0.005')
+      .default(BREAK_EVEN_FLOOR_DEFAULT)
       .describe(
         '@ui:percent-of Where the stop is held once the lock is on, as a gain over your entry price. 0 is break-even, meaning the stop sits exactly at the price you paid, so selling there neither gains nor loses before fees. 0.5 holds it 0.5% above your entry. It must be below the activation.',
       ),
