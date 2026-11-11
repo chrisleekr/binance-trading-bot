@@ -199,3 +199,14 @@ describe('trendQualityLevel', () => {
     expect(trendQualityLevel(candles(FIRE.slice(1)), cfg)).toBeNull();
   });
 });
+
+describe('trendQualityReading memo', () => {
+  const closes = Array.from({ length: 60 }, (_, i) => 100 + i + (i % 3));
+
+  it('returns the same reading for an equal window and a new one when a close differs', () => {
+    const a = trendQualityReading(candles(closes), {});
+    expect(trendQualityReading(candles([...closes]), {})).toBe(a);
+    const changed = [...closes.slice(0, -1), closes[closes.length - 1]! + 5];
+    expect(trendQualityReading(candles(changed), {})).not.toBe(a);
+  });
+});

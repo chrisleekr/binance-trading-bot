@@ -76,6 +76,10 @@ export interface TrendQualityReading {
   readonly aboveLine: Decimal;
 }
 
+/** Bound on memoised readings, enough for the symbols one worker ticks. */
+const READING_CACHE_SIZE = 64;
+const readingCache = new Map<string, TrendQualityReading>();
+
 /**
  * Trend quality: the last `lookback` closes, on a log scale, sit close to a rising straight line (R-squared, how closely the closes follow a straight line, above `minRSquared`; slope above zero), the close is above that line, and the previous candle's fit was not already straight and rising, so each trend fires once as it forms. Only the previous candle's R-squared and slope are checked, not its close against the line. In the 2025-26 1h research, with a 4 ATR trail, it made money after 2.5x costs on nine pre-chosen large caps over the last 90 days, the April-October 2026 half and the last 365 days, beating nearly all random entries, but was weaker on the five majors and rested on one coin there, so it is meant for a small probation profile, not the main one.
  *
@@ -89,13 +93,18 @@ export const trendQualityReading = (
 ): TrendQualityReading | null => {
   const s = trendQualitySettings(raw);
   if (candles.length < s.lookback + 1) return null;
-  const ys = candles.slice(-(s.lookback + 1)).map((c) => new Decimal(c.close).ln());
+  const window = candles.slice(-(s.lookback + 1));
+  // The tick runs about once a second per symbol on the same closed candles, and the Decimal ln plus regressions cost milliseconds. The key holds every input, so symbols cannot collide.
+  const key = `${s.lookback}|${s.minRSquared.toString()}|${window.map((c) => c.close).join(',')}`;
+  const hit = readingCache.get(key);
+  if (hit) return hit;
+  const ys = window.map((c) => new Decimal(c.close).ln());
   const now = fitLine(ys.slice(1));
   const before = fitLine(ys.slice(0, -1));
   const armed = now.rSquared.gt(s.minRSquared) && now.slope.gt(0);
   const previousArmed = before.rSquared.gt(s.minRSquared) && before.slope.gt(0);
   const aboveLine = ys[ys.length - 1]!.minus(now.fitted);
-  return {
+  const reading: TrendQualityReading = {
     fired: armed && aboveLine.gt(0) && !previousArmed,
     armed,
     previousArmed,
@@ -103,6 +112,10 @@ export const trendQualityReading = (
     slope: now.slope,
     aboveLine,
   };
+  if (readingCache.size >= READING_CACHE_SIZE)
+    readingCache.delete(readingCache.keys().next().value!);
+  readingCache.set(key, reading);
+  return reading;
 };
 
 /**

@@ -156,6 +156,8 @@ const EMA_CONVERGED_PERIODS = 5;
 /**
  * The candle window to load: what a decision reads, widened so the EMAs have converged. `ema` rebuilds from an SMA seed over whatever window arrives, so a window barely longer than the slow period makes the slow EMA nearly an SMA and moves the cross-down exit onto other bars, and an unrelated setting that lengthens the window moves it again. Separate from {@link momentumRequiredWindow} because this is an accuracy floor rather than a need: `tick` still trades on `slow + 1` candles, so a young symbol is not held back.
  *
+ * Not capped at the live kline ring (256 rows): a slow period of 52 or more asks for more, so the worker loads that window over REST once per candle on each interval. Capping it would bring back the exit shift for exactly the long-slow profiles that need the floor most.
+ *
  * @param config - The profile config; may be unparsed, as for {@link momentumRequiredWindow}.
  * @returns Candles to request, before the shared floor and ceiling in `resolveCandleWindow`.
  */
