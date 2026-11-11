@@ -78,6 +78,19 @@ describe('lintMomentumConfig', () => {
     expect(codes(base({ ...lock, ...native }))).toEqual(['break-even-lock-not-on-exchange']);
     expect(codes(base({ ...lock, protectiveStop: { enabled: true, mode: 'priced' } }))).toEqual([]);
     expect(
+      codes(
+        base({ ...lock, protectiveStop: { enabled: true, mode: 'priced', onBandBlock: 'clamp' } }),
+      ),
+    ).toEqual([]);
+    expect(
+      codes(
+        base({
+          ...lock,
+          protectiveStop: { enabled: true, mode: 'priced', onBandBlock: 'native-trail' },
+        }),
+      ),
+    ).toEqual(['break-even-lock-not-on-exchange']);
+    expect(
       codes(base({ ...lock, protectiveStop: { enabled: false, mode: 'native-trail' } })),
     ).toEqual([]);
     expect(codes(base({ breakEvenLock: { enabled: false }, ...native }))).toEqual([]);

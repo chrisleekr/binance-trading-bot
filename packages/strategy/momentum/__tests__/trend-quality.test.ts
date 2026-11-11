@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Candle } from '@app/strategy-core';
+import { MAX_CANDLE_WINDOW, type Candle } from '@app/strategy-core';
 
 import {
   trendQualityLevel,
@@ -186,6 +186,15 @@ describe('trendQualitySettings', () => {
     const set = trendQualitySettings({ lookback: '24', minRSquared: '0.8' });
     expect([set.lookback, set.minRSquared.toFixed()]).toEqual([24, '0.8']);
   });
+
+  it('falls back to the defaults for a lookback above the window ceiling or an R-squared of 1 or more', () => {
+    expect(trendQualitySettings({ lookback: MAX_CANDLE_WINDOW }).lookback).toBe(48);
+    expect(trendQualitySettings({ lookback: MAX_CANDLE_WINDOW - 1 }).lookback).toBe(
+      MAX_CANDLE_WINDOW - 1,
+    );
+    expect(trendQualitySettings({ minRSquared: '1' }).minRSquared.toFixed()).toBe('0.9');
+    expect(trendQualitySettings({ minRSquared: '1.5' }).minRSquared.toFixed()).toBe('0.9');
+  });
 });
 
 describe('trendQualityLevel', () => {
@@ -193,6 +202,21 @@ describe('trendQualityLevel', () => {
   it('projects the fitted line at the last candle', () => {
     const geometric = Array.from({ length: 6 }, (_, i) => 100 * 1.1 ** i);
     expect(trendQualityLevel(candles(geometric), cfg)?.toNumber()).toBeCloseTo(100 * 1.1 ** 5, 6);
+  });
+
+  // Off-line closes, so returning the last close would fail: the fit is computed independently with plain numbers.
+  it('projects the OLS value, not the last close, when the closes are off the line', () => {
+    const closes = [100, 103, 101, 106, 108, 107];
+    const ys = closes.slice(-5).map(Math.log);
+    const xMean = 2;
+    const yMean = ys.reduce((a, b) => a + b, 0) / 5;
+    const slope =
+      ys.reduce((a, y, x) => a + (x - xMean) * (y - yMean), 0) /
+      ys.reduce((a, _, x) => a + (x - xMean) ** 2, 0);
+    const expected = Math.exp(yMean + slope * (4 - xMean));
+    const level = trendQualityLevel(candles(closes), cfg)?.toNumber();
+    expect(level).toBeCloseTo(expected, 6);
+    expect(Math.abs((level ?? 0) - 107)).toBeGreaterThan(0.1);
   });
 
   it('projects nothing while the window is shorter than the tick needs', () => {

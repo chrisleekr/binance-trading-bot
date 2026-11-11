@@ -1,5 +1,5 @@
 import { Decimal } from '@app/money';
-import type { Candle } from '@app/strategy-core';
+import { MAX_CANDLE_WINDOW, type Candle } from '@app/strategy-core';
 
 import { coerceDec, coerceInt } from './config-coerce.js';
 
@@ -11,10 +11,13 @@ import { coerceDec, coerceInt } from './config-coerce.js';
  */
 export const trendQualitySettings = (raw: unknown): { lookback: number; minRSquared: Decimal } => {
   const c = (raw ?? {}) as { lookback?: unknown; minRSquared?: unknown };
+  // Fewer than three points fit a line exactly, so R-squared would be 1 by construction.
+  const lookback = coerceInt(c.lookback, { min: 3, fallback: 48 });
+  const minRSquared = coerceDec(c.minRSquared, { fallback: '0.9' });
   return {
-    // Fewer than three points fit a line exactly, so R-squared would be 1 by construction.
-    lookback: coerceInt(c.lookback, { min: 3, fallback: 48 }),
-    minRSquared: coerceDec(c.minRSquared, { fallback: '0.9' }),
+    // Stored config skips the schema, and a lookback needing more candles than any window holds, or an R-squared of 1 or more that no fit can beat, would silently block every entry.
+    lookback: lookback > MAX_CANDLE_WINDOW - 1 ? 48 : lookback,
+    minRSquared: minRSquared.gte(1) ? new Decimal('0.9') : minRSquared,
   };
 };
 
@@ -119,7 +122,7 @@ export const trendQualityReading = (
 };
 
 /**
- * The price the line leg compares the close with: the current regression line's value at the last candle. A projection for the preview only; the next candle's line sits higher, and the R-squared and freshness legs cannot be projected.
+ * The price the line leg compares the close with: the current regression line's value at the last candle. A projection for the preview only; the R-squared and freshness legs cannot be projected, and the next close changes the fit, so it is an approximation.
  *
  * @param candles - Closed candles on the strategy interval, oldest first.
  * @param raw - The unparsed `trendQuality` config block.

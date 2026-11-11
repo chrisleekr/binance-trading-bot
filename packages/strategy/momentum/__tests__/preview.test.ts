@@ -131,14 +131,22 @@ describe('momentumPreviewLevels — flat state with a configured entry', () => {
     ).toEqual([]);
   });
 
-  // Closes grow 10% a candle, so the fitted line ends on the last close: 100 * 1.1^5.
+  // Closes are off the line, so the projected level differs from the last close.
   it('projects the fitted trend line under the trend quality trigger', () => {
     const config = cfg({ entryTrigger: 'trendQuality', trendQuality: { lookback: 5 } });
-    const candles = mkCandles(Array.from({ length: 6 }, (_, i) => String(100 * 1.1 ** i)));
+    const closes = ['100', '103', '101', '106', '108', '107'];
+    const candles = mkCandles(closes);
     const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles));
     const entry = row(model, 'entry');
     expect(entry).toMatchObject({ label: 'Trend line' });
-    expect(Number(entry?.price)).toBeCloseTo(100 * 1.1 ** 5, 6);
+    const ys = closes.slice(-5).map((c) => Math.log(Number(c)));
+    const yMean = ys.reduce((a, b) => a + b, 0) / 5;
+    const slope =
+      ys.reduce((a, y, x) => a + (x - 2) * (y - yMean), 0) /
+      ys.reduce((a, _, x) => a + (x - 2) ** 2, 0);
+    const expected = Math.exp(yMean + slope * 2);
+    expect(Number(entry?.price)).toBeCloseTo(expected, 6);
+    expect(Number(entry?.price)).not.toBeCloseTo(107, 1);
   });
 
   it('projects nothing under the trend quality trigger while the window is shorter than the tick needs', () => {
