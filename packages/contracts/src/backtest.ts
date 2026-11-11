@@ -29,7 +29,7 @@ const intervalMsOf = (interval: BacktestInterval): number => candleIntervalMs(in
 // Bounds on each axis of a backtest so one malformed call cannot enqueue an unbounded backfill. Their product is capped separately by MAX_REPLAY_SYMBOL_CANDLES on a new submission.
 const MAX_BACKTEST_SYMBOLS = 50;
 const MAX_BACKTEST_SPAN_MS = 5 * 365 * 24 * 60 * 60 * 1000;
-// Most candles one run may hold in the process that also trades live under ROLE=all: about 4 symbols for 100 days of 1-minute bars.
+// Most candles one run may hold in the process that also trades live under ROLE=all: about 4 symbols for 100 days of 1-minute bars. It also bounds the result series: the equity, benchmark and drawdown curves gain one point per replay frame (at most one per 1-minute bar of the window) and stay in memory until the result is downsampled, so a single-symbol run at the cap holds up to 576,000 points in each.
 export const MAX_REPLAY_SYMBOL_CANDLES = 576_000;
 const REPLAY_BUDGET_BAR_MS = 60_000;
 

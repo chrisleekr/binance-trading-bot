@@ -1733,6 +1733,30 @@ describeIfInfra('backtests routes', () => {
       }
     });
 
+    it('refuses to retry a run frozen on another build and queues nothing', async () => {
+      const f = await setupBacktestApp();
+      try {
+        const created = await post(f, f.alice.profileId, f.alice.userId, validParams);
+        const { runId } = (await created.json()) as { runId: string };
+        await action(f, f.alice.profileId, f.alice.userId, runId, 'abort');
+        const p = await aliceRepo(f);
+        const original = await p.backtestRuns.get(runId);
+        const params = original?.params as { snapshot: Record<string, unknown> };
+        const stale = await p.backtestRuns.create({
+          symbols: original!.symbols,
+          params: { ...params, snapshot: { ...params.snapshot, buildId: 'oldsha' } },
+        });
+        await p.backtestRuns.markCancelled(stale.id);
+        const before = (await p.backtestRuns.list({ limit: 10 })).length;
+
+        const res = await action(f, f.alice.profileId, f.alice.userId, stale.id, 'retry');
+        expect(res.status).toBe(409);
+        expect((await p.backtestRuns.list({ limit: 10 })).length).toBe(before);
+      } finally {
+        await f.cleanup();
+      }
+    });
+
     it('ignores a snapshot sent by the client and keeps the stored one off the wire', async () => {
       const f = await setupBacktestApp();
       try {

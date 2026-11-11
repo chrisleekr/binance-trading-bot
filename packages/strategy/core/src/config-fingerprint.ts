@@ -59,6 +59,27 @@ export interface BacktestSignatureInput {
 export const BACKTEST_ENGINE_REVISION = 3;
 
 /**
+ * Whether a run frozen at submission can still execute on this build. The api refuses a retry the worker would reject, so both sides read one rule. An `unknown` build id on either side cannot be told apart, so it runs and the result is simply never comparable.
+ *
+ * @param snapshot - The version, engine revision and build the run was frozen on.
+ * @param strategyVersion - The strategy plugin version this process runs.
+ * @param buildId - This process's build id.
+ * @returns True when the run executes the semantics it was accepted under.
+ */
+export const snapshotRunnable = (
+  snapshot: {
+    readonly strategyVersion: string;
+    readonly engineRevision: number;
+    readonly buildId: string;
+  },
+  strategyVersion: string,
+  buildId: string,
+): boolean =>
+  snapshot.strategyVersion === strategyVersion &&
+  snapshot.engineRevision === BACKTEST_ENGINE_REVISION &&
+  (snapshot.buildId === 'unknown' || buildId === 'unknown' || snapshot.buildId === buildId);
+
+/**
  * A stable fingerprint of a WHOLE backtest (strategy + effective config +
  * market), used by the results ledger to recognise "we have already run exactly
  * this". Distinct salt from {@link configFingerprint} so the two key spaces

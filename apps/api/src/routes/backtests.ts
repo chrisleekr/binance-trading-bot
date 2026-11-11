@@ -1,6 +1,7 @@
 import { backtestJobId } from '@app/core/queue';
 import {
   AdvisorListResponse,
+  BacktestStoredParamsSchema,
   AdvisorResultSchema,
   asProfileId,
   BACKTEST_LIST_DEFAULT_PAGE_SIZE,
@@ -39,7 +40,12 @@ import {
   type AdvisorPriorRuns,
   type ImproveConfigInput,
 } from '@app/llm';
-import { BACKTEST_ENGINE_REVISION, configFingerprint, mergeConfig } from '@app/strategy-core';
+import {
+  BACKTEST_ENGINE_REVISION,
+  configFingerprint,
+  mergeConfig,
+  snapshotRunnable,
+} from '@app/strategy-core';
 import { createRoute, z } from '@hono/zod-openapi';
 import type { DI } from 'di.js';
 import { HttpError } from 'middleware/error.js';
@@ -581,6 +587,21 @@ export const backtestsRouter = (di: DI): ApiHono => {
     if (!run) throw new HttpError('NOT_FOUND', 'backtest-run');
     if (run.status === 'queued' || run.status === 'running') {
       throw new HttpError('CONFLICT', 'cannot retry an in-flight run; abort it first');
+    }
+    // The worker refuses a run frozen on another version, so copying it would queue a certain failure.
+    const stored = BacktestStoredParamsSchema.safeParse(run.params);
+    const plugin = stored.success
+      ? di.strategies.get(stored.data.snapshot.strategyName)
+      : undefined;
+    if (
+      !stored.success ||
+      !plugin ||
+      !snapshotRunnable(stored.data.snapshot, plugin.version, di.gitSha)
+    ) {
+      throw new HttpError(
+        'CONFLICT',
+        'this run was queued on another version; resubmit it to run on the current one',
+      );
     }
 
     const retried = await p.backtestRuns.create({ symbols: run.symbols, params: run.params });

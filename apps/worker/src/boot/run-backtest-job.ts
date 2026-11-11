@@ -15,7 +15,7 @@ import {
 } from '@app/contracts';
 import { profileRepo, type Database, type LedgerEntry } from '@app/db';
 import {
-  BACKTEST_ENGINE_REVISION,
+  snapshotRunnable,
   signatureForBacktest,
   type StrategyRegistry,
   type SymbolInfo,
@@ -44,9 +44,6 @@ export interface RunBacktestJobResult {
 }
 
 const RESUBMIT_HINT = 'resubmit the backtest to run it on the current version';
-
-// `unknown` on either side means the build cannot be told apart, so it executes and the result is simply never comparable.
-const sameBuild = (a: string, b: string): boolean => a === 'unknown' || b === 'unknown' || a === b;
 
 /**
  * Build the `run` callback `registerBacktestWorker` invokes per job. Throws on a missing run, a run that cannot be replayed faithfully, or an unknown strategy; the queue marks the row `error` and routes to the DLQ.
@@ -80,11 +77,7 @@ export const createRunBacktestJob =
     const { snapshot, ...params } = parsed.data;
     const strategy = deps.strategies.get(snapshot.strategyName);
     if (!strategy) throw new Error(`unknown strategy: ${snapshot.strategyName}`);
-    if (
-      snapshot.strategyVersion !== strategy.version ||
-      snapshot.engineRevision !== BACKTEST_ENGINE_REVISION ||
-      !sameBuild(snapshot.buildId, deps.buildId)
-    ) {
+    if (!snapshotRunnable(snapshot, strategy.version, deps.buildId)) {
       throw new Error(`backtest run ${runId} was queued on another version; ${RESUBMIT_HINT}`);
     }
     const { result, configFingerprint } = await runProfileBacktest(
