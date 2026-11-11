@@ -168,7 +168,7 @@ export function closedWindowAsOf(
 }
 
 /**
- * Per-symbol warnings when candle coverage inside `[fromMs, toMs)` falls short. Candles loaded before the range are not counted.
+ * Per-symbol warnings when candle coverage inside `[fromMs, toMs)` falls short. Candles loaded before the range are not counted. Only candles that close inside the range are expected, counted on the series' own grid, because a coarse series is not aligned to the detail grid the range sits on and a run ending now has not closed its last coarse candle.
  *
  * @param symbols - The basket.
  * @param candlesByKey - Loaded candles keyed `symbol|interval`, ascending.
@@ -186,13 +186,15 @@ export function dataCoverageWarnings(
   toMs: number,
   intervalMs: number,
 ): string[] {
-  const expected = Math.floor((toMs - fromMs) / intervalMs);
-  if (expected <= 0) return [];
   const warnings: string[] = [];
   for (const symbol of symbols) {
-    const inWindow = (candlesByKey.get(`${symbol}|${interval}`) ?? []).filter(
-      (c) => c.openTimeMs >= fromMs && c.openTimeMs < toMs,
-    );
+    const series = candlesByKey.get(`${symbol}|${interval}`) ?? [];
+    // Any loaded candle fixes the grid offset; an empty series falls back to the epoch grid, which the warning then reports.
+    const offset = series.length > 0 ? series[0]!.openTimeMs % intervalMs : 0;
+    const expected =
+      Math.floor((toMs - offset) / intervalMs) - Math.ceil((fromMs - offset) / intervalMs);
+    if (expected <= 0) continue;
+    const inWindow = series.filter((c) => c.openTimeMs >= fromMs && c.openTimeMs < toMs);
     if (inWindow.length / expected < COVERAGE_WARN_THRESHOLD) {
       const pct = Math.round((inWindow.length / expected) * 100);
       warnings.push(
@@ -523,16 +525,14 @@ export async function replayPrepared(
   // Backfill is per-interval best-effort, so a gap in a series the strategy reads is not covered by the detail check.
   for (const interval of nativeIntervals) {
     if (interval === detailInterval) continue;
-    const intervalMs = replayIntervalMs(interval);
-    // The window is on the detail grid, not this one, and a run ending now has not closed its last coarse bar, so that edge bar is not counted as missing.
     dataWarnings.push(
       ...dataCoverageWarnings(
         symbols,
         candlesByKey,
         interval,
         fromMs,
-        toMs - intervalMs,
-        intervalMs,
+        toMs,
+        replayIntervalMs(interval),
       ),
     );
   }

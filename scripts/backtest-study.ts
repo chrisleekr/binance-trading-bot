@@ -294,10 +294,14 @@ async function runStudy(inputPath: string, command: string) {
     const required = [...new Set([detailInterval, ...nativeIntervals])];
     const missing = symbols.flatMap((symbol) =>
       required
-        // Only a candle closed before the window ends can reach a replay window.
+        // A native window reads any candle closed before the window ends; the detail series must trade inside it, or the engine never replays that symbol.
         .filter(
           (i) =>
-            !(candlesByKey.get(`${symbol}|${i}`) ?? []).some((c) => c.closeTimeMs < params.toMs),
+            !(candlesByKey.get(`${symbol}|${i}`) ?? []).some(
+              (c) =>
+                c.closeTimeMs < params.toMs &&
+                (i !== detailInterval || c.openTimeMs >= params.fromMs),
+            ),
         )
         .map((i) => `${symbol}|${i}`),
     );
