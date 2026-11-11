@@ -168,7 +168,7 @@ describe('missing or stale conversion is unavailable; drawdown uses full-resolut
     'reports BTC unavailable when the daily series the live feed reads is absent',
     () => {
       const { meta, candles } = fixtureRows();
-      const { report } = study(
+      const { report, markdown } = study(
         variant(
           meta,
           candles.filter((c) => c.interval !== '1d'),
@@ -182,6 +182,8 @@ describe('missing or stale conversion is unavailable; drawdown uses full-resolut
           reason: 'missing input series: ETHUSDT|1d',
         });
       }
+      // The series key's pipe would otherwise split the Markdown table cell.
+      expect(markdown).toContain('missing input series: ETHUSDT\\|1d');
     },
     STUDY_TIMEOUT_MS,
   );

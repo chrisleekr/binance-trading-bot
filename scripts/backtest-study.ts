@@ -495,7 +495,7 @@ async function runStudy(inputPath: string, command: string) {
     if (btc === undefined) return '-';
     return btc.status === 'ok'
       ? `${btc.returnPct.toFixed(2)}% / ${btc.maxDrawdownPct.toFixed(2)}%`
-      : `unavailable: ${btc.reason}`;
+      : `unavailable: ${btc.reason.replaceAll('|', '\\|')}`;
   };
   const pctCell = (value: number | undefined): string =>
     value === undefined ? '-' : value.toFixed(2);
@@ -540,7 +540,7 @@ async function runStudy(inputPath: string, command: string) {
     '| --- | --- | --- | --- | --- | --- |',
     ...controls.map(
       (c) =>
-        `| ${c.name} | ${c.costScenario ?? '-'} | ${pctCell(c.totalReturnPct)} | ${pctCell(c.maxDrawdownPct)} | ${btcCell(c.btc)} | ${c.status === 'not-applicable' ? `not applicable: ${c.reason}` : c.unspentQuote === undefined ? '-' : `unspent ${c.unspentQuote}`} |`,
+        `| ${c.name} | ${c.costScenario ?? '-'} | ${pctCell(c.totalReturnPct)} | ${pctCell(c.maxDrawdownPct)} | ${btcCell(c.btc)} | ${c.status === 'not-applicable' ? `not applicable: ${c.reason.replaceAll('|', '\\|')}` : c.unspentQuote === undefined ? '-' : `unspent ${c.unspentQuote}`} |`,
     ),
     '',
     '### Passive allocations',
