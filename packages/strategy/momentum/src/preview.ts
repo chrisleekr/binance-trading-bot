@@ -23,10 +23,11 @@ import { exhaustionLevel } from './exhaustion.js';
 import { impulseLevel } from './impulse.js';
 import { maClusterReading } from './ma-cluster.js';
 import { obvLeadNeed } from './obv-lead.js';
+import { trendQualityLevel } from './trend-quality.js';
 import { coerceInt } from './config-coerce.js';
 import type { MomentumConfig, MomentumState } from './schema.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
-import { resolveStopLevel } from './stop-level.js';
+import { lockArmCutoff, resolveStopLevel } from './stop-level.js';
 import { configForEntryLayer } from './trailing-stop.js';
 import { DEFAULT_LIMIT_OFFSET } from './protective-stop.js';
 import { resolveEntryBudget } from './sizing.js';
@@ -136,11 +137,22 @@ export const momentumPreviewLevels = (
     lastClose !== undefined
       ? new Decimal(lastClose)
       : null;
+  // Under the trend quality trigger the line leg asks the close to clear the fitted trend line, so that line's value is the projected entry; the R-squared and freshness legs cannot be projected, and the next close changes the fit, so it is an approximation.
+  const trendQuality =
+    config.entryTrigger === 'trendQuality' ? trendQualityLevel(candles, config.trendQuality) : null;
   // A window too short for the trigger's rule has no entry level. Flat, every row projects from it, so show nothing; held, the stops and guards still read the position, so only the entry row goes.
   const noEntryLevel =
-    ['breakout', 'impulse', 'maCluster', 'exhaustion', 'obvLead', 'weekendGap'].includes(
-      config.entryTrigger ?? '',
-    ) && (breakout ?? impulse ?? cluster ?? exhaustion ?? obvLead ?? weekendGap) === null;
+    [
+      'breakout',
+      'impulse',
+      'maCluster',
+      'exhaustion',
+      'obvLead',
+      'weekendGap',
+      'trendQuality',
+    ].includes(config.entryTrigger ?? '') &&
+    (breakout ?? impulse ?? cluster ?? exhaustion ?? obvLead ?? weekendGap ?? trendQuality) ===
+      null;
   if (noEntryLevel && flat) return { sections: [] };
   const band =
     breakout ??
@@ -149,6 +161,7 @@ export const momentumPreviewLevels = (
     exhaustion ??
     obvLead ??
     weekendGap ??
+    trendQuality ??
     slowEma.mul(new Decimal(1).plus(entryMargin(config)));
   const bandStr = band.toString();
 
@@ -176,6 +189,12 @@ export const momentumPreviewLevels = (
     { reference: input.currentPrice, band: input.filters?.percentPriceBySide },
     // A preview projects from config and candles alone; it never sees live open orders, so it cannot pin against a resting order's stop price.
     null,
+    // A preview cannot establish a fresh position epoch, so only a persisted one projects the lock.
+    lockArmCutoff(
+      typeof input.state?.profitTrailSinceMs === 'number' ? input.state.profitTrailSinceMs : null,
+      typeof input.state?.lastEntryCandleMs === 'number' ? input.state.lastEntryCandleMs : null,
+    ),
+    input.state?.breakEvenArmed === true,
   ).stop;
 
   const entryRows: PreviewRow[] = noEntryLevel ? [] : [buildEntryRow(input, bandStr, candles)];
@@ -230,7 +249,9 @@ const buildEntryRow = (
               : input.config.entryTrigger === 'obvLead' ||
                   input.config.entryTrigger === 'weekendGap'
                 ? 'Last close'
-                : 'Entry band',
+                : input.config.entryTrigger === 'trendQuality'
+                  ? 'Trend line'
+                  : 'Entry band',
     tone: 'entry',
     price: bandStr,
     chartLine: true,

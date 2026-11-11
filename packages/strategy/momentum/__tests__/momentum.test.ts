@@ -204,6 +204,8 @@ const armOut = (
       band: input.market.symbolInfo.filters.percentPriceBySide,
     },
     previousStop,
+    typeof state.profitTrailSinceMs === 'number' ? state.profitTrailSinceMs : null,
+    state.breakEvenArmed === true,
   );
   // `floorClamped` comes from the same resolve, not a hand-written false: a clamp
   // widens the re-arm drift band, so passing false would exercise the operator
@@ -817,6 +819,79 @@ describe('momentum.tick — entry', () => {
       { maxChoppiness: '101' },
     ])
       expect(MomentumConfigSchema.safeParse({ ...cfg(), obvLead: bad }).success).toBe(false);
+  });
+
+  // Six closes with a 5-close fit: each series isolates one leg of the trend quality rule (R-squared above 0.9, rising, close above the fitted line, previous fit not already straight and rising).
+  const tqCfg = (over: Record<string, unknown> = {}) =>
+    cfg({ entryTrigger: 'trendQuality', trendQuality: { lookback: 5, ...over } });
+  const tqTick = (closes: readonly string[], over: Record<string, unknown> = {}) =>
+    momentum.tick(
+      mkInput({
+        closes: mkCandles(closes),
+        currentPrice: '106',
+        state: flat(),
+        config: tqCfg(over),
+      }),
+    );
+  const TQ_FIRE = ['100', '99', '100', '101', '103', '106'];
+
+  it('enters under entryTrigger trendQuality on a fresh straight climb above its line', () => {
+    const out = tqTick(TQ_FIRE);
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { side: 'BUY', reason: 'entry' },
+    });
+    expect(out.logs[0]?.message).toBe('momentum: entry on a fresh straight rising trend');
+  });
+
+  it('holds under entryTrigger trendQuality and names the binding leg', () => {
+    const ragged = tqTick(['100', '98', '101', '104', '102', '99']);
+    const belowLine = tqTick(['100', '97', '99', '102', '105', '105']);
+    const stale = tqTick(['100', '101', '102', '103', '105', '108']);
+    const strict = tqTick(TQ_FIRE, { minRSquared: '0.95' });
+    for (const out of [ragged, belowLine, stale, strict])
+      expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(ragged.logs[0]?.message).toBe('momentum: flat, no trend quality');
+    expect(ragged.logs[0]?.context).toMatchObject({ waitingFor: 'straight-rising-trend' });
+    expect(strict.logs[0]?.context).toMatchObject({ waitingFor: 'straight-rising-trend' });
+    expect(belowLine.logs[0]?.context).toMatchObject({
+      rSquared: '0.945',
+      aboveLinePercent: '-1.01',
+      previousArmed: false,
+      trendGate: 'pass',
+      waitingFor: 'close-above-trend-line',
+    });
+    expect(stale.logs[0]?.context).toMatchObject({
+      previousArmed: true,
+      waitingFor: 'fresh-trend',
+    });
+  });
+
+  it('reports trend-quality-history while the window is shorter than the trigger reads', () => {
+    const out = tqTick(TQ_FIRE.slice(1));
+    expect(out.decisions).toEqual([{ type: 'noop' }]);
+    expect(out.logs[0]?.context).toMatchObject({
+      rSquared: null,
+      slopePercentPerCandle: null,
+      aboveLinePercent: null,
+      previousArmed: null,
+      waitingFor: 'trend-quality-history',
+    });
+  });
+
+  it('accepts entryTrigger trendQuality and rejects a trendQuality leaf out of range', () => {
+    expect(MomentumConfigSchema.safeParse(tqCfg()).success).toBe(true);
+    expect(MomentumConfigSchema.parse(cfg({ trendQuality: {} })).trendQuality).toEqual({
+      lookback: 48,
+      minRSquared: '0.9',
+    });
+    for (const bad of [
+      { lookback: 2 },
+      { lookback: 1.5 },
+      { minRSquared: '0' },
+      { minRSquared: '1' },
+    ])
+      expect(MomentumConfigSchema.safeParse({ ...cfg(), trendQuality: bad }).success).toBe(false);
   });
 
   // CROSS_UP closes 12, 10, 8, 14 score below 1 over 3 returns, so a sibling published at 5 on the same candle outranks it.
@@ -2916,6 +2991,45 @@ describe('momentumPositionAdapter', () => {
         entryLayer: null,
       }),
     );
+  });
+});
+
+describe('momentumPositionAdapter — break-even latch', () => {
+  const latched = (): MomentumState => ({
+    ...initialMomentumState(),
+    entryPrice: '100',
+    heldQuantity: '1',
+    breakEvenArmed: true,
+  });
+
+  it.each([
+    [
+      'buy',
+      (b: MomentumState) =>
+        momentumPositionAdapter.applyFill(b, {
+          kind: 'buy',
+          avgEntryPrice: '90',
+          heldQuantity: '2',
+        }),
+    ],
+    ['empty', (b: MomentumState) => momentumPositionAdapter.applyFill(b, { kind: 'empty' })],
+    ['clearPosition', (b: MomentumState) => momentumPositionAdapter.clearPosition(b)],
+    ['setAvgEntryPrice', (b: MomentumState) => momentumPositionAdapter.setAvgEntryPrice(b, '90')],
+  ])('%s clears the latch', (_name, run) => {
+    expect(run(latched())?.breakEvenArmed).toBeUndefined();
+  });
+
+  it('keeps the latch across a partial sell and a quantity pin', () => {
+    expect(
+      momentumPositionAdapter.applyFill(latched(), { kind: 'sell-reduce', heldQuantity: '0.5' })
+        ?.breakEvenArmed,
+    ).toBe(true);
+    expect(momentumPositionAdapter.setHeldQuantity(latched(), '3')?.breakEvenArmed).toBe(true);
+  });
+
+  // The boot-time revive re-applies the stored basis on every restart, which must not disarm the lock.
+  it('keeps the latch when the average entry price is set to the same basis', () => {
+    expect(momentumPositionAdapter.setAvgEntryPrice(latched(), '100')?.breakEvenArmed).toBe(true);
   });
 });
 
@@ -5294,5 +5408,163 @@ describe('momentum.tick — weekendGap trigger', () => {
       { maxHoldBars: 948 },
     ])
       expect(MomentumConfigSchema.safeParse({ ...cfg(), weekendGap: bad }).success).toBe(false);
+  });
+});
+
+describe('momentum.tick — break-even lock', () => {
+  // The high passed the 1.5% activation (entry 100), then price fell back. The 50% retrace keeps the hard leg far below the floor at 100.5.
+  const lockCfg = (over: Record<string, unknown> = {}) =>
+    cfg({
+      trailingStopPct: '0.5',
+      breakEvenLock: { enabled: true, activationPct: '0.015', floorPct: '0.005' },
+      ...over,
+    });
+  const held = () =>
+    longState({ highSinceEntry: '110', lastEntryCandleMs: 1, profitTrailSinceMs: 0 });
+  // Flat closes well above the 101.5 activation, all closed after the epoch of 0, so the lock reads its own high from them.
+  const HIGH_CLOSES = ['110', '110', '110', '110'];
+
+  it('exits when price falls through the floor', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        currentPrice: '100',
+        state: held(),
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { reason: 'exit' } });
+    expect(out.metrics).toEqual([
+      { name: 'momentum.exit', value: 1, tags: { reason: 'trailing-stop' } },
+    ]);
+  });
+
+  it('holds at the same price when the position epoch is unknown', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        currentPrice: '100',
+        state: longState({ highSinceEntry: '110', lastEntryCandleMs: 1, profitTrailSinceMs: null }),
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toEqual({ type: 'noop' });
+  });
+
+  it('holds at the same price when the lock is off', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        currentPrice: '100',
+        state: held(),
+        config: lockCfg({ breakEvenLock: undefined }),
+      }),
+    );
+    expect(out.decisions[0]).toEqual({ type: 'noop' });
+  });
+
+  it('rests the protective stop at the floored trigger', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        currentPrice: '105',
+        state: held(),
+        config: lockCfg({ protectiveStop: { enabled: true } }),
+        balances: ARM_BALANCES,
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({
+      type: 'place-order',
+      intent: { reason: 'protective-stop' },
+      params: { type: 'STOP_LOSS_LIMIT', stopPrice: '100.50' },
+    });
+  });
+
+  it('holds a position adopted after an exit when the only high is a close from before it', () => {
+    // The adapter leaves the old entry stamp and clears the epoch and high on an adopted buy. The 110 close predates the position, so it must not arm the lock; the first held tick sets the epoch to the newest 1m close.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        oneMinute: mkCandles(['110']).map((c) => ({
+          ...c,
+          openTimeMs: LAST_CLOSE_MS,
+          closeTimeMs: LAST_CLOSE_MS + 60_000,
+        })),
+        currentPrice: '100',
+        state: longState({
+          highSinceEntry: null,
+          lastEntryCandleMs: 1,
+          profitTrailSinceMs: null,
+        }),
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toEqual({ type: 'noop' });
+    expect(out.nextState.profitTrailSinceMs).toBe(LAST_CLOSE_MS + 60_000);
+  });
+
+  it('keeps the floor once armed even though no window close qualifies', () => {
+    // The activating candle has left the window: every close is below activation, so only the latch holds the 100.5 floor.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['100', '100', '100', '100']),
+        currentPrice: '100',
+        state: { ...held(), breakEvenArmed: true },
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { reason: 'exit' } });
+    expect(out.nextState.breakEvenArmed).toBeUndefined();
+  });
+
+  it('persists the latch on the tick that arms it and never writes it when unarmed', () => {
+    const armed = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        currentPrice: '105',
+        state: held(),
+        config: lockCfg(),
+      }),
+    );
+    expect(armed.nextState.breakEvenArmed).toBe(true);
+    const unarmed = momentum.tick(
+      mkInput({
+        closes: mkCandles(['100', '100', '100', '100']),
+        currentPrice: '100',
+        state: held(),
+        config: lockCfg(),
+      }),
+    );
+    expect(Object.hasOwn(unarmed.nextState, 'breakEvenArmed')).toBe(false);
+  });
+
+  it('clears the latch on an exit', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        currentPrice: '100',
+        state: { ...held(), breakEvenArmed: true },
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { reason: 'exit' } });
+    expect(Object.hasOwn(out.nextState, 'breakEvenArmed')).toBe(false);
+  });
+
+  it('does not let a close at or before the entry signal candle arm the lock', () => {
+    // The epoch is 0 but the signal candle closed after every window close, so none may arm.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        currentPrice: '100',
+        state: longState({
+          highSinceEntry: '110',
+          lastEntryCandleMs: LAST_CLOSE_MS,
+          profitTrailSinceMs: 0,
+        }),
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toEqual({ type: 'noop' });
   });
 });

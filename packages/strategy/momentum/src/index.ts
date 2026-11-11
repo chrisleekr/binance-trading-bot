@@ -1,3 +1,4 @@
+import { MAX_CANDLE_WINDOW } from '@app/strategy-core';
 import type { Strategy } from '@app/strategy-core';
 
 import {
@@ -19,6 +20,7 @@ import { trendPeriod } from './trend-filter.js';
 import { breakoutLookback } from './breakout.js';
 import { exhaustionNeed } from './exhaustion.js';
 import { obvLeadNeed } from './obv-lead.js';
+import { trendQualityNeed } from './trend-quality.js';
 import { weekendGapNeed } from './weekend-gap.js';
 import { impulseNeed } from './impulse.js';
 import { maClusterNeed } from './ma-cluster.js';
@@ -60,7 +62,7 @@ const finiteNum = (v: unknown): number => {
 };
 
 /**
- * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1`, and the impulse trigger its volume lookback plus the judged candle, and the exhaustion trigger its 400-candle average plus one, and the OBV lead trigger its lookback plus one, and the weekend gap trigger its hold limit plus 52, and the MA cluster trigger its 200-candle average plus one, when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, an enabled ATR trailing stop reads `period + 1` closes for its first true-range value, and an enabled relative-strength gate reads `lookbackBars + 1` closes for its score. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
+ * Candle lookback this config needs on the strategy interval: the EMA cross reads `slow + 1` closes (the breakout trigger reads `breakoutLookback + 1`, and the impulse trigger its volume lookback plus the judged candle, and the exhaustion trigger its 400-candle average plus one, and the OBV lead trigger its lookback plus one, and the weekend gap trigger its hold limit plus 52, and the trend quality trigger its lookback plus one, and the MA cluster trigger its 200-candle average plus one, when that is longer), an enabled trend filter reads `period` closes (plus the slope lookback when it requires a rising line), an enabled extension guard reads its own `period` closes, an enabled ATR trailing stop reads `period + 1` closes for its first true-range value, and an enabled relative-strength gate reads `lookbackBars + 1` closes for its score. Mirrors the exact arithmetic each gate in {@link computeTick} uses (including the shared {@link extensionPeriod}, {@link trendPeriod} and {@link atrStopPeriod} coercions) so the window is never short of what a decision reads. Defensive: the live worker passes the config unparsed.
  *
  * The ATR term is a HARD need, not the trail's soft one. Risk-based entry sizing divides equity risk by the initial stop distance, and that distance is unresolvable on a short ATR window, so the entry is refused outright (`risk-sizing-unavailable`) rather than degraded. The exit trail's own shortfall behaviour is a fallback to the fixed `trailingStopPct`, which is why the term could be omitted here before entry sizing read it.
  */
@@ -82,6 +84,7 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
     impulse?: unknown;
     obvLead?: unknown;
     weekendGap?: unknown;
+    trendQuality?: unknown;
     relativeStrength?: unknown;
     maCluster?: unknown;
   };
@@ -101,11 +104,13 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
             ? obvLeadNeed(c.obvLead)
             : c.entryTrigger === 'weekendGap'
               ? weekendGapNeed(c.weekendGap)
-              : c.entryTrigger === 'maCluster'
-                ? maClusterNeed(c.maCluster) > layerRange
-                  ? maClusterNeed(c.maCluster)
-                  : layerRange + 1
-                : 0;
+              : c.entryTrigger === 'trendQuality'
+                ? trendQualityNeed(c.trendQuality)
+                : c.entryTrigger === 'maCluster'
+                  ? maClusterNeed(c.maCluster) > layerRange
+                    ? maClusterNeed(c.maCluster)
+                    : layerRange + 1
+                  : 0;
   const crossNeed = finiteNum(c.ema?.slow) + 1;
   const emaNeed = crossNeed > breakoutNeed ? crossNeed : breakoutNeed;
   const tf = c.trendFilter;
@@ -145,6 +150,26 @@ export const momentumRequiredWindow = (config: MomentumConfig): number => {
   return withRs > gapNeed ? withRs : gapNeed;
 };
 
+/** Periods of history an EMA needs before its SMA seed stops mattering: after four more periods the seed's weight is e^-8, about 0.03%. */
+const EMA_CONVERGED_PERIODS = 5;
+
+/**
+ * The candle window to load: what a decision reads, widened so the EMAs have converged. `ema` rebuilds from an SMA seed over whatever window arrives, so a window barely longer than the slow period makes the slow EMA nearly an SMA and moves the cross-down exit onto other bars, and an unrelated setting that lengthens the window moves it again. Separate from {@link momentumRequiredWindow} because this is an accuracy floor rather than a need: `tick` still trades on `slow + 1` candles, so a young symbol is not held back.
+ *
+ * Not capped at the live kline ring (256 rows): a slow period of 52 or more asks for more, so the worker loads that window over REST once per candle on each interval. Capping it would bring back the exit shift for exactly the long-slow profiles that need the floor most.
+ *
+ * @param config - The profile config; may be unparsed, as for {@link momentumRequiredWindow}.
+ * @returns Candles to request, before the shared floor and ceiling in `resolveCandleWindow`.
+ */
+export const momentumCandleWindow = (config: MomentumConfig): number => {
+  const slow = (config as { ema?: { slow?: unknown } }).ema?.slow;
+  // Capped because the floor is optional accuracy; only a real decision need may press against the shared ceiling.
+  const wanted = finiteNum(slow) * EMA_CONVERGED_PERIODS + 1;
+  const converged = wanted > MAX_CANDLE_WINDOW ? MAX_CANDLE_WINDOW : wanted;
+  const need = momentumRequiredWindow(config);
+  return converged > need ? converged : need;
+};
+
 export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> = {
   name: 'momentum',
   version: '1.0.0',
@@ -176,7 +201,7 @@ export const momentum: Strategy<MomentumConfig, MomentumState, MomentumBundle> =
   // can never be handed to it.
   attributeOrder: momentumAttributeOrder,
   initialState: initialMomentumState,
-  requiredWindow: momentumRequiredWindow,
+  requiredWindow: momentumCandleWindow,
   reasonAttribution: momentumReasonAttribution,
   previewDataNeeds: momentumPreviewDataNeeds,
   previewLevels: momentumPreviewLevels,

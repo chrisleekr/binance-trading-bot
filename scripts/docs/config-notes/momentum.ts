@@ -128,6 +128,21 @@ export const momentumNotes: FieldNotes = {
     expect:
       'Once switched on, the trade sells if price falls this far from its peak. It must be enough below the activation that the sale still clears your entry: the pullback is measured off the higher arming price, so it costs slightly more than the activation gained. With a 5% activation the form accepts a little under 4.8%. That bound is what stops this trail turning a winner into a loser.',
   },
+  'breakEvenLock.enabled': {
+    when: 'Turn it on if trades that were comfortably in profit keep falling back and closing at a loss.',
+    expect:
+      'After a trade has closed well above your entry price, the stop is not allowed to sit below a small gain over that price. It only ever raises the stop, so trades that never get that far in profit behave exactly as they do today.',
+  },
+  'breakEvenLock.activationPct': {
+    when: 'Only when the break-even lock is on. Lower it to lock in sooner; raise it to give new trades more room before the lock applies.',
+    expect:
+      'Nothing changes until a candle has closed this far above your entry price. Set too low, ordinary noise right after the buy arms the lock and shakes you out of trades that would have run.',
+  },
+  'breakEvenLock.floorPct': {
+    when: 'Only when the break-even lock is on. 0 is break-even, a stop exactly at your entry price. Raise it to cover trading fees or to keep a little more of the gain.',
+    expect:
+      'Once the lock is armed the stop will not sit below this gain over your entry price. It must be below the activation, so the lock never holds the stop above where the trade stood when it armed.',
+  },
   'profitTrail.ratchetMinutes': {
     when: 'Only when the profit trail is on. Lower it if the trail is lagging fast moves; raise it if you are sending too many orders.',
     expect:
@@ -200,6 +215,16 @@ export const momentumNotes: FieldNotes = {
     when: 'Only with `entryTrigger: weekendGap`. Shorten it to give up on a dip that is not recovering sooner.',
     expect:
       'In the 1h research price tended to climb back to the Friday close within about three days, so 72 candles is the whole recovery window; a position still open then is sold at market.',
+  },
+  'trendQuality.lookback': {
+    when: 'Only with `entryTrigger: trendQuality`. Shorten it for more, shorter-lived trends; lengthen it for fewer, steadier ones.',
+    expect:
+      'Counted in candles of `candleInterval`, so 48 is two days on `1h`. A longer fit asks for a longer straight climb, so it fires less often and later.',
+  },
+  'trendQuality.minRSquared': {
+    when: 'Only with `entryTrigger: trendQuality`. Raise it to buy only the cleanest climbs; lower it to also buy rougher ones.',
+    expect:
+      'In the 2025 to October 2026 1h research the default 0.9 with a 4x ATR trail made money after 2.5x costs on nine pre-chosen large caps. Higher values trade less often.',
   },
   'impulse.volumeLookback': {
     when: 'Only with `entryTrigger: impulse`. Change it only with the candle interval: it should span about a week of candles, so 168 on `1h` and 42 on `4h`.',

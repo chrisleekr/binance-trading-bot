@@ -131,6 +131,32 @@ describe('momentumPreviewLevels — flat state with a configured entry', () => {
     ).toEqual([]);
   });
 
+  // Closes are off the line, so the projected level differs from the last close.
+  it('projects the fitted trend line under the trend quality trigger', () => {
+    const config = cfg({ entryTrigger: 'trendQuality', trendQuality: { lookback: 5 } });
+    const closes = ['100', '103', '101', '106', '108', '107'];
+    const candles = mkCandles(closes);
+    const model = momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles));
+    const entry = row(model, 'entry');
+    expect(entry).toMatchObject({ label: 'Trend line' });
+    const ys = closes.slice(-5).map((c) => Math.log(Number(c)));
+    const yMean = ys.reduce((a, b) => a + b, 0) / 5;
+    const slope =
+      ys.reduce((a, y, x) => a + (x - 2) * (y - yMean), 0) /
+      ys.reduce((a, _, x) => a + (x - 2) ** 2, 0);
+    const expected = Math.exp(yMean + slope * 2);
+    expect(Number(entry?.price)).toBeCloseTo(expected, 6);
+    expect(Number(entry?.price)).not.toBeCloseTo(107, 1);
+  });
+
+  it('projects nothing under the trend quality trigger while the window is shorter than the tick needs', () => {
+    const config = cfg({ entryTrigger: 'trendQuality', trendQuality: { lookback: 5 } });
+    const candles = mkCandles(Array.from({ length: 5 }, (_, i) => String(10 + i)));
+    expect(
+      momentumPreviewLevels(previewInput(config, RICH_ACCOUNT_WIRE, candles)).sections,
+    ).toEqual([]);
+  });
+
   it('projects the last close under the weekend gap trigger', () => {
     const config = cfg({ entryTrigger: 'weekendGap' });
     const model = momentumPreviewLevels(
@@ -537,7 +563,7 @@ describe('momentumPreviewLevels — defensive / branch coverage', () => {
   });
 
   // Each trigger's rule needs a longer window than the 4-candle default, so a held position keeps its stop rows and loses only the entry row.
-  it.each(['impulse', 'maCluster', 'exhaustion', 'obvLead'] as const)(
+  it.each(['impulse', 'maCluster', 'exhaustion', 'obvLead', 'trendQuality'] as const)(
     'keeps the held stop rows and drops only the entry row under %s with a too-short window',
     (entryTrigger) => {
       const model = momentumPreviewLevels(

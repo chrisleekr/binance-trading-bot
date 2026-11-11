@@ -61,6 +61,8 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
           highSinceEntry: null,
           profitHigh: null,
           profitTrailSinceMs: null,
+          // The floor is measured from the cost basis, so a latch armed against the old one could sit above the market on the new one.
+          breakEvenArmed: undefined,
         };
       case 'sell-reduce':
         // Partial exit: lower held qty only; entry / high-water stay intact.
@@ -71,7 +73,8 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
           body['entryPrice'] === null &&
           body['highSinceEntry'] === null &&
           (body['heldQuantity'] === null || body['heldQuantity'] === undefined) &&
-          !hasPositionScopedFieldSet(body)
+          !hasPositionScopedFieldSet(body) &&
+          body['breakEvenArmed'] === undefined
         ) {
           return null;
         }
@@ -83,6 +86,7 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
           highSinceEntry: null,
           profitHigh: null,
           profitTrailSinceMs: null,
+          breakEvenArmed: undefined,
           entryLayer: null,
         });
       }
@@ -98,7 +102,13 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
   setAvgEntryPrice(state, avgEntryPrice): MomentumState | null {
     const body = asCurrentBody(state);
     if (body === null) return null;
-    return { ...(body as unknown as MomentumState), entryPrice: avgEntryPrice };
+    // The lock floor is measured from the cost basis, so a latch armed against the old basis could sit above the market on the new one. Kept when the basis is unchanged, because the boot-time revive re-applies the same price on every restart.
+    const basisChanged = body['entryPrice'] !== avgEntryPrice;
+    return {
+      ...(body as unknown as MomentumState),
+      entryPrice: avgEntryPrice,
+      ...(basisChanged ? { breakEvenArmed: undefined } : {}),
+    };
   },
 
   clearPosition(state): MomentumState | null {
@@ -113,6 +123,7 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
       highSinceEntry: null,
       profitHigh: null,
       profitTrailSinceMs: null,
+      breakEvenArmed: undefined,
       // The rule that opened the position goes with its cost basis: kept coins re-based later are not that rule's entry.
       entryLayer: null,
     };
