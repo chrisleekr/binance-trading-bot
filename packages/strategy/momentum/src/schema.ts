@@ -858,6 +858,8 @@ export const MomentumStateSchema = z.object({
   // entry taken before any 1m candle closed): fold nothing.
   // Additive with `.default(null)` for the same no-version-bump reason.
   profitTrailSinceMs: z.number().int().nullable().default(null),
+  // Latch for the break-even lock, position-scoped: set only once a close has armed it, so the floor outlives the activating candle leaving the candle window. Optional and only ever written true, so states with the lock off never gain the key. Cleared (key dropped) when the position ends or its average entry price changes.
+  breakEvenArmed: z.boolean().optional(),
   // Why the last tick refused to open a long, or null when it did not (an entry
   // fired, an exit ran, or a plain hold). The generic worker path turns a change
   // in this field into a queryable action_log row, so an operator can see which

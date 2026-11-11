@@ -180,13 +180,23 @@ describe('stop-level — resolveStopLevel', () => {
   const lowHigh = new Decimal('106');
 
   it('reports the hard leg alone while the profit trail is off', () => {
-    const out = resolveStopLevel(cfg(), entry, high, null, [], NO_BAND, null, null);
+    const out = resolveStopLevel(cfg(), entry, high, null, [], NO_BAND, null, null, false);
     expect(out.profitHigh).toBeNull();
     expect(out.stop?.toString()).toBe('114');
   });
 
   it('returns the effective high and pins a priced level to the resting trigger', () => {
-    const out = resolveStopLevel(cfg(), entry, high, null, [], NO_BAND, new Decimal('118'), null);
+    const out = resolveStopLevel(
+      cfg(),
+      entry,
+      high,
+      null,
+      [],
+      NO_BAND,
+      new Decimal('118'),
+      null,
+      false,
+    );
     expect(out.effectiveHigh).toBe(high);
     expect(out.stop?.toString()).toBe('118');
     expect(out.floorClamped).toBe(false);
@@ -194,7 +204,17 @@ describe('stop-level — resolveStopLevel', () => {
 
   it('keeps pin-up behavior when a non-clamp candidate moves below the resting trigger', () => {
     const config = cfg({ protectiveStop: { enabled: true, onBandBlock: 'notify' } });
-    const out = resolveStopLevel(config, entry, high, null, [], NO_BAND, new Decimal('118'), null);
+    const out = resolveStopLevel(
+      config,
+      entry,
+      high,
+      null,
+      [],
+      NO_BAND,
+      new Decimal('118'),
+      null,
+      false,
+    );
     expect(out.stop?.toString()).toBe('118');
   });
 
@@ -208,6 +228,7 @@ describe('stop-level — resolveStopLevel', () => {
       NO_BAND,
       new Decimal('118'),
       null,
+      false,
     );
     expect(out.stop).toBeNull();
   });
@@ -224,6 +245,7 @@ describe('stop-level — resolveStopLevel', () => {
       NO_BAND,
       null,
       null,
+      false,
     );
     expect(out.stop?.toString()).toBe('100.7');
   });
@@ -240,6 +262,7 @@ describe('stop-level — resolveStopLevel', () => {
       NO_BAND,
       null,
       null,
+      false,
     );
     expect(out.stop?.toString()).toBe('101.85');
   });
@@ -255,6 +278,7 @@ describe('stop-level — resolveStopLevel', () => {
       NO_BAND,
       null,
       null,
+      false,
     );
     expect(out.stop?.toString()).toBe('114');
   });
@@ -270,13 +294,14 @@ describe('stop-level — resolveStopLevel', () => {
       NO_BAND,
       null,
       null,
+      false,
     );
     expect(out.stop?.toString()).toBe('194');
     expect(out.profitHigh?.toString()).toBe('200');
   });
 
   it('never sits below the hard leg, so protection can only tighten', () => {
-    const hard = resolveStopLevel(cfg(), entry, high, null, [], NO_BAND, null, null)
+    const hard = resolveStopLevel(cfg(), entry, high, null, [], NO_BAND, null, null, false)
       .stop as Decimal;
     for (const mark of ['105', '130', '200']) {
       const both = resolveStopLevel(
@@ -288,6 +313,7 @@ describe('stop-level — resolveStopLevel', () => {
         NO_BAND,
         null,
         null,
+        false,
       ).stop as Decimal;
       expect(both.gte(hard)).toBe(true);
     }
@@ -305,6 +331,7 @@ describe('stop-level — resolveStopLevel', () => {
       NO_BAND,
       null,
       null,
+      false,
     );
     // max(hard 95, profit 101.85) = 101.85 > entry 100.
     expect(out.stop?.toString()).toBe('101.85');
@@ -320,7 +347,17 @@ describe('stop-level — resolveStopLevel', () => {
       trailingStopPct: 'nope',
       profitTrail: { enabled: true, activationPct: '0.05', trailPct: '0.5' },
     });
-    const out = resolveStopLevel(config, entry, high, new Decimal('105'), [], NO_BAND, null, null);
+    const out = resolveStopLevel(
+      config,
+      entry,
+      high,
+      new Decimal('105'),
+      [],
+      NO_BAND,
+      null,
+      null,
+      false,
+    );
     expect(out.stop?.toString()).toBe('100');
   });
 
@@ -336,7 +373,7 @@ describe('stop-level — resolveStopLevel', () => {
       isClosed: true,
     }));
     const config = cfg({ atrTrailingStop: { enabled: true, period: 3, multiple: '2' } });
-    const out = resolveStopLevel(config, entry, high, null, candles, NO_BAND, null, null);
+    const out = resolveStopLevel(config, entry, high, null, candles, NO_BAND, null, null, false);
     // Anything but the fixed 120 * 0.95 proves the ATR leg was taken.
     expect(out.stop?.toString()).not.toBe('114');
     expect((out.stop as Decimal).lt(high)).toBe(true);
@@ -357,6 +394,7 @@ describe('stop-level — resolveStopLevel', () => {
           NO_BAND,
           null,
           null,
+          false,
         ).stop,
       ).toBe(null);
     }
@@ -364,7 +402,17 @@ describe('stop-level — resolveStopLevel', () => {
 
   it('still reports the profit leg when the hard leg is unusable', () => {
     const config = rawCfg({ trailingStopPct: 'nope', ...TRAIL_ON });
-    const out = resolveStopLevel(config, entry, high, new Decimal('200'), [], NO_BAND, null, null);
+    const out = resolveStopLevel(
+      config,
+      entry,
+      high,
+      new Decimal('200'),
+      [],
+      NO_BAND,
+      null,
+      null,
+      false,
+    );
     expect(out.stop?.toString()).toBe('194');
   });
 
@@ -373,7 +421,17 @@ describe('stop-level — resolveStopLevel', () => {
       profitTrail: { enabled: true, activationPct: 'x', trailPct: 'y' },
     });
     // Defaults 0.05 / 0.03 → armed at 105, stop 200 * 0.97 = 194.
-    const out = resolveStopLevel(config, entry, high, new Decimal('200'), [], NO_BAND, null, null);
+    const out = resolveStopLevel(
+      config,
+      entry,
+      high,
+      new Decimal('200'),
+      [],
+      NO_BAND,
+      null,
+      null,
+      false,
+    );
     expect(out.stop?.toString()).toBe('194');
   });
 
@@ -396,11 +454,31 @@ describe('stop-level — resolveStopLevel', () => {
 
     it('follows a falling exchange floor instead of pinning to the prior clamped stop', () => {
       const config = cfg({ trailingStopPct: '0.2', ...clamp() });
-      const first = resolveStopLevel(config, entry, high, null, [], BAND, null, null);
+      const first = resolveStopLevel(config, entry, high, null, [], BAND, null, null, false);
       const lowerBand = { ...BAND, reference: '110' };
-      const expectedSecond = resolveStopLevel(config, entry, high, null, [], lowerBand, null, null);
+      const expectedSecond = resolveStopLevel(
+        config,
+        entry,
+        high,
+        null,
+        [],
+        lowerBand,
+        null,
+        null,
+        false,
+      );
 
-      const second = resolveStopLevel(config, entry, high, null, [], lowerBand, first.stop, null);
+      const second = resolveStopLevel(
+        config,
+        entry,
+        high,
+        null,
+        [],
+        lowerBand,
+        first.stop,
+        null,
+        false,
+      );
 
       expect(second.stop?.toString()).toBe(expectedSecond.stop?.toString());
       expect(second.stop?.lt(first.stop as Decimal)).toBe(true);
@@ -410,7 +488,7 @@ describe('stop-level — resolveStopLevel', () => {
       // A profile saved before `limitOffsetPercentage` existed carries no key, so
       // the floor has to come from the same default the order itself uses. A
       // second default here would floor at a price the order never carries.
-      const out = resolveStopLevel(rawCfg(clamp()), entry, high, null, [], BAND, null, null);
+      const out = resolveStopLevel(rawCfg(clamp()), entry, high, null, [], BAND, null, null, false);
       expect(out.floorClamped).toBe(true);
       expect(out.stop?.gt(new Decimal('114'))).toBe(true);
     });
@@ -427,6 +505,7 @@ describe('stop-level — resolveStopLevel', () => {
         BAND,
         null,
         null,
+        false,
       );
       expect(out.floorClamped).toBe(false);
       expect(out.stop?.toString()).toBe('114');
@@ -448,6 +527,7 @@ describe('stop-level — resolveStopLevel', () => {
           BAND,
           null,
           null,
+          false,
         );
         expect(out.floorClamped).toBe(false);
         expect(out.stop?.toString()).toBe('114');
@@ -469,6 +549,7 @@ describe('stop-level — resolveStopLevel', () => {
         },
         null,
         null,
+        false,
       );
       expect(out.floorClamped).toBe(false);
       expect(out.stop?.toString()).toBe('114');
@@ -502,6 +583,7 @@ describe('stop-level — break-even lock', () => {
       NO_BAND,
       null,
       0,
+      false,
     ).stop?.toString();
 
   it('leaves the stop byte-identical when absent or disabled', () => {
@@ -553,6 +635,7 @@ describe('stop-level — break-even lock', () => {
       band,
       null,
       0,
+      false,
     );
     expect(under.floorClamped).toBe(true);
     expect(under.stop?.toString()).not.toBe('100.5');
@@ -571,6 +654,7 @@ describe('stop-level — break-even lock', () => {
       band,
       null,
       0,
+      false,
     );
     expect(out.stop?.toString()).toBe('119');
     expect(out.floorClamped).toBe(false);
@@ -611,6 +695,7 @@ describe('stop-level — break-even lock', () => {
       NO_BAND,
       previousStop,
       sinceMs,
+      false,
     );
 
   it('never arms without a position epoch, whatever the candles show', () => {
@@ -668,6 +753,52 @@ describe('stop-level — break-even lock', () => {
     it('accepts the same pair while disabled, and the defaults when enabled', () => {
       expect(parse({ enabled: false, activationPct: '0.01', floorPct: '0.02' }).success).toBe(true);
       expect(parse({ enabled: true }).success).toBe(true);
+    });
+  });
+
+  describe('latch', () => {
+    const run = (candles: Candle[], lockArmed: boolean, sinceMs: number | null = 0) =>
+      resolveStopLevel(
+        cfg({ ...wide, ...LOCK }),
+        entry,
+        new Decimal('120'),
+        null,
+        candles,
+        NO_BAND,
+        null,
+        sinceMs,
+        lockArmed,
+      );
+
+    it('keeps the floor after the activating candle leaves the window', () => {
+      const armed = run([closeAt('110', 3_600_000)], false);
+      expect(armed.lockArmed).toBe(true);
+      expect(armed.stop?.toString()).toBe('100.5');
+      const later = run([closeAt('100', 7_200_000)], armed.lockArmed);
+      expect(later.stop?.toString()).toBe('100.5');
+      expect(later.lockArmed).toBe(true);
+    });
+
+    it('applies no floor without the latch or a qualifying close', () => {
+      const out = run([closeAt('100', 7_200_000)], false);
+      expect(out.stop?.toString()).toBe('60');
+      expect(out.lockArmed).toBe(false);
+    });
+
+    it('does not arm on a close at or before the cutoff', () => {
+      expect(run([closeAt('110', 3_600_000)], false, 3_600_000).lockArmed).toBe(false);
+      expect(run([closeAt('110', 3_600_001)], false, 3_600_000).lockArmed).toBe(true);
+    });
+
+    it('still needs valid percentages when latched', () => {
+      const bad = rawCfg({
+        ...wide,
+        breakEvenLock: { enabled: true, activationPct: '0.015', floorPct: '0.5' },
+      });
+      expect(
+        resolveStopLevel(bad, entry, new Decimal('120'), null, [], NO_BAND, null, 0, true)
+          .lockArmed,
+      ).toBe(false);
     });
   });
 });

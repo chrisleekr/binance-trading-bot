@@ -27,7 +27,7 @@ import { trendQualityLevel } from './trend-quality.js';
 import { coerceInt } from './config-coerce.js';
 import type { MomentumConfig, MomentumState } from './schema.js';
 import { extensionMaxPercent, extensionPeriod } from './extension.js';
-import { resolveStopLevel } from './stop-level.js';
+import { lockArmCutoff, resolveStopLevel } from './stop-level.js';
 import { configForEntryLayer } from './trailing-stop.js';
 import { DEFAULT_LIMIT_OFFSET } from './protective-stop.js';
 import { resolveEntryBudget } from './sizing.js';
@@ -190,7 +190,11 @@ export const momentumPreviewLevels = (
     // A preview projects from config and candles alone; it never sees live open orders, so it cannot pin against a resting order's stop price.
     null,
     // A preview cannot establish a fresh position epoch, so only a persisted one projects the lock.
-    typeof input.state?.profitTrailSinceMs === 'number' ? input.state.profitTrailSinceMs : null,
+    lockArmCutoff(
+      typeof input.state?.profitTrailSinceMs === 'number' ? input.state.profitTrailSinceMs : null,
+      typeof input.state?.lastEntryCandleMs === 'number' ? input.state.lastEntryCandleMs : null,
+    ),
+    input.state?.breakEvenArmed === true,
   ).stop;
 
   const entryRows: PreviewRow[] = noEntryLevel ? [] : [buildEntryRow(input, bandStr, candles)];

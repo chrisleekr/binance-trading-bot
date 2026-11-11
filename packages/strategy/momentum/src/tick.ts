@@ -46,7 +46,12 @@ import {
 import { relativeStrengthGate, relativeStrengthPublish } from './relative-strength.js';
 import { profitLegDistance } from './profit-leg.js';
 import { configForEntryLayer } from './trailing-stop.js';
-import { profitTrailEpoch, ratchetProfitHigh, resolveStopLevel } from './stop-level.js';
+import {
+  lockArmCutoff,
+  profitTrailEpoch,
+  ratchetProfitHigh,
+  resolveStopLevel,
+} from './stop-level.js';
 import { resolveEntryBudget } from './sizing.js';
 import { entryClientOrderId, exitClientOrderId } from './client-order-id.js';
 import {
@@ -846,7 +851,9 @@ const evaluateExit = (
       band: market.symbolInfo.filters.percentPriceBySide,
     },
     previousStop,
-    profitSinceMs,
+    // The entry signal candle closed before the buy, so a lagging 1m feed must not let it arm the lock.
+    lockArmCutoff(profitSinceMs, entryCandleMs),
+    state.breakEvenArmed === true,
   );
   const price = new Decimal(market.currentPrice);
   // A null level means NEITHER leg resolved — no usable retrace fraction, no
@@ -987,6 +994,7 @@ const evaluateExit = (
     // profit leg one tick rather than the whole position.
     profitTrailSinceMs: profitSinceMs,
     entryBlocker: null,
+    ...(level.lockArmed ? { breakEvenArmed: true } : {}),
   };
   // The resting stop mirrors the SAME resolved level the trail just tested, so
   // the two cannot report different numbers.

@@ -205,6 +205,7 @@ const armOut = (
     },
     previousStop,
     typeof state.profitTrailSinceMs === 'number' ? state.profitTrailSinceMs : null,
+    state.breakEvenArmed === true,
   );
   // `floorClamped` comes from the same resolve, not a hand-written false: a clamp
   // widens the re-arm drift band, so passing false would exercise the operator
@@ -2993,6 +2994,45 @@ describe('momentumPositionAdapter', () => {
   });
 });
 
+describe('momentumPositionAdapter — break-even latch', () => {
+  const latched = (): MomentumState => ({
+    ...initialMomentumState(),
+    entryPrice: '100',
+    heldQuantity: '1',
+    breakEvenArmed: true,
+  });
+
+  it.each([
+    [
+      'buy',
+      (b: MomentumState) =>
+        momentumPositionAdapter.applyFill(b, {
+          kind: 'buy',
+          avgEntryPrice: '90',
+          heldQuantity: '2',
+        }),
+    ],
+    ['empty', (b: MomentumState) => momentumPositionAdapter.applyFill(b, { kind: 'empty' })],
+    ['clearPosition', (b: MomentumState) => momentumPositionAdapter.clearPosition(b)],
+    ['setAvgEntryPrice', (b: MomentumState) => momentumPositionAdapter.setAvgEntryPrice(b, '90')],
+  ])('%s clears the latch', (_name, run) => {
+    expect(run(latched())?.breakEvenArmed).toBeUndefined();
+  });
+
+  it('keeps the latch across a partial sell and a quantity pin', () => {
+    expect(
+      momentumPositionAdapter.applyFill(latched(), { kind: 'sell-reduce', heldQuantity: '0.5' })
+        ?.breakEvenArmed,
+    ).toBe(true);
+    expect(momentumPositionAdapter.setHeldQuantity(latched(), '3')?.breakEvenArmed).toBe(true);
+  });
+
+  // The boot-time revive re-applies the stored basis on every restart, which must not disarm the lock.
+  it('keeps the latch when the average entry price is set to the same basis', () => {
+    expect(momentumPositionAdapter.setAvgEntryPrice(latched(), '100')?.breakEvenArmed).toBe(true);
+  });
+});
+
 describe('schema', () => {
   it('seeds a schema-valid default config and flat state', () => {
     expect(() => defaultMomentumConfig()).not.toThrow();
@@ -5461,5 +5501,70 @@ describe('momentum.tick — break-even lock', () => {
     );
     expect(out.decisions[0]).toEqual({ type: 'noop' });
     expect(out.nextState.profitTrailSinceMs).toBe(LAST_CLOSE_MS + 60_000);
+  });
+
+  it('keeps the floor once armed even though no window close qualifies', () => {
+    // The activating candle has left the window: every close is below activation, so only the latch holds the 100.5 floor.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(['100', '100', '100', '100']),
+        currentPrice: '100',
+        state: { ...held(), breakEvenArmed: true },
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { reason: 'exit' } });
+    expect(out.nextState.breakEvenArmed).toBeUndefined();
+  });
+
+  it('persists the latch on the tick that arms it and never writes it when unarmed', () => {
+    const armed = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        currentPrice: '105',
+        state: held(),
+        config: lockCfg(),
+      }),
+    );
+    expect(armed.nextState.breakEvenArmed).toBe(true);
+    const unarmed = momentum.tick(
+      mkInput({
+        closes: mkCandles(['100', '100', '100', '100']),
+        currentPrice: '100',
+        state: held(),
+        config: lockCfg(),
+      }),
+    );
+    expect(Object.hasOwn(unarmed.nextState, 'breakEvenArmed')).toBe(false);
+  });
+
+  it('clears the latch on an exit', () => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        currentPrice: '100',
+        state: { ...held(), breakEvenArmed: true },
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { reason: 'exit' } });
+    expect(Object.hasOwn(out.nextState, 'breakEvenArmed')).toBe(false);
+  });
+
+  it('does not let a close at or before the entry signal candle arm the lock', () => {
+    // The epoch is 0 but the signal candle closed after every window close, so none may arm.
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(HIGH_CLOSES),
+        currentPrice: '100',
+        state: longState({
+          highSinceEntry: '110',
+          lastEntryCandleMs: LAST_CLOSE_MS,
+          profitTrailSinceMs: 0,
+        }),
+        config: lockCfg(),
+      }),
+    );
+    expect(out.decisions[0]).toEqual({ type: 'noop' });
   });
 });

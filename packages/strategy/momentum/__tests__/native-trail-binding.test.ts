@@ -75,6 +75,7 @@ describe('desiredTrailDistance', () => {
         noBand,
         null,
         0,
+        false,
       );
       return desiredTrailDistance(cfg, resolved, entry);
     };
@@ -99,6 +100,7 @@ describe('desiredTrailDistance', () => {
       { reference: null, band: undefined },
       new Decimal('95'),
       null,
+      false,
     );
     expect(resolved.stop?.toString()).toBe('95');
     expect(desiredTrailDistance(cfg, resolved, new Decimal('100'))?.toString()).toBe('0.05');
@@ -130,6 +132,7 @@ describe('desiredTrailDistance', () => {
       { reference: null, band: undefined },
       new Decimal('100.5'),
       0,
+      false,
     );
     expect(resolved.stop?.toString()).toBe('100.5');
     expect(desiredTrailDistance(cfg, resolved, new Decimal('100'))?.toString()).toBe('0.2');
