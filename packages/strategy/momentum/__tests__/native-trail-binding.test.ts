@@ -4,7 +4,7 @@ import type { OpenOrder } from '@app/strategy-core';
 
 import { desiredTrailDistance, replaceDecision } from '../src/protective-stop.js';
 import { MomentumConfigSchema, type MomentumConfig } from '../src/schema.js';
-import type { StopResolution } from '../src/stop-level.js';
+import { resolveStopLevel, type StopResolution } from '../src/stop-level.js';
 
 const config = (over: Record<string, unknown> = {}): MomentumConfig =>
   MomentumConfigSchema.parse({
@@ -18,6 +18,7 @@ const config = (over: Record<string, unknown> = {}): MomentumConfig =>
 const level = (over: Partial<StopResolution> = {}): StopResolution => ({
   effectiveHigh: new Decimal('100'),
   profitHigh: null,
+  hardStop: new Decimal('90'),
   stop: new Decimal('90'),
   floorClamped: false,
   ...over,
@@ -40,11 +41,46 @@ describe('desiredTrailDistance', () => {
   it('measures the resolved ATR-mode level from the effective high', () => {
     const distance = desiredTrailDistance(
       config({ atrTrailingStop: { enabled: true, period: 3, multiple: '2' } }),
-      level({ stop: new Decimal('85') }),
+      level({ hardStop: new Decimal('85'), stop: new Decimal('85') }),
       new Decimal('100'),
     );
 
     expect(distance?.toString()).toBe('0.15');
+  });
+
+  it('ignores an armed break-even lock floor in the ATR-mode distance', () => {
+    const candles = ['90', '100', '95', '110', '105', '120'].map((c, i) => ({
+      openTimeMs: i * 3_600_000,
+      closeTimeMs: (i + 1) * 3_600_000,
+      open: c,
+      high: c,
+      low: c,
+      close: c,
+      volume: '1',
+      isClosed: true,
+    }));
+    const atr = { atrTrailingStop: { enabled: true, period: 3, multiple: '2' } };
+    const lock = { breakEvenLock: { enabled: true, activationPct: '0.015', floorPct: '0.005' } };
+    const entry = new Decimal('100');
+    const noBand = { reference: null, band: undefined };
+    // Effective high 120 is above the 101.5 activation, so the lock is armed.
+    const distance = (over: Record<string, unknown>): Decimal | null => {
+      const cfg = config({ ...atr, ...over });
+      const resolved = resolveStopLevel(
+        cfg,
+        entry,
+        new Decimal('120'),
+        null,
+        candles,
+        noBand,
+        null,
+      );
+      return desiredTrailDistance(cfg, resolved, entry);
+    };
+
+    const withLock = distance(lock);
+    expect(withLock?.toString()).toBe(distance({})?.toString());
+    expect(withLock?.gt('0.05')).toBe(true);
   });
 
   it('falls back to the fixed configured retrace', () => {
@@ -53,7 +89,9 @@ describe('desiredTrailDistance', () => {
 
   it('returns null when no branch yields a usable distance', () => {
     const invalid = { ...config(), trailingStopPct: 'not-a-distance' } as MomentumConfig;
-    expect(desiredTrailDistance(invalid, level({ stop: null }), new Decimal('100'))).toBeNull();
+    expect(
+      desiredTrailDistance(invalid, level({ hardStop: null, stop: null }), new Decimal('100')),
+    ).toBeNull();
   });
 });
 

@@ -71,7 +71,7 @@ export const lintMomentumConfig = (config: MomentumConfig): readonly ConfigDiagn
       level: 'info',
       code: 'break-even-lock-not-on-exchange',
       message:
-        "The break-even lock cannot be placed on Binance as a native trailing stop, which has no fixed price. The bot enforces it on every check while it is running, but in native-trail mode the order resting at Binance never carries the lock, and with onBandBlock set to native-trail the fallback trailing order used when Binance's price band refuses the priced stop does not carry it either. Use the priced protective stop mode with onBandBlock set to notify or clamp to have the lock rest on Binance.",
+        "The break-even lock cannot be placed on Binance as a native trailing stop, which has no fixed price. The bot enforces it on every check while it is running, but in native-trail mode the order resting at Binance never carries the lock, and with onBandBlock set to native-trail the fallback trailing order used when Binance's price band refuses the priced stop does not carry it either. Use the priced protective stop mode with onBandBlock set to notify or clamp to have the lock rest on Binance. Neither is a full guarantee: with notify a price-band refusal can leave no stop resting at all, and a resting priced stop is only rewritten once the level moves by minRearmDriftPct, so it can sit below the lock for a while.",
       path: ['breakEvenLock', 'enabled'],
     });
   }

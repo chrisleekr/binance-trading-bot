@@ -126,6 +126,8 @@ export interface StopResolution {
   readonly effectiveHigh: Decimal;
   /** Profit-side high-water mark, or null when the profit trail is off. Persisted by `tick()`. */
   readonly profitHigh: Decimal | null;
+  /** The hard leg alone, before the profit leg, break-even floor, clamp and pin. The native trail distance reads it so the lock floor never tightens Binance's trail. */
+  readonly hardStop: Decimal | null;
   /**
    * `max` of whichever legs resolved (hard, profit, break-even floor) — what the in-process trail fires on and
    * what the resting stop mirrors. Null only when NEITHER resolved: no usable
@@ -200,7 +202,13 @@ export const resolveStopLevel = (
   // protective stop never tightens the in-app trail.
   const ps = config.protectiveStop;
   const clampMode = ps?.enabled === true && ps.onBandBlock === 'clamp';
-  let resolved: StopResolution = { effectiveHigh, profitHigh, stop, floorClamped: false };
+  let resolved: StopResolution = {
+    effectiveHigh,
+    profitHigh,
+    hardStop: hard,
+    stop,
+    floorClamped: false,
+  };
   // The same window `computeProtectiveStopLevel` arms in. The clamp exists to
   // keep the in-process level and the resting order on one number, so an offset
   // that resolves to no order must not move the level: outside (0, 1) it would
@@ -217,6 +225,7 @@ export const resolveStopLevel = (
       resolved = {
         effectiveHigh,
         profitHigh,
+        hardStop: hard,
         stop: clamped.stop,
         floorClamped: clamped.clamped,
       };

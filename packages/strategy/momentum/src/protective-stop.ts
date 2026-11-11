@@ -265,7 +265,7 @@ export const momentumStopBandSettings = (
 const ONE_MINUTE_MS = 60_000; // Fixed width of the '1m' candle feed the worker always supplies here.
 
 /**
- * Resolve the stable trailing distance momentum asks Binance to maintain. The profit leg takes priority; the ATR mode uses the already-resolved level; the fixed retrace is the final configured fallback.
+ * Resolve the stable trailing distance momentum asks Binance to maintain. The profit leg takes priority; the ATR mode uses the resolved hard leg alone, so the break-even floor, clamp and pin never tighten Binance's trail; the fixed retrace is the final configured fallback.
  *
  * @param config - The possibly unparsed momentum config for this tick.
  * @param level - The single stop resolution shared by the in-process and exchange arms.
@@ -281,11 +281,11 @@ export const desiredTrailDistance = (
   if (profitDistance !== null) return profitDistance;
   if (
     config.atrTrailingStop?.enabled === true &&
-    level.stop !== null &&
-    level.stop.gt(0) &&
+    level.hardStop !== null &&
+    level.hardStop.gt(0) &&
     level.effectiveHigh.gt(0)
   ) {
-    return new Decimal(1).minus(level.stop.div(level.effectiveHigh));
+    return new Decimal(1).minus(level.hardStop.div(level.effectiveHigh));
   }
   const fixed = decOrNull(config.trailingStopPct);
   return fixed !== null && fixed.gt(0) && fixed.lt(1) ? fixed : null;
