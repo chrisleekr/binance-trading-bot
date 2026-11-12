@@ -9,8 +9,8 @@ import { RedisContainer, type StartedRedisContainer } from '@testcontainers/redi
  * The runtime pin matches `deploy/compose/docker-compose.prod.yml` so ordinary integration tests exercise the deployed Postgres extension surface. Floating tags would silently change that surface between runs.
  */
 const POSTGRES_IMAGE =
-  'timescale/timescaledb:2.31.0-pg17@sha256:b56a3f51991df1f79d0c1a0841cad5c5fa8058fdd6a3ee6886394a6d4c174538';
-const REDIS_IMAGE = 'redis@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537';
+  'timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e';
+const REDIS_IMAGE = 'redis@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3';
 
 /**
  * How many times {@link startWithRetry} will try to start one container.
