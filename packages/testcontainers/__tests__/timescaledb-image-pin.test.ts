@@ -26,7 +26,7 @@ const testcontainersImage = imageFromSource('POSTGRES_IMAGE');
 const PINNED = /timescale\/timescaledb:\S+@sha256:[0-9a-f]{64}/g;
 
 /**
- * Extracts pins only from `db-isolation`; other jobs intentionally use a moving image and must not satisfy these assertions by accident.
+ * Extracts pins only from `db-isolation`, the lane that replays every migration; other jobs carry the same pin but are not the lane this test guards.
  *
  * @param source - A GitHub Actions or GitLab CI configuration.
  * @returns Every pinned TimescaleDB reference inside that file's `db-isolation` job.

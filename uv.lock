@@ -60,11 +60,11 @@ docs = [
 docs = [
     { name = "mkdocs", specifier = ">=1.6.1,<2" },
     { name = "mkdocs-awesome-pages-plugin", specifier = ">=2.10.1,<3" },
-    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.6.3,<2" },
+    { name = "mkdocs-git-revision-date-localized-plugin", specifier = ">=1.7.0,<2" },
     { name = "mkdocs-glightbox", specifier = ">=0.5.3,<1" },
-    { name = "mkdocs-material", specifier = ">=9.8.0,<10" },
+    { name = "mkdocs-material", specifier = ">=9.8.1,<10" },
     { name = "mkdocs-mermaid2-plugin", specifier = ">=1.2.3,<2" },
-    { name = "pymdown-extensions", specifier = ">=12.3,<13" },
+    { name = "pymdown-extensions", specifier = ">=13.1,<14" },
 ]
 
 [[package]]
@@ -353,7 +353,7 @@ wheels = [
 
 [[package]]
 name = "mkdocs-git-revision-date-localized-plugin"
-version = "1.6.3"
+version = "1.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "babel" },
@@ -362,9 +362,9 @@ dependencies = [
     { name = "packaging" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/60/fb/df1622f5a45e6f5ab2e8399cf4886f51c0c7f82b7cac31878d738849d1bd/mkdocs_git_revision_date_localized_plugin-1.6.3.tar.gz", hash = "sha256:72b7f27d780af4d9efc2eb70197404e4510ce5664de6a96e092a6050e35eab46", size = 81047, upload-time = "2026-11-02T08:23:48.38Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/40/4c4be137c1365f1f158c92a8a6d78f54590c4764409928f9ce93b32a556b/mkdocs_git_revision_date_localized_plugin-1.7.0.tar.gz", hash = "sha256:5ab222ea025342c797d9323c13ab1d65c80e20f7e9fcaaff156356e520879ff0", size = 84647, upload-time = "2026-11-09T11:06:02.933Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/c3/72cef2f83502150d5ac98b9a997ec8cb5b09e1c088375d88850d0c44f3b2/mkdocs_git_revision_date_localized_plugin-1.6.3-py3-none-any.whl", hash = "sha256:3e37bc5bd047063ab062c9328e10d00670d69a99dc002c3cb5823582ce6d8e60", size = 29402, upload-time = "2026-11-02T08:23:46.98Z" },
+    { url = "https://files.pythonhosted.org/packages/46/4d/2a3c1dfc1b9c47a5d24d37e6b58dcdc7f55238d1ea2e1b80e9a88e5f9529/mkdocs_git_revision_date_localized_plugin-1.7.0-py3-none-any.whl", hash = "sha256:b6ac037275056dec3ab4227c51e6fde443299defebf13da852c877206f4f8625", size = 31813, upload-time = "2026-11-09T11:06:01.611Z" },
 ]
 
 [[package]]
@@ -381,7 +381,7 @@ wheels = [
 
 [[package]]
 name = "mkdocs-material"
-version = "9.8.0"
+version = "9.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "babel" },
@@ -396,9 +396,9 @@ dependencies = [
     { name = "pymdown-extensions" },
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/02/3c0df248819286810d8479b3a72d9531db0cc36c042fe1ab3985f137c664/mkdocs_material-9.8.0.tar.gz", hash = "sha256:1ed4c5edaf405a3fb62e55288b8fdff592971729361548b1ffa757bf9849fb81", size = 4094495, upload-time = "2026-10-24T09:50:16.181Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e2/b2/dee93bf227b481e28ba4d800c322dffc41b16d524ae84ca8d85aa7ec3a81/mkdocs_material-9.8.1.tar.gz", hash = "sha256:cddae7d77bb98d1d347aa68ee252ab40926171a1b34ba8777c44e16de9629f00", size = 4160481, upload-time = "2026-11-07T13:05:04.482Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/16/360f44c7702f27ff4670a647a16c72432291e311371d72b4c34a57e990e0/mkdocs_material-9.8.0-py3-none-any.whl", hash = "sha256:19304a7263c5700428227122b3b2699aa73f432c9de8816876adaec7d7293ce3", size = 9302245, upload-time = "2026-10-24T09:50:12.636Z" },
+    { url = "https://files.pythonhosted.org/packages/70/05/a4011d6a6af86cd03059a5b165cd69a3695ef4bd7bd477c66befe399640a/mkdocs_material-9.8.1-py3-none-any.whl", hash = "sha256:2115af67ee680e1398bdd0ea02e517721e4bba88b342503a93f97ea8eb3de51c", size = 9302217, upload-time = "2026-11-07T13:05:00.747Z" },
 ]
 
 [[package]]
@@ -483,15 +483,15 @@ wheels = [
 
 [[package]]
 name = "pymdown-extensions"
-version = "12.3"
+version = "13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markdown" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f3/fe/ac50ee24a80a1b344e643f6fb626063cc7041b978cd1dd9a7f9963ae1cd1/pymdown_extensions-12.3.tar.gz", hash = "sha256:a7f2a4e0bc60c6e6babfa7922cfb3b01cd640eb00fb208f3c582e12bae00ea67", size = 870532, upload-time = "2026-10-14T22:40:43.252Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/b0/c98e5189398dc14ad3fa7d8762bed345d9178a6a3a37e2f6bdfb7cce8f53/pymdown_extensions-13.1.tar.gz", hash = "sha256:e1ecec373677483b7324a47e5b4bf2e0c6614fe8dcdab1dcc6a05ecefd9b527d", size = 897600, upload-time = "2026-11-11T14:08:38.819Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8a/d0/758afe732c2da502c051b4d03ff88daa3c0fc1a1e671e6c5a6318177bab4/pymdown_extensions-12.3-py3-none-any.whl", hash = "sha256:345493a8e3497e24382902903a1c43a28e34a52f2b7571a1c9641429b820ca74", size = 277597, upload-time = "2026-10-14T22:40:41.543Z" },
+    { url = "https://files.pythonhosted.org/packages/09/ea/6efb2c6c3dd91156bad5e46c292164a9115a35a83cac285f0ed8e7d3a810/pymdown_extensions-13.1-py3-none-any.whl", hash = "sha256:093d1fab98168526d98fbb17aa5c9da68eef3664324f6b25ebbf78b2709babeb", size = 284594, upload-time = "2026-11-11T14:08:37.03Z" },
 ]
 
 [[package]]
