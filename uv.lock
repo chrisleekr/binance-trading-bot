@@ -64,7 +64,7 @@ docs = [
     { name = "mkdocs-glightbox", specifier = ">=0.5.3,<1" },
     { name = "mkdocs-material", specifier = ">=9.8.1,<10" },
     { name = "mkdocs-mermaid2-plugin", specifier = ">=1.2.3,<2" },
-    { name = "pymdown-extensions", specifier = ">=12.3,<13" },
+    { name = "pymdown-extensions", specifier = ">=13.1,<14" },
 ]
 
 [[package]]
@@ -483,15 +483,15 @@ wheels = [
 
 [[package]]
 name = "pymdown-extensions"
-version = "12.3"
+version = "13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markdown" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f3/fe/ac50ee24a80a1b344e643f6fb626063cc7041b978cd1dd9a7f9963ae1cd1/pymdown_extensions-12.3.tar.gz", hash = "sha256:a7f2a4e0bc60c6e6babfa7922cfb3b01cd640eb00fb208f3c582e12bae00ea67", size = 870532, upload-time = "2026-10-14T22:40:43.252Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/b0/c98e5189398dc14ad3fa7d8762bed345d9178a6a3a37e2f6bdfb7cce8f53/pymdown_extensions-13.1.tar.gz", hash = "sha256:e1ecec373677483b7324a47e5b4bf2e0c6614fe8dcdab1dcc6a05ecefd9b527d", size = 897600, upload-time = "2026-11-11T14:08:38.819Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8a/d0/758afe732c2da502c051b4d03ff88daa3c0fc1a1e671e6c5a6318177bab4/pymdown_extensions-12.3-py3-none-any.whl", hash = "sha256:345493a8e3497e24382902903a1c43a28e34a52f2b7571a1c9641429b820ca74", size = 277597, upload-time = "2026-10-14T22:40:41.543Z" },
+    { url = "https://files.pythonhosted.org/packages/09/ea/6efb2c6c3dd91156bad5e46c292164a9115a35a83cac285f0ed8e7d3a810/pymdown_extensions-13.1-py3-none-any.whl", hash = "sha256:093d1fab98168526d98fbb17aa5c9da68eef3664324f6b25ebbf78b2709babeb", size = 284594, upload-time = "2026-11-11T14:08:37.03Z" },
 ]
 
 [[package]]
