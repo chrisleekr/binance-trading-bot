@@ -65,7 +65,7 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 | **Bun** | 1.4.x | Runtime, package manager, and test-adjacent tooling. One binary, no Node install. |
 | **TypeScript** | 7.0.x | Strict end-to-end. `bun run typecheck` builds every package with project references. |
 | **Turborepo** | 2.x | Monorepo task graph and caching across `apps/*` and `packages/*`. |
-| **oxlint** | 1.80 | The single lint path. One whole-repo pass so cycle detection sees the full graph. |
+| **oxlint** | 1.93 | The single lint path. One whole-repo pass so cycle detection sees the full graph. |
 | **Vitest** | 4.x | Unit tests, with per-package coverage thresholds. |
 | **Playwright** | — | End-to-end tests and the docs screenshot capture. |
 
@@ -78,12 +78,12 @@ The stack serves plain HTTP and **does not bundle a reverse proxy** — put TLS 
 | **Drizzle ORM** | 0.45.x | Typed queries. Migrations are **hand-authored SQL**, applied by a checksum-tracked runner. |
 | **pg** | 8.22.x | Postgres driver. |
 | **ioredis** | 6.0.x | Redis client, configured with `maxRetriesPerRequest: null` for BullMQ. |
-| **BullMQ** | 6.5.3 | Job queues: ticks, crons, backtest replays. Coalescing keys are pipe-delimited because BullMQ rejects a custom job id containing `:` (outside a legacy 3-part form). See [Worker pipeline](worker-pipeline.md). |
+| **BullMQ** | 6.7.5 | Job queues: ticks, crons, backtest replays. Coalescing keys are pipe-delimited because BullMQ rejects a custom job id containing `:` (outside a legacy 3-part form). See [Worker pipeline](worker-pipeline.md). |
 | **Better Auth** | 1.7.x | Session auth for one operator: password and OpenID Connect single sign-on, plus the OAuth 2.1 server for MCP agents when enabled. No email or SMTP; multi-factor comes from the identity provider. |
 | **decimal.js** | 10.6.x | **All money math.** Every price, quantity, balance, and P/L is a `Decimal` end to end; `number` is only for counters and timestamps. |
 | **Zod** | 4.4.x | The contract layer: config schemas, API payloads, and the generated config docs all come from these. |
 | **pino** | 10.3.x | Structured logging. |
-| **ws** | 8.21.x | Binance WebSocket streams. |
+| **ws** | 8.22.x | Binance WebSocket streams. |
 
 ### Frontend
 
@@ -105,7 +105,7 @@ The web app carries **no `decimal.js`**. Money arrives from the api as pre-forma
 | Library | Version | Why it is here |
 | --- | --- | --- |
 | **prom-client** | 15.1.x | Prometheus metrics on the admin port. |
-| **OpenTelemetry** | 2.10.x SDK / 0.221.x exporters | Optional OTLP trace export. Off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. |
+| **OpenTelemetry** | 3.1.x SDK / 0.301.x exporters | Optional OTLP trace export. Off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. |
 
 ## Repository layout
 
