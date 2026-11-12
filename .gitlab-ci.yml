@@ -178,7 +178,7 @@ integration:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
   services:
-    - name: timescale/timescaledb:latest-pg17
+    - name: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
       alias: postgres
     - name: redis:8-alpine
       alias: redis
@@ -209,7 +209,7 @@ worker-integration:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
   services:
-    - name: timescale/timescaledb:latest-pg17
+    - name: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
       alias: postgres
     - name: redis:8-alpine
       alias: redis
@@ -240,7 +240,7 @@ db-isolation:
     - apk add --no-cache nodejs
   services:
     # The DEPLOYED server, identical to deploy/compose/docker-compose.prod.yml and the Testcontainers runtime pin; the pin test enforces all three. This lane replays every migration in packages/db, so it has to run the version that actually ships — a migration suite pointed anywhere else validates a database nobody runs.
-    - name: timescale/timescaledb:2.31.0-pg17@sha256:b56a3f51991df1f79d0c1a0841cad5c5fa8058fdd6a3ee6886394a6d4c174538
+    - name: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
       alias: postgres
   variables:
     POSTGRES_DB: binance_trading_bot_test
@@ -267,7 +267,7 @@ db-isolation:
 browser-bootstrap:
   stage: test
   needs: []
-  image: mcr.microsoft.com/playwright:v1.64.1-noble
+  image: mcr.microsoft.com/playwright:v1.65.0-noble
   variables:
     BUN_INSTALL: /root/.bun
     BUN_VERSION: '1.4.4'
@@ -310,9 +310,9 @@ browser-bootstrap:
 app-e2e:
   stage: test
   needs: []
-  image: mcr.microsoft.com/playwright:v1.64.1-noble
+  image: mcr.microsoft.com/playwright:v1.65.0-noble
   services:
-    - name: timescale/timescaledb:latest-pg17
+    - name: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
       alias: postgres
     - name: redis:8-alpine
       alias: redis

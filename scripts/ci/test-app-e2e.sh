@@ -58,7 +58,7 @@ if [[ -z "${DATABASE_TEST_URL:-}" ]]; then
     -e POSTGRES_PASSWORD=postgres \
     -e NO_TS_TUNE=1 \
     -p 127.0.0.1::5432 \
-    timescale/timescaledb:latest-pg17 >/dev/null
+    timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e >/dev/null
   # -h forces a TCP probe. The entrypoint's init pass runs a socket-only server,
   # so a socket probe reports ready and then the real server restarts under us.
   wait_container "$PG_CONTAINER" \
