@@ -51,11 +51,33 @@ export interface BacktestSignatureInput {
 }
 
 /**
- * Revision of the replay semantics, hashed into every {@link backtestSignature}. Bump it whenever the engine, or a strategy's backtest-visible behaviour, changes what identical inputs produce, so the ledger dedup never hands back a result the current engine would not reproduce. A bump only forfeits reuse of earlier runs; it never changes a result.
+ * Revision of the replay semantics, hashed into every {@link backtestSignature}. Bump it whenever the engine, or a strategy's backtest-visible behaviour, changes what identical inputs produce, so the ledger never hands the advisor a result the current engine would not reproduce. A bump only stops earlier runs matching the current signature; it never changes a result.
  *
  * 2: within-candle ticking for `exitsWithinCandle` strategies (momentum's profit trail), and the TrailingTrade break-even exit starting the loss cooldown.
+ * 3: separate decision and detail clocks over one-frame-per-close replay, native closed windows, a limit that never fills past its price, and the replay context in every signature.
  */
-export const BACKTEST_ENGINE_REVISION = 2;
+export const BACKTEST_ENGINE_REVISION = 3;
+
+/**
+ * Whether a run frozen at submission can still execute on this build. The api refuses a retry the worker would reject, so both sides read one rule. An `unknown` build id on either side cannot be told apart, so it runs and the result is simply never comparable.
+ *
+ * @param snapshot - The version, engine revision and build the run was frozen on.
+ * @param strategyVersion - The strategy plugin version this process runs.
+ * @param buildId - This process's build id.
+ * @returns True when the run executes the semantics it was accepted under.
+ */
+export const snapshotRunnable = (
+  snapshot: {
+    readonly strategyVersion: string;
+    readonly engineRevision: number;
+    readonly buildId: string;
+  },
+  strategyVersion: string,
+  buildId: string,
+): boolean =>
+  snapshot.strategyVersion === strategyVersion &&
+  snapshot.engineRevision === BACKTEST_ENGINE_REVISION &&
+  (snapshot.buildId === 'unknown' || buildId === 'unknown' || snapshot.buildId === buildId);
 
 /**
  * A stable fingerprint of a WHOLE backtest (strategy + effective config +
@@ -80,12 +102,7 @@ export const backtestSignature = (input: BacktestSignatureInput): string => {
 };
 
 /**
- * Single anti-drift seam for the signature: merge the run override onto the
- * profile base and parse, exactly as the backtest runner does, then derive both
- * fingerprints. Every consumer that must recognise an already-run backtest (the
- * worker completion write-through, the manual re-run dedup short-circuit) goes
- * through this so they cannot compute subtly different signatures for the same
- * run. `parseConfig` is the strategy's `configSchema.parse`.
+ * Single anti-drift seam for the signature: merge the run override onto the profile base and parse, then derive both fingerprints. Every consumer that must recognise an already-run backtest goes through this so they cannot compute subtly different signatures for the same run. `parseConfig` is the strategy's `configSchema.parse`.
  */
 export const signatureForBacktest = (input: {
   readonly strategyId: string;

@@ -68,7 +68,7 @@ What differs from a browser request:
 - **Refusals leave a trace.** A refused call writes no audit row (the audit middleware skips a 4xx). It is logged at warn as `mcp_tool_refused` with the tool, operator, account and status.
 - **Mode echo.** Every account-scoped result carries the resolved `binanceMode`. Testnet and live accounts share the same tables and the same tools, so without it a wrong-`accountId` call is silent.
 - **Symbols must be bound.** The order routes answer 404 for a symbol not bound to the profile (`assertSymbolBound` in `apps/api/src/lib/manual-orders.ts`), because binding is where the tradability and shared-wallet checks run. The browser only offers bound symbols; an agent can pass any string, so this check is what stops it.
-- **Notification.** Every completed `mcp:trade` call enqueues a `notify-agent-action` pipeline job. The api cannot send a notification itself; the worker's `dispatchNotify` is the only production chokepoint and also carries the live-demo kill switch. Mute the `agent-action` category in ops-notify settings to silence it — the action still runs.
+- **Notification.** Every completed `mcp:trade` call attempts to enqueue a `notify-agent-action` pipeline job. A failed enqueue leaves the write standing and only logs a warning. The api cannot send a notification itself; the worker's `dispatchNotify` is the only production chokepoint and also carries the live-demo kill switch. Mute the `agent-action` category in ops-notify settings to silence it — the action still runs.
 - **Baseline pins move the edge-decay window.** `set_backtest_baseline` places no order, but it can restart or turn off the edge-decay monitor's comparison: unpinning clears it, and pinning another run restarts the window at trades recorded from that moment. Like every `mcp:trade` write, each completed call notifies the operator.
 
 ### A tool argument is only real if its route takes it
@@ -91,7 +91,7 @@ Two rules in the tool table follow from this. A tool whose route takes a stored-
 
 Placing an order through this API is **not** idempotent across an HTTP retry. Each POST mints a fresh `override_actions` UUID, that UUID is folded into the Binance `clientOrderId`, and Binance accepts the two resulting orders as two different orders. The worker-side deduplication keys on `clientOrderId`, so it never fires for them.
 
-An agent that retries a timed-out call is behaving correctly, so the order-placing tools require an `idempotencyKey` and refuse the call without one. The key claims a Redis record with `SET NX PX`; a second call inside the window replays the first outcome instead of dispatching. It is a dedup record, not a lock: no owner, nothing handed to a waiter, no refund, and it expires on its own.
+An agent that retries a timed-out call is behaving correctly, so the order-placing tools require an `idempotencyKey` and refuse the call without one. The key claims a Redis record with `SET NX PX`; a second call with the same key inside the window replays the first outcome instead of dispatching. It is a dedup record, not a lock: no owner, nothing handed to a waiter, no refund, and it expires on its own.
 
 The claim is written before dispatch and settled on every failing path by status alone (`settlementForStatus` in `apps/api/src/mcp/dispatch.ts`). A 4xx means a guard refused before any write, so the key is freed and a corrected retry can reuse it. A 5xx may have left an override live, so the key is kept and marked, and a retry is told to read the order state instead of waiting.
 
@@ -106,7 +106,7 @@ That split holds only while no order route answers 4xx after taking effect. The 
 
 `LIVE_DEMO` and `MCP_ENABLED` are mutually exclusive at boot: `apps/api/src/env.ts` refuses to start with both set. A demo box treats every anonymous caller as the operator, so an MCP endpoint there would be an anonymous trading control plane. The route also answers 403 under `LIVE_DEMO`.
 
-Before enabling it on an instance holding live keys, run it against a testnet account first. The write tools carry `destructiveHint` and `anthropic/requiresUserInteraction`, which forces a full permission prompt rather than a one-tap approval, but the prompts only help while they are still read.
+Before enabling it on an instance holding live keys, run it against a testnet account first. Every write tool carries `destructiveHint`, which is advisory: no tool forces a person's approval, so an agent in bypass mode, in auto mode (a classifier decides, not a person), or with an allow rule, including one saved through a "don't ask again" choice, can place and cancel live orders and change live config with nobody present. The operator accepts this.
 
 ## Where the parts live
 

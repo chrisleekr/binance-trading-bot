@@ -3,13 +3,7 @@ import pino from 'pino';
 
 type GetRange = typeof import('@app/db').repo.candles.getRange;
 
-// Scope: proves the runner streams the strategy's OWN decision interval
-// (`config.candleInterval`) — the same field the live worker keys its feed off
-// (`feedIntervals(candleInterval)` / tick-context) — and NOT a separate
-// `params.strategyInterval`. A disagreement between the two used to stream one
-// interval while the strategy read another, feeding it an empty candle window
-// with no error (live/backtest parity break). The engine is the enforcement
-// point, so even a mismatched param resolves to the config's interval.
+// Scope: proves the strategy's window comes from its own `config.candleInterval`, the field the live worker keys its feed off, and not `params.strategyInterval`. A disagreement between the two would hand the strategy an empty window with no error.
 
 const runBacktest = vi.hoisted(() => vi.fn());
 vi.mock('@app/strategy-backtest', async (importOriginal) => {
@@ -42,8 +36,8 @@ vi.mock('@app/db', async (importOriginal) => {
   };
 });
 
-const { runProfileBacktest, readConfigInterval } =
-  await import('../../src/backtest/backtest-runner.js');
+const { runProfileBacktest } = await import('../../src/backtest/backtest-runner.js');
+const { readConfigInterval } = await import('../../src/backtest/replay.js');
 const { trailingTrade } = await import('@app/strategy-trailing-trade');
 
 const silentLogger = pino({ level: 'silent' });
@@ -91,19 +85,19 @@ function makeDeps() {
     strategies: { get: () => trailingTrade },
     clock: { nowMs: () => 0 },
     logger: silentLogger,
+    buildId: 'abc1234',
   };
 }
 
-// Capture the `request` the runner hands to runBacktest; intervals[0] is the
-// streamed strategy interval (unique() preserves insertion order, strategy first).
-async function capturedStreamInterval(args: {
+// The interval the engine is told to read each decision's strategy window from.
+async function capturedStrategyWindow(args: {
   configCandleInterval: string;
   paramStrategyInterval: string;
 }): Promise<string> {
   repoMocks.getRange.mockResolvedValue(Array.from({ length: 230 }, (_, i) => candleRow(i)));
-  let intervals: readonly string[] | undefined;
-  runBacktest.mockImplementation(async (opts: { request: { intervals: readonly string[] } }) => {
-    intervals = opts.request.intervals;
+  let strategyInterval: string | undefined;
+  runBacktest.mockImplementation(async (opts: { decisionClock: { strategyInterval: string } }) => {
+    strategyInterval = opts.decisionClock.strategyInterval;
     return EMPTY_REPORT;
   });
   await runProfileBacktest(
@@ -112,6 +106,7 @@ async function capturedStreamInterval(args: {
       params: {
         symbols: ['BTCUSDT'],
         strategyInterval: args.paramStrategyInterval,
+        decisionInterval: '5m',
         detailInterval: '5m',
         fromMs: 0,
         toMs: 250 * FIVE_MIN,
@@ -121,26 +116,28 @@ async function capturedStreamInterval(args: {
         discoveryMode: false,
       },
       strategyName: 'trailing-trade',
-      profileConfig: { ...trailingTrade.defaultConfig, candleInterval: args.configCandleInterval },
+      effectiveConfig: {
+        ...trailingTrade.defaultConfig,
+        candleInterval: args.configCandleInterval,
+      },
     } as never,
   );
-  if (!intervals) throw new Error('runBacktest was never invoked');
-  return intervals[0] as string;
+  if (!strategyInterval) throw new Error('runBacktest was never invoked');
+  return strategyInterval;
 }
 
-describe('runProfileBacktest decision interval', () => {
-  it('streams the config candleInterval even when params.strategyInterval disagrees', async () => {
-    const streamed = await capturedStreamInterval({
+describe('runProfileBacktest strategy window', () => {
+  it('reads the config candleInterval even when params.strategyInterval disagrees', async () => {
+    const streamed = await capturedStrategyWindow({
       configCandleInterval: '5m',
       paramStrategyInterval: '1h', // disagrees with the config on purpose
     });
-    // The strategy reads candlesByInterval['5m']; the engine must stream 5m so
-    // that window is populated, mirroring live — not the stale 1h param.
+    // The strategy reads candlesByInterval['5m'], so that is the window the engine must serve.
     expect(streamed).toBe('5m');
   });
 
-  it('streams the config candleInterval when the two agree', async () => {
-    const streamed = await capturedStreamInterval({
+  it('reads the config candleInterval when the two agree', async () => {
+    const streamed = await capturedStrategyWindow({
       configCandleInterval: '1h',
       paramStrategyInterval: '1h',
     });

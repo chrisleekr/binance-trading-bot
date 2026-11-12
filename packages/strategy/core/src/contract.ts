@@ -330,9 +330,9 @@ export interface Capabilities {
    */
   readonly entryOnCandleClose?: boolean;
   /**
-   * Whether a held position's exit level moves on 1-minute closes inside one trading candle, as momentum's profit trail does. Live ticks on every price update and feeds the 1-minute window, so such an exit fires mid-candle. A backtest that ticks once per trading candle cannot reproduce it, so when this is true the backtest runner loads 1-minute bars and ticks the strategy on each one while it holds a position.
+   * Whether a held position's exit level moves on 1-minute closes inside one trading candle, as momentum's profit trail does. Live ticks on every price update and feeds the 1-minute window, so such an exit fires mid-candle. A backtest reproduces that only on a 1-minute decision interval, so the form defaults such a strategy to it and any coarser run carries a model note.
    *
-   * Absent reads as false, which keeps a strategy that has not declared it on one tick per candle with an unchanged report.
+   * Absent reads as false.
    */
   readonly exitsWithinCandle?: boolean;
   readonly needsUserDataStream: boolean;

@@ -4,7 +4,7 @@ import type { Candle, CandleInterval, Strategy, TickInput, TickOutput } from '@a
 
 import { runBacktest } from '../src/run.js';
 import { OhlcvFillModel } from '../src/ohlcv-fill.js';
-import { arrayMarketDataSource, mergeCandleTicks } from '../src/portfolio-source.js';
+import { arrayMarketDataSource, iterateCandleTicks } from '../src/portfolio-source.js';
 import { SYMBOL, SYMBOL_INFO } from './_fixtures.js';
 
 const HOUR = 3_600_000;
@@ -112,7 +112,7 @@ async function runWithDetail(detailCandles: readonly Candle[] | undefined) {
   });
 }
 
-describe('mergeCandleTicks — detail-bar grouping', () => {
+describe('iterateCandleTicks — detail-bar grouping', () => {
   it('attaches each symbol’s detail bars to the coarse candle whose span contains them', () => {
     const coarse = [
       candle(0, HOUR, '100', '101', '99', '100'),
@@ -125,9 +125,11 @@ describe('mergeCandleTicks — detail-bar grouping', () => {
       candle(HOUR, HALF, '100', '102', '99', '100'),
       candle(HOUR + HALF, HALF, '100', '101', '98', '101'),
     ];
-    const ticks = mergeCandleTicks([
-      { symbol: SYMBOL, interval: '1h', candles: coarse, detailCandles: detail },
-    ]);
+    const ticks = [
+      ...iterateCandleTicks([
+        { symbol: SYMBOL, interval: '1h', candles: coarse, detailCandles: detail },
+      ]),
+    ];
     expect(ticks).toHaveLength(2);
     expect(ticks[0]?.detailCandles?.map((b) => b.openTimeMs)).toEqual([0, HALF]);
     expect(ticks[1]?.detailCandles?.map((b) => b.openTimeMs)).toEqual([HOUR, HOUR + HALF]);
@@ -135,7 +137,7 @@ describe('mergeCandleTicks — detail-bar grouping', () => {
 
   it('omits detailCandles when the series carries none', () => {
     const coarse = [candle(0, HOUR, '100', '101', '99', '100')];
-    const ticks = mergeCandleTicks([{ symbol: SYMBOL, interval: '1h', candles: coarse }]);
+    const ticks = [...iterateCandleTicks([{ symbol: SYMBOL, interval: '1h', candles: coarse }])];
     expect(ticks[0]?.detailCandles).toBeUndefined();
   });
 
@@ -145,9 +147,11 @@ describe('mergeCandleTicks — detail-bar grouping', () => {
       candle(0, HALF, '100', '100', '99', '100'), // inside
       candle(2 * HOUR, HALF, '100', '100', '99', '100'), // past the coarse candle — dropped
     ];
-    const ticks = mergeCandleTicks([
-      { symbol: SYMBOL, interval: '1h', candles: coarse, detailCandles: detail },
-    ]);
+    const ticks = [
+      ...iterateCandleTicks([
+        { symbol: SYMBOL, interval: '1h', candles: coarse, detailCandles: detail },
+      ]),
+    ];
     expect(ticks[0]?.detailCandles?.map((b) => b.openTimeMs)).toEqual([0]);
   });
 });

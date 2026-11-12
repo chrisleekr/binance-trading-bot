@@ -7,7 +7,7 @@ import {
 } from '@app/contracts';
 
 /**
- * Map a finished run's metrics + holdout into the candidate shape the live-gate
+ * Map a finished run's metrics + recent period into the candidate shape the live-gate
  * check (`gateThresholdChecks`) reads. Shared by the gate scorecard and the
  * backtest route so the two can never drift in how they feed the gate.
  */

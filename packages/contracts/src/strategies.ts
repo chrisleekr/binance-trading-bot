@@ -41,6 +41,8 @@ export const StrategyDescriptor = z.object({
   // unsupported writes off this one declaration. An empty array means the
   // strategy exposes no operator-action surface (e.g. momentum today).
   operatorActions: z.array(z.enum(OPERATOR_ACTIONS)),
+  // Lets the backtest form default to the 1-minute decision clock such a strategy needs to replay its live exit.
+  exitsWithinCandle: z.boolean().default(false),
   // Map from a strategy decision reason/metric code to ALL its per-code display
   // copy: the plain-language `gloss`, its `kind` tint, the `setting`/`paths`
   // lever that armed it, and a `note` for a code with no editable lever. The SPA

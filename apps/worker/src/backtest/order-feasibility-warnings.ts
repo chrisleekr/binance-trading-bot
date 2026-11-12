@@ -5,8 +5,7 @@ import type { AnyStrategy, Candle, CandleInterval, SymbolInfo } from '@app/strat
  * Per-symbol order-feasibility warnings for a backtest run: a config whose orders
  * size below the symbol's exchange minimum, or whose grid the starting balance
  * cannot fully fund, never places most of its buys, so the run's metrics are
- * meaningless. Surfaced as data-quality warnings (a manual run is already rejected
- * at create; a run enqueued outside that gate keeps running).
+ * meaningless. Surfaced as data-quality warnings; submission does not check today's price, so this is the only place they appear.
  *
  * Per-order minimums use the window's HIGHEST close — the worst case for the
  * base-asset minimum-quantity filter (qty = budget / price shrinks as price

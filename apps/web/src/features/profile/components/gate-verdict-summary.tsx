@@ -109,6 +109,9 @@ export function GateVerdictSummary({
   } else if (baselineId === null) {
     comparison =
       'Live vs backtest: no baseline pinned. Pin a finished backtest on the Backtest screen to compare live results with it.';
+  } else if (baseline.data?.result && !baseline.data.matchesProfile) {
+    comparison =
+      'Live vs backtest: no comparison. The pinned run used another config or older replay rules, so run a new backtest and pin it.';
   } else {
     const since =
       pinnedAt === null

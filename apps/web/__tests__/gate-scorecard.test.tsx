@@ -78,7 +78,7 @@ describe('<GateScorecard>', () => {
     // Each criterion renders its actual + need.
     expect(screen.getByTestId('gate-check-profit-factor')).toHaveTextContent(/2\.00.*need >= 1\.1/);
     // The holdout criteria render too.
-    expect(screen.getByTestId('gate-check-out-of-sample-profit-factor')).toBeInTheDocument();
+    expect(screen.getByTestId('gate-check-recent-period-profit-factor')).toBeInTheDocument();
     // The gate-off note must not leak into the normal (enabled) case.
     expect(screen.getByTestId('gate-scorecard')).not.toHaveTextContent(/turned off/i);
   });
@@ -105,7 +105,7 @@ describe('<GateScorecard>', () => {
         policy={policy}
       />,
     );
-    expect(screen.getByTestId('gate-check-out-of-sample-validation')).toHaveTextContent(/missing/i);
+    expect(screen.getByTestId('gate-check-recent-period-check')).toHaveTextContent(/missing/i);
     expect(screen.getByTestId('gate-scorecard-verdict')).toHaveTextContent(/1 below threshold/i);
   });
 

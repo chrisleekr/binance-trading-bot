@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Candle } from '@app/strategy-core';
-import { dataCoverageWarnings } from '../../src/backtest/backtest-runner.js';
+import { dataCoverageWarnings } from '../../src/backtest/replay.js';
 
 const HOUR = 3_600_000;
 
@@ -134,6 +134,43 @@ describe('dataCoverageWarnings', () => {
     const byKey = new Map<string, Candle[]>([['BTCUSDT|1h', all]]);
     const { fromMs, toMs } = range(1000);
     expect(dataCoverageWarnings(['BTCUSDT'], byKey, '1h', fromMs, toMs, HOUR)).toEqual([]);
+  });
+
+  describe('a series coarser than the range grid', () => {
+    const DAY = 24 * HOUR;
+    const daily = (days: number[]) =>
+      days.map((d) => ({ ...candle(d * DAY), closeTimeMs: (d + 1) * DAY - 1 }));
+
+    it('expects only the candles that close inside an unaligned range', () => {
+      // Days 1-5 close inside [12h, 6d12h); day 6 is still open at the end, day 0 opened before the start.
+      const byKey = new Map<string, Candle[]>([['BTCUSDT|1d', daily([0, 1, 2, 3, 4, 5])]]);
+      expect(
+        dataCoverageWarnings(['BTCUSDT'], byKey, '1d', DAY / 2, 6 * DAY + DAY / 2, DAY),
+      ).toEqual([]);
+    });
+
+    it('does not let an unfinished tail candle cover a missing closed one', () => {
+      // [0, 2.5d) closes days 0 and 1; day 1 is missing and day 2 is still open at the end.
+      const byKey = new Map<string, Candle[]>([['BTCUSDT|1d', daily([0, 2])]]);
+      expect(
+        dataCoverageWarnings(['BTCUSDT'], byKey, '1d', 0, 2 * DAY + DAY / 2, DAY),
+      ).toHaveLength(1);
+    });
+
+    it('still expects the one candle a day-aligned 24-hour range closes', () => {
+      const byKey = new Map<string, Candle[]>([['BTCUSDT|1d', []]]);
+      expect(dataCoverageWarnings(['BTCUSDT'], byKey, '1d', DAY, 2 * DAY, DAY)).toHaveLength(1);
+    });
+
+    it('counts on the series grid, not the epoch grid', () => {
+      // 4h candles opening at 1h, 5h, 9h, ...: [1h, 13h) closes exactly three of them.
+      const fourHourly = [1, 5, 9].map((h) => ({
+        ...candle(h * HOUR),
+        closeTimeMs: (h + 4) * HOUR - 1,
+      }));
+      const byKey = new Map<string, Candle[]>([['BTCUSDT|4h', fourHourly]]);
+      expect(dataCoverageWarnings(['BTCUSDT'], byKey, '4h', HOUR, 13 * HOUR, 4 * HOUR)).toEqual([]);
+    });
   });
 
   it('returns nothing for a degenerate non-positive range', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { Candle } from '@app/strategy-core';
 import type { TechnicalsBundleConfig } from '@app/contracts';
-import { buildBundle } from '../../src/backtest/backtest-runner.js';
+import { buildBundle } from '../../src/backtest/replay.js';
 import { LruSignalCache } from '../../src/backtest/signal-cache.js';
 import {
   prepareTechnicalsRatingWindow,

@@ -19,7 +19,7 @@ import type {
  * order ACROSS all symbols. A portfolio run shares one account, so a buy on
  * one symbol must constrain a later buy on another in the true time order;
  * out-of-order ticks would mis-sequence the shared balance. The data layer
- * owns the k-way merge that guarantees this — {@link mergeCandleTicks} is the
+ * owns the k-way merge that guarantees this — {@link iterateCandleTicks} is the
  * helper for an array-backed source.
  */
 export interface MarketDataSource {
@@ -134,8 +134,7 @@ export interface Fill {
   readonly tsMs: number;
 }
 
-export type FillRejectReason =
-  'min-notional' | 'step-size' | 'insufficient-balance' | 'liquidity' | 'no-fill';
+export type FillRejectReason = 'min-notional' | 'step-size' | 'insufficient-balance' | 'no-fill';
 
 export type FillOutcome =
   | { readonly kind: 'filled'; readonly fills: readonly Fill[]; readonly latencyMs: number }

@@ -48,11 +48,7 @@ describeIfInfra('backtest list: config fingerprint', () => {
     await p.backtestRuns.complete(done.id, { metrics: { totalReturnPct: 5 } }, FINGERPRINT);
 
     // A run still queued: the column is null until completion.
-    await fx.app.request(url, {
-      method: 'POST',
-      headers: { ...headers, 'content-type': 'application/json' },
-      body: JSON.stringify(validParams),
-    });
+    await p.backtestRuns.create({ symbols: ['BTCUSDT'], params: validParams });
   });
 
   afterAll(async () => {

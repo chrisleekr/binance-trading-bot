@@ -102,6 +102,7 @@ function makeDeps() {
     strategies: { get: () => trailingTrade },
     clock: { nowMs: () => 0 },
     logger: silentLogger,
+    buildId: 'abc1234',
   };
 }
 
@@ -109,6 +110,7 @@ function paramsWith(discoveryMode: boolean) {
   return {
     symbols: ['BTCUSDT'],
     strategyInterval: '1h' as const,
+    decisionInterval: '1h' as const,
     detailInterval: '1h' as const,
     fromMs: 0,
     toMs: 250 * HOUR,
@@ -125,20 +127,10 @@ async function capturedBundle(discoveryMode: boolean): Promise<Record<string, un
   let captured: Record<string, unknown> | undefined;
   runBacktest.mockImplementation(
     async (opts: {
-      buildBundle: (a: { symbol: string; window: unknown }) => Record<string, unknown>;
+      buildBundle: (a: { symbol: string; asOfMs: number }) => Record<string, unknown>;
     }) => {
-      // A non-empty window so the technicals provider has a last-close asOf.
-      const window = Array.from({ length: 5 }, (_, i) => ({
-        openTimeMs: i * HOUR,
-        closeTimeMs: i * HOUR + (HOUR - 1),
-        open: '100',
-        high: '100',
-        low: '100',
-        close: '100',
-        volume: '1',
-        isClosed: true,
-      }));
-      captured = opts.buildBundle({ symbol: 'BTCUSDT', window });
+      // Past the first closed candles so the technicals provider has a last-close asOf.
+      captured = opts.buildBundle({ symbol: 'BTCUSDT', asOfMs: 5 * HOUR - 1 });
       return EMPTY_REPORT;
     },
   );
@@ -147,7 +139,7 @@ async function capturedBundle(discoveryMode: boolean): Promise<Record<string, un
     {
       params: paramsWith(discoveryMode),
       strategyName: 'trailing-trade',
-      profileConfig: ttConfig,
+      effectiveConfig: ttConfig,
     } as never,
   );
   if (!captured) throw new Error('buildBundle was never invoked');

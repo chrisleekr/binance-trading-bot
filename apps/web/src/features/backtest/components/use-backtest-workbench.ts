@@ -11,6 +11,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { maxReplayDays } from '@app/contracts';
+
 import { useActiveAccountId } from '@/shared/lib/account-scope';
 import { fetchProfile, profileQueryKey } from '@/features/profile/api/profile';
 import { useStrategyDescriptor } from '@/shared/hooks/use-strategy-descriptor';
@@ -120,7 +122,6 @@ export function useBacktestWorkbench(profileId: string, search: BacktestSearch) 
     profile,
     queryClient,
     setPage: history.setPage,
-    setPendingDedup: history.setPendingDedup,
     runFilter: history.runFilter,
     runsLimitParam: history.runsLimitParam,
     runsFilterParam: history.runsFilterParam,
@@ -265,8 +266,10 @@ export function useBacktestWorkbench(profileId: string, search: BacktestSearch) 
     const resolvedTab = search.view ?? 'configure';
     if (resolvedTab !== 'configure' || search.autorun || runParam || activeRunId !== null) return;
     if (config.params.from !== '' || config.params.to !== '') return;
+    // A basket's symbol count is unknown until its profile loads, and the window must fit the replay budget for that count.
+    if (config.profileLoading || config.strategiesLoading) return;
     windowSeededRef.current = true;
-    config.applyWindowPreset(365);
+    config.applyWindowPreset(Math.min(365, maxReplayDays(config.symbolCount)));
   }, [
     search.view,
     search.autorun,
@@ -274,6 +277,9 @@ export function useBacktestWorkbench(profileId: string, search: BacktestSearch) 
     activeRunId,
     config.params.from,
     config.params.to,
+    config.profileLoading,
+    config.strategiesLoading,
+    config.symbolCount,
     config.applyWindowPreset,
   ]);
 

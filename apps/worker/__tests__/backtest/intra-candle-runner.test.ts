@@ -3,7 +3,7 @@ import pino from 'pino';
 
 type GetRange = typeof import('@app/db').repo.candles.getRange;
 
-// Scope: proves the runner turns on within-candle ticking for a strategy that declares `exitsWithinCandle`, loads its 1-minute bars from one trading candle before the range rather than across the warm-up, and falls back to one tick per candle with a modelling note for a basket the engine cannot interleave. Also proves modelling caveats land in `modelNotes`, never in the gate-failing `dataWarnings`.
+// Scope: proves the runner hands the engine separate decision and detail clocks, loads each native window from its fixed horizon and a non-native detail series only from the range, and tells the operator when a within-candle strategy decides slower than the minute it exits on. Also proves modelling caveats land in `modelNotes`, never in the gate-failing `dataWarnings`.
 
 const runBacktest = vi.hoisted(() => vi.fn());
 vi.mock('@app/strategy-backtest', async (importOriginal) => {
@@ -47,11 +47,11 @@ const DAY = 24 * HOUR;
 const MIN = 60_000;
 const STEP: Record<string, number> = { '1m': MIN, '5m': 5 * MIN, '1h': HOUR, '1d': DAY };
 
-// Rows for whatever interval and window the runner asks for, so every window reaches its last closed bar and is eligible for the candle cache.
+// Rows for whatever interval and window the runner asks for.
 const rowsFor = (symbol: string, interval: string, from: Date, to: Date) => {
   const step = STEP[interval] ?? HOUR;
   const rows = [];
-  for (let t = Math.ceil(from.getTime() / step) * step; t + step <= to.getTime(); t += step) {
+  for (let t = Math.ceil(from.getTime() / step) * step; t + step <= to.getTime() + 1; t += step) {
     rows.push({
       symbol,
       interval,
@@ -84,10 +84,9 @@ const withinCandle = {
   capabilities: { ...trailingTrade.capabilities, exitsWithinCandle: true },
 };
 
-function deps(strategy: unknown, toMs: number, candleCache?: unknown, logger?: pino.Logger) {
+function deps(strategy: unknown, toMs: number) {
   return {
     db: {},
-    ...(candleCache ? { candleCache } : {}),
     getKlines: vi.fn(),
     getSymbolInfo: vi.fn(async (symbol: string) => ({
       symbol,
@@ -103,13 +102,16 @@ function deps(strategy: unknown, toMs: number, candleCache?: unknown, logger?: p
     })),
     strategies: { get: () => strategy },
     clock: { nowMs: () => toMs },
-    logger: logger ?? pino({ level: 'silent' }),
+    logger: pino({ level: 'silent' }),
+    buildId: 'abc1234',
   };
 }
 
 interface Captured {
-  readonly intraCandle?: { readonly interval: string };
-  readonly onIntraCandleTick?: unknown;
+  readonly decisionClock: { readonly intervalMs: number; readonly strategyInterval: string };
+  readonly dataSource: {
+    stream(req: unknown): AsyncIterable<{ readonly interval: string }>;
+  };
   readonly request: { readonly intervals: readonly string[] };
 }
 
@@ -118,11 +120,10 @@ async function run(
   symbols: readonly string[],
   opts: {
     readonly detailInterval?: string;
+    readonly decisionInterval?: string;
     readonly candleInterval?: string;
     readonly fromMs?: number;
     readonly toMs?: number;
-    readonly candleCache?: unknown;
-    readonly logger?: pino.Logger;
     readonly spreadBps?: number | null;
   } = {},
 ) {
@@ -134,12 +135,13 @@ async function run(
     return EMPTY_REPORT;
   });
   const { result } = await runProfileBacktest(
-    deps(strategy, toMs, opts.candleCache, opts.logger) as never,
+    deps(strategy, toMs) as never,
     {
       params: {
         symbols,
         strategyInterval: '1h',
         detailInterval: opts.detailInterval ?? '5m',
+        decisionInterval: opts.decisionInterval ?? '5m',
         fromMs,
         toMs,
         fees: { makerBps: 0, takerBps: 0 },
@@ -150,7 +152,7 @@ async function run(
         discoveryMode: false,
       },
       strategyName: 'trailing-trade',
-      profileConfig: {
+      effectiveConfig: {
         ...trailingTrade.defaultConfig,
         candleInterval: opts.candleInterval ?? '1h',
       },
@@ -171,83 +173,92 @@ beforeEach(() => {
   );
 });
 
+const loadedFromMs = (interval: string): number | undefined =>
+  (repoMocks.getRange.mock.calls.find((call) => call[2] === interval)?.[3] as Date)?.getTime();
+
+describe('runProfileBacktest decision and detail clocks', () => {
+  it('decides on the requested clock over the strategy window', async () => {
+    const { captured } = await run(trailingTrade, ['BTCUSDT']);
+    expect(captured.decisionClock).toEqual({ intervalMs: 5 * MIN, strategyInterval: '1h' });
+  });
+
+  it('streams the requested detail interval', async () => {
+    const { captured } = await run(trailingTrade, ['BTCUSDT'], {
+      detailInterval: '1m',
+      decisionInterval: '5m',
+    });
+    const streamed = new Set<string>();
+    for await (const tick of captured.dataSource.stream({})) streamed.add(tick.interval);
+    expect([...streamed]).toEqual(['1m']);
+  });
+
+  it('loads a detail series the strategy does not read only from the range', async () => {
+    await run(trailingTrade, ['BTCUSDT']);
+    expect(loadedFromMs('5m')).toBe(FROM);
+  });
+
+  it('loads the live minute window from its own horizon', async () => {
+    await run(trailingTrade, ['BTCUSDT']);
+    expect(loadedFromMs('1m')).toBe(FROM - 999 * MIN);
+  });
+
+  it('never reads a candle opening at the end of the range', async () => {
+    await run(trailingTrade, ['BTCUSDT']);
+    const lastReads = repoMocks.getRange.mock.calls.map((call) => (call[4] as Date).getTime());
+    expect(new Set(lastReads)).toEqual(new Set([TO - 1]));
+  });
+
+  it('refuses a range with no detail candles rather than reporting an empty run', async () => {
+    repoMocks.getRange.mockReset();
+    repoMocks.getRange.mockImplementation(async () => [] as never);
+    await expect(run(trailingTrade, ['BTCUSDT'])).rejects.toThrow(/no 5m candles inside/);
+  });
+});
+
 describe('runProfileBacktest within-candle exits', () => {
-  it('ticks a single-symbol run on 1-minute bars and notes the detail interval changed', async () => {
-    const { captured, notes, dataWarnings } = await run(withinCandle, ['BTCUSDT']);
-    expect(captured.intraCandle).toEqual({ interval: '1m' });
-    // A yield hook is wired for the minute ticks; the shared budget itself is pinned by the cooperative-data-source tests.
-    expect(typeof captured.onIntraCandleTick).toBe('function');
-    expect(captured.request.intervals).toContain('1m');
-    expect(captured.request.intervals).not.toContain('5m');
-    expect(notes.some((w) => w.startsWith('detail interval set to 1m instead of 5m'))).toBe(true);
-    // Finer bars than requested are not a gap, so the swap is a model note; a data warning would fail the live gate's data-coverage check on every default momentum run.
+  it('notes a within-candle strategy deciding slower than a minute', async () => {
+    const { notes, dataWarnings } = await run(withinCandle, ['BTCUSDT']);
+    expect(notes.filter((w) => w.includes('exits within a candle'))).toHaveLength(1);
+    // A coarser clock is not a data gap, and a data warning would fail the live gate's coverage check.
     expect(dataWarnings).toEqual([]);
   });
 
-  it('loads the minute bars of an hourly strategy from one candle before the range, not across the warm-up', async () => {
-    await run(withinCandle, ['BTCUSDT']);
-    const minuteLoads = repoMocks.getRange.mock.calls.filter((call) => call[2] === '1m');
-    expect(minuteLoads).toHaveLength(1);
-    expect((minuteLoads[0]?.[3] as Date).getTime()).toBe(FROM - HOUR);
-    // The trading interval still loads at least its full warm-up (further when a technicals interval shares it), so the change is confined to the minute bars.
-    const hourLoads = repoMocks.getRange.mock.calls.filter((call) => call[2] === '1h');
-    expect((hourLoads[0]?.[3] as Date).getTime()).toBeLessThanOrEqual(FROM - 200 * HOUR);
+  it('applies the same note to a basket', async () => {
+    const { notes } = await run(withinCandle, ['BTCUSDT', 'ETHUSDT']);
+    expect(notes.filter((w) => w.includes('exits within a candle'))).toHaveLength(1);
   });
 
-  it('starts the minute bars of a daily strategy where its trading starts, about 20 days before the range', async () => {
-    // A daily series loads the 220-day regime warm-up and trades from candle 201, so trading begins 20 days before fromMs; the bars start one candle earlier still.
-    const fromMs = 300 * DAY;
-    await run(withinCandle, ['BTCUSDT'], { candleInterval: '1d', fromMs, toMs: fromMs + 30 * DAY });
-    const minuteLoads = repoMocks.getRange.mock.calls.filter((call) => call[2] === '1m');
-    expect((minuteLoads[0]?.[3] as Date).getTime()).toBe(fromMs - 21 * DAY);
-  });
-
-  it('falls back to one tick per candle with a note when the minute bars would exceed the cap', async () => {
-    const fromMs = 300 * DAY;
-    const { captured, notes } = await run(withinCandle, ['BTCUSDT'], {
-      fromMs,
-      toMs: fromMs + 401 * DAY,
+  it('adds no note when the run decides every minute', async () => {
+    const { notes } = await run(withinCandle, ['BTCUSDT'], {
+      detailInterval: '1m',
+      decisionInterval: '1m',
     });
-    expect(captured.intraCandle).toBeUndefined();
-    expect(repoMocks.getRange.mock.calls.some((call) => call[2] === '1m')).toBe(false);
-    expect(notes.some((w) => w.includes('more than 400 days of 1-minute bars'))).toBe(true);
-  });
-
-  it('keeps the minute window out of the shared candle cache', async () => {
-    const set = vi.fn();
-    const logger = pino({ level: 'silent' });
-    const warn = vi.spyOn(logger, 'warn');
-    await run(withinCandle, ['BTCUSDT'], { candleCache: { get: () => undefined, set }, logger });
-    const keys = set.mock.calls.map((call) => String(call[0]));
-    // The trading window is cached as before; only the minute bars are left out.
-    expect(keys.some((k) => k.includes('|1h|'))).toBe(true);
-    expect(keys.some((k) => k.includes('|1m|'))).toBe(false);
-    // Leaving a complete minute window out is deliberate, not the incomplete-tail fault the warning reports.
-    expect(warn).not.toHaveBeenCalled();
-  });
-
-  it('does not note a basket whose strategy already trades on 1-minute candles', async () => {
-    const { notes } = await run(withinCandle, ['BTCUSDT', 'ETHUSDT'], { candleInterval: '1m' });
     expect(notes.some((w) => w.includes('exits within a candle'))).toBe(false);
   });
 
-  it('falls back to one tick per candle with a note for a basket', async () => {
-    const { captured, notes } = await run(withinCandle, ['BTCUSDT', 'ETHUSDT']);
-    expect(captured.intraCandle).toBeUndefined();
-    expect(captured.request.intervals).toContain('5m');
-    expect(notes.some((w) => w.includes('a multi-symbol run ticks once per 1h candle'))).toBe(true);
-  });
-
-  it('leaves a strategy that does not declare the capability on its requested detail interval', async () => {
-    const { captured, notes } = await run(trailingTrade, ['BTCUSDT']);
-    expect(captured.intraCandle).toBeUndefined();
-    expect(captured.request.intervals).toContain('5m');
-    expect(captured.request.intervals).not.toContain('1m');
+  it('adds no note for a strategy that does not declare the capability', async () => {
+    const { notes } = await run(trailingTrade, ['BTCUSDT']);
     expect(notes.some((w) => w.includes('exits within a candle'))).toBe(false);
   });
 });
 
 describe('runProfileBacktest modelling notes', () => {
+  it('warns when only the strategy series has a gap', async () => {
+    repoMocks.getRange.mockImplementation(async (_db, symbol, interval, from, to) =>
+      interval === '1h' ? ([] as never) : (rowsFor(symbol, interval, from, to) as never),
+    );
+    const { dataWarnings } = await run(trailingTrade, ['BTCUSDT']);
+    expect(dataWarnings.some((w) => w.includes('BTCUSDT') && w.includes('0%'))).toBe(true);
+  });
+
+  it('warns when a daily series the strategy reads is missing', async () => {
+    repoMocks.getRange.mockImplementation(async (_db, symbol, interval, from, to) =>
+      interval === '1d' ? ([] as never) : (rowsFor(symbol, interval, from, to) as never),
+    );
+    const { dataWarnings } = await run(trailingTrade, ['BTCUSDT']);
+    expect(dataWarnings.some((w) => w.includes('1d candles'))).toBe(true);
+  });
+
   it('keeps an unset spread in dataWarnings so the live gate refuses a run whose fills are free', async () => {
     const { notes, dataWarnings } = await run(trailingTrade, ['BTCUSDT'], { spreadBps: null });
     expect(dataWarnings.some((w) => w.startsWith('no spread haircut modeled'))).toBe(true);

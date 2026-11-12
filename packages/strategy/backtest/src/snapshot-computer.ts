@@ -1,8 +1,4 @@
-// Stateful per-(symbol, interval) indicator-snapshot computer for one backtest
-// run. It carries each incremental indicator's O(1) state forward across ticks —
-// folding only the just-closed candle — exactly as the live indicator-computer
-// does (apps/worker/.../indicator-computer.ts), instead of re-seeding the whole
-// rolling window on every tick.
+// Stateful per-(symbol, interval) indicator-snapshot computer for one backtest run. It carries each incremental indicator's O(1) state forward across ticks, folding only the candles closed since the previous call, as the live indicator-computer does (apps/worker/.../indicator-computer.ts), instead of re-seeding the whole rolling window on every tick.
 //
 // Why: re-seeding `sma20`/`ema20`/`rsi14` from the full window each tick was the
 // single dominant per-tick cost of a backtest. Carrying state makes it O(1). The
@@ -44,20 +40,23 @@ interface ToFixed {
   toFixed(): string;
 }
 
-// Mirrors the live indicator-computer's stepOrSeed: fold the just-closed candle
-// into existing state, else cold-seed from the window (which already contains
-// that candle, so `currentValue` reads it without a double-fold). Stays null
-// until the window is long enough — the same null path live uses.
+// Mirrors the live indicator-computer's stepOrSeed: fold each candle newer than the last close into existing state, else cold-seed from the window, which already contains them, so `currentValue` reads it without a double-fold. Stays null until the window is long enough, the same null path live uses.
 const stepOrSeed = <S, V extends ToFixed>(
   state: S | null,
   window: CandleWindow,
   minWindow: number,
   ind: IncrementalIndicator<S, V>,
-  closed: Candle,
+  newer: readonly Candle[],
 ): { state: S | null; value: string | null } => {
   if (state !== null) {
-    const [next, value] = ind.update(state, closed);
-    return { state: next, value: value.toFixed() };
+    let next: S = state;
+    let value: string | null = null;
+    for (const candle of newer) {
+      const [advanced, latest] = ind.update(next, candle);
+      next = advanced;
+      value = latest.toFixed();
+    }
+    return { state: next, value };
   }
   if (window.length < minWindow) return { state: null, value: null };
   const seeded = ind.initFromWindow(window);
@@ -136,18 +135,13 @@ interface KeyState {
 
 interface SnapshotComputer {
   /**
-   * The {@link IndicatorSnapshot} for `key`'s latest closed candle, carrying the
-   * indicator state forward. Returns the previous snapshot unchanged when
-   * `window`'s last candle has the same close time as the previous call for this
-   * key — an auxiliary (e.g. daily) interval whose candle has not advanced across
-   * many intra-interval ticks, so folding it again would double-count it.
+   * The {@link IndicatorSnapshot} for `key`'s latest closed candle, carrying the indicator state forward. Returns the previous snapshot unchanged when `window`'s last candle has the same close time as the previous call for this key: an interval whose candle has not advanced across many ticks, so folding it again would double-count it.
    *
-   * Precondition: once seeded, each subsequent call for the same key must advance
-   * the window by exactly one closed candle (the steady state `update` folds only
-   * the latest candle). The engine loop satisfies this — it appends one candle per
-   * tick — and an aux interval advances by one candle per close (the caching above
-   * collapses the unchanged ticks in between). This mirrors the live computer,
-   * which is likewise called once per closed candle.
+   * Every candle closed since the previous call for this key is folded in order, so a 1-minute window read every five minutes advances by five bars. A window that no longer reaches the previous close has no contiguous candles to fold, so it cold-seeds.
+   *
+   * @param key - The (symbol, interval) the state belongs to.
+   * @param window - Closed candles ascending by close time, ending at the latest closed candle.
+   * @returns The snapshot for that candle, or null for an empty window.
    */
   step(key: string, window: CandleWindow): IndicatorSnapshot | null;
 }
@@ -164,35 +158,37 @@ export const createSnapshotComputer = (): SnapshotComputer => {
       const closed = window[window.length - 1];
       if (!closed) return null;
 
-      const prior = states.get(key);
+      const stored = states.get(key);
       // Same closed candle as last call: the interval has not advanced (an aux
       // window unchanged across intra-interval ticks). Return the cached value
       // rather than folding the same candle into the indicator state twice.
-      if (prior && prior.lastCloseTimeMs === closed.closeTimeMs) return prior.snapshot;
+      if (stored && stored.lastCloseTimeMs === closed.closeTimeMs) return stored.snapshot;
 
-      const sma = stepOrSeed(prior?.sma ?? null, window, SMA_PERIOD, smaInd, closed);
-      const ema = stepOrSeed(prior?.ema ?? null, window, EMA_PERIOD, emaInd, closed);
-      const rsi = stepOrSeed(prior?.rsi ?? null, window, RSI_MIN_WINDOW, rsiInd, closed);
-
-      // High/low carry the same way: cold-seed folds the whole window once, then
-      // each later tick folds only the new candle (the engine advances by one
-      // candle per tick; the dedup above collapses unchanged aux ticks).
       const oldest = window[0];
       if (oldest === undefined) return null; // unreachable: window is non-empty here
+      const prior = stored && oldest.closeTimeMs <= stored.lastCloseTimeMs ? stored : undefined;
+      let newerFrom = window.length;
+      while (
+        newerFrom > 0 &&
+        (window[newerFrom - 1]?.closeTimeMs ?? 0) > (prior?.lastCloseTimeMs ?? -Infinity)
+      )
+        newerFrom--;
+      const newer = window.slice(newerFrom);
+
+      const sma = stepOrSeed(prior?.sma ?? null, window, SMA_PERIOD, smaInd, newer);
+      const ema = stepOrSeed(prior?.ema ?? null, window, EMA_PERIOD, emaInd, newer);
+      const rsi = stepOrSeed(prior?.rsi ?? null, window, RSI_MIN_WINDOW, rsiInd, newer);
+
+      // High/low carry the same way: cold-seed folds the whole window once, then later calls fold only the newer candles.
       const oldestInWindowMs = oldest.closeTimeMs;
-      let low: RollingExtremum;
-      let high: RollingExtremum;
-      if (prior) {
-        ({ low, high } = prior);
-        low.fold(closed.closeTimeMs, new Decimal(closed.low), oldestInWindowMs);
-        high.fold(closed.closeTimeMs, new Decimal(closed.high), oldestInWindowMs);
-      } else {
-        low = createRollingExtremum((back, incoming) => back.greaterThanOrEqualTo(incoming));
-        high = createRollingExtremum((back, incoming) => back.lessThanOrEqualTo(incoming));
-        for (const c of window) {
-          low.fold(c.closeTimeMs, new Decimal(c.low), oldestInWindowMs);
-          high.fold(c.closeTimeMs, new Decimal(c.high), oldestInWindowMs);
-        }
+      const low =
+        prior?.low ??
+        createRollingExtremum((back, incoming) => back.greaterThanOrEqualTo(incoming));
+      const high =
+        prior?.high ?? createRollingExtremum((back, incoming) => back.lessThanOrEqualTo(incoming));
+      for (const c of newer) {
+        low.fold(c.closeTimeMs, new Decimal(c.low), oldestInWindowMs);
+        high.fold(c.closeTimeMs, new Decimal(c.high), oldestInWindowMs);
       }
 
       const snapshot: IndicatorSnapshot = {

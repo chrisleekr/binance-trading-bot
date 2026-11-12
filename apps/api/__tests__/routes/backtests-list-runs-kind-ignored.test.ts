@@ -42,11 +42,8 @@ describeIfInfra('backtest list: the kind param is not a filter', () => {
     // A mixed page: two finished runs on opposite sides of the outcome filter and one still queued. A predicate that silently matched everything would be invisible against a uniform page.
     await completeRun(fx, { metrics: { totalReturnPct: 5 } });
     await completeRun(fx, { metrics: { totalReturnPct: -3 } });
-    await fx.app.request(url, {
-      method: 'POST',
-      headers: { ...headers, 'content-type': 'application/json' },
-      body: JSON.stringify(validParams),
-    });
+    const p = await profileRepo(fx.di.db, fx.alice.userId, fx.alice.accountId, fx.alice.profileId);
+    await p.backtestRuns.create({ symbols: ['BTCUSDT'], params: validParams });
   });
 
   afterAll(async () => {

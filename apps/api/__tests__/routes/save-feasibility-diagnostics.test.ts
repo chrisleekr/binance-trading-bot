@@ -1,5 +1,5 @@
 import type { ConfigDiagnostic } from '@app/contracts';
-import { BacktestCreatedSchema, ProfileResponse, ProfileSymbolResponse } from '@app/contracts';
+import { ProfileResponse, ProfileSymbolResponse } from '@app/contracts';
 import { GLOBAL_KEYS } from '@app/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -16,8 +16,9 @@ import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
  * response only when it is actionable on that route: `filters-unavailable` and
  * `config-unverified` everywhere, and a missing price on the add-symbol bind
  * alone, where the check being skipped is the ordinary outcome and silence would
- * claim a check that did not run. A config save and a backtest stay quiet about
- * a missing price, and no advisory ever turns into a rejection.
+ * claim a check that did not run. A config save stays quiet about a missing
+ * price, and no advisory ever turns into a rejection. A backtest launch runs no
+ * such check: it replays history, where today's price and filters are beside the point.
  * Integration-level because the finding depends on the profile's bound symbols,
  * its account's Binance environment, and the cached market snapshots in Redis.
  */
@@ -74,9 +75,10 @@ const underMinNotionalConfig = {
 
 const backtestParams = {
   symbols: [SYMBOL],
-  fromMs: 1_000,
-  toMs: 2_000,
+  fromMs: 300_000,
+  toMs: 600_000,
   strategyInterval: '1h',
+  decisionInterval: '5m',
   detailInterval: '5m',
   initialQuoteBalance: '1000',
   fees: { makerBps: 10, takerBps: 10 },
@@ -113,6 +115,14 @@ describeIfInfra('save-time order-feasibility diagnostics', () => {
       headers: headers(),
       body: JSON.stringify({ config }),
     });
+
+  // Writes past the save-time check, to hold a config that check would refuse.
+  const saveConfigUnchecked = async (config: unknown): Promise<void> => {
+    await fx.di.pool.query(`update profiles set config = $2::jsonb where id = $1`, [
+      fx.alice.profileId,
+      JSON.stringify(config),
+    ]);
+  };
 
   const bindSymbol = async (): Promise<Response> =>
     fx.app.request(`${base()}/symbols`, {
@@ -227,16 +237,14 @@ describeIfInfra('save-time order-feasibility diagnostics', () => {
     );
   });
 
-  it('tells the operator a launched backtest was not verified against exchange rules', async () => {
+  it('launches a backtest without reading the current price or exchange rules', async () => {
     await clearFilters();
-    await setPrice();
+    await clearPrice();
+    await saveConfigUnchecked(underMinNotionalConfig);
     const res = await launchBacktest();
-    const body = await readBody(res);
     expect(res.status).toBe(202);
-    expect(typeof body['runId']).toBe('string');
-    expect(body['diagnostics']).toContainEqual(
-      expect.objectContaining({ level: 'warn', code: 'filters-unavailable' }),
-    );
+    expect(Object.keys(await readBody(res))).toEqual(['runId']);
+    await saveConfigUnchecked(feasibleConfig);
   });
 
   it('reports a missing price on the bind only, and stays silent on the other two', async () => {
@@ -245,15 +253,10 @@ describeIfInfra('save-time order-feasibility diagnostics', () => {
 
     // A config save checks every bound symbol, so on a disabled profile this
     // would fire once per symbol with nothing the operator can do about any of
-    // them. A backtest replays historical candles, where a live price is beside
-    // the point.
+    // them.
     const saved = await saveConfig(feasibleConfig);
     expect(saved.status).toBe(200);
     expect(await readBody(saved)).not.toHaveProperty('diagnostics');
-
-    const launched = await launchBacktest();
-    expect(launched.status).toBe(202);
-    expect(await readBody(launched)).not.toHaveProperty('diagnostics');
 
     // The bind is different in kind: it checks the one symbol being added, and
     // prices stream only for symbols an enabled profile already subscribes to,
@@ -316,10 +319,6 @@ describeIfInfra('save-time order-feasibility diagnostics', () => {
     expect(Object.keys(bound).sort()).toEqual(
       ['symbol', 'overrideConfig', 'source', 'pinned', 'pinnedAt'].sort(),
     );
-
-    const launched = await readBody(await launchBacktest());
-    expect(Object.keys(launched).sort()).toEqual(['runId', 'deduped'].sort());
-    expect(launched['deduped']).toBe(false);
   });
 
   it('still rejects a config that cannot place a valid order', async () => {
@@ -350,11 +349,6 @@ describeIfInfra('save-time order-feasibility diagnostics', () => {
 
     const bound = throughContract(ProfileSymbolResponse, await readBody(await bindSymbol()));
     expect(bound['diagnostics']).toContainEqual(
-      expect.objectContaining({ code: 'filters-unavailable' }),
-    );
-
-    const launched = throughContract(BacktestCreatedSchema, await readBody(await launchBacktest()));
-    expect(launched['diagnostics']).toContainEqual(
       expect.objectContaining({ code: 'filters-unavailable' }),
     );
   });
@@ -392,12 +386,6 @@ describeIfInfra('save-time order-feasibility diagnostics', () => {
     const bound = await bindSymbol();
     expect(bound.status).toBe(201);
     expect((await readBody(bound))['diagnostics']).toContainEqual(
-      expect.objectContaining({ level: 'warn', code: 'config-unverified' }),
-    );
-
-    const launched = await launchBacktest();
-    expect(launched.status).toBe(202);
-    expect((await readBody(launched))['diagnostics']).toContainEqual(
       expect.objectContaining({ level: 'warn', code: 'config-unverified' }),
     );
   });

@@ -5,7 +5,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
 
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 
-const WINDOW = { fromMs: 0, toMs: 1_000, interval: '1h' };
+const WINDOW = { fromMs: 0, toMs: 1_000, interval: '1h', contextFingerprint: 'context-a' };
 
 const entry = (over: Partial<LedgerEntry> = {}): LedgerEntry => ({
   backtestSignature: 'sig-aaaa',
@@ -81,10 +81,47 @@ describeIfDb('backtest_result_ledger account-scoped durable memory', () => {
     // A different window must not match.
     const miss = await alice.resultLedger.listForMarket({
       symbols: ['BTCUSDT', 'ETHUSDT'],
-      window: { fromMs: 0, toMs: 2_000, interval: '1h' },
+      window: { ...WINDOW, toMs: 2_000 },
       strategyId: 'trailing-trade',
     });
     expect(miss.some((r) => r.backtestSignature === 'sig-mkt')).toBe(false);
+  });
+
+  it('reads only rows from the same replay context', async () => {
+    await alice.resultLedger.upsert(
+      entry({
+        backtestSignature: 'sig-other-context',
+        window: { ...WINDOW, contextFingerprint: 'context-b' },
+      }),
+    );
+    const rows = await alice.resultLedger.listForMarket({
+      symbols: ['BTCUSDT'],
+      window: WINDOW,
+      strategyId: 'trailing-trade',
+    });
+    expect(rows.some((r) => r.backtestSignature === 'sig-other-context')).toBe(false);
+  });
+
+  it('hides a row with no replay context, and shows nothing to a query without one', async () => {
+    await alice.resultLedger.upsert(
+      entry({
+        backtestSignature: 'sig-legacy',
+        // A row stored before the context existed has no such key in its jsonb.
+        window: { fromMs: 0, toMs: 1_000, interval: '1h' } as typeof WINDOW,
+      }),
+    );
+    const withContext = await alice.resultLedger.listForMarket({
+      symbols: ['BTCUSDT'],
+      window: WINDOW,
+      strategyId: 'trailing-trade',
+    });
+    expect(withContext.some((r) => r.backtestSignature === 'sig-legacy')).toBe(false);
+    const withoutContext = await alice.resultLedger.listForMarket({
+      symbols: ['BTCUSDT'],
+      window: { ...WINDOW, contextFingerprint: null },
+      strategyId: 'trailing-trade',
+    });
+    expect(withoutContext).toEqual([]);
   });
 
   it("alice's ledger entry is invisible to bob's scope", async () => {

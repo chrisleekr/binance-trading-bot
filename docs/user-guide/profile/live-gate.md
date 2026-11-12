@@ -10,7 +10,7 @@ The **Live gate** section is an **advisory** readiness check. It tells you wheth
 
     Enabling a profile is **never** blocked by this check. It is a quality signal shown on
     the dashboard, not a lock. You can go live with a failing or absent check — the gate
-    just tells you whether the config has proven itself first.
+    only says whether this backtest cleared the bars, which is not proof of live readiness.
 
 The top of the page states where the profile stands in plain words: whether its config cleared the backtest check (and, if not, which checks fell short), and which trades are being compared with which pinned backtest run.
 
@@ -25,15 +25,15 @@ Unlike the strategy and risk sections, this panel is hand-built, so the fields b
 
 ## Advanced thresholds
 
-Rarely touched — trade-count, alpha, out-of-sample, age, and the live edge-decay monitor.
+Rarely touched — trade-count, alpha, recent-period, age, and the live edge-decay monitor.
 
 | Field | Default | What it does |
 | --- | --- | --- |
-| **Min closed trades** | `100` | A profit factor over a tiny sample is noise. Out-of-sample below is the real curve-fit defence, not this count. |
+| **Min closed trades** | `100` | A profit factor over a tiny sample is noise. This count only keeps the sample large enough to read. |
 | **Min alpha vs hold (%)** | `0` | Return beyond just holding. 0 = must at least match holding. |
-| **Require out-of-sample validation** | on | The edge (a strategy's expected profitable advantage) must also clear the profit-factor and alpha bars in the most-recent 30% of the backtest — the slice you did not tune against. The real defence against curve-fitting a single window. |
-| **Min out-of-sample trades** | `20` | The holdout is about 30% of the run, so it holds fewer trades. Below this its metrics are too noisy to trust. |
-| **Max backtest age (days)** | `14` | Reject proof older than this — markets and config drift. |
+| **Require the Recent-period check** | on | The edge (a strategy's expected profitable advantage) must also clear the profit-factor and alpha bars in the most-recent 30% of the backtest. You may already have examined that period while tuning, so a pass is evidence, not proof. |
+| **Min recent-period trades** | `20` | The recent period is about 30% of the run, so it holds fewer trades. Below this its metrics are too noisy to trust. |
+| **Max backtest age (days)** | `14` | Ignore a backtest older than this — markets and config drift. |
 
 ## Edge-decay monitor (while live)
 

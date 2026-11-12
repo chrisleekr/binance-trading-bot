@@ -154,6 +154,61 @@ describe('registerAdvisorWorker', () => {
     });
   });
 
+  it('advises on the config the run executed, not the profile edited since', async () => {
+    const resolvedConfig = { candleInterval: '1h', sell: { triggerPercentage: '1.03' } };
+    repoMocks.runGet.mockResolvedValue({
+      status: 'done',
+      result: { params: {}, metrics: {}, resolvedConfig },
+      backtestSignature: 'sig1',
+    });
+    repoMocks.findById.mockResolvedValue({
+      strategyName: 'trailing-trade',
+      strategyVersion: '1.0.0',
+      config: { candleInterval: '1h', sell: { triggerPercentage: '1.09' } },
+      enablementPolicy: null,
+    });
+    await register(availableLlm)(JOB);
+    expect(llmMocks.buildImproveInput).toHaveBeenCalledWith(
+      expect.objectContaining({ profileConfig: resolvedConfig }),
+    );
+  });
+
+  describe('prior-run history', () => {
+    const params = {
+      symbols: ['BTCUSDT'],
+      fromMs: 300_000,
+      toMs: 600_000,
+      strategyInterval: '1h',
+      decisionInterval: '5m',
+      detailInterval: '5m',
+      initialQuoteBalance: '1000',
+      fees: { makerBps: 10, takerBps: 10 },
+      slippageBps: 5,
+    };
+
+    it.each([
+      ['a known build', 'build-1', 'context-a'],
+      ['an unknown build', 'unknown', null],
+    ])('reads the ledger under the comparison context of %s', async (_label, buildId, expected) => {
+      repoMocks.runGet.mockResolvedValue({
+        status: 'done',
+        result: {
+          params,
+          metrics: {},
+          simulation: { buildId, contextFingerprint: 'context-a' },
+        },
+        backtestSignature: 'sig1',
+      });
+      await register(availableLlm)(JOB);
+      expect(repoMocks.listForMarket).toHaveBeenCalledOnce();
+      expect(repoMocks.listForMarket).toHaveBeenCalledWith(
+        expect.objectContaining({
+          window: expect.objectContaining({ contextFingerprint: expected }),
+        }),
+      );
+    });
+  });
+
   it('records error(failed) and rethrows (→ DLQ) when the advisor throws', async () => {
     llmMocks.runAdvisor.mockRejectedValueOnce(new Error('model boom'));
     const invoke = register(availableLlm);

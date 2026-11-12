@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import pino from 'pino';
 import type { Candle, CandleInterval } from '@app/strategy-core';
-import type { MarketDataSource, MarketTick } from '@app/strategy-backtest';
+import type { MarketDataSource } from '@app/strategy-backtest';
 
 import {
   prepareTechnicalsRatingWindow,
@@ -59,10 +59,10 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 const FROM_MS = 1_000 * DAY;
 const TO_MS = FROM_MS + 10 * FIVE_MINUTES;
-const RAW_REPLAY_FROM_MS = FROM_MS - 200 * FIVE_MINUTES;
 const FIVE_MINUTE_TECHNICALS_FROM_MS = FROM_MS - TECHNICALS_SOURCE_CANDLE_LIMIT * FIVE_MINUTES;
 
 const intervalMs = (interval: string): number => {
+  if (interval === '1m') return MINUTE;
   if (interval === '5m') return FIVE_MINUTES;
   if (interval === '1h') return HOUR;
   if (interval === '1d') return DAY;
@@ -131,6 +131,7 @@ const makeDeps = () => ({
   strategies: { get: () => trailingTrade },
   clock: { nowMs: () => TO_MS + DAY },
   logger: silentLogger,
+  buildId: 'abc1234',
 });
 
 const profileConfig = (technicalsInterval: '5m' | '1h') => {
@@ -147,6 +148,8 @@ const profileConfig = (technicalsInterval: '5m' | '1h') => {
   };
 };
 
+const progress: { phase: string; total?: number }[] = [];
+
 const run = async (technicalsInterval: '5m' | '1h') =>
   runProfileBacktest(
     makeDeps() as never,
@@ -154,6 +157,7 @@ const run = async (technicalsInterval: '5m' | '1h') =>
       params: {
         symbols: ['BTCUSDT'],
         strategyInterval: '5m',
+        decisionInterval: '5m',
         detailInterval: '5m',
         fromMs: FROM_MS,
         toMs: TO_MS,
@@ -163,24 +167,20 @@ const run = async (technicalsInterval: '5m' | '1h') =>
         discoveryMode: false,
       },
       strategyName: 'trailing-trade',
-      profileConfig: profileConfig(technicalsInterval),
+      effectiveConfig: profileConfig(technicalsInterval),
+      onProgress: (update: { phase: string; total?: number }) => progress.push(update),
     } as never,
   );
 
 interface RunnerOptions {
-  readonly dataSource: MarketDataSource;
   readonly request: Parameters<MarketDataSource['stream']>[0];
-  readonly buildBundle: (args: {
+  readonly buildBundle: (args: { symbol: string; asOfMs: number }) => Record<string, unknown>;
+  readonly auxiliaryWindows: (args: {
     symbol: string;
-    window: readonly Candle[];
-  }) => Record<string, unknown>;
+    asOfMs: number;
+  }) => Partial<Record<string, readonly Candle[]>>;
+  readonly onProgress: (processed: number) => void;
 }
-
-const streamedTicks = async (options: RunnerOptions): Promise<MarketTick[]> => {
-  const ticks: MarketTick[] = [];
-  for await (const tick of options.dataSource.stream(options.request)) ticks.push(tick);
-  return ticks;
-};
 
 const requestedFromMs = (interval: CandleInterval): number | undefined => {
   const call = repoMocks.getRange.mock.calls.find((args) => args[2] === interval);
@@ -189,6 +189,7 @@ const requestedFromMs = (interval: CandleInterval): number | undefined => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  progress.length = 0;
   sparseFiveMinuteRows = false;
   repoMocks.getRange.mockImplementation(
     async (_db: unknown, _symbol: string, interval: string, from: Date, to: Date) =>
@@ -197,18 +198,12 @@ beforeEach(() => {
 });
 
 describe('runProfileBacktest Technicals history', () => {
-  it('loads the 999-bar Technicals horizon without shifting a matching replay series', async () => {
-    let ticks: MarketTick[] = [];
-    runBacktest.mockImplementation(async (options: RunnerOptions) => {
-      ticks = await streamedTicks(options);
-      return EMPTY_REPORT;
-    });
+  it('loads the 999-bar horizon for the native strategy window', async () => {
+    runBacktest.mockResolvedValue(EMPTY_REPORT);
 
     await run('5m');
 
     expect(requestedFromMs('5m')).toBe(FIVE_MINUTE_TECHNICALS_FROM_MS);
-    expect(ticks[0]?.candle.openTimeMs).toBe(RAW_REPLAY_FROM_MS);
-    expect(ticks).toHaveLength(211);
   });
 
   it('loads a coarser Technicals interval from its own 999-interval horizon', async () => {
@@ -216,20 +211,45 @@ describe('runProfileBacktest Technicals history', () => {
 
     await run('1h');
 
-    expect(requestedFromMs('5m')).toBe(RAW_REPLAY_FROM_MS);
+    expect(requestedFromMs('5m')).toBe(FIVE_MINUTE_TECHNICALS_FROM_MS);
     expect(requestedFromMs('1h')).toBe(FROM_MS - TECHNICALS_SOURCE_CANDLE_LIMIT * HOUR);
   });
 
-  it('normalizes sparse raw history to 250 traded bars on the first post-warmup signal', async () => {
+  it('long Technicals history leaves replay bounds, regime windows and progress total unchanged', async () => {
+    const observe = async (technicalsInterval: '5m' | '1h') => {
+      progress.length = 0;
+      let seen: unknown;
+      runBacktest.mockImplementation(async (options: RunnerOptions) => {
+        options.onProgress(1);
+        const asOfMs = FROM_MS + FIVE_MINUTES - 1;
+        const daily = options.auxiliaryWindows({ symbol: 'BTCUSDT', asOfMs })['1d'];
+        seen = {
+          bounds: [options.request.fromMs, options.request.toMs],
+          lastDailyClose: daily?.at(-1)?.closeTimeMs,
+        };
+        return EMPTY_REPORT;
+      });
+      await run(technicalsInterval);
+      return { seen, total: progress.find((p) => p.phase === 'replay')?.total };
+    };
+
+    const short = await observe('5m');
+    const long = await observe('1h');
+
+    expect(short).toEqual({
+      seen: { bounds: [FROM_MS, TO_MS], lastDailyClose: FROM_MS - 1 },
+      total: 10,
+    });
+    expect(long).toEqual(short);
+  });
+
+  it('normalizes sparse raw history to 250 traded bars on the first decision', async () => {
     sparseFiveMinuteRows = true;
     let signal: unknown;
     runBacktest.mockImplementation(async (options: RunnerOptions) => {
-      const ticks = await streamedTicks(options);
-      const firstPostWarmup = ticks[200];
-      if (!firstPostWarmup) throw new Error('first post-warmup tick is missing');
       const bundle = options.buildBundle({
         symbol: 'BTCUSDT',
-        window: [firstPostWarmup.candle],
+        asOfMs: FROM_MS + FIVE_MINUTES - 1,
       });
       signal = (bundle['technicals'] as { signals: { signal: unknown }[] }).signals[0]?.signal;
       return EMPTY_REPORT;

@@ -194,6 +194,7 @@ export interface BuildImproveInputArgs {
   configSchema: z.ZodType;
   // The JSON-schema doc the model reads (the fields it may change, with bounds).
   configSchemaDoc: unknown;
+  // The config the run executed (its recorded resolved config, else the profile config for legacy runs), not the live profile config that may have been edited since.
   profileConfig: unknown;
   // The finished run's stored result. The caller has already proven the run is
   // `done` with a non-null result before calling.
@@ -222,15 +223,7 @@ export const buildImproveInput = (
   // — which the merge guard and the configSchema re-parse below still contain.
   const parsedParams = BacktestParamsSchema.safeParse(result.params);
   const params = parsedParams.data ?? result.params;
-  // The config that produced these metrics: the run parsed the profile config,
-  // merged its override onto it, then re-parsed (backtest-runner.ts). The override
-  // is a PARTIAL diff — a run override carries only the changed keys — so
-  // using it raw as the base feeds a partial config to the schema and drops every
-  // suggestion. Mirror the runner's parse-then-merge: parsing the base first
-  // default-fills it, so a numeric override coerces onto a decimal-string
-  // field (mergeConfig only stringifies a number when the base key already holds a
-  // string). Fall back to the raw config when the stored base no longer parses, so
-  // a still-completable override can recover; an unrecoverable merge throws.
+  // The config that produced these metrics is `profileConfig` (the run's frozen snapshot) with its override re-applied; merging replaces values, so re-applying is idempotent. The override is a PARTIAL diff, so using it raw as the base feeds a partial config to the schema and drops every suggestion. Parsing the base first default-fills it, so a numeric override coerces onto a decimal-string field (mergeConfig only stringifies a number when the base key already holds a string). Fall back to the raw config when the base no longer parses, so a still-completable override can recover; an unrecoverable merge throws.
   const parsedBase = configSchema.safeParse(args.profileConfig);
   const merged = configSchema.safeParse(
     mergeConfig(
@@ -248,15 +241,17 @@ export const buildImproveInput = (
   const baseConfig = merged.data as Record<string, unknown>;
   // The live-enablement gate's own checklist for THIS run: the exact bars that
   // decide go-live (coverage, profit factor, closed trades, alpha, and the
-  // out-of-sample trio), each with its current pass/fail, under this profile's
+  // Recent-period trio), each with its current pass/fail, under this profile's
   // policy. Feeding the advisor the target it must clear, and which checks fail,
   // aims its suggestions at the binding constraint instead of an abstract
   // "improve performance", and steers it off the risk-adjusted metrics the gate
   // ignores. Same evaluation the gate-status card and admission gate use, so the
   // advisor never reasons against a different bar than the operator sees.
   const gateMetrics =
-    toGateCandidates([{ id: 'advisor', configFingerprint: null, createdAt: EPOCH, result }])[0]
-      ?.metrics ?? null;
+    toGateCandidates([{ id: 'advisor', configFingerprint: null, createdAt: EPOCH, result }], {
+      strategyName: args.strategyName,
+      engineRevision: result.simulation?.engineRevision ?? 0,
+    })[0]?.metrics ?? null;
   const gateChecks = gateMetrics ? gateThresholdChecks(gateMetrics, policy) : [];
   // The honest "should this trade live at all" baseline: HOLD when the run lost
   // to a fee-free buy-and-hold or closed no trades. Anchors the advisor to the
@@ -309,6 +304,8 @@ export const buildImproveInput = (
         dataWarnings: result.dataWarnings ?? [],
         // Where the replay departs from live (an exit not replayed minute by minute). Not a data fault, but the advisor should still discount results these flatter.
         modelNotes: result.modelNotes ?? [],
+        // Which replay produced these numbers; null marks a run from before replay metadata existed, whose figures are not comparable with newer ones.
+        simulation: result.simulation ?? null,
         // Honest trade-or-hold baseline and the fill-model assumptions, so the
         // advisor discounts optimistic profits and does not over-tune a no-edge run.
         tradeOrHold,

@@ -15,6 +15,16 @@ The in-repo packages are the source of truth for everything the feature pages de
 - `apps/api/src/routes/backtests.ts` — enqueue + poll.
 - `apps/web/src/features/backtest/` — the launch form and results view.
 
+## Running the break-even study
+
+`scripts/backtest-study.ts` compares `sell.breakEven.armAtPercentage` at 1.01, 1.02 and 1.03, at 1-minute and 5-minute decisions, under base and stress costs, with Momentum and cash, BTC reference, passive basket and BTC-hold controls. It goes through `replayPrepared`, the function the worker runs, so it measures the replay the operator sees.
+
+```bash
+bun scripts/backtest-study.ts --input <input.jsonl> --out-json <report.json> --out-md <report.md>
+```
+
+The input is JSONL. The first line is the meta object: `fromMs`, `toMs`, `symbols`, `symbolInfos` (including `BTCUSDT`), `initialQuoteBalance`, `maxConversionStalenessMs` and `configs` (one complete config per strategy). Every other line is one closed candle: `symbol`, `interval`, `openTimeMs`, `closeTimeMs`, `open`, `high`, `low`, `close`, `volume`. `apps/worker/__tests__/fixtures/backtest-study/input.jsonl` is a small committed example. The BTC columns convert each full-resolution mark at the latest `BTCUSDT` 1-minute close at or before it; a missing or stale rate reports the BTC result as unavailable rather than borrowing a future candle. The funding quote comes from the symbols a run trades: a BTC-quoted basket needs no conversion, and its `btc-hold` control is marked not applicable rather than funded from the BTC balance. Any quote other than BTC or USDT reports the BTC result as unavailable, because `BTCUSDT` cannot convert it. The Markdown report lists the window, cost assumptions, volume cap, each config's location in the JSON report with its hash, the controls with their passive allocations, and every candidate. Attach the report, input hash and exact command wherever you publish the results.
+
 ## Backtest advisor internals
 
 Implementation detail behind the improve-config advisor. The operator-facing behaviour lives in the [Backtest metrics reference](../concepts/backtest-metrics.md).

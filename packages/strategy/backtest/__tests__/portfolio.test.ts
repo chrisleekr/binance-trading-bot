@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Candle, CandleInterval, SymbolInfo } from '@app/strategy-core';
 import { runBacktest } from '../src/run.js';
 import { IdealFillModel } from '../src/ideal-fill.js';
-import { arrayMarketDataSource, mergeCandleTicks } from '../src/portfolio-source.js';
+import { arrayMarketDataSource, iterateCandleTicks } from '../src/portfolio-source.js';
 import type { SymbolCandles } from '../src/portfolio-source.js';
 import { makeBuyOnceStrategy, SYMBOL_INFO } from './_fixtures.js';
 
@@ -27,7 +27,7 @@ function candlesAt(closeTimes: number[], price: string): Candle[] {
 
 const ETH_INFO: SymbolInfo = { ...SYMBOL_INFO, symbol: 'ETHUSDT', baseAsset: 'ETH' };
 
-describe('mergeCandleTicks', () => {
+describe('iterateCandleTicks', () => {
   it('orders ticks by closeTime across symbols with different intervals', () => {
     const btc: SymbolCandles = {
       symbol: 'BTCUSDT',
@@ -39,7 +39,7 @@ describe('mergeCandleTicks', () => {
       interval: '5m' as CandleInterval,
       candles: candlesAt([90_000, 300_000], '50'),
     };
-    const merged = mergeCandleTicks([btc, eth]);
+    const merged = [...iterateCandleTicks([btc, eth])];
     expect(merged.map((t) => [t.symbol, t.candle.closeTimeMs])).toEqual([
       ['BTCUSDT', 60_000],
       ['ETHUSDT', 90_000],
@@ -53,7 +53,7 @@ describe('mergeCandleTicks', () => {
   });
 
   it('handles an empty series set', () => {
-    expect(mergeCandleTicks([])).toEqual([]);
+    expect([...iterateCandleTicks([])]).toEqual([]);
   });
 });
 

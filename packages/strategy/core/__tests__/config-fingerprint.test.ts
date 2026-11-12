@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   backtestSignature,
   BACKTEST_ENGINE_REVISION,
+  snapshotRunnable,
   configFingerprint,
   signatureForBacktest,
 } from '../src/config-fingerprint.js';
@@ -78,10 +79,10 @@ describe('backtestSignature', () => {
   });
 
   it('hashes the engine revision, so a semantics bump stops the ledger serving an older result', () => {
-    // Pinned for revision 2. Dropping the revision from the hash, or bumping it, moves this value: a bump must update both lines here, which is the point of the pin.
-    expect(BACKTEST_ENGINE_REVISION).toBe(2);
+    // Pinned for revision 3. Dropping the revision from the hash, or bumping it, moves this value: a bump must update both lines here, which is the point of the pin.
+    expect(BACKTEST_ENGINE_REVISION).toBe(3);
     expect(backtestSignature({ strategyId: 'tt', config: { x: 1 }, market: market() })).toBe(
-      'ab83afe00fc67470',
+      '92ae232180d39df1',
     );
   });
 
@@ -131,5 +132,26 @@ describe('signatureForBacktest', () => {
       market: market(),
     });
     expect(a.signature).toBe(b.signature);
+  });
+});
+
+describe('snapshotRunnable', () => {
+  const frozen = { strategyVersion: '1', engineRevision: BACKTEST_ENGINE_REVISION, buildId: 'abc' };
+
+  it('runs a snapshot frozen on this version and build', () => {
+    expect(snapshotRunnable(frozen, '1', 'abc')).toBe(true);
+  });
+
+  it('refuses another strategy version, engine revision or build', () => {
+    expect(snapshotRunnable(frozen, '2', 'abc')).toBe(false);
+    expect(
+      snapshotRunnable({ ...frozen, engineRevision: BACKTEST_ENGINE_REVISION - 1 }, '1', 'abc'),
+    ).toBe(false);
+    expect(snapshotRunnable(frozen, '1', 'def')).toBe(false);
+  });
+
+  it('runs when either build id is unknown', () => {
+    expect(snapshotRunnable({ ...frozen, buildId: 'unknown' }, '1', 'def')).toBe(true);
+    expect(snapshotRunnable(frozen, '1', 'unknown')).toBe(true);
   });
 });

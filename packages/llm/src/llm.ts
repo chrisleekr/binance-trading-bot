@@ -18,19 +18,14 @@ import { createOpenAiCompatClient } from './providers/openai-compatible.js';
 export interface LlmAssist {
   readonly available: boolean;
   /**
-   * Advise on a single backtest: given the strategy's config schema (what may
-   * change, with bounds) and the run's full context (config tested, params,
-   * metrics, why-it-didn't-trade breakdown, regime split, out-of-sample
-   * holdout), propose config-change suggestions as path/value patches. The
-   * caller validates each patched config against the strategy schema before it
-   * reaches the operator.
+   * Advise on a single backtest: given the strategy's config schema (what may change, with bounds) and the run's full context (config tested, params, metrics, why-it-didn't-trade breakdown, regime split, Recent-period check), propose config-change suggestions as path/value patches. The caller validates each patched config against the strategy schema before it reaches the operator.
    */
   improveConfig(input: ImproveConfigInput, mode: ImproveConfigMode): Promise<ImproveConfigResponse>;
 }
 
 /** Inputs the advisor reads about a run: the strategy's config schema (what may
  * change, with bounds) and the run's full context (config, params, metrics,
- * why-it-didn't-trade breakdown, regime split, out-of-sample holdout). Shared by
+ * why-it-didn't-trade breakdown, regime split, Recent-period check). Shared by
  * the server call and the manual-prompt builder so both render the same content. */
 export interface ImproveConfigInput {
   strategyName: string;
@@ -95,7 +90,12 @@ const IMPROVE_SYSTEM =
   'forward performance — not the in-sample number. The live-enablement gate ' +
   'decides go-live on exactly these metrics: data coverage (no gaps), profit ' +
   'factor, closed-trade count, alpha vs hold, and the same three over the ' +
-  'out-of-sample holdout. The run context carries that gate checklist with each ' +
+  'Recent-period check. The Recent-period check (the `outOfSample` field) is the ' +
+  'most recent slice of this same run: the config may already have been examined ' +
+  'on it, so passing is evidence and never proof of live readiness. `modelNotes` ' +
+  'lists where the replay departs from live, such as a fixed symbol basket and ' +
+  'unmodelled worker pauses; they are not data faults, so never suggest a config ' +
+  'change to clear one, but discount any result they flatter. The run context carries that gate checklist with each ' +
   'pass/fail, so aim your changes at the FAILING checks first, starting with the ' +
   'binding one. Treat cagr, calmar, sharpe, sortino, and sqn as diagnostic ' +
   'context only — they annualize or need many trades, so they read as noise on ' +
@@ -121,11 +121,11 @@ const IMPROVE_SYSTEM =
   'intra-candle fills are inherent and cannot be tuned away — treat them as a ' +
   'caveat on the numbers, not a fixable setting. Justify each change from the ' +
   'run: a decision breakdown that shows a constraint blocked many entries, a ' +
-  'regime split, the out-of-sample holdout, the downsampled equity/drawdown ' +
+  'regime split, the Recent-period check, the downsampled equity/drawdown ' +
   'curves (long flat stretches mean capital sat idle while the market moved), and ' +
   'the exit-reason mix (which mechanism closed positions — a premature ' +
   'technicals force-sell drag is very different from trailing-stop exits). Prefer changes whose benefit holds ' +
-  'across regimes and the holdout; a gain visible only in-sample is overfitting ' +
+  'across regimes and the Recent-period check; a gain visible only outside it is overfitting ' +
   '— flag it via overfitRisk and prefer not to suggest it. Never recommend ' +
   'disabling the bearish technical-rating veto or otherwise buying into a ' +
   'downtrend. Emit each change as path/value patches against the provided config ' +
@@ -138,11 +138,11 @@ const IMPROVE_SYSTEM =
   'bound of a field is unclear, leave it unchanged rather than guess. ' +
   'If the honest read is that no change beats holding cash, say so in `summary` ' +
   'and return few or no suggestions. You advise; the operator reviews, re-runs, ' +
-  'and the out-of-sample gate still decides go-live.';
+  'and passing the live-gate checklist is still no proof the config will work live.';
 
 // EXPLORE mode: the operator has opted into bold, higher-variance ideas. Same
 // hard guardrails as the safe prompt (bearish veto, documented bounds, stored
-// units, data-first honesty, the out-of-sample gate), but it PROPOSES rather than
+// units, data-first honesty, the live-gate checklist), but it PROPOSES rather than
 // withholds — bold changes are framed as hypotheses to test on a re-run, and
 // sizing is allowed only with the honest caveat that it amplifies edge, never
 // creates it. The shared base for every non-`safe` variant; `systemForMode`
@@ -152,7 +152,10 @@ const IMPROVE_SYSTEM_BOLD =
   'backtest, in EXPLORE mode: the operator has explicitly asked for bold, ' +
   'higher-variance ideas, so propose 2 to 4 concrete changes worth TESTING even ' +
   'when the safe read is to hold — each is a HYPOTHESIS to validate on a re-run, ' +
-  'never a validated fix, and the out-of-sample gate still decides go-live. Lean ' +
+  'never a validated fix. The Recent-period check (the `outOfSample` field) is the ' +
+  'most recent slice of this same run, so passing it is evidence and never proof ' +
+  'of live readiness. `modelNotes` lists where the replay departs from live; they ' +
+  'are not data faults, so discount any result they flatter. Lean ' +
   'into what the run shows: if a tight trailing stop or profit trigger cut ' +
   'winners short while a trend ran past (a flat equity curve against a large ' +
   'marketChangePct, exits dominated by grid-sell or technicals-force-sell), give ' +
@@ -171,7 +174,7 @@ const IMPROVE_SYSTEM_BOLD =
   'configurations rather than a few directed edits, say so rather than forcing it ' +
   'into patches. The ' +
   'live gate still scores data coverage, profit factor, closed trades, alpha vs ' +
-  'hold, and the same over the holdout; treat cagr/calmar/sharpe/sortino/sqn as ' +
+  'hold, and the same over the Recent-period check; treat cagr/calmar/sharpe/sortino/sqn as ' +
   'diagnostic only, never a tuning target. Never recommend disabling the bearish ' +
   'technical-rating veto or otherwise buying into a downtrend, and do not propose a ' +
   'finer detail interval when `fillRealism.finerDetailAvailable` is false. Emit ' +
@@ -179,7 +182,7 @@ const IMPROVE_SYSTEM_BOLD =
   'existing field paths and values within documented bounds, every value in the ' +
   'stored units the schema defines (a percent or fraction field is a decimal in its ' +
   'documented range, commonly (0, 1], so half is 0.5, NOT 50). You advise; the ' +
-  'operator reviews, re-runs, and the out-of-sample gate still decides go-live.';
+  'operator reviews and re-runs, and passing the live-gate checklist is still no proof the config will work live.';
 
 // Per-variant focus appended to the shared EXPLORE base, so each button steers the
 // same bold advisor at a different lever without duplicating the guardrails.
@@ -224,8 +227,9 @@ const improveConfigUserContent = (input: ImproveConfigInput): string =>
   'v1,v2,...` on one line; a non-uniform array uses `- ` list items; nested ' +
   'objects use indentation; values carry the same meaning as JSON). Sections: ' +
   'config tested, parameters, metrics, live-gate checklist, data-coverage ' +
-  "warnings, trade-or-hold baseline, fill-model realism, why-it-didn't-trade " +
-  'breakdown, regime split, out-of-sample holdout, round-trip sample.\n' +
+  'warnings, model notes (where the replay departs from live), simulation ' +
+  "metadata, trade-or-hold baseline, fill-model realism, why-it-didn't-trade " +
+  'breakdown, regime split, Recent-period check (`outOfSample`), round-trip sample.\n' +
   `${toonEncode(input.context)}`;
 
 /**

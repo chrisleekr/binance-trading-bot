@@ -8,7 +8,7 @@
 // was helping or just blocking. They never bypass the bearish technical-rating
 // veto (that is the gate keeping the bot out of a downtrend), and they are never
 // ranked by in-sample return. The honest loop is unchanged: load → re-run →
-// clear the out-of-sample gate → apply to live.
+// compare the new run → apply to live.
 
 import { tokenizePath } from '@app/contracts';
 import type {

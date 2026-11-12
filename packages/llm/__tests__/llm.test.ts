@@ -1,4 +1,4 @@
-import type { AiProviderConfig } from '@app/contracts';
+import { ImproveConfigMode, type AiProviderConfig } from '@app/contracts';
 import { describe, expect, it } from 'vitest';
 import { buildImproveConfigManualPrompt, createLlm } from '../src/llm.js';
 
@@ -68,6 +68,19 @@ describe('buildImproveConfigManualPrompt', () => {
     expect(prompt).toContain('Respond with ONLY a JSON object');
     expect(prompt).toContain('"suggestions"'); // the expected output schema
   });
+
+  it.each(ImproveConfigMode.options)(
+    'calls the recent slice the Recent-period check and claims nothing about it in %s mode',
+    (mode) => {
+      const prompt = buildImproveConfigManualPrompt(
+        { strategyName: 'tt', strategyVersion: '1', configSchema: {}, context: {} },
+        mode,
+      );
+      expect(prompt).toContain('Recent-period check');
+      expect(prompt).toContain('never proof of live readiness');
+      expect(prompt).not.toMatch(/untouched|holdout|never-seen/i);
+    },
+  );
 
   it('describes and renders TOON 4 nested objects and uniform object arrays consistently', () => {
     const prompt = buildImproveConfigManualPrompt(

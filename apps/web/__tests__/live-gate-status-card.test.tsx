@@ -70,10 +70,10 @@ describe('LiveGateStatusCard', () => {
       applicability: 'gated',
       ok: true,
       failure: null,
-      detail: 'current config is validated by a recent passing backtest',
+      detail: 'a recent backtest of the current config cleared the thresholds',
     });
     const el = await screen.findByTestId('gate-status-state');
-    expect(el).toHaveTextContent('Live trading validated.');
+    expect(el).toHaveTextContent('Backtest check cleared.');
     expect(el).toHaveAttribute('data-gate-tone', 'up');
   });
 
@@ -85,7 +85,7 @@ describe('LiveGateStatusCard', () => {
       detail: 'the backtest does not clear the gate — profit factor 1.00 (need >= 1.1)',
     });
     const el = await screen.findByTestId('gate-status-state');
-    expect(el).toHaveTextContent('Unproven config.');
+    expect(el).toHaveTextContent('Backtest check not cleared.');
     expect(el).toHaveTextContent(/heads-up/);
     expect(el).toHaveAttribute('data-gate-tone', 'warning');
     // The unproven state offers a one-click path to prove the current config,
@@ -103,7 +103,7 @@ describe('LiveGateStatusCard', () => {
       applicability: 'gated',
       ok: true,
       failure: null,
-      detail: 'current config is validated by a recent passing backtest',
+      detail: 'a recent backtest of the current config cleared the thresholds',
     });
     await screen.findByTestId('gate-status-state');
     expect(screen.queryByTestId('gate-run-current-config')).not.toBeInTheDocument();

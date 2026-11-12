@@ -23,9 +23,13 @@ const PROFILE_ID = '4d2f9f4a-1c9c-4e5f-9a1d-3b6f7c8e0a2c';
 const ACCOUNT_ID = '00000000-0000-4000-8000-0000000000ac';
 
 describe('pickHealthHeadline', () => {
-  const gateWarn = { tone: 'warning' as const, title: 'Unproven config.', body: 'gate body' };
+  const gateWarn = {
+    tone: 'warning' as const,
+    title: 'Backtest check not cleared.',
+    body: 'gate body',
+  };
   const gateDown = { tone: 'down' as const, title: 'New buys paused.', body: 'gate body' };
-  const gateUp = { tone: 'up' as const, title: 'Live trading validated.', body: 'gate body' };
+  const gateUp = { tone: 'up' as const, title: 'Backtest check cleared.', body: 'gate body' };
 
   it('returns the gate headline when there is no edge verdict', () => {
     expect(pickHealthHeadline(gateWarn, null)).toEqual(gateWarn);
@@ -207,6 +211,7 @@ const stubEdgeFetch = (feeBasis: FeeBasis) => {
           slippageBps: 5,
           discoveryMode: false,
         },
+        matchesProfile: true,
         result: {
           params: {
             symbols: ['BTCUSDT'],
@@ -293,9 +298,9 @@ describe('ProfileHealthStrip', () => {
     renderStrip();
 
     const toggle = await screen.findByTestId('profile-health-strip-toggle');
-    // The gate is advisory-only now: an unproven config reads "Unproven config."
+    // The gate is advisory-only now: an unproven config reads "Backtest check not cleared."
     // (it never pauses buys), not the removed "New buys paused." halt copy.
-    expect(toggle).toHaveTextContent('Unproven config.');
+    expect(toggle).toHaveTextContent('Backtest check not cleared.');
     // Detail cards are hidden until expanded.
     expect(screen.queryByTestId('live-gate-status-card')).toBeNull();
 
@@ -312,7 +317,7 @@ describe('ProfileHealthStrip', () => {
     const toggle = await screen.findByTestId('profile-health-strip-toggle');
     // Once the edge query resolves to "breached", it outranks the warning gate.
     await waitFor(() => expect(toggle).toHaveTextContent('Edge below baseline.'));
-    expect(toggle).not.toHaveTextContent('Unproven config.');
+    expect(toggle).not.toHaveTextContent('Backtest check not cleared.');
     // ...and the backtest CTA goes with it. A breached edge is not fixed by
     // re-running a backtest, so the headline it owns must not inherit that
     // action. This is the `tone !== 'down'` clause; without an assertion it can
@@ -330,7 +335,7 @@ describe('ProfileHealthStrip', () => {
         true,
       ),
     );
-    expect(toggle).toHaveTextContent('Unproven config.');
+    expect(toggle).toHaveTextContent('Backtest check not cleared.');
     expect(toggle).not.toHaveTextContent('Edge below baseline.');
   });
 
@@ -341,7 +346,7 @@ describe('ProfileHealthStrip', () => {
 
     const toggle = await screen.findByTestId('profile-health-strip-toggle');
     await waitFor(() => expect(toggle).toHaveTextContent('Edge below baseline.'));
-    expect(toggle).not.toHaveTextContent('Unproven config.');
+    expect(toggle).not.toHaveTextContent('Backtest check not cleared.');
   });
 
   it('offers the backtest CTA on the collapsed line when the gate is merely unproven', async () => {

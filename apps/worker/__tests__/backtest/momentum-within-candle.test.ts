@@ -3,7 +3,7 @@ import type { Candle } from '@app/strategy-core';
 import { OhlcvFillModel, arrayMarketDataSource, runBacktest } from '@app/strategy-backtest';
 import { buildStrategyRegistry } from '@app/strategy-registry';
 
-// Scope: proves momentum's REAL profit trail sells inside a daily candle when the engine replays it minute by minute, and holds through the same candle when it does not. The engine and runner tests use probe strategies; this is the one that ties the capability to the exit it exists for.
+// Scope: proves momentum's REAL profit trail sells inside a daily candle when the decision clock is one minute, and holds through the same candle when it does not. The engine and runner tests use probe strategies; this is the one that ties the capability to the exit it exists for.
 
 const DAY = 86_400_000;
 const MIN = 60_000;
@@ -84,7 +84,7 @@ function series(): { coarse: Candle[]; detail: Candle[] } {
   return { coarse, detail };
 }
 
-async function run(intraCandle: boolean) {
+async function run(decisionMs: number) {
   const momentum = buildStrategyRegistry().get('momentum');
   if (!momentum) throw new Error('momentum not registered');
   const config = momentum.configSchema.parse({
@@ -98,25 +98,28 @@ async function run(intraCandle: boolean) {
     trailingStopPct: '0.1',
   });
   const { coarse, detail } = series();
+  const closedBy = (candles: readonly Candle[], asOfMs: number): readonly Candle[] =>
+    candles.filter((c) => c.closeTimeMs <= asOfMs).slice(-500);
   return runBacktest({
     strategy: momentum as never,
     config,
-    dataSource: arrayMarketDataSource([
-      { symbol: 'BTCUSDT', interval: '1d', candles: coarse, detailCandles: detail },
-    ]),
+    dataSource: arrayMarketDataSource([{ symbol: 'BTCUSDT', interval: '1m', candles: detail }]),
     fillModel: new OhlcvFillModel({ makerBps: 0, takerBps: 0, slippageBps: 0 }),
-    request: { symbols: ['BTCUSDT'], intervals: ['1d'], fromMs: 0, toMs: 18 * DAY },
+    request: { symbols: ['BTCUSDT'], intervals: ['1m'], fromMs: 15 * DAY, toMs: 18 * DAY },
     initialBalances: { USDT: '1000' },
     quoteAsset: 'USDT',
     symbolInfos: [SYMBOL_INFO],
-    startupCandleCount: 5,
-    ...(intraCandle ? { intraCandle: { interval: '1m' as const } } : {}),
+    decisionClock: { intervalMs: decisionMs, strategyInterval: '1d' },
+    auxiliaryWindows: ({ asOfMs }) => ({
+      '1d': closedBy(coarse, asOfMs),
+      '1m': closedBy(detail, asOfMs),
+    }),
   });
 }
 
-describe('momentum profit trail under within-candle ticking', () => {
+describe('momentum profit trail on the decision clock', () => {
   it('sells inside the day the trade ran up and fell back, above its entry', async () => {
-    const report = await run(true);
+    const report = await run(MIN);
     const buy = report.trades.find((t) => t.side === 'BUY');
     const sell = report.trades.find((t) => t.side === 'SELL');
     expect(buy).toBeDefined();
@@ -130,8 +133,8 @@ describe('momentum profit trail under within-candle ticking', () => {
     // Replaying every 1m tick of 17 days is the point of the test; under coverage on the CI runner it took 5.2s, past the 5s default.
   }, 30_000);
 
-  it('holds through that day when the replay ticks once per candle', async () => {
-    const report = await run(false);
+  it('holds through that day when the replay decides once per candle', async () => {
+    const report = await run(DAY);
     expect(report.trades.find((t) => t.side === 'BUY')).toBeDefined();
     const sellsOnDay16 = report.trades.filter(
       (t) => t.side === 'SELL' && t.tsMs >= 16 * DAY && t.tsMs < 17 * DAY,

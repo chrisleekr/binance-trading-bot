@@ -25,10 +25,7 @@ export interface BacktestLlmAdvisorProps {
   /** The config that produced this run — the base the chosen patches compose onto. */
   readonly config: Record<string, unknown>;
   /**
-   * Load the composed config (base + the selected suggestions) into the Setup
-   * form. Same loop as the rule-based panel: never writes live config, never
-   * runs — the operator reviews, runs it, and the out-of-sample gate still
-   * stands before "Apply to live".
+   * Load the composed config (base + the selected suggestions) into the Setup form. Same loop as the rule-based panel: never writes live config and never runs, so the operator reviews and runs it before "Apply to live".
    */
   readonly onApply: (nextConfig: Record<string, unknown>) => void;
 }
@@ -91,8 +88,7 @@ interface AdvisorViewState {
  *    server-side provider: it shows the exact prompt to copy into an AI chat
  *    and a box to paste the reply back, persisted to the `manual` slot.
  * Either source yields the same suggestion cards; the operator multi-selects and
- * loads them into Setup. Nothing touches live config, and the out-of-sample gate
- * still decides go-live.
+ * loads them into Setup. Nothing touches live config.
  */
 export function BacktestLlmAdvisor({
   profileId,
@@ -236,10 +232,10 @@ export function BacktestLlmAdvisor({
         </h2>
         <p className="text-xs">
           The AI reads this run — the metrics, what blocked entries, the per-regime split, and the
-          out-of-sample holdout — and suggests config changes aimed at forward performance, not the
+          Recent-period check — and suggests config changes aimed at forward performance, not the
           in-sample number. Suggestions are saved to this run, so they survive a reload. Review
           each, load the ones you want into Setup, and run it yourself. Nothing touches your live
-          config, and the out-of-sample gate still stands before going live.
+          config, and a suggestion is a hypothesis until you test it.
         </p>
       </div>
 
@@ -271,8 +267,7 @@ export function BacktestLlmAdvisor({
           <p className="text-xs">
             Pick how the AI reads this run. <strong>Safe</strong> suggests only high-confidence
             changes and says HOLD when nothing beats holding. The others explore a bolder direction
-            — hypotheses to test, still gated by the out-of-sample gate. A saved variant opens
-            instantly.
+            — hypotheses to test, not recommendations. A saved variant opens instantly.
           </p>
           <p
             role="note"
@@ -498,8 +493,8 @@ export function BacktestLlmAdvisor({
                         : `Load ${chosen.length} change${chosen.length > 1 ? 's' : ''} into Setup`}
                     </Button>
                     <p className="text-xs text-muted-fg">
-                      Loads into the Setup form for review. You run the backtest, and the new run
-                      must clear the out-of-sample gate before you can apply it to live.
+                      Loads into the Setup form for review. You run the backtest and judge the new
+                      run yourself.
                     </p>
                   </div>
                 </>

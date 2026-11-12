@@ -263,6 +263,45 @@ describe('buildImproveInput', () => {
     expect(ctx.tradeOrHold).not.toBeNull();
   });
 
+  it('sends the replay limitations and metadata with the current result', () => {
+    const { input: built } = buildImproveInput({
+      strategyName: 'trailing-trade',
+      strategyVersion: '1.2.3',
+      configSchema,
+      configSchemaDoc: {},
+      profileConfig,
+      result: { ...validResult(), modelNotes: ['fixed basket'] },
+      priorRuns: { total: 0, sample: [] },
+      policy,
+    });
+    const ctx = built.context as Record<string, unknown>;
+    expect(ctx.modelNotes).toEqual(['fixed basket']);
+    expect(ctx.simulation).toBeNull();
+  });
+
+  it('sends the replay metadata when the result carries it', () => {
+    const simulation = {
+      engineRevision: 3,
+      buildId: 'abc1234',
+      strategyName: 'trailing-trade',
+      strategyVersion: '1.2.3',
+      decisionInterval: '1h',
+      dataFingerprint: 'data',
+      contextFingerprint: 'context',
+    };
+    const { input: built } = buildImproveInput({
+      strategyName: 'trailing-trade',
+      strategyVersion: '1.2.3',
+      configSchema,
+      configSchemaDoc: {},
+      profileConfig,
+      result: { ...validResult(), simulation },
+      priorRuns: { total: 0, sample: [] },
+      policy,
+    });
+    expect((built.context as Record<string, unknown>).simulation).toEqual(simulation);
+  });
+
   it('degrades to an empty gate checklist and null verdict when the result does not fully parse', () => {
     const partial = { params: {}, metrics: { totalReturnPct: 1 } } as unknown as BacktestResult;
     const { input: built } = buildImproveInput({

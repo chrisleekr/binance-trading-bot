@@ -29,5 +29,5 @@ export type { SymbolCandles } from './portfolio-source.js';
 
 export { OhlcvFillModel } from './ohlcv-fill.js';
 export type { OhlcvFillModelOptions } from './ohlcv-fill.js';
-export { runBacktest } from './run.js';
+export { canonicalSymbols, runBacktest } from './run.js';
 export type { RunBacktestOptions } from './run.js';

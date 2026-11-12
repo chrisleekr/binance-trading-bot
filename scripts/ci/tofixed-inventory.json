@@ -17,7 +17,7 @@
     "sites": [
       "to-fixed: title: `${r.regime} regime: negative alpha vs hold (${r.alphaVsHoldPct.toFixed(2)}%)`,",
       "to-fixed: title: `Lost to buy-and-hold by ${Math.abs(m.alphaVsHoldPct).toFixed(2)}% (negative alpha vs hold)`,",
-      "to-fixed: title: `Out-of-sample holdout underperformed hold (${oos.alphaVsHoldPct.toFixed(2)}%)`,"
+      "to-fixed: title: `Recent period underperformed hold (${oos.alphaVsHoldPct.toFixed(2)}%)`,"
     ]
   },
   "apps/web/src/features/dashboard/components/live-vs-backtest-card.tsx": {

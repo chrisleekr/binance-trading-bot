@@ -24,8 +24,7 @@ import {
 } from './results-format';
 
 /**
- * The deep tables — regime, out-of-sample, decision breakdown, fills, per-symbol
- * — all rendered in full so every detail is on the page, not behind a disclosure.
+ * The deep tables (regime, recent-period, decision breakdown, fills, per-symbol), all rendered in full so every detail is on the page, not behind a disclosure.
  */
 export function ResultsTablesSection({
   result,
@@ -107,23 +106,23 @@ export function ResultsTablesSection({
       >
         <div className="flex items-center gap-1">
           <h2 id="bt-oos-h" className="text-sm font-semibold text-fg">
-            Out-of-sample check
+            Recent-period check
             {result.outOfSample ? ` · recent ${oosPctLabel(result.outOfSample.fraction)}` : ''}
           </h2>
-          <InfoHint label="Out-of-sample check">
-            The same numbers over only the most recent slice you did not tune against. A real edge
-            still shows here; an over-fitted one falls apart.
+          <InfoHint label="Recent-period check">
+            The same numbers over only the most recent part of this run. You may already have looked
+            at it while tuning, so a pass is evidence, not proof.
           </InfoHint>
         </div>
         <p className="text-xs text-muted-fg">
-          The same metrics over only the most-recent slice of the window — the part you did not tune
-          against. A real edge holds up here; a curve-fit one looks strong over the full run but
-          weak out-of-sample.
+          The same metrics over only the most recent part of the window. A strategy that only looks
+          good over the full run tends to fade here, but you may already have examined this period,
+          so a pass is evidence, not proof it will work live.
         </p>
         {result.outOfSample ? (
           <>
             <p className="text-xs text-muted-fg">
-              Holdout window: {formatInstant(result.outOfSample.fromMs, timeZone)} →{' '}
+              Recent period: {formatInstant(result.outOfSample.fromMs, timeZone)} →{' '}
               {formatInstant(result.outOfSample.toMs, timeZone)}
             </p>
             <div className="overflow-x-auto">
@@ -163,8 +162,8 @@ export function ResultsTablesSection({
           </>
         ) : (
           <p className="text-xs text-muted-fg">
-            This run is too short to carve a holdout — widen the backtest window to get an
-            out-of-sample read.
+            The recent-period check is unavailable: this run is too short to set a recent period
+            aside, or it predates the check. Widen the window or re-run to get it.
           </p>
         )}
       </section>

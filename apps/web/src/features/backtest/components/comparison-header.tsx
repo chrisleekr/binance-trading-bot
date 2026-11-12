@@ -1,4 +1,4 @@
-import { sameMarket, type BacktestResult } from '@app/contracts';
+import { comparableBacktests, type BacktestResult } from '@app/contracts';
 
 import { useMemo, useState } from 'react';
 
@@ -54,7 +54,7 @@ export function ComparisonHeader({
   const active = options.find((o) => o.key === selected) ?? options[0];
   if (!active) return null;
   const anchorResult = active.anchor.result;
-  const comparable = sameMarket(viewed.params, anchorResult.params);
+  const { comparable, reason } = comparableBacktests(viewed, anchorResult);
   const deltas = comparable
     ? [
         {
@@ -108,7 +108,7 @@ export function ComparisonHeader({
         </div>
       ) : (
         <p className="text-xs text-muted-fg" data-testid="backtest-compare-incomparable">
-          Not comparable — different market window.
+          Not comparable: {reason}.
         </p>
       )}
     </section>

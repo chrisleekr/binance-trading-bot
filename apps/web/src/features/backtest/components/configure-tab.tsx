@@ -6,7 +6,7 @@
 
 import { ChevronDown } from 'lucide-react';
 
-import { BACKTEST_INTERVALS } from '@app/contracts';
+import { BACKTEST_DECISION_INTERVALS, BACKTEST_INTERVALS } from '@app/contracts';
 import { Alert, AlertDescription, AlertTitle } from '@/shared/components/ui/alert';
 import { Button } from '@/shared/components/ui/button';
 import { CostModelFields } from '@/shared/components/cost-model-fields';
@@ -17,6 +17,7 @@ import { PanelStackSkeleton } from '@/shared/components/page-skeleton';
 import { SymbolPicker } from '@/features/backtest/components/symbol-picker';
 import { StrategyPreviewPanel } from '@/features/symbol/preview/strategy-preview-panel';
 import { Select } from '@/shared/components/ui/select';
+import { detailFits } from './use-backtest-config';
 import type { BacktestWorkbench, ParamState } from './use-backtest-workbench';
 
 /** One-click backtest windows ending "now", labelled by length. */
@@ -43,6 +44,8 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
     params,
     setParam,
     applyWindowPreset,
+    candleInterval,
+    exitsWithinCandle,
     decisionInterval,
     detailIntervalTooCoarse,
     configSchema,
@@ -118,6 +121,29 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
             <Input id="bt-to" type="datetime-local" value={params.to} onChange={setParam('to')} />
           </div>
           <div className="space-y-1">
+            <Label htmlFor="bt-decision-interval">Decision interval</Label>
+            <Select
+              id="bt-decision-interval"
+              className="w-full"
+              value={params.decisionInterval}
+              onChange={setParam('decisionInterval')}
+            >
+              <option value="">
+                Automatic ({exitsWithinCandle ? '1m' : 'follows Candle Interval'})
+              </option>
+              {BACKTEST_DECISION_INTERVALS.map((i) => (
+                <option key={i} value={i}>
+                  {i}
+                </option>
+              ))}
+            </Select>
+            <p className="text-xs text-muted-fg">
+              How often the strategy gets to act in the replay. Live acts on every price update, so
+              even a 1-minute replay reacts slightly later than live; a slower setting runs faster
+              but reacts later still.
+            </p>
+          </div>
+          <div className="space-y-1">
             <Label htmlFor="bt-detail-interval">Detail interval</Label>
             <Select
               id="bt-detail-interval"
@@ -125,22 +151,25 @@ export function ConfigureTab({ wb }: { wb: BacktestWorkbench }): React.JSX.Eleme
               value={params.detailInterval}
               onChange={setParam('detailInterval')}
             >
-              {BACKTEST_INTERVALS.map((i) => (
+              {BACKTEST_INTERVALS.filter((i) =>
+                detailFits(i, decisionInterval, candleInterval),
+              ).map((i) => (
                 <option key={i} value={i}>
                   {i}
                 </option>
               ))}
             </Select>
             <p className="text-xs text-muted-fg">
-              Finer candles used to simulate price movement inside each strategy candle, for more
-              realistic fills. Must be the same as or finer than your{' '}
-              <span className="font-medium">Candle Interval</span> ({decisionInterval}), set in
-              Strategy config below.
+              Finer candles used to work out fills between decisions. Must divide the decision
+              interval ({decisionInterval}) and be no coarser than your{' '}
+              <span className="font-medium">Candle Interval</span> ({candleInterval}), set in
+              Strategy config below. From and To are rounded down to this interval when the run
+              starts.
             </p>
             {detailIntervalTooCoarse && (
               <p className="text-xs text-down">
-                Detail interval must be the same as or finer than your Candle Interval (
-                {decisionInterval}).
+                Detail interval must divide the decision interval ({decisionInterval}) and be no
+                coarser than your Candle Interval ({candleInterval}).
               </p>
             )}
           </div>

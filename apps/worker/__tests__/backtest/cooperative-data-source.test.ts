@@ -12,7 +12,7 @@ import {
   type StreamRequest,
   type SymbolCandles,
 } from '@app/strategy-backtest';
-import { cooperativeDataSource, throttleSleepMs } from '../../src/backtest/backtest-runner.js';
+import { cooperativeDataSource, throttleSleepMs } from '../../src/backtest/replay.js';
 
 const HOUR = 3_600_000;
 
@@ -106,17 +106,5 @@ describe('throttleSleepMs', () => {
     // share 0.5 -> equal work and sleep; 0.25 -> sleep 3x the work.
     expect(throttleSleepMs(50, 0.5)).toBe(50);
     expect(throttleSleepMs(30, 0.25)).toBe(90);
-  });
-
-  it('paces with a passed yielder instead of building its own', async () => {
-    let calls = 0;
-    const out = await collect(
-      cooperativeDataSource(arrayMarketDataSource(series(5)), { everyN: 1 }, async () => {
-        calls += 1;
-      }),
-    );
-    expect(out).toHaveLength(5);
-    // One call per tick on the shared budget; a stream that ignored the yielder would leave this at 0.
-    expect(calls).toBe(5);
   });
 });

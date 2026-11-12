@@ -25,9 +25,6 @@ interface ToolEntry {
   readonly annotations: {
     readonly destructiveHint?: boolean;
   };
-  readonly meta?: {
-    readonly 'anthropic/requiresUserInteraction'?: boolean;
-  };
 }
 
 const mountedApp = (): ApiHono => {
@@ -143,13 +140,6 @@ const namesAnnotatedDestructive = (tools: readonly ToolEntry[]): string[] =>
     .map((tool) => tool.name)
     .sort();
 
-/** Read off `meta`, not `annotations`: the client ignores the key anywhere else, so a tool carrying it under `annotations` is not interaction-gated however it reads in the table. */
-const namesMetaInteractive = (tools: readonly ToolEntry[]): string[] =>
-  tools
-    .filter((tool) => tool.meta?.['anthropic/requiresUserInteraction'] === true)
-    .map((tool) => tool.name)
-    .sort();
-
 const splitSignature = (sig: string): MountedRoute => {
   const boundary = sig.indexOf(' ');
   return { method: sig.slice(0, boundary), path: sig.slice(boundary + 1) };
@@ -199,14 +189,13 @@ describe('MCP tool table topology', () => {
       scope: 'mcp:trade',
       routes: [denied],
       annotations: { destructiveHint: true },
-      meta: { 'anthropic/requiresUserInteraction': true },
     };
     expect(deniedRoutesReachableByTool([...MCP_TOOLS, smuggler])).toEqual([denied]);
     // A denied route smuggled in as a tool target is also double-counted, so the partition itself refuses it even if the dedicated check were deleted.
     expect(multiplyClassified([...MCP_TOOLS, smuggler])).toEqual([denied]);
   });
 
-  it('marks trade tools destructive in annotations and interaction-gated in meta, and read tools neither', () => {
+  it('marks write tools destructive and read tools not', () => {
     const tradeNames = namesWithScope(MCP_TOOLS, 'mcp:trade');
     const readNames = namesWithScope(MCP_TOOLS, 'mcp:read');
     // Both halves of the implication need a population. Over two empty lists every equality below holds while asserting nothing, and a table carrying an unrecognised third scope would vanish from both sides at once.
@@ -215,9 +204,8 @@ describe('MCP tool table topology', () => {
     expect([...tradeNames, ...readNames].sort()).toEqual(MCP_TOOLS.map((tool) => tool.name).sort());
 
     expect(namesAnnotatedDestructive(MCP_TOOLS)).toEqual(tradeNames);
-    expect(namesMetaInteractive(MCP_TOOLS)).toEqual(tradeNames);
 
-    // Forward direction: a trade tool that forgets the hints drops out of the annotated set, so the model would get a one-tap approval on a real-money write.
+    // Forward direction: a trade tool that forgets the hint drops out of the annotated set, so the table no longer states that the write may be destructive.
     const bareTrade: ToolEntry = {
       name: 'bare_trade_tool',
       scope: 'mcp:trade',
@@ -227,22 +215,15 @@ describe('MCP tool table topology', () => {
     expect(namesAnnotatedDestructive([...MCP_TOOLS, bareTrade])).not.toEqual(
       namesWithScope([...MCP_TOOLS, bareTrade], 'mcp:trade'),
     );
-    expect(namesMetaInteractive([...MCP_TOOLS, bareTrade])).not.toEqual(
-      namesWithScope([...MCP_TOOLS, bareTrade], 'mcp:trade'),
-    );
 
-    // Reverse direction: a read tool marked destructive would teach the operator to approve prompts on reads, which is how a genuine write prompt stops being read.
+    // Reverse direction: a read tool marked destructive would blur the signal that separates a write from a read.
     const destructiveRead: ToolEntry = {
       name: 'destructive_read_tool',
       scope: 'mcp:read',
       routes: [],
       annotations: { destructiveHint: true },
-      meta: { 'anthropic/requiresUserInteraction': true },
     };
     expect(namesAnnotatedDestructive([...MCP_TOOLS, destructiveRead])).not.toEqual(
-      namesWithScope([...MCP_TOOLS, destructiveRead], 'mcp:trade'),
-    );
-    expect(namesMetaInteractive([...MCP_TOOLS, destructiveRead])).not.toEqual(
       namesWithScope([...MCP_TOOLS, destructiveRead], 'mcp:trade'),
     );
   });

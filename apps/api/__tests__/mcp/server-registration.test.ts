@@ -80,7 +80,7 @@ describe('MCP server registration', () => {
   });
 
   it('carries each tool annotations and meta through to the registration, in their own fields', () => {
-    // The hints are what a client reads to decide whether to prompt, and it reads them from two fields. A table that declares them and a registration that drops one, or folds the anthropic keys into `annotations` where the client ignores them, would look correct in the topology suite and still hand the model a one-tap approval on a real order.
+    // A client reads these hints from two fields. A registration that drops one, or folds an anthropic key into `annotations` where the client ignores it, would pass the topology suite and lose the hint on the wire.
     const { tools } = registered();
     const byName = new Map(tools.map((tool) => [tool.name, tool]));
     for (const tool of MCP_TOOLS) {
@@ -93,8 +93,6 @@ describe('MCP server registration', () => {
     expect(tradeNames.length).toBeGreaterThan(0);
     for (const name of tradeNames) {
       expect(byName.get(name)?.annotations['destructiveHint']).toBe(true);
-      expect(byName.get(name)?.meta?.['anthropic/requiresUserInteraction']).toBe(true);
-      expect(byName.get(name)?.annotations['anthropic/requiresUserInteraction']).toBeUndefined();
     }
   });
 

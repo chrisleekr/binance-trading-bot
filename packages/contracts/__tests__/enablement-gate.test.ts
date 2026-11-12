@@ -31,6 +31,7 @@ const cand = (over: Partial<GateCandidate> = {}): GateCandidate => ({
   configFingerprint: FP,
   createdAtMs: NOW,
   metrics: { profitFactor: 2, totalTrades: 50, alphaVsHoldPct: 5, outOfSample: null },
+  simulationSupported: true,
   ...over,
 });
 
@@ -174,6 +175,17 @@ describe('evaluateBacktestGate', () => {
       });
     }
   });
+
+  it('refuses a run the current replay rules cannot stand behind, ahead of its thresholds', () => {
+    // Failing metrics prove the refusal outranks the threshold check.
+    const out = run([
+      cand({
+        simulationSupported: false,
+        metrics: { profitFactor: 0.5, totalTrades: 1, alphaVsHoldPct: -5, outOfSample: null },
+      }),
+    ]);
+    expect(out).toEqual({ ok: false, failure: 'unsupported-simulation', runId: 'r1' });
+  });
 });
 
 describe('failedChecksDetail', () => {
@@ -198,6 +210,7 @@ describe('failedChecksDetail', () => {
 });
 
 describe('toGateCandidates', () => {
+  const CURRENT = { strategyName: 'trailing-trade', engineRevision: 3 };
   // A minimal but schema-valid BacktestResult so the parse path extracts metrics.
   const validResult = {
     params: {
@@ -210,6 +223,15 @@ describe('toGateCandidates', () => {
       fees: { makerBps: 10, takerBps: 10 },
       slippageBps: 5,
       discoveryMode: false,
+    },
+    simulation: {
+      engineRevision: 3,
+      buildId: 'abc1234',
+      strategyName: 'trailing-trade',
+      strategyVersion: '1.0.0',
+      decisionInterval: '1h',
+      dataFingerprint: 'data',
+      contextFingerprint: 'context',
     },
     metrics: {
       startingBalance: '1000',
@@ -250,7 +272,7 @@ describe('toGateCandidates', () => {
     const rows: BacktestRunLike[] = [
       { id: 'r1', configFingerprint: 'fp', createdAt: new Date(NOW), result: validResult },
     ];
-    expect(toGateCandidates(rows)).toEqual([
+    expect(toGateCandidates(rows, CURRENT)).toEqual([
       {
         runId: 'r1',
         configFingerprint: 'fp',
@@ -262,8 +284,27 @@ describe('toGateCandidates', () => {
           dataCoverageOk: true,
           outOfSample: null,
         },
+        simulationSupported: true,
       },
     ]);
+  });
+
+  it('marks a run without metadata, from an older engine or another strategy unsupported', () => {
+    const { simulation, ...legacy } = validResult;
+    const rows: BacktestRunLike[] = [legacy, validResult, validResult].map((result, i) => ({
+      id: `r${i}`,
+      configFingerprint: 'fp',
+      createdAt: new Date(NOW),
+      result,
+    }));
+    expect(simulation.engineRevision).toBe(3);
+    expect(toGateCandidates(rows, CURRENT)[0]?.simulationSupported).toBe(false);
+    expect(toGateCandidates(rows, { ...CURRENT, engineRevision: 4 })[1]?.simulationSupported).toBe(
+      false,
+    );
+    expect(
+      toGateCandidates(rows, { ...CURRENT, strategyName: 'momentum' })[2]?.simulationSupported,
+    ).toBe(false);
   });
 
   it('marks dataCoverageOk false when the run carried coverage warnings', () => {
@@ -271,7 +312,7 @@ describe('toGateCandidates', () => {
     const rows: BacktestRunLike[] = [
       { id: 'r4', configFingerprint: 'fp', createdAt: new Date(NOW), result: warned },
     ];
-    expect(toGateCandidates(rows)[0]?.metrics?.dataCoverageOk).toBe(false);
+    expect(toGateCandidates(rows, CURRENT)[0]?.metrics?.dataCoverageOk).toBe(false);
   });
 
   it('extracts the holdout metrics when the result carries an out-of-sample slice', () => {
@@ -294,7 +335,7 @@ describe('toGateCandidates', () => {
       { id: 'r3', configFingerprint: 'fp', createdAt: new Date(NOW), result: withHoldout },
     ];
     // trades → totalTrades; only the three gate figures are carried.
-    expect(toGateCandidates(rows)[0]?.metrics?.outOfSample).toEqual({
+    expect(toGateCandidates(rows, CURRENT)[0]?.metrics?.outOfSample).toEqual({
       profitFactor: 1.4,
       totalTrades: 25,
       alphaVsHoldPct: 2,
@@ -305,15 +346,23 @@ describe('toGateCandidates', () => {
     const rows: BacktestRunLike[] = [
       { id: 'r2', configFingerprint: null, createdAt: new Date(NOW), result: { junk: true } },
     ];
-    expect(toGateCandidates(rows)).toEqual([
-      { runId: 'r2', configFingerprint: null, createdAtMs: NOW, metrics: null },
+    expect(toGateCandidates(rows, CURRENT)).toEqual([
+      {
+        runId: 'r2',
+        configFingerprint: null,
+        createdAtMs: NOW,
+        metrics: null,
+        simulationSupported: false,
+      },
     ]);
   });
 });
 
 describe('describeGateOutcome', () => {
   it('describes a pass', () => {
-    expect(describeGateOutcome({ ok: true, runId: 'r1', matchedAtMs: NOW })).toMatch(/validated/);
+    expect(describeGateOutcome({ ok: true, runId: 'r1', matchedAtMs: NOW })).toMatch(
+      /cleared the thresholds/,
+    );
   });
   it('describes each failure variant', () => {
     expect(describeGateOutcome({ ok: false, failure: 'no-matching-backtest' })).toMatch(
@@ -325,12 +374,15 @@ describe('describeGateOutcome', () => {
     expect(describeGateOutcome({ ok: false, failure: 'unreadable-result', runId: 'r1' })).toMatch(
       /could not be read/,
     );
+    expect(
+      describeGateOutcome({ ok: false, failure: 'unsupported-simulation', runId: 'r1' }),
+    ).toMatch(/older replay rules/);
     const thresholds = run([
       cand({
         metrics: { profitFactor: 1.0, totalTrades: 50, alphaVsHoldPct: 5, outOfSample: null },
       }),
     ]);
-    expect(describeGateOutcome(thresholds)).toMatch(/does not clear the gate — profit factor/);
+    expect(describeGateOutcome(thresholds)).toMatch(/does not clear the gate: profit factor/);
   });
 });
 
@@ -419,7 +471,15 @@ describe('gateThresholdChecks', () => {
     const viaGate = evaluateBacktestGate({
       policy: { ...t, maxBacktestAgeDays: 14 },
       currentFingerprint: 'fp',
-      candidates: [{ runId: 'r', configFingerprint: 'fp', createdAtMs: NOW, metrics }],
+      candidates: [
+        {
+          runId: 'r',
+          configFingerprint: 'fp',
+          createdAtMs: NOW,
+          metrics,
+          simulationSupported: true,
+        },
+      ],
       nowMs: NOW,
     });
     expect(viaGate.ok).toBe(false);
@@ -442,9 +502,9 @@ describe('gateThresholdChecks', () => {
         'profit factor',
         'closed trades',
         'alpha vs hold',
-        'out-of-sample trades',
-        'out-of-sample profit factor',
-        'out-of-sample alpha vs hold',
+        'recent-period trades',
+        'recent-period profit factor',
+        'recent-period alpha vs hold',
       ]);
       expect(checks.every((c) => c.ok)).toBe(true);
     });
@@ -454,7 +514,7 @@ describe('gateThresholdChecks', () => {
         { ...clearing, outOfSample: oos({ profitFactor: 0.9 }) },
         tOn,
       );
-      expect(checks.find((c) => c.label === 'out-of-sample profit factor')).toMatchObject({
+      expect(checks.find((c) => c.label === 'recent-period profit factor')).toMatchObject({
         ok: false,
         actual: '0.90',
         need: '>= 1.1',
@@ -468,7 +528,7 @@ describe('gateThresholdChecks', () => {
         { ...clearing, outOfSample: { profitFactor: null, totalTrades: 40, alphaVsHoldPct: 2 } },
         tOn,
       );
-      expect(checks.find((c) => c.label === 'out-of-sample profit factor')).toMatchObject({
+      expect(checks.find((c) => c.label === 'recent-period profit factor')).toMatchObject({
         ok: false,
         actual: 'n/a',
       });
@@ -479,7 +539,7 @@ describe('gateThresholdChecks', () => {
         { ...clearing, outOfSample: oos({ alphaVsHoldPct: -1 }) },
         tOn,
       );
-      expect(checks.find((c) => c.label === 'out-of-sample alpha vs hold')).toMatchObject({
+      expect(checks.find((c) => c.label === 'recent-period alpha vs hold')).toMatchObject({
         ok: false,
         actual: '-1.00%',
       });
@@ -490,7 +550,7 @@ describe('gateThresholdChecks', () => {
         { ...clearing, outOfSample: oos({ totalTrades: 5 }) },
         tOn,
       );
-      expect(checks.find((c) => c.label === 'out-of-sample trades')).toMatchObject({
+      expect(checks.find((c) => c.label === 'recent-period trades')).toMatchObject({
         ok: false,
         actual: '5',
         need: '>= 20',
@@ -499,10 +559,10 @@ describe('gateThresholdChecks', () => {
 
     it('fails with a single "missing" check when the run carries no holdout', () => {
       const checks = gateThresholdChecks({ ...clearing, outOfSample: null }, tOn);
-      const oosChecks = checks.filter((c) => c.label.startsWith('out-of-sample'));
+      const oosChecks = checks.filter((c) => c.label.startsWith('recent-period'));
       expect(oosChecks).toEqual([
         {
-          label: 'out-of-sample validation',
+          label: 'recent-period check',
           ok: false,
           actual: 'missing',
           need: 're-run backtest',
@@ -512,7 +572,7 @@ describe('gateThresholdChecks', () => {
 
     it('skips the holdout checks entirely when requireOutOfSample is off', () => {
       const checks = gateThresholdChecks({ ...clearing, outOfSample: null }, t);
-      expect(checks.some((c) => c.label.startsWith('out-of-sample'))).toBe(false);
+      expect(checks.some((c) => c.label.startsWith('recent-period'))).toBe(false);
     });
 
     it('blocks the gate end-to-end when only the holdout fails', () => {
@@ -523,7 +583,15 @@ describe('gateThresholdChecks', () => {
       const out = evaluateBacktestGate({
         policy: { ...tOn, maxBacktestAgeDays: 14 },
         currentFingerprint: 'fp',
-        candidates: [{ runId: 'r', configFingerprint: 'fp', createdAtMs: NOW, metrics: failing }],
+        candidates: [
+          {
+            runId: 'r',
+            configFingerprint: 'fp',
+            createdAtMs: NOW,
+            metrics: failing,
+            simulationSupported: true,
+          },
+        ],
         nowMs: NOW,
       });
       expect(out).toMatchObject({ ok: false, failure: 'thresholds' });

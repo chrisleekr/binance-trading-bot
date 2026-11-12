@@ -69,7 +69,7 @@ vi.mock('../../src/executor/event-emitter.js', () => ({ emitEvent }));
 
 // Import after mocks are registered.
 const { registerBacktestWorker } = await import('../../src/queues/backtest-worker.js');
-const { BacktestCancelledError } = await import('../../src/backtest/backtest-runner.js');
+const { BacktestCancelledError } = await import('../../src/backtest/replay.js');
 
 const silentLogger = pino({ level: 'silent' });
 
@@ -102,7 +102,7 @@ const LEDGER_ENTRY = {
   configFingerprint: FP,
   strategyId: 'trailing-trade',
   symbols: ['BTCUSDT'],
-  window: { fromMs: 0, toMs: 1000, interval: '1h' },
+  window: { fromMs: 0, toMs: 1000, interval: '1h', contextFingerprint: null },
   params: {},
   outcome: { totalReturnPct: 7 },
 };

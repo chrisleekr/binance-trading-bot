@@ -45,6 +45,7 @@ export const createApiStrategyRegistry = (core: StrategyRegistry): ApiStrategyRe
         // is a real OPERATOR_ACTIONS member, so the cast to the closed type is
         // sound and lets the descriptor's `z.enum` field type check.
         operatorActions: [...s.capabilities.operatorActions] as OperatorAction[],
+        exitsWithinCandle: s.capabilities.exitsWithinCandle === true,
         // Plain string data — passed through verbatim, no JSON-Schema
         // conversion. Spread conditionally so the descriptor field stays
         // undefined for strategies that declare no attribution.

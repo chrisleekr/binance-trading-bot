@@ -79,6 +79,22 @@ export const candleIntervalMs = (interval: string): number | null =>
 // validator); this owns only the canonical tuple they derive from.
 export const BACKTEST_INTERVALS = FIXED_DURATION_INTERVALS;
 
+// How often a backtest may call the strategy. Stops at 1d because a decision boundary is computed from the epoch: a 1w candle is Monday-aligned, so the epoch grid misses it, and 3d alignment with Binance is unverified.
+export const BACKTEST_DECISION_INTERVALS = [
+  '1m',
+  '3m',
+  '5m',
+  '15m',
+  '30m',
+  '1h',
+  '2h',
+  '4h',
+  '6h',
+  '8h',
+  '12h',
+  '1d',
+] as const;
+
 /** Every interval Binance's kline endpoints accept: `1s` plus the spine plus `1M`. */
 export const BINANCE_KLINE_INTERVALS = ['1s', ...FIXED_DURATION_INTERVALS, '1M'] as const;
 export type BinanceKlineInterval = (typeof BINANCE_KLINE_INTERVALS)[number];

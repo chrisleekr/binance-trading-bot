@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { profileRepo } from '@app/db';
-import { BacktestParamsSchema } from '@app/contracts';
-import { signatureForRun } from '../../src/backtest-signature.js';
+import { BACKTEST_ENGINE_REVISION, configFingerprint } from '@app/strategy-core';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
 const describeIfInfra = HAS_INFRA ? describe : describe.skip;
@@ -14,9 +13,10 @@ const acctFor = (fx: ApiFixture, profileId: string): string =>
 
 const validParams = {
   symbols: ['BTCUSDT'],
-  fromMs: 1_000,
-  toMs: 2_000,
+  fromMs: 300_000,
+  toMs: 600_000,
   strategyInterval: '1h',
+  decisionInterval: '5m',
   detailInterval: '5m',
   initialQuoteBalance: '1000',
   fees: { makerBps: 10, takerBps: 10 },
@@ -122,30 +122,26 @@ const completeRun = async (fx: ApiFixture, params: unknown, result: unknown): Pr
   return run.id;
 };
 
-// The signature the route stamps at completion: parse params through the schema
-// (so defaults like discoveryMode match the route's validated params) and sign
-// against the profile's stored config, exactly as signatureForRun does in the
-// handler. The worker does not run in tests, so a dedup test stamps this itself.
-const routeSignature = async (fx: ApiFixture, params: unknown): Promise<string> => {
-  const parsed = BacktestParamsSchema.parse(params);
+// A submission freezes the profile's config, and the fixture's stored config does not parse.
+const setupBacktestApp = async (): Promise<ApiFixture> => {
+  const fx = await setupApp();
+  const plugin = fx.di.strategies.get('trailing-trade');
+  if (!plugin) throw new Error('trailing-trade not registered');
+  const config = plugin.defaultConfig as Record<string, unknown>;
   const p = await profileRepo(fx.di.db, fx.alice.userId, fx.alice.accountId, fx.alice.profileId);
-  const profile = await p.profile.findById();
-  if (!profile) throw new Error('no profile for signature computation');
-  const sig = signatureForRun(
-    fx.di.strategies,
-    profile.strategyName,
-    profile.config,
-    parsed.strategyConfigOverride ?? null,
-    parsed,
-  );
-  if (!sig) throw new Error('expected a computable signature');
-  return sig.signature;
+  await p.profile.switchStrategy({
+    strategyName: 'trailing-trade',
+    strategyVersion: '2.0.0',
+    config,
+    state: plugin.initialState(config),
+  });
+  return fx;
 };
 
 describeIfInfra('backtests routes', () => {
   let fx: ApiFixture;
   beforeAll(async () => {
-    fx = await setupApp();
+    fx = await setupBacktestApp();
   });
   afterAll(async () => {
     if (fx) await fx.cleanup();
@@ -207,7 +203,7 @@ describeIfInfra('backtests routes', () => {
 
   it('GET list paginates by cursor with no overlap', async () => {
     // A fresh profile so the page math is independent of other tests' rows.
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       for (let i = 0; i < 3; i++) {
         const ok = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
@@ -247,7 +243,7 @@ describeIfInfra('backtests routes', () => {
 
   it('still accepts the legacy bare-ISO cursor, whose missing id keeps a same-timestamp group whole', async () => {
     // The wire contract documents this shape as accepted, and the new schema-level gate sits in front of it, so it needs a test of its own: `z.iso.datetime()` is STRICTER than the `Number.isNaN(new Date(...))` guard it replaced — it rejects a `+00:00` offset a Date parses happily — and nothing else would notice the branch closing.
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       for (let i = 0; i < 3; i++) {
         const ok = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
@@ -275,7 +271,7 @@ describeIfInfra('backtests routes', () => {
 
   it('GET list filters by outcome (profit / loss / error)', async () => {
     // Fresh profile so only the runs seeded here exist.
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const url = `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests`;
       const headers = { 'x-test-user-id': fresh.alice.userId };
@@ -305,7 +301,7 @@ describeIfInfra('backtests routes', () => {
 
   it('paginates a filtered list by cursor with no overlap', async () => {
     // Three profitable done runs; filter=profit must compose with the cursor.
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const url = `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests`;
       const headers = { 'x-test-user-id': fresh.alice.userId };
@@ -389,75 +385,8 @@ describeIfInfra('backtests routes', () => {
     expect(res.status).toBe(422);
   });
 
-  it('re-running an identical backtest dedups to the existing completed run without enqueuing', async () => {
-    const fresh = await setupApp();
-    try {
-      // A full profile config, so the route can parse it and compute the server-side backtest signature. The fixture seeds `config = '{}'`, which the real schema rejects, and a config that cannot be parsed signs as null.
-      const plugin = fresh.di.strategies.get('trailing-trade');
-      if (!plugin) throw new Error('trailing-trade not registered');
-      const fullConfig = plugin.defaultConfig as Record<string, unknown>;
-      const p = await profileRepo(
-        fresh.di.db,
-        fresh.alice.userId,
-        fresh.alice.accountId,
-        fresh.alice.profileId,
-      );
-      await p.profile.switchStrategy({
-        strategyName: 'trailing-trade',
-        strategyVersion: '2.0.0',
-        config: fullConfig,
-        state: plugin.initialState(fullConfig),
-      });
-
-      const params = {
-        ...validParams,
-        strategyConfigOverride: { sell: { triggerPercentage: '1.03' } },
-      };
-
-      // First create: a fresh run, then drive it to done (the worker is not run
-      // in tests). The worker stamps the executed signature at complete(); mirror
-      // that here so the second identical POST can dedup via findDoneBySignature.
-      const res1 = await post(fresh, fresh.alice.profileId, fresh.alice.userId, params);
-      expect(res1.status).toBe(202);
-      const body1 = (await res1.json()) as { runId: string; deduped?: boolean };
-      expect(body1.deduped).toBe(false);
-      await p.backtestRuns.markRunning(body1.runId);
-      await p.backtestRuns.complete(
-        body1.runId,
-        { metrics: { totalReturnPct: 1 } },
-        null,
-        await routeSignature(fresh, params),
-      );
-
-      const countBefore = (await p.backtestRuns.list({ limit: 100 })).length;
-
-      // Second create, identical params + override: must dedup to the first run.
-      const res2 = await post(fresh, fresh.alice.profileId, fresh.alice.userId, params);
-      expect([200, 202]).toContain(res2.status);
-      const body2 = (await res2.json()) as { runId: string; deduped?: boolean };
-      expect(body2.runId).toBe(body1.runId);
-      expect(body2.deduped).toBe(true);
-      // No new row was created, so nothing was enqueued.
-      expect((await p.backtestRuns.list({ limit: 100 })).length).toBe(countBefore);
-
-      // A different override is a different signature: a fresh run, not a dedup.
-      const other = {
-        ...validParams,
-        strategyConfigOverride: { sell: { triggerPercentage: '1.09' } },
-      };
-      const res3 = await post(fresh, fresh.alice.profileId, fresh.alice.userId, other);
-      expect(res3.status).toBe(202);
-      const body3 = (await res3.json()) as { runId: string; deduped?: boolean };
-      expect(body3.runId).not.toBe(body1.runId);
-      expect(body3.deduped).toBe(false);
-      expect((await p.backtestRuns.list({ limit: 100 })).length).toBe(countBefore + 1);
-    } finally {
-      await fresh.cleanup();
-    }
-  });
-
   it('C1 create with parentRunId of an owned run persists parent_run_id on the new run', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const parentId = await completeRun(fresh, validParams, { metrics: { totalReturnPct: 1 } });
       const res = await post(fresh, fresh.alice.profileId, fresh.alice.userId, {
@@ -479,7 +408,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('C8 create with a non-owned parentRunId persists null (no FK error, no cross-account link)', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       // A run owned by bob, not alice, plus a random non-existent uuid: neither is
       // an owned run, so the new run must carry a null parent rather than 500 on a
@@ -513,7 +442,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('C3 GET run detail exposes parentRunId (null for a run with no parent)', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -528,64 +457,10 @@ describeIfInfra('backtests routes', () => {
     }
   });
 
-  it('a re-run with parentRunId set still dedups to the existing run and stamps no lineage', async () => {
-    // C1 reaches the create path because the fixture seeds an empty profile config the real schema rejects, so its signature is null and nothing dedups. Hand the route a config that parses and the signature is computable, so an identical config+market dedups — and dedup wins over lineage: the existing run is reused and its parent_run_id stays null (no new stamp).
-    const fresh = await setupApp();
-    try {
-      const plugin = fresh.di.strategies.get('trailing-trade');
-      if (!plugin) throw new Error('trailing-trade not registered');
-      const fullConfig = plugin.defaultConfig as Record<string, unknown>;
-      const p = await profileRepo(
-        fresh.di.db,
-        fresh.alice.userId,
-        fresh.alice.accountId,
-        fresh.alice.profileId,
-      );
-      await p.profile.switchStrategy({
-        strategyName: 'trailing-trade',
-        strategyVersion: '2.0.0',
-        config: fullConfig,
-        state: plugin.initialState(fullConfig),
-      });
-      const params = {
-        ...validParams,
-        strategyConfigOverride: { sell: { triggerPercentage: '1.03' } },
-      };
-
-      // First create → a fresh run; drive it to done (the worker is not run here).
-      // Stamp the executed signature at complete() as the worker would.
-      const res1 = await post(fresh, fresh.alice.profileId, fresh.alice.userId, params);
-      const body1 = (await res1.json()) as { runId: string; deduped?: boolean };
-      expect(body1.deduped).toBe(false);
-      await p.backtestRuns.markRunning(body1.runId);
-      await p.backtestRuns.complete(
-        body1.runId,
-        { metrics: { totalReturnPct: 1 } },
-        null,
-        await routeSignature(fresh, params),
-      );
-      const countBefore = (await p.backtestRuns.list({ limit: 100 })).length;
-
-      // Identical config+market, now WITH parentRunId set: dedup wins over lineage.
-      const res2 = await post(fresh, fresh.alice.profileId, fresh.alice.userId, {
-        ...params,
-        parentRunId: body1.runId,
-      });
-      const body2 = (await res2.json()) as { runId: string; deduped?: boolean };
-      expect(body2.deduped).toBe(true);
-      expect(body2.runId).toBe(body1.runId);
-      // No new row was created, and the reused run's lineage is untouched.
-      expect((await p.backtestRuns.list({ limit: 100 })).length).toBe(countBefore);
-      expect((await p.backtestRuns.get(body1.runId))?.parentRunId).toBeNull();
-    } finally {
-      await fresh.cleanup();
-    }
-  });
-
   it("cross-account GET of another profile's run returns 404", async () => {
     // Fresh app so this run is isolated from the rows earlier tests leave on the
     // shared fixture.
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -606,7 +481,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('POST abort marks a queued run cancelled and returns its detail', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -647,7 +522,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('POST retry of an in-flight (queued) run returns 409', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -660,7 +535,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('POST retry of an aborted run creates a fresh queued run with a new id', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -683,7 +558,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('cross-account abort of another profile run returns 404', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -695,7 +570,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('DELETE removes a terminal (cancelled) run; a follow-up GET 404s', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -713,7 +588,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('DELETE of an in-flight (queued) run returns 409 — abort it first', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -736,7 +611,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('cross-account DELETE of another profile run returns 404', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -749,7 +624,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('DELETE of the pinned baseline returns 409 until it is un-pinned', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRun(fresh, validParams, { metrics: { totalReturnPct: 1 } });
       const pinned = await patchBaseline(fresh, fresh.alice.profileId, fresh.alice.userId, runId);
@@ -780,7 +655,7 @@ describeIfInfra('backtests routes', () => {
   };
 
   it('improve-config/prompt returns the manual prompt without needing an API key', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       // Assist disabled — the manual prompt must still build (no 503).
       fresh.di.resolveLlm = async () => ({
@@ -805,7 +680,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config/prompt uses the safe prompt by default', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       const res = await getPrompt(fresh, fresh.alice.profileId, fresh.alice.userId, runId);
@@ -825,7 +700,7 @@ describeIfInfra('backtests routes', () => {
     ['aggressive', 'larger position sizing'],
     ['defensive', 'cutting drawdown'],
   ])('improve-config/prompt steers the %s EXPLORE variant with its focus', async (mode, phrase) => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       const res = await getPrompt(fresh, fresh.alice.profileId, fresh.alice.userId, runId, mode);
@@ -850,7 +725,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config/prompt returns 409 on a run with no result yet', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -861,8 +736,57 @@ describeIfInfra('backtests routes', () => {
     }
   });
 
+  it('improve-config prompt carries no prior runs for a run from an unknown build', async () => {
+    const fresh = await setupBacktestApp();
+    try {
+      const plugin = fresh.di.strategies.get('trailing-trade');
+      const params = { ...validParams, strategyConfigOverride: plugin?.defaultConfig };
+      const p = await profileRepo(
+        fresh.di.db,
+        fresh.alice.userId,
+        fresh.alice.accountId,
+        fresh.alice.profileId,
+      );
+      const run = await p.backtestRuns.create({ symbols: ['BTCUSDT'], params });
+      await p.backtestRuns.markRunning(run.id);
+      await p.backtestRuns.complete(
+        run.id,
+        {
+          params,
+          metrics: { totalReturnPct: 1 },
+          decisionBreakdown: { metrics: [], logs: [] },
+          simulation: { buildId: 'unknown', contextFingerprint: 'context-a' },
+        },
+        null,
+        'current-run-signature',
+      );
+      // Same context string as the run: only the unknown build can keep this row out.
+      await p.resultLedger.upsert({
+        strategyId: 'trailing-trade',
+        symbols: ['BTCUSDT'],
+        window: {
+          fromMs: validParams.fromMs,
+          toMs: validParams.toMs,
+          interval: '1h',
+          contextFingerprint: 'context-a',
+        },
+        backtestSignature: 'other-sig',
+        configFingerprint: 'fp-other',
+        params: { marker: 'UNKNOWN_BUILD_MARKER' },
+        outcome: { totalReturnPct: 42.5 },
+      });
+
+      const res = await getPrompt(fresh, fresh.alice.profileId, fresh.alice.userId, run.id);
+      expect(res.status).toBe(200);
+      const { prompt } = (await res.json()) as { prompt: string };
+      expect(prompt).not.toContain('UNKNOWN_BUILD_MARKER');
+    } finally {
+      await fresh.cleanup();
+    }
+  });
+
   it('improve-config prompt carries prior same-market runs, excludes the current run by signature, and strips non-headline metrics', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const plugin = fresh.di.strategies.get('trailing-trade');
       const defaultConfig = plugin?.defaultConfig as Record<string, unknown>;
@@ -880,7 +804,12 @@ describeIfInfra('backtests routes', () => {
       const CURRENT_SIG = 'current-run-signature';
       await p.backtestRuns.complete(
         run.id,
-        { params, metrics: { totalReturnPct: 1 }, decisionBreakdown: { metrics: [], logs: [] } },
+        {
+          params,
+          metrics: { totalReturnPct: 1 },
+          decisionBreakdown: { metrics: [], logs: [] },
+          simulation: { contextFingerprint: 'context-a' },
+        },
         null,
         CURRENT_SIG,
       );
@@ -889,7 +818,12 @@ describeIfInfra('backtests routes', () => {
       const market = {
         strategyId: 'trailing-trade',
         symbols: ['BTCUSDT'],
-        window: { fromMs: 1_000, toMs: 2_000, interval: '1h' },
+        window: {
+          fromMs: validParams.fromMs,
+          toMs: validParams.toMs,
+          interval: '1h',
+          contextFingerprint: 'context-a',
+        },
       } as const;
       await p.resultLedger.upsert({
         ...market,
@@ -905,6 +839,14 @@ describeIfInfra('backtests routes', () => {
         params: { marker: 'CURRENT_RUN_MARKER' },
         outcome: { totalReturnPct: 1 },
       });
+      await p.resultLedger.upsert({
+        ...market,
+        window: { ...market.window, contextFingerprint: 'context-b' },
+        backtestSignature: 'other-context-sig',
+        configFingerprint: 'fp-context',
+        params: { marker: 'OTHER_CONTEXT_MARKER' },
+        outcome: { totalReturnPct: 3 },
+      });
 
       const res = await getPrompt(fresh, fresh.alice.profileId, fresh.alice.userId, run.id);
       expect(res.status).toBe(200);
@@ -913,6 +855,7 @@ describeIfInfra('backtests routes', () => {
       // Prior run present; the current run is excluded by its stored signature.
       expect(prompt).toContain('PRIOR_CONFIG_MARKER');
       expect(prompt).not.toContain('CURRENT_RUN_MARKER');
+      expect(prompt).not.toContain('OTHER_CONTEXT_MARKER');
       // Headline metric kept; a non-headline metric is stripped by compactMetrics.
       expect(prompt).toContain('42.5');
       expect(prompt).not.toContain('STRIP_ME');
@@ -922,7 +865,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config prompt downsamples the equity/drawdown curves and includes the exit-reason mix', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const plugin = fresh.di.strategies.get('trailing-trade');
       const defaultConfig = plugin?.defaultConfig as Record<string, unknown>;
@@ -1005,7 +948,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config prompt carries the live-gate checklist and data-coverage warnings', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const plugin = fresh.di.strategies.get('trailing-trade');
       const defaultConfig = plugin?.defaultConfig as Record<string, unknown>;
@@ -1095,7 +1038,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config prompt marks the finest strategy interval as having no finer detail available', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const plugin = fresh.di.strategies.get('trailing-trade');
       const defaultConfig = plugin?.defaultConfig as Record<string, unknown>;
@@ -1132,7 +1075,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config prompt degrades to empty gate checklist and null verdict when the stored result does not fully parse', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       // completeRunWithRegistry stores partial metrics ({ totalReturnPct: 1 }), so
       // toGateCandidates cannot parse the full result: gateMetrics is null. The
@@ -1150,7 +1093,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config/parse validates the reply and surfaces schema-invalid suggestions under `dropped`', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       const reply = JSON.stringify({
@@ -1202,7 +1145,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config/parse returns 409 on a run with no result yet', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const created = await post(fresh, fresh.alice.profileId, fresh.alice.userId, validParams);
       const { runId } = (await created.json()) as { runId: string };
@@ -1214,7 +1157,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config/parse extracts JSON from a markdown-fenced reply', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       const json = JSON.stringify({
@@ -1241,7 +1184,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config/parse returns 422 on a reply with no JSON object', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       const res = await postParse(
@@ -1258,7 +1201,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('improve-config/parse returns 422 on a JSON reply of the wrong shape', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       const res = await postParse(
@@ -1277,10 +1220,9 @@ describeIfInfra('backtests routes', () => {
   // Regression: a run whose override is a PARTIAL diff (the advisor/guided
   // shape, e.g. only the tuned keys) must be merged onto the profile config
   // before re-validation. Using the raw partial override as the base fails the
-  // full strategy schema and silently drops every suggestion. The fix mirrors
-  // backtest-runner.ts's mergeConfig in buildImproveInput.
+  // full strategy schema and silently drops every suggestion.
   it('improve-config/parse merges a partial override onto the profile config', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const plugin = fresh.di.strategies.get('trailing-trade');
       if (!plugin) throw new Error('trailing-trade not registered');
@@ -1338,7 +1280,7 @@ describeIfInfra('backtests routes', () => {
   // BacktestParamsSchema on read, so buildImproveInput falls back to the raw blob
   // — a still-usable override must recover rather than 500 or drop everything.
   it('improve-config/parse recovers when stored params no longer parse (raw fallback)', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const plugin = fresh.di.strategies.get('trailing-trade');
       if (!plugin) throw new Error('trailing-trade not registered');
@@ -1389,7 +1331,7 @@ describeIfInfra('backtests routes', () => {
   // run can no longer be reconstructed, so the advisor fails closed with 409
   // rather than silently dropping every suggestion.
   it('improve-config/prompt returns 409 when the profile config no longer matches the schema', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const p = await profileRepo(
         fresh.di.db,
@@ -1418,7 +1360,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('advisor list rehydrates saved variant rows without calling the model', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       // The list route is a pure DB read; prove it never reaches the model by
@@ -1461,7 +1403,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('advisor start claims the slot, enqueues one job, and returns the running row', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       await fresh.di.redis.raw().set('advisor:ready', '1');
@@ -1492,7 +1434,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('advisor start returns 503 when the study worker is offline (advisor:ready unset)', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       await fresh.di.redis.raw().del('advisor:ready');
@@ -1513,7 +1455,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('advisor start does not enqueue a second job while a variant is already running', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       await fresh.di.redis.raw().set('advisor:ready', '1');
@@ -1546,7 +1488,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('advisor start rejects an unknown variant', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       await fresh.di.redis.raw().set('advisor:ready', '1');
@@ -1568,7 +1510,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('advisor start returns 409 when the run has no result to advise on yet', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       // A queued/running run has no result: advising is meaningless, so the route
       // fails fast BEFORE touching the queue. (Re-covers the guard the deleted
@@ -1596,7 +1538,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('advisor start frees the slot (row error) and returns 500 when the enqueue fails', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       await fresh.di.redis.raw().set('advisor:ready', '1');
@@ -1628,7 +1570,7 @@ describeIfInfra('backtests routes', () => {
   });
 
   it('advisor manual persists the manual slot, leaves a server safe row untouched, enqueues nothing', async () => {
-    const fresh = await setupApp();
+    const fresh = await setupBacktestApp();
     try {
       const runId = await completeRunWithRegistry(fresh);
       const p = await profileRepo(
@@ -1683,97 +1625,224 @@ describeIfInfra('backtests routes', () => {
     }
   });
 
-  it('createBacktest ?force preserves absent/false dedup, accepts true/bare, and rejects invalid values', async () => {
-    const fresh = await setupApp();
-    try {
-      const plugin = fresh.di.strategies.get('trailing-trade');
-      if (!plugin) throw new Error('trailing-trade not registered');
-      const fullConfig = plugin.defaultConfig as Record<string, unknown>;
-      const p = await profileRepo(
-        fresh.di.db,
-        fresh.alice.userId,
-        fresh.alice.accountId,
-        fresh.alice.profileId,
-      );
-      await p.profile.switchStrategy({
-        strategyName: 'trailing-trade',
-        strategyVersion: '2.0.0',
-        config: fullConfig,
-        state: plugin.initialState(fullConfig),
+  describe('submission', () => {
+    const backtestsUrl = (f: ApiFixture): string =>
+      `/api/accounts/${f.alice.accountId}/profiles/${f.alice.profileId}/backtests`;
+    const aliceRepo = (f: ApiFixture) =>
+      profileRepo(f.di.db, f.alice.userId, f.alice.accountId, f.alice.profileId);
+    const postQuery = (f: ApiFixture, query: string) =>
+      f.app.request(`${backtestsUrl(f)}${query}`, {
+        method: 'POST',
+        headers: { 'x-test-user-id': f.alice.userId, 'content-type': 'application/json' },
+        body: JSON.stringify(validParams),
       });
-      const params = {
+    const storedSnapshot = async (f: ApiFixture, runId: string) => {
+      const run = await (await aliceRepo(f)).backtestRuns.get(runId);
+      return (run?.params as { snapshot?: { effectiveConfig: Record<string, unknown> } }).snapshot;
+    };
+    const editTrigger = async (f: ApiFixture, triggerPercentage: string): Promise<void> => {
+      const p = await aliceRepo(f);
+      const row = await p.profile.findById();
+      const config = row?.config as { sell: object };
+      await p.profile.update({
+        config: { ...config, sell: { ...config.sell, triggerPercentage } },
+      });
+    };
+
+    it('identical submissions create distinct runs; force harmless', async () => {
+      const f = await setupBacktestApp();
+      try {
+        const ids: string[] = [];
+        for (const query of ['', '', '?force=false', '?force=true', '?force']) {
+          const res = await postQuery(f, query);
+          expect(res.status).toBe(202);
+          const body = (await res.json()) as { runId: string };
+          expect(Object.keys(body)).toEqual(['runId']);
+          ids.push(body.runId);
+        }
+        expect(new Set(ids).size).toBe(5);
+        expect((await postQuery(f, '?force=yes')).status).toBe(422);
+      } finally {
+        await f.cleanup();
+      }
+    });
+
+    it.each([
+      ['no decision interval', { decisionInterval: undefined }],
+      ['a detail interval coarser than the decision', { detailInterval: '15m' }],
+      ['a detail interval that does not divide the decision', { detailInterval: '3m' }],
+      ['a start off the detail grid', { fromMs: 300_001 }],
+      ['an end off the detail grid', { toMs: 600_001 }],
+      [
+        'a run past the replay budget',
+        { detailInterval: '1m', decisionInterval: '1m', fromMs: 0, toMs: 600_000 * 60_000 },
+      ],
+    ])('rejects %s rather than shifting it', async (_name, change) => {
+      const res = await post(fx, fx.alice.profileId, fx.alice.userId, {
         ...validParams,
-        strategyConfigOverride: { sell: { triggerPercentage: '1.03' } },
-      };
-      const res1 = await post(fresh, fresh.alice.profileId, fresh.alice.userId, params);
-      const body1 = (await res1.json()) as { runId: string; deduped?: boolean };
-      expect(body1.deduped).toBe(false);
-      await p.backtestRuns.markRunning(body1.runId);
-      await p.backtestRuns.complete(
-        body1.runId,
-        { metrics: { totalReturnPct: 1 } },
-        null,
-        await routeSignature(fresh, params),
-      );
+        ...change,
+      });
+      expect(res.status).toBe(422);
+    });
 
-      // Without force, an identical config dedups to the completed run.
-      const dedup = await post(fresh, fresh.alice.profileId, fresh.alice.userId, params);
-      const dedupBody = (await dedup.json()) as { runId: string; deduped?: boolean };
-      expect(dedupBody.deduped).toBe(true);
-      expect(dedupBody.runId).toBe(body1.runId);
+    it('rejects detail coarser than the effective candle interval', async () => {
+      const f = await setupBacktestApp();
+      try {
+        const res = await post(f, f.alice.profileId, f.alice.userId, {
+          ...validParams,
+          strategyConfigOverride: { candleInterval: '1m' },
+        });
+        expect(res.status).toBe(422);
+        const body = (await res.json()) as { error: { message: string } };
+        expect(body.error.message).toMatch(/must not be coarser than the config's candle interval/);
+        expect(await (await aliceRepo(f)).backtestRuns.list({ limit: 10 })).toEqual([]);
+      } finally {
+        await f.cleanup();
+      }
+    });
 
-      // An explicit false remains the dedup path; validation must not coerce the non-empty string "false" to true.
-      const notForced = await fresh.app.request(
-        `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests?force=false`,
-        {
-          method: 'POST',
-          headers: { 'x-test-user-id': fresh.alice.userId, 'content-type': 'application/json' },
-          body: JSON.stringify(params),
-        },
-      );
-      expect(notForced.status).toBe(202);
-      const notForcedBody = (await notForced.json()) as { runId: string; deduped?: boolean };
-      expect(notForcedBody).toEqual({ runId: body1.runId, deduped: true });
+    it('rejects a config the strategy cannot parse before storing anything', async () => {
+      const f = await setupApp();
+      try {
+        const res = await post(f, f.alice.profileId, f.alice.userId, validParams);
+        expect(res.status).toBe(422);
+        expect(await (await aliceRepo(f)).backtestRuns.list({ limit: 10 })).toEqual([]);
+      } finally {
+        await f.cleanup();
+      }
+    });
 
-      // The explicit true form creates a new run despite the identical signature.
-      const forced = await fresh.app.request(
-        `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests?force=true`,
-        {
-          method: 'POST',
-          headers: { 'x-test-user-id': fresh.alice.userId, 'content-type': 'application/json' },
-          body: JSON.stringify(params),
-        },
-      );
-      expect(forced.status).toBe(202);
-      const forcedBody = (await forced.json()) as { runId: string; deduped?: boolean };
-      expect(forcedBody.deduped).toBe(false);
-      expect(forcedBody.runId).not.toBe(body1.runId);
+    it('executes the config accepted at submission, and a retry keeps it', async () => {
+      const f = await setupBacktestApp();
+      try {
+        await editTrigger(f, '1.03');
+        const created = await post(f, f.alice.profileId, f.alice.userId, validParams);
+        const { runId } = (await created.json()) as { runId: string };
+        const frozen = await storedSnapshot(f, runId);
+        expect(frozen?.effectiveConfig['sell']).toMatchObject({ triggerPercentage: '1.03' });
 
-      const bareForce = await fresh.app.request(
-        `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests?force`,
-        {
-          method: 'POST',
-          headers: { 'x-test-user-id': fresh.alice.userId, 'content-type': 'application/json' },
-          body: JSON.stringify(params),
-        },
-      );
-      expect(bareForce.status).toBe(202);
-      const bareForceBody = (await bareForce.json()) as { runId: string; deduped?: boolean };
-      expect(bareForceBody.deduped).toBe(false);
-      expect(bareForceBody.runId).not.toBe(body1.runId);
-      expect(bareForceBody.runId).not.toBe(forcedBody.runId);
+        await editTrigger(f, '1.09');
+        expect(await storedSnapshot(f, runId)).toEqual(frozen);
 
-      const invalid = await fresh.app.request(
-        `/api/accounts/${fresh.alice.accountId}/profiles/${fresh.alice.profileId}/backtests?force=yes`,
-        {
-          method: 'POST',
-          headers: { 'x-test-user-id': fresh.alice.userId, 'content-type': 'application/json' },
-          body: JSON.stringify(params),
-        },
-      );
-      expect(invalid.status).toBe(422);
-    } finally {
-      await fresh.cleanup();
-    }
+        await action(f, f.alice.profileId, f.alice.userId, runId, 'abort');
+        const retried = await action(f, f.alice.profileId, f.alice.userId, runId, 'retry');
+        const { runId: retriedId } = (await retried.json()) as { runId: string };
+        expect(await storedSnapshot(f, retriedId)).toEqual(frozen);
+      } finally {
+        await f.cleanup();
+      }
+    });
+
+    it('refuses to retry a run frozen on another build and queues nothing', async () => {
+      const f = await setupBacktestApp();
+      try {
+        const created = await post(f, f.alice.profileId, f.alice.userId, validParams);
+        const { runId } = (await created.json()) as { runId: string };
+        await action(f, f.alice.profileId, f.alice.userId, runId, 'abort');
+        const p = await aliceRepo(f);
+        const original = await p.backtestRuns.get(runId);
+        const params = original?.params as { snapshot: Record<string, unknown> };
+        const stale = await p.backtestRuns.create({
+          symbols: original!.symbols,
+          params: { ...params, snapshot: { ...params.snapshot, buildId: 'oldsha' } },
+        });
+        await p.backtestRuns.markCancelled(stale.id);
+        const before = (await p.backtestRuns.list({ limit: 10 })).length;
+
+        const res = await action(f, f.alice.profileId, f.alice.userId, stale.id, 'retry');
+        expect(res.status).toBe(409);
+        expect((await p.backtestRuns.list({ limit: 10 })).length).toBe(before);
+      } finally {
+        await f.cleanup();
+      }
+    });
+
+    it('ignores a snapshot sent by the client and keeps the stored one off the wire', async () => {
+      const f = await setupBacktestApp();
+      try {
+        const forged = {
+          strategyName: 'forged',
+          strategyVersion: '9',
+          engineRevision: 0,
+          buildId: 'forged',
+          effectiveConfig: { forged: true },
+        };
+        const created = await post(f, f.alice.profileId, f.alice.userId, {
+          ...validParams,
+          snapshot: forged,
+        });
+        const { runId } = (await created.json()) as { runId: string };
+        const stored = await storedSnapshot(f, runId);
+        expect(stored).toMatchObject({ strategyName: 'trailing-trade' });
+        expect(stored?.effectiveConfig).not.toHaveProperty('forged');
+
+        const got = await f.app.request(`${backtestsUrl(f)}/${runId}`, {
+          headers: { 'x-test-user-id': f.alice.userId },
+        });
+        expect(((await got.json()) as { params: object }).params).not.toHaveProperty('snapshot');
+      } finally {
+        await f.cleanup();
+      }
+    });
+
+    it('reports whether a finished run still matches the profile config', async () => {
+      const f = await setupBacktestApp();
+      try {
+        const p = await aliceRepo(f);
+        const plugin = f.di.strategies.get('trailing-trade');
+        const row = await p.profile.findById();
+        if (!plugin || !row) throw new Error('fixture profile or its strategy is missing');
+        const fingerprint = configFingerprint(plugin.configSchema.parse(row.config));
+        const run = await p.backtestRuns.create({ symbols: ['BTCUSDT'], params: validParams });
+        await p.backtestRuns.markRunning(run.id);
+        await p.backtestRuns.complete(
+          run.id,
+          {
+            equityCurve: [],
+            drawdownSeries: [],
+            simulation: {
+              strategyName: 'trailing-trade',
+              engineRevision: BACKTEST_ENGINE_REVISION,
+            },
+          },
+          fingerprint,
+        );
+        const matches = async (id: string = run.id): Promise<boolean> => {
+          const got = await f.app.request(`${backtestsUrl(f)}/${id}`, {
+            headers: { 'x-test-user-id': f.alice.userId },
+          });
+          return ((await got.json()) as { matchesProfile: boolean }).matchesProfile;
+        };
+        expect(await matches()).toBe(true);
+        // A matching fingerprint is not enough: the engine and strategy that produced the result must also be the current ones.
+        const completeWith = async (simulation: Record<string, unknown> | undefined) => {
+          const other = await p.backtestRuns.create({ symbols: ['BTCUSDT'], params: validParams });
+          await p.backtestRuns.markRunning(other.id);
+          await p.backtestRuns.complete(
+            other.id,
+            { equityCurve: [], drawdownSeries: [], simulation },
+            fingerprint,
+          );
+          return other.id;
+        };
+        const current = {
+          strategyName: 'trailing-trade',
+          engineRevision: BACKTEST_ENGINE_REVISION,
+        };
+        expect(await matches(await completeWith(undefined))).toBe(false);
+        expect(
+          await matches(
+            await completeWith({ ...current, engineRevision: BACKTEST_ENGINE_REVISION - 1 }),
+          ),
+        ).toBe(false);
+        expect(await matches(await completeWith({ ...current, strategyName: 'momentum' }))).toBe(
+          false,
+        );
+        await editTrigger(f, '1.09');
+        expect(await matches()).toBe(false);
+      } finally {
+        await f.cleanup();
+      }
+    });
   });
 });
