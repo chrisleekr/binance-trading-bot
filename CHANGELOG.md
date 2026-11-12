@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.10.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.9.0...v1.10.0) (2026-11-12)
+
+
+### Features
+
+* **momentum:** add trendQuality entry trigger and break-even lock ([#826](https://github.com/chrisleekr/binance-trading-bot/issues/826)) ([e9c2797](https://github.com/chrisleekr/binance-trading-bot/commit/e9c2797c9f07e93593784d75702342b256cd4848))
+
+
+### Bug Fixes
+
+* **backtest:** replay on a decision clock with snapshotted, comparable runs ([#827](https://github.com/chrisleekr/binance-trading-bot/issues/827)) ([2ad4671](https://github.com/chrisleekr/binance-trading-bot/commit/2ad4671b5d255566c5cbf00548c3ab43fe83588a))
+
 ## [1.9.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.8.0...v1.9.0) (2026-11-05)
 
 
