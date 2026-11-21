@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Decimal } from '@app/money';
-import { atr } from '@app/indicators';
+
+// Spied, not replaced: skipping the confirmation pass changes no reading, so a call count is the only thing that can tell a tick that skipped it from one that ran it.
+vi.mock('@app/indicators', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@app/indicators')>();
+  return { ...actual, sma: vi.fn(actual.sma) };
+});
+
+import { atr, sma } from '@app/indicators';
 import type { Candle } from '@app/strategy-core';
 
 import {
@@ -236,6 +243,16 @@ describe('maClusterReading with confirmBreak', () => {
   // 10 sits under the top (10.0025 lifted by the break), so the break fell back and is skipped.
   it('skips the break when the next close falls back under the top', () => {
     expect(maClusterReading(series(['10.05', '10'], 200), on)?.fired).toBe(false);
+  });
+
+  // One candle costs eight averages (four periods, on it and on the candle before); the confirmation pass would add eight more.
+  it('judges the candle before only when this close is above the top', () => {
+    vi.mocked(sma).mockClear();
+    maClusterReading(series(['10', '10'], 200), on);
+    expect(sma).toHaveBeenCalledTimes(8);
+    vi.mocked(sma).mockClear();
+    maClusterReading(series(['10.05', '10.06'], 200), on);
+    expect(sma).toHaveBeenCalledTimes(16);
   });
 
   // The break candle failed maxSpread, so nothing was armed and holding above the top does not buy.

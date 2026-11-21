@@ -323,6 +323,69 @@ describe('registerBacktestWorker', () => {
     expect(completeTopics).toContain('backtest-complete');
   });
 
+  it('stops the replay when the run row vanishes mid-run (profile deleted)', async () => {
+    // A profile delete cascades its runs, so the cancel poll sees no row. With nothing left to complete, the worker must stop through the cancel path rather than finish an orphan replay.
+    vi.useFakeTimers();
+    try {
+      const { queueSet, invoke } = harness();
+      repoMocks.get.mockResolvedValue(null);
+      const run = vi.fn(async (...args: unknown[]) => {
+        const isCancelled = args[5] as () => boolean;
+        await vi.advanceTimersByTimeAsync(2100);
+        if (isCancelled()) throw new BacktestCancelledError('r1');
+        return RUN_OUT;
+      });
+      registerBacktestWorker(queueSet, {
+        db: { tag: 'db' } as never,
+        redis: {} as unknown as Redis,
+        clock: { nowMs: () => 0 },
+        logger: silentLogger,
+        notifyEvent,
+        run: run as never,
+      });
+      await expect(invoke(JOB)).resolves.toBeUndefined();
+      expect(repoMocks.failById).not.toHaveBeenCalled();
+      expect(repoMocks.complete).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // The poll must cancel only on a cancelled (or missing) row; a live running row leaves the replay alone.
+  it.each([
+    ['running', false],
+    ['cancelled', true],
+  ] as const)('cancel poll seeing a %s row sets cancelled=%s', async (status, expectCancel) => {
+    vi.useFakeTimers();
+    try {
+      const { queueSet, invoke } = harness();
+      repoMocks.get.mockResolvedValue(runRow({ status }));
+      let seen: boolean | undefined;
+      const run = vi.fn(async (...args: unknown[]) => {
+        const isCancelled = args[5] as () => boolean;
+        await vi.advanceTimersByTimeAsync(2100);
+        seen = isCancelled();
+        if (seen) throw new BacktestCancelledError('r1');
+        return RUN_OUT;
+      });
+      registerBacktestWorker(queueSet, {
+        db: { tag: 'db' } as never,
+        redis: {} as unknown as Redis,
+        clock: { nowMs: () => 0 },
+        logger: silentLogger,
+        notifyEvent,
+        run: run as never,
+      });
+      await expect(invoke(JOB)).resolves.toBeUndefined();
+      expect(repoMocks.get).toHaveBeenCalledWith('r1');
+      expect(seen).toBe(expectCancel);
+      expect(repoMocks.failById).not.toHaveBeenCalled();
+      expect(repoMocks.complete).toHaveBeenCalledTimes(expectCancel ? 0 : 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('marks the run errored when profileRepo throws before the run is scoped (#363)', async () => {
     // The pre-scope ownership lookup failing (transient DB blip) must still mark
     // the run error rather than stranding it queued forever. There is no scope,

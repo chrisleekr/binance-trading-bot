@@ -370,6 +370,7 @@ const buildHarness = async (): Promise<Harness> => {
         intervals: [],
       },
       needsAccountDeployedQuote: false,
+      maxOpenPositions: 0,
     }),
     auditShipper,
   });

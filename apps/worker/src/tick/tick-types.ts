@@ -176,6 +176,8 @@ export interface TickHandlerDeps {
     readonly result: DecisionFailure;
     readonly willRetry: boolean;
   }) => Promise<void>;
+  /** Distinct coins the profile holds or is entering, read for the max-open-positions cap. Injected so a test can grow the set as the fake executor applies a BUY; defaults to the real repo read. */
+  readonly listHeldSymbols?: (scope: ProfileScope, filledSince: Date) => Promise<readonly string[]>;
   /** Records the durable diagnosis surface after the Redis circuit state is known durable. */
   readonly recordOrderRefusalCondition?: (
     scope: ProfileScope,

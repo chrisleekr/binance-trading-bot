@@ -154,6 +154,23 @@ type AdvisorResultRow = Awaited<
 // already stored at full resolution — no migration.
 const CHART_SAMPLE = 1000;
 
+// One backtest queue serves every account and drains one run at a time by default, so an unbounded backlog starves every other backtest. The bound is per account because a live demo lets visitors create profiles but not accounts, so a per-profile cap is bypassed by minting profiles while the account count stays fixed. Soft cap: concurrent requests can overshoot by the race window.
+const MAX_IN_FLIGHT_BACKTESTS = 5;
+
+/**
+ * A flood must not starve the shared queue, so create and retry refuse at the same bar before writing a row or enqueueing a job; throws a CONFLICT (409) naming the limit and how to free a slot.
+ *
+ * @param p - The scoped repo of the requesting profile; its account's queued and running runs across every profile count toward the cap.
+ */
+async function assertBacktestSlot(p: ScopedRepo): Promise<void> {
+  if ((await p.backtestRuns.countInFlightOnAccount()) >= MAX_IN_FLIGHT_BACKTESTS) {
+    throw new HttpError(
+      'CONFLICT',
+      `this account already has ${MAX_IN_FLIGHT_BACKTESTS} or more backtests queued or running across its profiles; wait for one to finish or abort one to free a slot`,
+    );
+  }
+}
+
 const capResultCurves = (result: BacktestResult | null): BacktestResult | null =>
   result === null
     ? null
@@ -284,6 +301,7 @@ const createRouteDef = createRoute({
       content: { 'application/json': { schema: BacktestCreatedSchema } },
     },
     404: { description: 'NOT_FOUND', content: { 'application/json': { schema: ErrorEnvelope } } },
+    409: { description: 'CONFLICT', content: { 'application/json': { schema: ErrorEnvelope } } },
     422: {
       description: 'VALIDATION_FAILED',
       content: { 'application/json': { schema: ErrorEnvelope } },
@@ -505,6 +523,8 @@ export const backtestsRouter = (di: DI): ApiHono => {
       }
     }
 
+    await assertBacktestSlot(p);
+
     // Validate the lineage pointer against ownership before persisting it: a
     // parent that is not an owned run of this profile (cross-account, or simply
     // gone) is dropped to null rather than stamped. The FK accepts any existing
@@ -603,6 +623,8 @@ export const backtestsRouter = (di: DI): ApiHono => {
         'this run was queued on another version; resubmit it to run on the current one',
       );
     }
+
+    await assertBacktestSlot(p);
 
     const retried = await p.backtestRuns.create({ symbols: run.symbols, params: run.params });
     try {

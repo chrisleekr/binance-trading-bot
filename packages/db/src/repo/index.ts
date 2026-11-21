@@ -187,6 +187,7 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
       'recentDone',
       'list',
       'count',
+      'countInFlightOnAccount',
       'markRunning',
       'updateProgress',
       'complete',
@@ -239,6 +240,7 @@ export function profileRepoFromScope(scope: ProfileScope): ProfileRepo {
       // which is the exact distinction the list exists to state.
       'listLiveForProfile',
       'listRecordedAmong',
+      'listHeldSymbols',
       'listRecoveryAttributionRows',
       'listHistoryForSymbol',
       'findLive',

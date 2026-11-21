@@ -90,7 +90,7 @@ describe('isActionableAudit', () => {
 // payload. A failed outcome may carry the classifier's `reason` (Binance code +
 // message); success outcomes omit it.
 const results = (
-  ...rs: { type: string; ok: boolean; reason?: string }[]
+  ...rs: { type: string; ok: boolean; reason?: string; supersededByFill?: boolean }[]
 ): Record<string, unknown> => ({
   results: rs,
 });
@@ -162,6 +162,40 @@ describe('auditEntriesToActionLogs', () => {
     ]);
     expect(row?.msg).toBe('BTCUSDT: 2 order action(s) failed, none succeeded');
     expect(row?.level).toBe('warn');
+  });
+
+  it('does not warn when a replace was superseded by the stop filling', () => {
+    const [row] = auditEntriesToActionLogs([
+      entry({
+        decisionTypes: ['replace-order'],
+        payload: results({
+          type: 'replace-order',
+          ok: false,
+          supersededByFill: true,
+          reason: 'cancelReplace: the resting order filled rather than cancelling',
+        }),
+      }),
+    ]);
+    expect(row?.level).toBe('info');
+    expect(row?.msg).toBe(
+      'BTCUSDT: the resting order filled before it could be replaced; position handed to reconcile',
+    );
+  });
+
+  it('keeps what succeeded alongside a fill-superseded replace', () => {
+    const [row] = auditEntriesToActionLogs([
+      entry({
+        decisionTypes: ['cancel-order', 'replace-order'],
+        payload: results(
+          { type: 'cancel-order', ok: true },
+          { type: 'replace-order', ok: false, supersededByFill: true },
+        ),
+      }),
+    ]);
+    expect(row?.level).toBe('info');
+    expect(row?.msg).toBe(
+      'BTCUSDT: cancelled 1 order(s); the resting order filled before it could be replaced; position handed to reconcile',
+    );
   });
 
   it('carries the failure reason into ctx.results so triage sees why it failed', () => {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { asAccountId, asProfileId } from '@app/contracts';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -7,6 +8,8 @@ import {
   type ProfileRepo,
 } from '../../src/repo/index.js';
 import { backtestRuns } from '../../src/schema/backtest-runs.js';
+import { accounts } from '../../src/schema/accounts.js';
+import { profiles } from '../../src/schema/profiles.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js';
 
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
@@ -533,5 +536,88 @@ describeIfDb('backtest_runs account-scoped lifecycle', () => {
     // bob mutating alice's run is a no-op (scoped WHERE matches nothing)
     await bob.backtestRuns.complete(run.id, { x: 1 });
     expect((await alice.backtestRuns.get(run.id))?.status).toBe('queued');
+  });
+});
+
+describeIfDb('backtest_runs countInFlightOnAccount', () => {
+  it("countInFlightOnAccount counts queued and running runs across this account's profiles only", async () => {
+    const fx = await setupFixture();
+    try {
+      const alice = await profileRepo(
+        fx.db,
+        fx.alice.userId,
+        fx.alice.accountId,
+        fx.alice.profileId,
+      );
+      const bob = await profileRepo(fx.db, fx.bob.userId, fx.bob.accountId, fx.bob.profileId);
+      const siblingId = randomUUID();
+      await fx.db.insert(profiles).values({
+        id: siblingId,
+        accountId: fx.alice.accountId,
+        name: 'sibling',
+        strategyName: 'trailing-trade',
+        strategyVersion: '2.0.0',
+        config: {},
+        state: {},
+      });
+      const sibling = await profileRepo(
+        fx.db,
+        fx.alice.userId,
+        fx.alice.accountId,
+        asProfileId(siblingId),
+      );
+      // A second account owned by the same operator: the bound is per account, so its runs must not count toward the first.
+      const secondAccountId = randomUUID();
+      const secondProfileId = randomUUID();
+      await fx.db.insert(accounts).values({
+        id: secondAccountId,
+        ownerId: fx.alice.userId,
+        name: 'second',
+        binanceMode: 'test',
+      });
+      await fx.db.insert(profiles).values({
+        id: secondProfileId,
+        accountId: secondAccountId,
+        name: 'second-profile',
+        strategyName: 'trailing-trade',
+        strategyVersion: '2.0.0',
+        config: {},
+        state: {},
+      });
+      const second = await profileRepo(
+        fx.db,
+        fx.alice.userId,
+        asAccountId(secondAccountId),
+        asProfileId(secondProfileId),
+      );
+      const mk = (r: ProfileRepo) =>
+        r.backtestRuns.create({ symbols: ['BTCUSDT'], params: PARAMS });
+      await mk(alice);
+      await mk(alice);
+      const running = await mk(alice);
+      await alice.backtestRuns.markRunning(running.id);
+      const done = await mk(alice);
+      await alice.backtestRuns.markRunning(done.id);
+      await alice.backtestRuns.complete(done.id, {});
+      const errored = await mk(alice);
+      await alice.backtestRuns.markRunning(errored.id);
+      await alice.backtestRuns.fail(errored.id, 'boom');
+      const cancelled = await mk(alice);
+      await alice.backtestRuns.markCancelled(cancelled.id);
+      await mk(sibling);
+      await mk(sibling);
+      const siblingDone = await mk(sibling);
+      await sibling.backtestRuns.markRunning(siblingDone.id);
+      await sibling.backtestRuns.complete(siblingDone.id, {});
+      for (let i = 0; i < 3; i++) await mk(bob);
+      for (let i = 0; i < 5; i++) await mk(second);
+
+      expect(await alice.backtestRuns.countInFlightOnAccount()).toBe(5);
+      expect(await sibling.backtestRuns.countInFlightOnAccount()).toBe(5);
+      expect(await bob.backtestRuns.countInFlightOnAccount()).toBe(3);
+      expect(await second.backtestRuns.countInFlightOnAccount()).toBe(5);
+    } finally {
+      await fx.cleanup();
+    }
   });
 });

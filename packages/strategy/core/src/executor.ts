@@ -63,6 +63,10 @@ export type DecisionResult =
        * these, or a routine admission-control decision reads as an outage.
        */
       readonly deferred?: true;
+      /**
+       * The exchange already did what the decision was for: the resting order it meant to replace FILLED first. The failure arm is kept so the tick does not commit state that assumed the successor landed. The fill covered the successor's quantity, so nothing the successor was meant to guard is left exposed and a caller that alerts on failure must skip it; any base beyond that is left to the reconcile. Distinct from `deferred`: the request WAS sent, and the strategy does not re-emit it.
+       */
+      readonly supersededByFill?: true;
     };
 
 export interface Executor {

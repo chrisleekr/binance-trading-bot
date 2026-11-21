@@ -1,5 +1,6 @@
 import {
   needsAccountDeployedQuote as needsAccountDeployedQuoteForConfig,
+  RiskConfigSchema,
   TechnicalsBundleConfigSchema,
   type AccountId,
   type ProfileId,
@@ -99,6 +100,9 @@ export const buildProfileTickContext = async (
   // into the same "no context" null the ownership check uses.
   const binanceMode = await repo.accounts.binanceModeById(deps.db, accountId);
   if (!binanceMode) return null;
+  // Fails OPEN to 0 (cap off) on an unreadable stored block, like the breakers: a bad risk_config must never stop a profile from trading.
+  const riskParsed = RiskConfigSchema.safeParse(profile.riskConfig ?? {});
+  const maxOpenPositions = riskParsed.success ? riskParsed.data.maxOpenPositions : 0;
   return {
     operatorId,
     accountId,
@@ -119,5 +123,6 @@ export const buildProfileTickContext = async (
     candleInterval,
     technicalsConfig,
     needsAccountDeployedQuote,
+    maxOpenPositions,
   };
 };

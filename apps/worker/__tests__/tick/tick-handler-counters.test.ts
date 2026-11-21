@@ -225,6 +225,16 @@ describe('tick handler — per-invocation counters', () => {
     expect(countOf(record, 'tick_failures_total')).toBe(0);
   });
 
+  it('times the strategy call on a tick that reaches it, and only then', async () => {
+    const { record } = await run();
+    const timed = record.mock.calls.filter((call) => call[0] === 'strategy_tick_ms');
+    expect(timed).toHaveLength(1);
+    expect(timed[0]?.[1]).toBeGreaterThanOrEqual(0);
+    expect(timed[0]?.[2]).toEqual({ profileId: PROFILE, symbol: SYMBOL });
+    // A paused symbol returns before the strategy runs, so there is nothing to time.
+    expect(countOf((await run({ paused: true })).record, 'strategy_tick_ms')).toBe(0);
+  });
+
   it('counts a tick the operator throttled, and does not call it a failure', async () => {
     // A paused symbol is an instruction, not a fault. Counting it as a failure
     // would keep a failure-ratio alert firing for as long as the pause stands.

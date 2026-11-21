@@ -501,12 +501,12 @@ export interface PositionView {
  *   - `buy`         — entry/add: set entry price + held quantity, reset
  *                     any trailing high-water mark.
  *   - `sell-reduce` — partial exit: lower the held quantity only.
- *   - `empty`       — full exit: flatten the position.
+ *   - `empty`       — full exit: flatten the position. `atMs` is the epoch ms at which a fill was observed closing the position; absent when unknown (boot wallet reconcile, rolling back a refused BUY).
  */
 export type AdoptedFill =
   | { readonly kind: 'buy'; readonly avgEntryPrice: string; readonly heldQuantity: string }
   | { readonly kind: 'sell-reduce'; readonly heldQuantity: string }
-  | { readonly kind: 'empty' };
+  | { readonly kind: 'empty'; readonly atMs?: number };
 
 /**
  * Optional position-mutation capability. A strategy that manages a single

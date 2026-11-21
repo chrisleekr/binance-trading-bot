@@ -164,6 +164,8 @@ const makeAdopter = (
   notifyEvent?: Parameters<typeof createFillAdopter>[0]['notifyEvent'],
   // Defaults to '0', which disarms the NOTIONAL bound so every pre-existing case keeps its old meaning. A stub WITHOUT this field is worse than a wrong value: the adopter's Decimal parse would fail and silently push every SELL in the suite down the symbol-info-failure path.
   minNotional = '0',
+  // Optional seams for the exit-time stamp: a clock for the adopter, and a position adapter wrapper to observe what it was handed.
+  seams: { clock?: { nowMs(): number }; position?: typeof trailingTradePositionAdapter } = {},
 ) => {
   const { redis, store } = makeRedisStub();
   const { logger, entries: logs } = makeRecordingLogger();
@@ -194,7 +196,7 @@ const makeAdopter = (
       version: '2.0.0',
       initialState: (_cfg: unknown) => ({ schemaVersion: '2.0.0' }),
       migrateState: vi.fn(),
-      position: trailingTradePositionAdapter,
+      position: seams.position ?? trailingTradePositionAdapter,
     })),
   };
   // The adopter wraps the in-tx LBP+ledger writes in db.transaction —
@@ -237,6 +239,7 @@ const makeAdopter = (
       }),
     } as unknown as Parameters<typeof createFillAdopter>[0]['symbolInfo'],
     ...(notifyEvent ? { notifyEvent } : {}),
+    ...(seams.clock ? { clock: seams.clock } : {}),
   });
   return { adopter, redis, store, persistSymbolState, registry, pipelineQueue, logs };
 };
@@ -415,6 +418,32 @@ describe('createFillAdopter', () => {
       // a leftover 0 wedges re-entry (grid entry needs idx === null).
       expect(updated['currentGridTradeIndex']).toBeNull();
       expect(updated['heldQuantity']).toBeNull();
+    });
+
+    // The strategy needs the instant the exit was observed to refuse a candle that closed while the position was still held.
+    it('stamps the injected clock onto the empty fill an emptying SELL applies', async () => {
+      reset();
+      const applyFill = vi.fn(trailingTradePositionAdapter.applyFill);
+      const { adopter } = makeAdopter('0.00000001', false, undefined, '0', {
+        clock: { nowMs: () => 1_700_000_000_000 },
+        position: { ...trailingTradePositionAdapter, applyFill },
+      });
+      repoMocks.avgEntryPricesFindBySymbol.mockResolvedValue({
+        avgEntryPrice: '60000',
+        quantity: '0.001',
+      });
+      repoMocks.symbolStatesFindBySymbol.mockResolvedValue(
+        defaultSymbolRow({ schemaVersion: '2.0.0', avgEntryPrice: '60000', highSinceBuy: '65000' }),
+      );
+
+      await adopter.adopt(
+        mkFill({ side: 'SELL', orderId: 31, tradeId: 31, cumQty: '0.001', cumQuoteQty: '63000' }),
+      );
+
+      expect(applyFill).toHaveBeenCalledWith(expect.anything(), {
+        kind: 'empty',
+        atMs: 1_700_000_000_000,
+      });
     });
 
     it('enqueues an archive job when a SELL fill empties the position', async () => {

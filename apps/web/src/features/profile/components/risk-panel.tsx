@@ -1,4 +1,4 @@
-// Risk controls panel: the three entry circuit breakers. Shows the live breaker
+// Risk controls panel: the three entry circuit breakers plus the max-open-positions cap, all rendered from RiskConfigSchema. Shows the live breaker
 // status (today's realised P/L vs the daily limit, and a clear "entries paused"
 // badge naming which breaker tripped) and lets the operator set all three.
 // Mobile-first.

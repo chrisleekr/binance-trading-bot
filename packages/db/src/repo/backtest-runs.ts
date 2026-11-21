@@ -12,6 +12,7 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { backtestRuns, type BacktestRunRow } from '../schema/backtest-runs.js';
+import { profiles } from '../schema/profiles.js';
 import type { Database } from './_db.js';
 import type { ProfileScope } from './_scoped.js';
 
@@ -173,6 +174,26 @@ export async function count(
     .select({ n: countRows() })
     .from(backtestRuns)
     .where(and(...runFilterConditions(scope, opts)));
+  return row?.n ?? 0;
+}
+
+/**
+ * Profiles can be created freely on a live demo but accounts cannot, so the in-flight bound is per account, not per profile.
+ *
+ * @param scope - Proves ownership of one profile; its account is the unit counted, so sibling profiles on the same account count and other accounts' runs never do.
+ * @returns The number of queued or running runs across every profile of the scope's account.
+ */
+export async function countInFlightOnAccount(scope: ProfileScope): Promise<number> {
+  const [row] = await scope.db
+    .select({ n: countRows() })
+    .from(backtestRuns)
+    .innerJoin(profiles, eq(backtestRuns.profileId, profiles.id))
+    .where(
+      and(
+        eq(profiles.accountId, scope.accountId),
+        inArray(backtestRuns.status, ['queued', 'running']),
+      ),
+    );
   return row?.n ?? 0;
 }
 

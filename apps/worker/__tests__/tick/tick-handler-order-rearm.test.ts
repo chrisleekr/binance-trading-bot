@@ -80,6 +80,8 @@ type OrderFailure = {
   readonly reason: string;
   /** Withheld by the order-rate governor rather than attempted and failed. */
   readonly deferred?: true;
+  /** The resting order filled before it could be replaced. */
+  readonly supersededByFill?: true;
 };
 type OrderResult = { readonly ok: true } | OrderFailure;
 
@@ -256,12 +258,15 @@ const run = async (opts: RunOpts) => {
           const type = (decision as { type: string }).type;
           if (broken) return { decision, result: SKIPPED };
           const result: OrderResult =
-            type === 'place-order'
+            type === 'place-order' || type === 'replace-order'
               ? opts.orderResult
               : type === 'cancel-order'
                 ? (opts.cancelResult ?? { ok: true })
                 : { ok: true };
-          if (result.ok === false && (type === 'place-order' || type === 'cancel-order')) {
+          if (
+            result.ok === false &&
+            (type === 'place-order' || type === 'cancel-order' || type === 'replace-order')
+          ) {
             broken = true;
           }
           return { decision, result };
@@ -315,7 +320,14 @@ const run = async (opts: RunOpts) => {
   const rearms = setCalls.filter((c) => c[0] === REARM_KEY);
   const auditPayload = (audits[0]?.payload ?? {}) as {
     rearmed?: boolean;
-    results?: { type: string; ok: boolean; reason?: string; phase?: string; retryable?: boolean }[];
+    results?: {
+      type: string;
+      ok: boolean;
+      reason?: string;
+      phase?: string;
+      retryable?: boolean;
+      supersededByFill?: boolean;
+    }[];
   };
   const metaWrites = setCalls.filter((c) => c[0] === META_KEY);
   return {
@@ -547,6 +559,14 @@ describe('tick handler — the audit tells the operator why', () => {
 });
 
 describe('tick handler — the operator is told the order failed', () => {
+  const REPLACE: Decision = {
+    type: 'replace-order',
+    cancelOrderId: 42,
+    reason: 'reprice-stop',
+    intent: { symbol: SYMBOL, side: 'SELL', reason: 'stop-loss', clientOrderId: 'cid-stop' },
+    params: { type: 'STOP_LOSS_LIMIT', price: '100', stopPrice: '101', quantity: '1' },
+  };
+
   it('notifies with willRetry=true when the bot will re-issue it', async () => {
     const { notifyOrderFailed } = await run({
       orderResult: {
@@ -599,6 +619,49 @@ describe('tick handler — the operator is told the order failed', () => {
     expect(notifyOrderFailed).not.toHaveBeenCalled();
     // Still un-committed: the strategy must re-emit the reprice next tick.
     expect(commit).not.toHaveBeenCalled();
+  });
+
+  // The stop filled while the replace raced it: the position is flat, so the generic "unguarded" page would be false. The failure arm still withholds the commit so state never assumes the successor landed.
+  it('stays quiet on a replace superseded by a fill, and still withholds the commit', async () => {
+    const reason =
+      'cancelReplace: the resting order filled rather than cancelling (-2022/-2011); successor withheld, position handed to reconcile';
+    const { notifyOrderFailed, commit, auditPayload } = await run({
+      decisions: [REPLACE],
+      orderResult: {
+        ok: false,
+        retryable: false,
+        phase: 'rejected',
+        supersededByFill: true,
+        reason,
+      },
+    });
+    expect(notifyOrderFailed).not.toHaveBeenCalled();
+    expect(commit).not.toHaveBeenCalled();
+    expect(auditPayload.results?.[0]).toEqual({
+      type: 'replace-order',
+      ok: false,
+      reason,
+      phase: 'rejected',
+      retryable: false,
+      supersededByFill: true,
+    });
+  });
+
+  it('still notifies on the same replace failure without the supersede marker', async () => {
+    const { notifyOrderFailed } = await run({
+      decisions: [REPLACE],
+      orderResult: {
+        ok: false,
+        retryable: false,
+        phase: 'rejected',
+        reason: '-2022 cancelReplace refused',
+      },
+    });
+    expect(notifyOrderFailed).toHaveBeenCalledOnce();
+    expect(notifyOrderFailed.mock.calls[0]?.[0]).toMatchObject({
+      decisionType: 'replace-order',
+      willRetry: false,
+    });
   });
 
   it('resolves and warns when the notify throws synchronously', async () => {
@@ -819,6 +882,30 @@ describe('tick handler — a broken best-effort Redis write never fails the tick
       vi.useRealTimers();
     }
   }, 2_000); // An awaited stamp never returns, so fail fast instead of stalling CI.
+
+  it('reports how late the tick-meta deadline fired, so a stalled loop is distinguishable from a slow reply', async () => {
+    // A stalled event loop fires the 100ms timer late. Faking performance.now() to jump 350ms between arming and firing is that stall; the warn must carry the real gap, not the nominal deadline.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    // Keyed on the stall rather than on call order, so another clock read earlier in the tick cannot shift which read counts as arming.
+    let stalled = false;
+    const now = vi.spyOn(performance, 'now').mockImplementation(() => (stalled ? 1_350 : 1_000));
+    try {
+      const { warnings, metaWrites } = await run({
+        orderResult: { ok: true },
+        redisSet: (...argv: unknown[]) =>
+          argv[0] === META_KEY ? new Promise<'OK'>(() => {}) : Promise.resolve('OK'),
+      });
+      expect(metaWrites).toHaveLength(1);
+      stalled = true;
+      await vi.advanceTimersByTimeAsync(100);
+      expect(findWarn(warnings, 'stampTickMeta exceeded').ctx).toMatchObject({
+        deadlineFiredAfterMs: 350,
+      });
+    } finally {
+      now.mockRestore();
+      vi.useRealTimers();
+    }
+  }, 2_000);
 
   it('routes a payload-build throw to the same handler', async () => {
     // The stamp is not just a `redis.set` call: it reads the clock, formats an ISO

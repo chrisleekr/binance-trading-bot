@@ -62,6 +62,7 @@ const AUDIT_BATCH_BUCKETS = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 500
 export type MetricName =
   | 'portfolio_risk_halt_total'
   | 'tick_latency_ms'
+  | 'strategy_tick_ms'
   | 'tick_total'
   | 'tick_failures_total'
   | 'decision_count'
@@ -73,6 +74,7 @@ export type MetricName =
   | 'tick_throttled_kill_switch'
   | 'tick_throttled_symbol_pause'
   | 'tick_throttled_override_claim'
+  | 'tick_throttled_position_cap'
   | 'tick_throttled_redis_unavailable'
   | 'binance_api_weight'
   | 'order_budget_deferred'
@@ -118,6 +120,13 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
   tick_latency_ms: {
     kind: 'histogram',
     help: 'Tick handler wall-clock latency in milliseconds.',
+    labelNames: ['profileId', 'symbol'],
+    buckets: LATENCY_MS_BUCKETS,
+  },
+  // The handler runs every profile on one thread, so a slow plugin and a slow handler both show up as the same rising `tick_latency_ms`. This is the plugin's share: `rate(strategy_tick_ms_sum) / 1000` is the seconds per second the main thread spends inside `strategy.tick()`.
+  strategy_tick_ms: {
+    kind: 'histogram',
+    help: 'Synchronous time inside the pure strategy.tick() call in milliseconds, on ticks where it returned.',
     labelNames: ['profileId', 'symbol'],
     buckets: LATENCY_MS_BUCKETS,
   },
@@ -197,6 +206,12 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
   tick_throttled_override_claim: {
     kind: 'counter',
     help: 'Ticks stood down because the override_actions row could not be claimed (operator cancel won, or the claim was unconfirmable).',
+    labelNames: ['profileId', 'symbol'],
+  },
+  // A cap-dropped BUY is a silent skip too: no order, no state commit, and it repeats every tick while the profile sits at its limit, so the log line is debug and this counter is its trace.
+  tick_throttled_position_cap: {
+    kind: 'counter',
+    help: 'Ticks whose BUY entry was dropped because the profile already holds its max open positions.',
     labelNames: ['profileId', 'symbol'],
   },
   tick_throttled_redis_unavailable: {

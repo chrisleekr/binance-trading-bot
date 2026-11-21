@@ -174,6 +174,7 @@ export const makeProfileContext = (
     candleInterval: tuple.profile.candleInterval,
     technicalsConfig: {} as unknown as TechnicalsBundleConfig,
     needsAccountDeployedQuote: tuple.profile.needsAccountDeployedQuote,
+    maxOpenPositions: 0,
   };
 };
 

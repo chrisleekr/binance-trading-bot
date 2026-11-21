@@ -8,6 +8,7 @@ import {
   ath,
   sma,
   ema,
+  emaWithPrevious,
   rsi,
   atr,
   triggerPrice,
@@ -82,6 +83,33 @@ describe('moving averages', () => {
     const smaVal = sma(w, 3);
     const emaVal = ema(w, 3);
     expect(emaVal.greaterThan(smaVal)).toBe(true);
+  });
+
+  it('emaWithPrevious equals ema of the window and of the window without its last candle', () => {
+    // Uneven closes with a repeating-decimal smoothing factor (period 6 gives 2/7), so a pass that rounded in a different order would differ in the last digits.
+    const w = mkWindow([
+      '10.37',
+      '11.02',
+      '9.81',
+      '12.4',
+      '12.39',
+      '8.05',
+      '9.99',
+      '13.7',
+      '11.11',
+    ]);
+    for (const period of [3, 6, 8]) {
+      const pair = emaWithPrevious(w, period);
+      expect(pair.now.toFixed()).toBe(ema(w, period).toFixed());
+      expect(pair.previous.toFixed()).toBe(ema(w.slice(0, -1), period).toFixed());
+    }
+  });
+
+  it('emaWithPrevious rejects a window that cannot seed without its last candle', () => {
+    // `ema` accepts exactly `period` candles; the previous value needs one more.
+    expect(() => emaWithPrevious(mkWindow(['1', '2', '3']), 3)).toThrow(
+      /window length 2 < period 3/,
+    );
   });
 });
 

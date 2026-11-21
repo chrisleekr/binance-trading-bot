@@ -982,14 +982,14 @@ export const MCP_TOOLS: readonly McpTool[] = [
     name: 'run_backtest',
     signature: `POST ${PROFILE}/backtests`,
     description:
-      'Queue a backtest over a window of history. Compute-heavy and long-running; poll get_backtest for progress and use abort_backtest to stop it. The run is priced by fees, slippage and spread, so leaving those at zero backtests a market that does not exist.',
+      'Queue a backtest over a window of history. Compute-heavy and long-running; poll get_backtest for progress and use abort_backtest to stop it. The run is priced by fees, slippage and spread, so leaving those at zero backtests a market that does not exist. New backtests are refused with a conflict once an account has 5 queued or running; abort_backtest or a finished run frees a slot.',
     // Spread from the route's own request schema rather than restated, because a backtest request is a dozen required fields and a restatement of it here is a second copy that starts agreeing and stops silently. It also replaces an opaque `params` object the caller had no description of: the fields now carry the contract's own constraints, which is what the caller needs to fill them in.
     shape: { ...profileArgs, ...BacktestSubmitSchema.shape },
   }),
   writeTool({
     name: 'abort_backtest',
     signature: `POST ${PROFILE}/backtests/:runId/abort`,
-    description: 'Stop a running backtest.',
+    description: "Stop a queued or running backtest. Frees one of the account's 5 backtest slots.",
     shape: { ...profileArgs, runId: z.string().min(1) },
   }),
   writeTool({

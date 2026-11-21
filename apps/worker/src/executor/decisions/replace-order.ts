@@ -9,6 +9,7 @@ import {
   type PlaceOrderDto,
   type PlaceOrderParams,
 } from '@app/binance';
+import { Decimal } from '@app/money';
 import type { Decision, DecisionResult, ExecutorContext } from '@app/strategy-core';
 import { classifyBinanceError } from 'executor/binance-error-taxonomy.js';
 import { emitEvent } from 'executor/event-emitter.js';
@@ -39,6 +40,21 @@ interface RetiredLeg {
 
 /** Successor shapes that mean this replacement RE-PRICES a protective stop rather than closing the position: the priced `STOP_LOSS_LIMIT` and the exchange-native trailing `STOP_LOSS`, both of which trailing-trade and momentum arm. Held here rather than inferred from the decision's `reason`, which is strategy vocabulary the executor must not read. */
 const REARMED_STOP_TYPES: ReadonlySet<string> = new Set(['STOP_LOSS_LIMIT', 'STOP_LOSS']);
+
+/**
+ * Whether a probed fill sold at least the quantity the successor was sized for. An unparseable or absent value counts as NOT covered so the failure alerts rather than hides.
+ *
+ * @param executedQty - Quantity the retired stop executed, as Binance reported it.
+ * @param successorQty - Quantity the withheld successor would have sold.
+ * @returns True only when both parse and the fill is at least the successor size.
+ */
+const fillCoversSuccessor = (executedQty: unknown, successorQty: unknown): boolean => {
+  try {
+    return new Decimal(String(executedQty)).gte(new Decimal(String(successorQty)));
+  } catch {
+    return false;
+  }
+};
 
 /** Execute Binance's atomic cancel-and-successor placement, with one recovery retry for a naked position.
  * @param deps - Shared worker dependencies for Binance, reconciliation, caching, and logging.
@@ -414,6 +430,10 @@ export const replaceOrderHandler = async (
               // `rejected` because STOP_ON_FAILURE is Binance's proof the successor never reached the matching engine, so the tick must not commit a state computed on the assumption it landed. NOT retryable: re-issuing would cancel an order that is already gone and sell base this profile no longer holds. The reconcile is the repair, and settling an operator override as rejected is correct here — the sell it wanted has effectively happened.
               retryable: false,
               phase: 'rejected',
+              // A stop smaller than the successor leaves base held, so the operator alert must stand.
+              ...(fillCoversSuccessor(probed.executedQty, decision.params.quantity)
+                ? { supersededByFill: true as const }
+                : {}),
               reason: `cancelReplace: the resting order filled rather than cancelling (${err.code}/-2011); successor withheld, position handed to reconcile`,
             };
           }

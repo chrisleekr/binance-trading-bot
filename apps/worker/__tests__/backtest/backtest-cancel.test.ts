@@ -40,6 +40,7 @@ vi.mock('@app/db', async (importOriginal) => {
 
 const { runProfileBacktest } = await import('../../src/backtest/backtest-runner.js');
 const { BacktestCancelledError } = await import('../../src/backtest/replay.js');
+const { backfillCandles } = await import('../../src/backtest/candle-backfill.js');
 
 const silentLogger = pino({ level: 'silent' });
 
@@ -121,6 +122,25 @@ describe('runProfileBacktest cancellation', () => {
     });
 
     await expect(makeCall(() => true)).rejects.toBeInstanceOf(BacktestCancelledError);
+  });
+
+  it('rejects before the replay when the cancel lands during backfill', async () => {
+    // The replay only probes between frames, so a cancel raised while candles are still loading must stop the run here and never reach the engine.
+    repoMocks.getRange.mockResolvedValue(Array.from({ length: 230 }, (_, i) => candleRow(i)));
+    runBacktest.mockClear();
+    const backfill = vi.mocked(backfillCandles);
+    backfill.mockClear();
+    let cancelled = false;
+    backfill.mockImplementationOnce(async () => {
+      cancelled = true;
+      return { inserted: 0, requests: 0 };
+    });
+    const shouldCancel = () => cancelled;
+
+    await expect(makeCall(shouldCancel)).rejects.toBeInstanceOf(BacktestCancelledError);
+    expect(backfill).toHaveBeenCalledTimes(1);
+    expect(backfill.mock.calls[0]?.[0]).toMatchObject({ shouldCancel });
+    expect(runBacktest).not.toHaveBeenCalled();
   });
 
   it('completes normally when shouldCancel returns false', async () => {

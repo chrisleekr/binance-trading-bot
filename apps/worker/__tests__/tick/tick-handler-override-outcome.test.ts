@@ -195,6 +195,7 @@ interface RunResult {
   readonly rearms: unknown[][];
   readonly settleOverrideAction: ReturnType<typeof vi.fn>;
   readonly notifyOverrideOutcome: ReturnType<typeof vi.fn>;
+  readonly commit: ReturnType<typeof vi.fn>;
 }
 
 const run = async (opts: RunOpts): Promise<RunResult> => {
@@ -209,6 +210,7 @@ const run = async (opts: RunOpts): Promise<RunResult> => {
     return Promise.resolve();
   });
   const notifyOverrideOutcome = vi.fn(async () => {});
+  const commit = vi.fn(async () => undefined);
   const registry = createRegistry();
   registry.register(buildStubStrategy(opts.orders));
 
@@ -261,7 +263,7 @@ const run = async (opts: RunOpts): Promise<RunResult> => {
     statePort: {
       loadForTick: async () => ({
         state: { schemaVersion: '1.0.0' },
-        commit: async () => undefined,
+        commit,
       }),
     },
     marketDataPort,
@@ -291,6 +293,7 @@ const run = async (opts: RunOpts): Promise<RunResult> => {
     rearms: setCalls.filter((argv) => argv[0] === OVERRIDE_KEY),
     settleOverrideAction,
     notifyOverrideOutcome,
+    commit,
   };
 };
 
@@ -410,6 +413,17 @@ describe('tick handler — override settles on the order outcome', () => {
     // The breaker's own words, from the one map the api's 409 also reads, so the
     // operator cannot be told two different things about one breaker.
     expect(outcome.reason).toBe(ENTRY_HALT_REASONS['daily-loss']);
+  });
+
+  it('leaves state un-advanced when the halt drops the only BUY', async () => {
+    const { commit, rearms } = await run({
+      orders: [overrideBuy],
+      orderResult: { ok: true },
+      haltKinds: ['daily-loss'],
+    });
+
+    expect(commit).not.toHaveBeenCalled();
+    expect(rearms).toHaveLength(0);
   });
 
   it('names the breaker that actually dropped the order, not the daily one', async () => {

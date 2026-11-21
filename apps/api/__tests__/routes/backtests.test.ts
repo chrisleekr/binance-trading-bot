@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { profileRepo } from '@app/db';
+import { profileRepo, schema } from '@app/db';
+import { asProfileId } from '@app/contracts';
 import { BACKTEST_ENGINE_REVISION, configFingerprint } from '@app/strategy-core';
 import { HAS_INFRA, setupApp, type ApiFixture } from '../_helpers.js';
 
@@ -1844,5 +1846,119 @@ describeIfInfra('backtests routes', () => {
         await f.cleanup();
       }
     });
+  });
+});
+
+describeIfInfra('backtests in-flight cap', () => {
+  const CAP = 5;
+  const createN = async (f: ApiFixture, n: number): Promise<string[]> => {
+    const ids: string[] = [];
+    for (let i = 0; i < n; i++) {
+      const res = await post(f, f.alice.profileId, f.alice.userId, validParams);
+      expect(res.status).toBe(202);
+      ids.push(((await res.json()) as { runId: string }).runId);
+    }
+    return ids;
+  };
+  const aliceRepo = (f: ApiFixture) =>
+    profileRepo(f.di.db, f.alice.userId, f.alice.accountId, f.alice.profileId);
+  const expectCapConflict = async (res: Response) => {
+    expect(res.status).toBe(409);
+    const { error } = (await res.json()) as { error: { code: string; message: string } };
+    expect(error.code).toBe('CONFLICT');
+    expect(error.message).toMatch(/5/);
+    expect(error.message).toMatch(/abort/i);
+  };
+
+  it('in-flight cap: refuses a sixth create while five are in flight and writes nothing', async () => {
+    const f = await setupBacktestApp();
+    try {
+      await createN(f, CAP);
+      const p = await aliceRepo(f);
+      const before = await p.backtestRuns.count();
+      const add = vi.spyOn(f.di.backtestQueue, 'add');
+      await expectCapConflict(await post(f, f.alice.profileId, f.alice.userId, validParams));
+      expect(add).not.toHaveBeenCalled();
+      expect(await p.backtestRuns.count()).toBe(before);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it('in-flight cap: refuses a retry while five are in flight and writes nothing', async () => {
+    const f = await setupBacktestApp();
+    try {
+      const [cancelledId] = await createN(f, 1);
+      const aborted = await action(f, f.alice.profileId, f.alice.userId, cancelledId!, 'abort');
+      expect(aborted.status).toBe(200);
+      await createN(f, CAP);
+      const p = await aliceRepo(f);
+      const before = await p.backtestRuns.count();
+      const add = vi.spyOn(f.di.backtestQueue, 'add');
+      await expectCapConflict(
+        await action(f, f.alice.profileId, f.alice.userId, cancelledId!, 'retry'),
+      );
+      expect(add).not.toHaveBeenCalled();
+      expect(await p.backtestRuns.count()).toBe(before);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("in-flight cap: terminal runs and another account's in-flight runs do not count", async () => {
+    const f = await setupBacktestApp();
+    try {
+      const p = await aliceRepo(f);
+      const params = { symbols: ['BTCUSDT'], params: validParams };
+      for (let i = 0; i < CAP - 1; i++) await p.backtestRuns.create(params);
+      const done = await p.backtestRuns.create(params);
+      await p.backtestRuns.markRunning(done.id);
+      await p.backtestRuns.complete(done.id, {});
+      const errored = await p.backtestRuns.create(params);
+      await p.backtestRuns.markRunning(errored.id);
+      await p.backtestRuns.fail(errored.id, 'boom');
+      const cancelled = await p.backtestRuns.create(params);
+      await p.backtestRuns.markCancelled(cancelled.id);
+      const b = await profileRepo(f.di.db, f.bob.userId, f.bob.accountId, f.bob.profileId);
+      for (let i = 0; i < CAP; i++) await b.backtestRuns.create(params);
+
+      const res = await post(f, f.alice.profileId, f.alice.userId, validParams);
+      expect(res.status).toBe(202);
+    } finally {
+      await f.cleanup();
+    }
+  });
+
+  it("in-flight cap: a sibling profile's in-flight runs count toward the account cap", async () => {
+    const f = await setupBacktestApp();
+    try {
+      const siblingId = randomUUID();
+      await f.di.db.insert(schema.profiles).values({
+        id: siblingId,
+        accountId: f.alice.accountId,
+        name: 'sibling',
+        strategyName: 'trailing-trade',
+        strategyVersion: '2.0.0',
+        config: {},
+        state: {},
+      });
+      const sibling = await profileRepo(
+        f.di.db,
+        f.alice.userId,
+        f.alice.accountId,
+        asProfileId(siblingId),
+      );
+      for (let i = 0; i < CAP; i++) {
+        await sibling.backtestRuns.create({ symbols: ['BTCUSDT'], params: validParams });
+      }
+      const p = await aliceRepo(f);
+      const before = await p.backtestRuns.count();
+      const add = vi.spyOn(f.di.backtestQueue, 'add');
+      await expectCapConflict(await post(f, f.alice.profileId, f.alice.userId, validParams));
+      expect(add).not.toHaveBeenCalled();
+      expect(await p.backtestRuns.count()).toBe(before);
+    } finally {
+      await f.cleanup();
+    }
   });
 });

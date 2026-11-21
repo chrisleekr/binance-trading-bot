@@ -51,7 +51,13 @@ interface OrderResult {
   readonly ok: boolean;
   /** Present on failures only (the `DecisionResult` failure arm carries it). */
   readonly reason?: string;
+  /** The resting order filled before it could be replaced, so the failure arm is not a failure. */
+  readonly supersededByFill?: boolean;
 }
+
+/** Whether this result is a real failed order action; a fill-superseded replace is not one. */
+const isFailed = (r: OrderResult): boolean =>
+  ORDER_ACTIONS.has(r.type) && !r.ok && r.supersededByFill !== true;
 
 /** Cap the reason folded into the feed line so one Binance error cannot bury the row. */
 const MAX_REASON_LEN = 120;
@@ -62,7 +68,7 @@ const MAX_REASON_LEN = 120;
  * produces it — so the caller must stay readable without one.
  */
 const firstFailureReason = (results: readonly OrderResult[]): string | null => {
-  const failed = results.find((r) => ORDER_ACTIONS.has(r.type) && !r.ok);
+  const failed = results.find(isFailed);
   const reason = failed?.reason;
   if (typeof reason !== 'string' || reason === '') return null;
   return reason.length > MAX_REASON_LEN ? `${reason.slice(0, MAX_REASON_LEN - 1)}…` : reason;
@@ -99,7 +105,7 @@ const tallyOrders = (results: readonly OrderResult[]): OrderTally => ({
   cancelled: results.filter(
     (r) => (r.type === 'cancel-order' || r.type === 'replace-order') && r.ok,
   ).length,
-  failed: results.filter((r) => ORDER_ACTIONS.has(r.type) && !r.ok).length,
+  failed: results.filter(isFailed).length,
 });
 
 /** One plain-language summary line for the feed. Specifics ride in `ctx`. */
@@ -110,6 +116,14 @@ const summarise = (e: AuditEntry, results: readonly OrderResult[]): string => {
   if (cancelled > 0) done.push(`cancelled ${cancelled}`);
 
   if (failed === 0) {
+    // Claims only what was proven: the stop filled and the reconciler owns the follow-up.
+    if (results.some((r) => r.supersededByFill === true)) {
+      const note =
+        'the resting order filled before it could be replaced; position handed to reconcile';
+      return done.length === 0
+        ? `${e.symbol}: ${note}`
+        : `${e.symbol}: ${done.join(' and ')} order(s); ${note}`;
+    }
     // All-success path keeps today's wording.
     if (done.length > 0) return `${e.symbol}: ${done.join(' and ')} order(s)`;
     // Only technicals context remained, e.g. a buy the gate blocked. Gate the
@@ -185,7 +199,7 @@ export const auditEntriesToActionLogs = (
     const results = readOrderResults(e);
     // Raise to `warn` when any order action failed so a wedged cancel-replace
     // chase stands out in the feed instead of reading as routine activity.
-    const hadFailure = results.some((r) => ORDER_ACTIONS.has(r.type) && !r.ok);
+    const hadFailure = results.some(isFailed);
     // A captured tick that did nothing is `debug`, which keeps it out of the
     // warn+error activity feed and gives the Logs tab a level to filter the
     // quiet ticks away by. It does NOT hide them from the default Logs page —

@@ -1,5 +1,5 @@
 import { Decimal } from '@app/money';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { adoptOne, runBacktest } from '../src/run.js';
 import { IdealFillModel } from '../src/ideal-fill.js';
@@ -139,6 +139,52 @@ describe('runBacktest — fill adoption converges position state', () => {
   });
 });
 
+describe('runBacktest — exit time on the emptying fill', () => {
+  it('stamps the replay clock at adoption on the SELL that empties the position', async () => {
+    const base = makePositionStrategy('0.01');
+    const applyFill = vi.fn(base.position!.applyFill);
+    let ticks = 0;
+    const selling = {
+      ...base,
+      position: { ...base.position!, applyFill },
+      tick: (input: Parameters<typeof base.tick>[0]) => {
+        ticks += 1;
+        if (ticks !== 3) return base.tick(input);
+        return {
+          nextState: input.state,
+          decisions: [
+            {
+              type: 'place-order' as const,
+              intent: {
+                symbol: input.market.symbol,
+                side: 'SELL' as const,
+                reason: 'exit' as const,
+                clientOrderId: 'bt-exit-1',
+              },
+              params: { type: 'MARKET' as const, quantity: '0.01' },
+            },
+          ],
+          logs: [],
+          metrics: [],
+        };
+      },
+    };
+    await runBacktest({
+      ...baseOpts,
+      strategy: selling,
+      fillModel: new IdealFillModel(),
+      dataSource: candleSource(flatCandles(5, '100')),
+    });
+    const empties = applyFill.mock.calls.map((c) => c[1]).filter((f) => f.kind === 'empty');
+    expect(empties).toHaveLength(1);
+    // 1m candles: a candle close is the last ms of its minute.
+    expect(empties[0]).toEqual({ kind: 'empty', atMs: expect.any(Number) });
+    const atMs = (empties[0] as { atMs: number }).atMs;
+    expect(atMs).toBeGreaterThan(0);
+    expect((atMs + 1) % 60_000).toBe(0);
+  });
+});
+
 describe('adoptOne — fill-to-position math (mirrors the live fill-adopter)', () => {
   const position = makePositionStrategy('1').position;
   if (!position) throw new Error('position adapter expected on fixture strategy');
@@ -226,6 +272,26 @@ describe('adoptOne — fill-to-position math (mirrors the live fill-adopter)', (
     // (100*0.5 + 120*1.5) / 2 = 115, qty 2.
     expect(after2).toEqual({ avgEntryPrice: '115', heldQuantity: '2' });
   });
+  it('passes the exit time on an emptying SELL and on nothing else', () => {
+    const applyFill = vi.fn(position.applyFill);
+    const spy = { ...position, applyFill };
+    const mk = (side: 'BUY' | 'SELL', qty: string) => ({
+      symbol: SYMBOL,
+      side,
+      price: new Decimal('100'),
+      qty: new Decimal(qty),
+    });
+    const bought = adoptOne(spy, flat, null, mk('BUY', '2'), 111);
+    expect(applyFill.mock.calls[0]?.[1]).toMatchObject({ kind: 'buy' });
+    expect(applyFill.mock.calls[0]?.[1]).not.toHaveProperty('atMs');
+    const reduced = adoptOne(spy, bought.state, bought.prior, mk('SELL', '0.5'), 222);
+    expect(applyFill.mock.calls[1]?.[1]).not.toHaveProperty('atMs');
+    adoptOne(spy, reduced.state, reduced.prior, mk('SELL', '1.5'), 333);
+    expect(applyFill.mock.calls[2]?.[1]).toEqual({ kind: 'empty', atMs: 333 });
+    adoptOne(spy, bought.state, bought.prior, mk('SELL', '2'));
+    expect(applyFill.mock.calls[3]?.[1]).toEqual({ kind: 'empty' });
+  });
+
   it('advances the fills-only prior through buy, partial sell, and flatten', () => {
     const fill = (side: 'BUY' | 'SELL', qty: string, price: string) => ({
       symbol: SYMBOL,
