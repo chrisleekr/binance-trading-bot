@@ -86,7 +86,12 @@ const mcpPlugins = (resource: string | undefined): NonNullable<BetterAuthOptions
     // The session JWT header would otherwise be signed on every session read, and every API request reads the session.
     jwt({ disableSettingJwtHeader: true }),
     oauthProvider as unknown as NonNullable<BetterAuthOptions['plugins']>[number],
-    cimd({ fetchClientMetadataResource, metadataProfile: 'mcp-2026-07-28' }),
+    // client_uri is shown on the consent screen, so a document hosted on one origin must not point the operator at another. Better Auth 1.7.27 dropped it from the default list.
+    cimd({
+      fetchClientMetadataResource,
+      metadataProfile: 'mcp-2026-07-28',
+      originBoundFields: ['post_logout_redirect_uris', 'client_uri'],
+    }),
   ];
 };
 
