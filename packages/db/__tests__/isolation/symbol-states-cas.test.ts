@@ -10,7 +10,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
  * (not the in-process chainByKey) prevents a lost update. Proven here with
  * genuinely concurrent transactions, not a serial stand-in.
  *
- * Skipped when `DATABASE_TEST_URL` is not set.
+ * Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL`.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 

@@ -9,7 +9,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
  *
  * The magnitudes here are deliberately far apart (10 USDT vs 0.5 BTC) so a regression that drops the filter cannot coincidentally satisfy an assertion.
  *
- * Skipped when `DATABASE_TEST_URL` is unset so `bun run test` works without PG.
+ * Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works without PG.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 

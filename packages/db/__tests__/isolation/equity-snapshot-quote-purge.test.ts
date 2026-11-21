@@ -16,7 +16,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
  *
  * The real migration artifact is executed, never a hand-copied predicate, so this test cannot drift from what the migration actually runs.
  *
- * Skipped when `DATABASE_TEST_URL` is unset so `bun run test` works without PG.
+ * Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works without PG.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 

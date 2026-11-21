@@ -5,14 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { migrate } from '../src/migrate.js';
+import { TEST_DB_URL } from './isolation/_helpers.js';
 
-// Data-correctness test for migration 0063: rewrite a stale enablement_policy
-// monitor.mode left behind when the enum was narrowed to ('off','warn'). The
-// harness applies every migration at setup, so we insert a legacy-shape row and
-// re-run the 0063 UPDATE against it. Needs a live Postgres (DATABASE_TEST_URL);
-// skipped in the unit stage, exercised in the integration stage.
+// Data-correctness test for migration 0063: rewrite a stale enablement_policy monitor.mode left behind when the enum was narrowed to ('off','warn'). The harness applies every migration at setup, so we insert a legacy-shape row and re-run the 0063 UPDATE against it. Needs a live Postgres (TESTCONTAINERS=1 or DATABASE_TEST_URL); skipped in the unit stage, exercised in the `db-isolation` job.
 
-const TEST_DB_URL = process.env['DATABASE_TEST_URL'];
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MIGRATION_SQL = readFileSync(
   resolve(HERE, '..', 'migrations', '0063_fix_legacy_monitor_mode.sql'),

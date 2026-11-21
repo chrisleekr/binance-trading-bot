@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import * as ts from 'typescript/unstable/ast';
@@ -251,6 +251,29 @@ describe('database infrastructure provisioning', () => {
   it('acquires infrastructure in the lifecycle owner and nowhere else', () => {
     expect(provisionerReferences(join(TESTS_ROOT, LIFECYCLE_OWNER_FILE))).not.toEqual([]);
     expect(provisionerReferences(join(TESTS_ROOT, SHARED_MEMO_FILE))).toEqual([]);
+  });
+
+  // Under TESTCONTAINERS=1 the URL exists only in the provided context, so an env read skips the suite while the lane stays green. Allowed: the global setup's HAS_INFRA predicate and fixtures whose env the parent builds on purpose.
+  it('reads the test database URL from the provided context, never the environment', () => {
+    // Assembled at runtime so this file never matches its own scan. Any line naming both counts, which also catches destructuring and optional chaining.
+    const envVar = ['DATABASE', 'TEST', 'URL'].join('_');
+    const readsEnv = (line: string): boolean =>
+      line.includes('process.env') && line.includes(envVar);
+    const allowed = (file: string): boolean =>
+      file === join(TESTS_ROOT, LIFECYCLE_OWNER_FILE) || file.startsWith(LIFECYCLE_FIXTURE + sep);
+    const offenders = allFiles
+      .filter((file) => !allowed(file))
+      .flatMap((file) =>
+        (sources.get(file) ?? '')
+          .split('\n')
+          .flatMap((line, index) => (readsEnv(line) ? [`${rel(file)}:${index + 1}`] : [])),
+      );
+    expect(allFiles.map(rel)).toContain('isolation/_helpers.ts');
+    // Positive control: the matcher must fire on the real read it exempts, or an empty offender list proves nothing.
+    expect(
+      (sources.get(join(TESTS_ROOT, LIFECYCLE_OWNER_FILE)) ?? '').split('\n').some(readsEnv),
+    ).toBe(true);
+    expect(offenders).toEqual([]);
   });
 });
 

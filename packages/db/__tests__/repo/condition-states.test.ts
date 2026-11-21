@@ -1,5 +1,4 @@
-// `recordCondition` against a real database. Skipped without `DATABASE_TEST_URL`
-// so workstations with no Postgres still see `bun run test` go green.
+// `recordCondition` against a real database. Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so workstations with no Postgres still see `bun run test` go green.
 //
 // A real database rather than a mock because the two properties that matter are
 // both database behaviour, not call bookkeeping. "Unchanged writes nothing" is

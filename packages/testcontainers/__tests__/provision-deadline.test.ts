@@ -23,6 +23,7 @@ const fakes = vi.hoisted(() => {
   });
   const postgres = makeState();
   const redis = makeState();
+  const postgresDatabases: string[] = [];
 
   /**
    * Settles one `.start()` attempt on fake time, so a test can make the attempts cost more in total than a single deadline allows.
@@ -44,7 +45,7 @@ const fakes = vi.hoisted(() => {
     });
   };
 
-  return { postgres, redis, attemptOn };
+  return { postgres, redis, postgresDatabases, attemptOn };
 });
 
 // The composition under test lives at the `withPostgres` / `withRedis` call sites, so these tests reach it through those functions. A copy of the nesting written inside the test file would keep passing after the real call site was nested the wrong way round.
@@ -68,8 +69,12 @@ vi.mock('@testcontainers/postgresql', () => ({
   PostgreSqlContainer: class {
     constructor(readonly image: string) {}
 
-    /** @returns Itself, mirroring the real builder's chaining. */
-    withDatabase(): this {
+    /**
+     * @param name - The database name the provisioner asked for, recorded so a test can assert on it.
+     * @returns Itself, mirroring the real builder's chaining.
+     */
+    withDatabase(name: string): this {
+      fakes.postgresDatabases.push(name);
       return this;
     }
 
@@ -88,7 +93,8 @@ vi.mock('@testcontainers/postgresql', () => ({
      */
     start(): Promise<{ getConnectionUri: () => string; stop: () => Promise<unknown> }> {
       return fakes.attemptOn(fakes.postgres, () => ({
-        getConnectionUri: () => 'postgres://postgres:postgres@127.0.0.1:5432/binance_trading_bot',
+        getConnectionUri: () =>
+          'postgres://postgres:postgres@127.0.0.1:5432/binance_trading_bot_test',
         stop: fakes.postgres.stop,
       }));
     }
@@ -175,7 +181,7 @@ const endpoints = [
   {
     label: 'postgres',
     state: fakes.postgres,
-    url: 'postgres://postgres:postgres@127.0.0.1:5432/binance_trading_bot',
+    url: 'postgres://postgres:postgres@127.0.0.1:5432/binance_trading_bot_test',
     provision: async (): Promise<string> => (await withPostgres()).databaseUrl,
     provisionWith: async (o: { startTimeoutMs: number }): Promise<string> =>
       (await withPostgres(o)).databaseUrl,
@@ -287,3 +293,18 @@ describe.each(endpoints)(
     });
   },
 );
+
+// The Postgres test-database guard refuses any name not ending in `_test`, so a provisioner that asks for another name hands every suite a URL it then rejects.
+describe('postgres database name', () => {
+  it('provisions a database whose name ends in _test', async () => {
+    vi.stubEnv('TESTCONTAINERS', '1');
+    fakes.postgresDatabases.length = 0;
+    try {
+      await withPostgres();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(fakes.postgresDatabases).toHaveLength(1);
+    expect(fakes.postgresDatabases[0]).toMatch(/_test$/);
+  });
+});

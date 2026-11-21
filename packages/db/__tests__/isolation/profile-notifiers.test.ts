@@ -11,9 +11,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
  * expressed — ownership is proven once by `scopeProfile`. Cross-account
  * rejection lives in `cross-account.test.ts`.
  *
- * Skipped when `DATABASE_TEST_URL` is not set so `bun run test` works on
- * workstations without a Postgres available; the suite runs in CI where the
- * service container is online.
+ * Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works on workstations without a Postgres available; the suite runs in CI where the service container is online.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 

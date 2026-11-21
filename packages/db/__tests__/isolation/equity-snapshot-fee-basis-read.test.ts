@@ -11,7 +11,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
  *
  * A unit test cannot see this: the defect is a `where` clause, so only a real query against real rows distinguishes "returned it" from "silently dropped it".
  *
- * Skipped when `DATABASE_TEST_URL` is unset so `bun run test` works without PG.
+ * Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works without PG.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 

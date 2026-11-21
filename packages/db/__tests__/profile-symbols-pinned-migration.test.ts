@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Pool } from 'pg';
 import { migrate } from '../src/migrate.js';
+import { TEST_DB_URL } from './isolation/_helpers.js';
 
 // Data-correctness test for migration 0088: splitting reap-protection out of `profile_symbols.source`.
 //
@@ -14,9 +15,8 @@ import { migrate } from '../src/migrate.js';
 //
 // It runs against a SCRATCH DATABASE of its own rather than the shared test database. 0088's post-flight is global by nature — it asks whether ANY unpinned operator row survives — and the sibling suites run in parallel and legitimately create exactly that shape, so a shared database would make both the backfill assertions and the deliberate abort race unrelated files.
 //
-// Needs a live Postgres (DATABASE_TEST_URL); skipped in the unit stage, exercised in the integration stage.
+// Needs a live Postgres (TESTCONTAINERS=1 or DATABASE_TEST_URL); skipped in the unit stage, exercised in the `db-isolation` job.
 
-const TEST_DB_URL = process.env['DATABASE_TEST_URL'];
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MIGRATION_SQL = readFileSync(
   resolve(HERE, '..', 'migrations', '0088_profile_symbols_pinned.sql'),

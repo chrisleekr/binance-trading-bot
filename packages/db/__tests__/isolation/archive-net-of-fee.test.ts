@@ -9,7 +9,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
  * `totalFees`/`netProfit` and (b) classify wins/losses on NET profit, so a row
  * that cleared a gross profit but not its fees counts as a loss.
  *
- * Skipped when `DATABASE_TEST_URL` is unset so `bun run test` works without PG.
+ * Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works without PG.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 

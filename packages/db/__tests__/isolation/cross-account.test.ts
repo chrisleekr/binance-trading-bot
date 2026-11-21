@@ -10,13 +10,7 @@ import {
 import { auditLogs } from '../../src/schema/audit-logs.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js';
 
-// Central cross-account isolation matrix. Ownership is now checked exactly
-// once — by `scopeProfile` — so per-function wrong-owner rejection is
-// structurally impossible to express (a `ProfileScope` cannot be forged
-// across accounts). This file owns the single rejection check for the
-// whole repo layer, plus the user-scoped audit_logs cases. Skipped when
-// DATABASE_TEST_URL is not set so `bun run test` works on workstations
-// without a Postgres available.
+// Central cross-account isolation matrix. Ownership is now checked exactly once — by `scopeProfile` — so per-function wrong-owner rejection is structurally impossible to express (a `ProfileScope` cannot be forged across accounts). This file owns the single rejection check for the whole repo layer, plus the user-scoped audit_logs cases. Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works on workstations without a Postgres available.
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 
 describeIfDb('cross-account isolation', () => {

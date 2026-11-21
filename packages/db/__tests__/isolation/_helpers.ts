@@ -3,6 +3,7 @@ import { asAccountId, asProfileId, asUserId } from '@app/contracts';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { inArray } from 'drizzle-orm';
 import { Pool } from 'pg';
+import { inject } from 'vitest';
 import { migrate } from '../../src/migrate.js';
 import { assertTestDatabaseUrl } from '../../src/test-guard.js';
 import * as schema from '../../src/schema/index.js';
@@ -25,7 +26,10 @@ export interface IsolationFixture {
   cleanup: () => Promise<void>;
 }
 
-export const TEST_DB_URL = process.env['DATABASE_TEST_URL'];
+// Read from the project global setup, never from the env: under `TESTCONTAINERS=1` the provisioned URL exists only in the provided context, so an env read leaves it undefined and every suite gated on it skips while the lane still passes. Undefined here means no infrastructure was requested.
+export const TEST_DB_URL = inject('databaseTestUrl');
+// Every importer runs migrate/UPDATE/DELETE on this URL and several never call setupFixture, so refuse a non-`_test` target once at import.
+if (TEST_DB_URL) assertTestDatabaseUrl(TEST_DB_URL);
 
 /**
  * Builds a two-user fixture (Alice, Bob) on a fresh connection. Each call
@@ -37,11 +41,8 @@ export const TEST_DB_URL = process.env['DATABASE_TEST_URL'];
  */
 export async function setupFixture(): Promise<IsolationFixture> {
   if (!TEST_DB_URL) {
-    throw new Error('DATABASE_TEST_URL is required for isolation tests');
+    throw new Error('isolation tests need TESTCONTAINERS=1 or DATABASE_TEST_URL');
   }
-  // These suites delete rows (CASCADE) on TEST_DB_URL — refuse a non-`_test`
-  // target so a stray DATABASE_TEST_URL aimed at the live DB cannot wipe it.
-  assertTestDatabaseUrl(TEST_DB_URL);
   await migrate({ connectionString: TEST_DB_URL, log: () => undefined });
 
   const pool = new Pool({ connectionString: TEST_DB_URL });

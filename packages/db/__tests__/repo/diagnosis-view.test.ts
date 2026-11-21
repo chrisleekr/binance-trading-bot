@@ -1,8 +1,7 @@
 // The discovery-funnel projection: the jsonb → diagnosis-input mapper, and the
 // scoped read that feeds the always-visible funnel panel.
 //
-// The mapper is pure and runs everywhere; the read needs a real database and is
-// skipped without `DATABASE_TEST_URL`, matching the other repo suites.
+// The mapper is pure and runs everywhere; the read needs a real database and is skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL`, matching the other repo suites.
 
 import { inArray } from 'drizzle-orm';
 import { afterAll, beforeEach, beforeAll, describe, expect, it } from 'vitest';
