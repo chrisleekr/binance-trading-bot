@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.28
+# syntax=docker/dockerfile:1.29
 # Single image for the whole app. ROLE (api|worker|study|all) selects behaviour
 # at runtime via the apps/server entrypoint — one build, one image, replacing the
 # former per-app api/worker/web images. Ships:
