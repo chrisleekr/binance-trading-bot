@@ -178,7 +178,7 @@ integration:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
   services:
-    - name: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
+    - name: timescale/timescaledb:2.32.1-pg17@sha256:2f5e6969faa5cd7f4b075d65f124e30dc50d456b7b807e5c1acd9d51ba7df51c
       alias: postgres
     - name: redis:8-alpine
       alias: redis
@@ -209,7 +209,7 @@ worker-integration:
     - !reference [default, before_script]
     - apk add --no-cache nodejs
   services:
-    - name: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
+    - name: timescale/timescaledb:2.32.1-pg17@sha256:2f5e6969faa5cd7f4b075d65f124e30dc50d456b7b807e5c1acd9d51ba7df51c
       alias: postgres
     - name: redis:8-alpine
       alias: redis
@@ -240,7 +240,7 @@ db-isolation:
     - apk add --no-cache nodejs
   services:
     # The DEPLOYED server, identical to deploy/compose/docker-compose.prod.yml and the Testcontainers runtime pin; the pin test enforces all three. This lane replays every migration in packages/db, so it has to run the version that actually ships — a migration suite pointed anywhere else validates a database nobody runs.
-    - name: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
+    - name: timescale/timescaledb:2.32.1-pg17@sha256:2f5e6969faa5cd7f4b075d65f124e30dc50d456b7b807e5c1acd9d51ba7df51c
       alias: postgres
   variables:
     POSTGRES_DB: binance_trading_bot_test
@@ -312,7 +312,7 @@ app-e2e:
   needs: []
   image: mcr.microsoft.com/playwright:v1.65.1-noble
   services:
-    - name: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
+    - name: timescale/timescaledb:2.32.1-pg17@sha256:2f5e6969faa5cd7f4b075d65f124e30dc50d456b7b807e5c1acd9d51ba7df51c
       alias: postgres
     - name: redis:8-alpine
       alias: redis

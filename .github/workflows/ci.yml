@@ -143,7 +143,7 @@ jobs:
     runs-on: ubuntu-26.04
     services:
       postgres:
-        image: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
+        image: timescale/timescaledb:2.32.1-pg17@sha256:2f5e6969faa5cd7f4b075d65f124e30dc50d456b7b807e5c1acd9d51ba7df51c
         env:
           POSTGRES_DB: binance_trading_bot_test
           POSTGRES_USER: postgres
@@ -199,7 +199,7 @@ jobs:
     runs-on: ubuntu-26.04
     services:
       postgres:
-        image: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
+        image: timescale/timescaledb:2.32.1-pg17@sha256:2f5e6969faa5cd7f4b075d65f124e30dc50d456b7b807e5c1acd9d51ba7df51c
         env:
           POSTGRES_DB: binance_trading_bot_test
           POSTGRES_USER: postgres
@@ -248,7 +248,7 @@ jobs:
     services:
       postgres:
         # The DEPLOYED server, identical to deploy/compose/docker-compose.prod.yml and the Testcontainers runtime pin; the pin test enforces all three. This lane replays every migration in packages/db, so it has to run the version that actually ships — a migration suite pointed anywhere else validates a database nobody runs.
-        image: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
+        image: timescale/timescaledb:2.32.1-pg17@sha256:2f5e6969faa5cd7f4b075d65f124e30dc50d456b7b807e5c1acd9d51ba7df51c
         env:
           POSTGRES_DB: binance_trading_bot_test
           POSTGRES_USER: postgres
@@ -325,7 +325,7 @@ jobs:
       image: mcr.microsoft.com/playwright:v1.65.1-noble
     services:
       postgres:
-        image: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
+        image: timescale/timescaledb:2.32.1-pg17@sha256:2f5e6969faa5cd7f4b075d65f124e30dc50d456b7b807e5c1acd9d51ba7df51c
         env:
           POSTGRES_DB: binance_trading_bot_test
           POSTGRES_USER: postgres
