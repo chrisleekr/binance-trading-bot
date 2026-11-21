@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.10.0...v1.11.0) (2026-11-21)
+
+
+### Features
+
+* **risk:** add max open positions cap, fill-superseded replace result, backtest in-flight cap ([#832](https://github.com/chrisleekr/binance-trading-bot/issues/832)) ([c3dcefc](https://github.com/chrisleekr/binance-trading-bot/commit/c3dcefc771c75a3d583336e5610c0351895b30cd))
+
 ## [1.10.0](https://github.com/chrisleekr/binance-trading-bot/compare/v1.9.0...v1.10.0) (2026-11-12)
 
 
