@@ -518,7 +518,9 @@ export const createTickHandler = (
               profile.maxOpenPositions,
             );
             if (capped.dropped.length > 0) {
-              deps.logger.warn(
+              // Routine while the profile sits at its limit and repeats every tick the signal holds, so debug plus a counter rather than a warn.
+              deps.metrics?.record('tick_throttled_position_cap', 1, { profileId, symbol });
+              deps.logger.debug(
                 { profileId, symbol, held: capped.held, max: profile.maxOpenPositions },
                 'position cap reached — new BUY suppressed',
               );

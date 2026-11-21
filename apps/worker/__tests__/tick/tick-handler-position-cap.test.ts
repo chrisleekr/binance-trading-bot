@@ -106,6 +106,8 @@ interface Shared {
   readonly held: Set<string>;
   readonly applied: string[];
   readonly warn: ReturnType<typeof vi.fn>;
+  readonly debug: ReturnType<typeof vi.fn>;
+  readonly record: ReturnType<typeof vi.fn>;
 }
 
 const makeShared = (held: string[]): Shared => ({
@@ -113,6 +115,8 @@ const makeShared = (held: string[]): Shared => ({
   held: new Set(held),
   applied: [],
   warn: vi.fn(),
+  debug: vi.fn(),
+  record: vi.fn(),
 });
 
 interface HandlerOpts {
@@ -172,7 +176,7 @@ const makeHandler = (shared: Shared, symbol: string, opts: HandlerOpts = {}) => 
     executor: { applyAll },
     chain: shared.chain,
     logger: {
-      debug: () => undefined,
+      debug: shared.debug,
       info: () => undefined,
       warn: shared.warn,
       error: () => undefined,
@@ -193,7 +197,7 @@ const makeHandler = (shared: Shared, symbol: string, opts: HandlerOpts = {}) => 
     marketDataPort: { loadWindow: async () => [] } as unknown as MarketDataPort,
     resolveProfile: async () => profile,
     auditShipper: { publish: async () => undefined },
-    metrics: { record: vi.fn(), forget: vi.fn() },
+    metrics: { record: shared.record, forget: vi.fn() },
     claimOverrideAction: async () => true,
     findActiveOverride: async () => ({ id: OVERRIDE.overrideActionId }),
     settleOverrideAction: async () => undefined,
@@ -239,10 +243,17 @@ describe('tick handler position cap', () => {
 
     expect(shared.applied).toHaveLength(1);
     expect(shared.held.size).toBe(2);
-    expect(shared.warn).toHaveBeenCalledWith(
+    expect(shared.debug).toHaveBeenCalledWith(
       expect.objectContaining({ profileId: PROFILE, held: 2, max: 2 }),
       'position cap reached — new BUY suppressed',
     );
+    expect(shared.warn).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'position cap reached — new BUY suppressed',
+    );
+    expect(
+      shared.record.mock.calls.filter((c) => c[0] === 'tick_throttled_position_cap'),
+    ).toHaveLength(1);
   });
 
   it('leaves state un-advanced and sets no re-arm flag when the cap drops the BUY, but commits the admitted one', async () => {

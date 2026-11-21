@@ -74,6 +74,7 @@ export type MetricName =
   | 'tick_throttled_kill_switch'
   | 'tick_throttled_symbol_pause'
   | 'tick_throttled_override_claim'
+  | 'tick_throttled_position_cap'
   | 'tick_throttled_redis_unavailable'
   | 'binance_api_weight'
   | 'order_budget_deferred'
@@ -205,6 +206,12 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
   tick_throttled_override_claim: {
     kind: 'counter',
     help: 'Ticks stood down because the override_actions row could not be claimed (operator cancel won, or the claim was unconfirmable).',
+    labelNames: ['profileId', 'symbol'],
+  },
+  // A cap-dropped BUY is a silent skip too: no order, no state commit, and it repeats every tick while the profile sits at its limit, so the log line is debug and this counter is its trace.
+  tick_throttled_position_cap: {
+    kind: 'counter',
+    help: 'Ticks whose BUY entry was dropped because the profile already holds its max open positions.',
     labelNames: ['profileId', 'symbol'],
   },
   tick_throttled_redis_unavailable: {
