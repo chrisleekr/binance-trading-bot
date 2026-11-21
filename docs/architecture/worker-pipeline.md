@@ -338,6 +338,7 @@ So:
 | --- | --- | --- |
 | `pre-call` / `rejected` | **NO** | The order provably never executed, so a state computed on the assumption it landed is a LIE — retryable or not. Momentum's exit emits its protective-stop handling and MARKET SELL decisions with a FLAT state; committing after a refused SELL would leave the bot believing it holds nothing while it holds the coin and its stop is still active or its replacement failed. |
 | `accepted` / `ambiguous` | **YES** | The order may be LIVE. Re-issuing from an un-advanced state would DOUBLE it. |
+| BUY dropped by the entry halt or position cap (no placement kept) | **NO** | The strategy's state assumed the entry was placed, so committing it records a position that was never bought. No re-arm flag is set: nothing failed, and the next tick re-derives the entry. |
 
 ```mermaid
 flowchart TD

@@ -122,7 +122,7 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
     labelNames: ['profileId', 'symbol'],
     buckets: LATENCY_MS_BUCKETS,
   },
-  // The handler runs every profile on one thread, so a slow plugin and a slow handler both show up as the same rising `tick_latency_ms`. This is the plugin's share: `rate(strategy_tick_ms_sum)` is the seconds per second the main thread spends inside `strategy.tick()`.
+  // The handler runs every profile on one thread, so a slow plugin and a slow handler both show up as the same rising `tick_latency_ms`. This is the plugin's share: `rate(strategy_tick_ms_sum) / 1000` is the seconds per second the main thread spends inside `strategy.tick()`.
   strategy_tick_ms: {
     kind: 'histogram',
     help: 'Synchronous time inside the pure strategy.tick() call in milliseconds, on ticks where it returned.',

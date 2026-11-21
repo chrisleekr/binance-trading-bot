@@ -51,7 +51,7 @@ const symbolInfo = (symbol: string): SymbolInfo => ({
   },
 });
 
-const buildFakeRedis = (): import('ioredis').Redis => {
+const buildFakeRedis = (set: (...argv: unknown[]) => Promise<'OK'>): import('ioredis').Redis => {
   const makeChain = (count: { n: number }) => {
     const chain = {
       get() {
@@ -66,7 +66,7 @@ const buildFakeRedis = (): import('ioredis').Redis => {
     pipeline: () => makeChain({ n: 0 }),
     exists: async () => 0,
     get: async () => null,
-    set: async (): Promise<'OK'> => 'OK',
+    set,
     del: async () => 1,
   } as unknown as import('ioredis').Redis;
 };
@@ -125,6 +125,8 @@ interface HandlerOpts {
 type Decisions = readonly { type: string; intent?: { side: string } }[];
 
 const makeHandler = (shared: Shared, symbol: string, opts: HandlerOpts = {}) => {
+  const commit = vi.fn(async () => undefined);
+  const redisSet = vi.fn(async (..._argv: unknown[]): Promise<'OK'> => 'OK');
   const registry = createRegistry();
   registry.register(buyStrategy(symbol));
   const applyAll = vi.fn(async (_ctx: unknown, _acc: unknown, decisions: Decisions) => {
@@ -165,7 +167,7 @@ const makeHandler = (shared: Shared, symbol: string, opts: HandlerOpts = {}) => 
     maxOpenPositions: opts.maxOpenPositions ?? 2,
   } as unknown as ProfileTickContext;
   const deps = {
-    redis: buildFakeRedis(),
+    redis: buildFakeRedis(redisSet),
     registry,
     executor: { applyAll },
     chain: shared.chain,
@@ -185,7 +187,7 @@ const makeHandler = (shared: Shared, symbol: string, opts: HandlerOpts = {}) => 
     statePort: {
       loadForTick: async () => ({
         state: { schemaVersion: '1.0.0' },
-        commit: async () => undefined,
+        commit,
       }),
     },
     marketDataPort: { loadWindow: async () => [] } as unknown as MarketDataPort,
@@ -211,7 +213,7 @@ const makeHandler = (shared: Shared, symbol: string, opts: HandlerOpts = {}) => 
     } satisfies TickJobData,
   } as unknown as Job<TickJobData>;
   const handler = createTickHandler(deps);
-  return { run: () => handler(job), applyAll, listHeldSymbols };
+  return { run: () => handler(job), applyAll, listHeldSymbols, commit, redisSet };
 };
 
 /** Fails the test instead of hanging it when a lease is never released. */
@@ -241,6 +243,22 @@ describe('tick handler position cap', () => {
       expect.objectContaining({ profileId: PROFILE, held: 2, max: 2 }),
       'position cap reached — new BUY suppressed',
     );
+  });
+
+  it('leaves state un-advanced and sets no re-arm flag when the cap drops the BUY, but commits the admitted one', async () => {
+    const shared = makeShared(['XUSDT']);
+    const a = makeHandler(shared, 'AUSDT');
+    const b = makeHandler(shared, 'BUSDT');
+
+    await within(Promise.all([a.run(), b.run()]));
+
+    const [admitted, dropped] = shared.applied[0] === 'AUSDT' ? [a, b] : [b, a];
+    expect(admitted.commit).toHaveBeenCalledTimes(1);
+    expect(dropped.commit).not.toHaveBeenCalled();
+    // The handler also SETs tick-meta and the open-orders cache; only the re-arm key matters.
+    expect(
+      dropped.redisSet.mock.calls.filter(([key]) => String(key).includes('rearm')),
+    ).toHaveLength(0);
   });
 
   it('lets both through while two slots are left', async () => {

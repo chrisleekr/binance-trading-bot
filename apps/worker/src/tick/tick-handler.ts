@@ -494,6 +494,7 @@ export const createTickHandler = (
         // The cap decides over every symbol's held state at once, so the count and the applyAll that makes it true must not interleave with a sibling symbol's tick: both could read "one slot left" and both enter. The lease is a per-profile in-process chain key taken while already inside this symbol's chain, never the reverse. An operator override is an explicit order and is exempt, so a tick carrying one takes no lease and does no read. The cap off (0) costs neither.
         let releaseCap: () => void = () => undefined;
         let keptDecisions = halt.kept;
+        let capDropped: readonly Decision[] = [];
         const carriesOverride =
           (tickInput.bundle as { override?: ManualOverridePayload | null }).override != null;
         if (
@@ -522,6 +523,7 @@ export const createTickHandler = (
                 'position cap reached — new BUY suppressed',
               );
               keptDecisions = capped.kept;
+              capDropped = capped.dropped;
             }
           } catch (err) {
             deps.logger.warn(
@@ -663,6 +665,12 @@ export const createTickHandler = (
         const orderDidNotExecute =
           placementResult !== undefined &&
           (placementResult.phase === 'pre-call' || placementResult.phase === 'rejected');
+        // Only when no placement survived: a kept placement may have landed, and un-advancing then would double it on the next tick.
+        const placementSuppressed =
+          placementDecision === undefined &&
+          [...halt.dropped, ...capDropped].some(
+            (d) => d.type === 'place-order' || d.type === 'replace-order',
+          );
         let refusalTransition: OrderRefusalTransition | undefined;
         let persistedRefusalEvent: OrderRefusalTransition['event'] = null;
         if (refusalState !== undefined) {
@@ -842,11 +850,13 @@ export const createTickHandler = (
         // order. `willRetry` (which also weighs `retryable`) decides only whether we
         // ADVERTISE a retry: the audit flag and the alert wording.
         //
+        // A BUY the entry halt or position cap dropped leaves state un-advanced too, because the strategy's state assumed the entry was placed, and no re-arm flag or warning is raised because nothing failed.
+        //
         // On `accepted` / `ambiguous` the order may be LIVE on the exchange, so the
         // state that assumed it landed is the truthful one and we COMMIT — re-issuing
         // from an un-advanced state would double the order.
-        if (orderDidNotExecute) {
-          if (!refusalGate.defer) {
+        if (orderDidNotExecute || placementSuppressed) {
+          if (orderDidNotExecute && !refusalGate.defer) {
             deps.logger.warn(
               {
                 profileId,
@@ -873,22 +883,24 @@ export const createTickHandler = (
           // before the order is known to have landed, so recording a clear would
           // delete a row the persisted state still implies.
           writtenConditions = await auditBlockers(output.nextState, 'evaluated');
-          await raceDeadline(
-            () => deps.redis.set(rearmKey, '1', 'PX', REARM_WINDOW_MS, 'NX'),
-            REARM_TIMEOUT_MS,
-            () => {
-              deps.logger.warn(
-                { profileId, symbol },
-                'tick-handler: could not flag the order re-arm (visibility only; the retry still happens)',
-              );
-            },
-            (err: unknown) => {
-              deps.logger.warn(
-                { profileId, symbol, err: err },
-                'tick-handler: could not flag the order re-arm (visibility only; the retry still happens)',
-              );
-            },
-          );
+          if (orderDidNotExecute) {
+            await raceDeadline(
+              () => deps.redis.set(rearmKey, '1', 'PX', REARM_WINDOW_MS, 'NX'),
+              REARM_TIMEOUT_MS,
+              () => {
+                deps.logger.warn(
+                  { profileId, symbol },
+                  'tick-handler: could not flag the order re-arm (visibility only; the retry still happens)',
+                );
+              },
+              (err: unknown) => {
+                deps.logger.warn(
+                  { profileId, symbol, err: err },
+                  'tick-handler: could not flag the order re-arm (visibility only; the retry still happens)',
+                );
+              },
+            );
+          }
         } else {
           writtenConditions = await commit(output.nextState, persistTimeoutMs);
           // Every order decision this tick landed: the retry sequence, if there was one, is over. Skip the DEL only when the read succeeded and found the flag unset (this handler is its only writer, so the DEL would be a no-op round trip that turned Redis latency into warns on every ordinary tick); an errored read cannot tell, so it still clears.
