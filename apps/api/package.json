@@ -23,17 +23,17 @@
     "@app/observability": "workspace:*",
     "@app/strategy-core": "workspace:*",
     "@app/strategy-registry": "workspace:*",
-    "@better-auth/cimd": "~1.7.22",
-    "@better-auth/mcp": "~1.7.22",
+    "@better-auth/cimd": "~1.7.27",
+    "@better-auth/mcp": "~1.7.27",
     "@hono/swagger-ui": "~0.6.2",
     "@hono/zod-openapi": "1.6.3",
     "@modelcontextprotocol/server": "~2.4.0",
-    "better-auth": "~1.7.22",
-    "bullmq": "6.7.5",
+    "better-auth": "~1.7.27",
+    "bullmq": "6.7.8",
     "drizzle-orm": "~0.45.4",
-    "hono": "~4.13.18",
+    "hono": "~4.13.19",
     "ioredis": "~6.0.0",
-    "jose": "~6.2.17",
+    "jose": "~6.2.18",
     "pg": "~8.23.1",
     "pino": "~10.4.0",
     "zod": "~4.6.7"
@@ -43,6 +43,6 @@
     "@app/testcontainers": "workspace:*",
     "@types/pg": "~8.23.1",
     "typescript": "~7.0.2",
-    "vitest": "~5.1.0"
+    "vitest": "~5.1.1"
   }
 }

@@ -267,7 +267,7 @@ db-isolation:
 browser-bootstrap:
   stage: test
   needs: []
-  image: mcr.microsoft.com/playwright:v1.65.0-noble
+  image: mcr.microsoft.com/playwright:v1.65.1-noble
   variables:
     BUN_INSTALL: /root/.bun
     BUN_VERSION: '1.4.4'
@@ -310,7 +310,7 @@ browser-bootstrap:
 app-e2e:
   stage: test
   needs: []
-  image: mcr.microsoft.com/playwright:v1.65.0-noble
+  image: mcr.microsoft.com/playwright:v1.65.1-noble
   services:
     - name: timescale/timescaledb:2.32.0-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
       alias: postgres
