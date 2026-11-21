@@ -5,13 +5,7 @@ import { apiKeys } from '../../src/schema/api-keys.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js';
 
 /**
- * Account-scoped happy-path matrix for `packages/db/src/repo/api-keys.ts`.
- * Api keys hang off the account (1 account : 1 key pair), so every exported fn
- * takes an `AccountScope` — a wrong-owner call cannot be expressed, ownership is
- * proven once by `scopeAccount`. Cross-account rejection lives in
- * `cross-account.test.ts`; this suite locks the owner-scoped read/write/delete
- * semantics. Skipped when `DATABASE_TEST_URL` is not set so `bun run test` works
- * on workstations without a Postgres available.
+ * Account-scoped happy-path matrix for `packages/db/src/repo/api-keys.ts`. Api keys hang off the account (1 account : 1 key pair), so every exported fn takes an `AccountScope` — a wrong-owner call cannot be expressed, ownership is proven once by `scopeAccount`. Cross-account rejection lives in `cross-account.test.ts`; this suite locks the owner-scoped read/write/delete semantics. Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works on workstations without a Postgres available.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 

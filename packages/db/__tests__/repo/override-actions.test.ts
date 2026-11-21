@@ -12,12 +12,7 @@ import * as schema from '../../src/schema/index.js';
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from '../isolation/_helpers.js';
 
 /**
- * Behaviour suite for the `override-actions` repo: the terminal writers
- * (`settle` / `finalize` / `reapExpiredForAccount`, which all share one private
- * `consume`) and the `claimAction`/`releaseClaim`/`reapStaleProcessing`
- * processing lifecycle. Skipped when `TEST_DB_URL` is unset so workstations
- * without Postgres still see `bun run test` go green; CI runs against a live
- * database.
+ * Behaviour suite for the `override-actions` repo: the terminal writers (`settle` / `finalize` / `reapExpiredForAccount`, which all share one private `consume`) and the `claimAction`/`releaseClaim`/`reapStaleProcessing` processing lifecycle. Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so workstations without Postgres still see `bun run test` go green; CI runs against a live database.
  *
  * Every terminal write records an OUTCOME, never just a `consumed_at`: a row
  * closed out with no outcome cannot tell a filled force-sell apart from one the

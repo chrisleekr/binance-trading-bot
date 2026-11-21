@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # packages/db isolation + projection tests against the real Postgres service.
-# DATABASE_TEST_URL points at the service's POSTGRES_DB, which already exists,
-# so migrate() (advisory-locked) just applies the schema. Without the variable
-# the same suites resolve as describe.skip, so they run only here.
+# DATABASE_TEST_URL points at the service's POSTGRES_DB, which already exists, so migrate() (advisory-locked) just applies the schema. Without the variable, and without TESTCONTAINERS=1, the same suites resolve as describe.skip, so in CI they run only here.
 # shellcheck source=_common.sh
 source "$(dirname "$0")/_common.sh"
 ci::start test-db-isolation

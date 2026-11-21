@@ -5,9 +5,7 @@ import { backupConfig as backupConfigTable } from '../../src/schema/backup-confi
 import { setupFixture, TEST_DB_URL, type IsolationFixture } from '../isolation/_helpers.js';
 
 /**
- * Round-trip suite for the global `backup_config` singleton. Skipped when
- * `TEST_DB_URL` is unset so workstations without Postgres still see
- * `bun run test` go green; CI runs against a live database.
+ * Round-trip suite for the global `backup_config` singleton. Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so workstations without Postgres still see `bun run test` go green; CI runs against a live database.
  *
  * The singleton is global, not per-account, so these assertions run in one
  * ordered test: the migration seeds id=1 with defaults, then upsert mutates the

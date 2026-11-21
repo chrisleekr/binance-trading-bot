@@ -1,6 +1,4 @@
-// Round-trip suite for the global `retention_config` singleton, against a real
-// database. Skipped when `TEST_DB_URL` is unset so workstations without Postgres
-// still see `bun run test` go green; CI runs against a live database.
+// Round-trip suite for the global `retention_config` singleton, against a real database. Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so workstations without Postgres still see `bun run test` go green; CI runs against a live database.
 //
 // Two things are worth a real database here rather than a mock. The bounds are
 // CHECK constraints, so the database is the last line between a UI or API bug

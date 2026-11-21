@@ -4,11 +4,11 @@ import { eq } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { migrate } from '../../src/migrate.js';
+import { TEST_DB_URL } from './_helpers.js';
 import * as schema from '../../src/schema/index.js';
 import { candles as candlesRepo } from '../../src/repo/index.js';
 import type { CandleInsert } from '../../src/schema/candles.js';
 
-const TEST_DB_URL = process.env['DATABASE_TEST_URL'];
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 
 // `candles` is global market data (no profile_id), so unlike the account-
@@ -38,7 +38,7 @@ describeIfDb('candles global candle store', () => {
   });
 
   beforeAll(async () => {
-    if (!TEST_DB_URL) throw new Error('DATABASE_TEST_URL is required for isolation tests');
+    if (!TEST_DB_URL) throw new Error('isolation tests need TESTCONTAINERS=1 or DATABASE_TEST_URL');
     await migrate({ connectionString: TEST_DB_URL, log: () => undefined });
     pool = new Pool({ connectionString: TEST_DB_URL });
     db = drizzle(pool, { schema });

@@ -15,7 +15,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
  * proceeds, no matching BUY row) books only its stamped realised P/L, and a
  * SELL with NULL cost basis under-counts rather than fabricating a gain.
  *
- * Skipped when `DATABASE_TEST_URL` is unset so `bun run test` works without PG.
+ * Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works without PG.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 

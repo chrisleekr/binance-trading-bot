@@ -1,5 +1,4 @@
-// `diagnosis_runs` against a real database. Skipped without `DATABASE_TEST_URL`
-// so workstations with no Postgres still see `bun run test` go green.
+// `diagnosis_runs` against a real database. Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so workstations with no Postgres still see `bun run test` go green.
 //
 // A real database because the two properties worth proving are both database
 // behaviour: a run belonging to another account's profile must not resolve

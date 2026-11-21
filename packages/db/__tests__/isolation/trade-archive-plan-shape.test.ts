@@ -11,7 +11,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
  *
  * The assertion is on subquery FLATTENING, never on the join algorithm. Whether the flattened form comes out as a hash, merge, or nested-loop anti-join is cost-driven and flips with table size, so pinning it would make this test track fixture scale instead of the defect. Flattening is a rewrite-stage decision and is size-independent, which is what makes it a stable gate.
  *
- * Skipped when `DATABASE_TEST_URL` is not set so `bun run test` works on workstations without a Postgres available.
+ * Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works on workstations without a Postgres available.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 

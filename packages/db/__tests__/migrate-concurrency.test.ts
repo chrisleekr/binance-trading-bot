@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from 'pg';
 import { migrate } from '../src/migrate.js';
+import { TEST_DB_URL } from './isolation/_helpers.js';
 
-const TEST_DB_URL = process.env['DATABASE_TEST_URL'];
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 
 /**

@@ -148,7 +148,8 @@ export const withPostgres = async (options: ProvisionOptions = {}): Promise<Post
     () =>
       startWithRetry(() =>
         new PostgreSqlContainer(POSTGRES_IMAGE)
-          .withDatabase('binance_trading_bot')
+          // `_test` suffix so the destructive suites' `assertTestDatabaseUrl` guard admits the throwaway container the same way it admits CI's service database.
+          .withDatabase('binance_trading_bot_test')
           .withUsername('postgres')
           .withPassword('postgres')
           .start(),

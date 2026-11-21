@@ -18,8 +18,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
  * sum), (d) excludes a different `quote_asset` (a USDT sum must not fold in a
  * BTC-quoted cost basis), and (e) returns '0' when nothing matches.
  *
- * Skipped when `TEST_DB_URL` is unset so `bun run test` works without a
- * Postgres available.
+ * Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works without a Postgres available.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 

@@ -11,8 +11,7 @@ import { setupFixture, TEST_DB_URL, type IsolationFixture } from './_helpers.js'
  * functions are sums over EVERY row in a window: a sibling test seeding one more
  * archive row would move the answer, and the replay below asserts exact figures.
  *
- * Skipped when `DATABASE_TEST_URL` is not set so `bun run test` works on
- * workstations without a Postgres available.
+ * Skipped without `TESTCONTAINERS=1` or `DATABASE_TEST_URL` so `bun run test` works on workstations without a Postgres available.
  */
 const describeIfDb = TEST_DB_URL ? describe : describe.skip;
 
