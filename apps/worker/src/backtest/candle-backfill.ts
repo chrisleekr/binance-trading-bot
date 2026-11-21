@@ -21,6 +21,8 @@ export interface CandleBackfillDeps {
   readonly insertCandles: (rows: readonly schema.CandleInsert[]) => Promise<void>;
   readonly clock: { nowMs(): number };
   readonly logger?: Logger;
+  /** Checked before every klines page. A year of 1-minute bars is several hundred pages, so without this a cancelled run keeps downloading and inserting for minutes, loading the process that also trades live. True stops the backfill early; the caller decides what a cancel means. */
+  readonly shouldCancel?: () => boolean;
 }
 
 export interface BackfillResult {
@@ -54,6 +56,7 @@ export async function backfillCandles(
   for (const gap of gaps) {
     let cursor = gap.fromMs;
     while (cursor <= gap.toMs) {
+      if (deps.shouldCancel?.()) break;
       // A klines call returns at most BINANCE_MAX_KLINE_LIMIT candles and costs a flat weight of 2 at any limit, so the largest page is also the cheapest way to cover a gap. Paging smaller buys no rate-limit headroom and only multiplies round trips.
       const rows = await deps.getKlines({
         symbol: bare,

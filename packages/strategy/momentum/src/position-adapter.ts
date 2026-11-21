@@ -76,7 +76,10 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
           !hasPositionScopedFieldSet(body) &&
           body['breakEvenArmed'] === undefined
         ) {
-          return null;
+          // The strategy's own exit flattens the body at emit time, before the fill lands, so the exit time still has to be recorded here.
+          return typeof fill.atMs === 'number' && body['lastExitMs'] !== fill.atMs
+            ? { ...(body as unknown as MomentumState), lastExitMs: fill.atMs }
+            : null;
         }
         // The writer that ends the position closes the STATE fields the position owns. Leaving that to the next tick strands them whenever no next tick comes: a kill-switch or a symbol pause short-circuits `buildTickInput` before the strategy runs, and a disposal-blocked symbol never re-enables on its own. Scope is the body only: the paired `condition_states` row is written from the tick's audited commit, which no adapter write goes through, so that row still waits for a later tick to resolve it.
         return clearPositionScopedFields({
@@ -88,6 +91,7 @@ export const momentumPositionAdapter: PositionStateAdapter<MomentumState> = {
           profitTrailSinceMs: null,
           breakEvenArmed: undefined,
           entryLayer: null,
+          ...(typeof fill.atMs === 'number' ? { lastExitMs: fill.atMs } : {}),
         });
       }
     }

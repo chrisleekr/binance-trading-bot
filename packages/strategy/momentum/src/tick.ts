@@ -1,5 +1,5 @@
 import { Decimal } from '@app/money';
-import { ema, sma } from '@app/indicators';
+import { ema, emaWithPrevious, sma } from '@app/indicators';
 import {
   clearPositionScopedFields,
   decOrNull,
@@ -262,6 +262,37 @@ export const computeTick = (input: MomentumInput): MomentumOutput => {
   return publish === null ? out : { ...out, decisions: [...out.decisions, publish] };
 };
 
+/** The fast and slow EMA on the last closed candle, and whether they crossed on it. */
+interface EmaCross {
+  readonly fastNow: Decimal;
+  readonly slowNow: Decimal;
+  /** The slow EMA raised by the confirmation margin: the level the fast EMA must clear for an entry. */
+  readonly threshold: Decimal;
+  readonly crossUp: boolean;
+  readonly crossDown: boolean;
+}
+
+/**
+ * Reads the EMA cross off the closed candles. The entry threshold is the slow EMA raised by the confirmation margin, so a cross-up counts only when the fast EMA clears it. The exit stays a bare cross-down: quick to leave, slow to enter.
+ *
+ * @param candles - Closed candles, oldest first, at least `ema.slow + 1` of them.
+ * @param config - Supplies the two EMA periods and the entry margin.
+ * @returns The EMA values, the entry threshold and both cross flags.
+ */
+const emaCrossReading = (candles: readonly Candle[], config: MomentumConfig): EmaCross => {
+  const fast = emaWithPrevious(candles, config.ema.fast);
+  const slow = emaWithPrevious(candles, config.ema.slow);
+  const band = new Decimal(1).plus(entryMargin(config));
+  const threshold = slow.now.mul(band);
+  return {
+    fastNow: fast.now,
+    slowNow: slow.now,
+    threshold,
+    crossUp: fast.previous.lte(slow.previous.mul(band)) && fast.now.gt(threshold),
+    crossDown: fast.previous.gte(slow.previous) && fast.now.lt(slow.now),
+  };
+};
+
 /**
  * Everything {@link computeTick} decides except the relative-strength KV publish.
  *
@@ -307,16 +338,9 @@ const decide = (input: MomentumInput): MomentumOutput => {
   }
 
   const windowPrev = candles.slice(0, -1);
-  const fastNow = ema(candles, config.ema.fast);
-  const slowNow = ema(candles, config.ema.slow);
-  const fastPrev = ema(windowPrev, config.ema.fast);
-  const slowPrev = ema(windowPrev, config.ema.slow);
-  // Entry threshold is the slow EMA raised by the confirmation margin, so a
-  // cross-up counts only when the fast EMA clears it. Exit stays a bare
-  // cross-down: quick to leave, slow to enter.
-  const band = new Decimal(1).plus(entryMargin(config));
-  const crossUp = fastPrev.lte(slowPrev.mul(band)) && fastNow.gt(slowNow.mul(band));
-  const crossDown = fastPrev.gte(slowPrev) && fastNow.lt(slowNow);
+  // The EMA passes cost more than the rest of a tick put together, and a flat symbol on any trigger except `trend` and `cross` never reads them, so they run on first use. A worker ticking every flat symbol each second otherwise spends most of its one thread here.
+  let emaCross: EmaCross | undefined;
+  const emas = (): EmaCross => (emaCross ??= emaCrossReading(candles, config));
 
   if (state.entryPrice === null) {
     // Coins with no cost basis are an unguarded holding, not a flat symbol: the reconciler seeds a held quantity from the wallet, and deleting a basis keeps it. Entering here would place a second buy and overwrite `heldQuantity` with that order alone, dropping the original coins from tracking. Refuse and say so until the operator sets a basis or sells.
@@ -357,7 +381,7 @@ const decide = (input: MomentumInput): MomentumOutput => {
         : null;
     const entrySignal =
       config.entryTrigger === 'trend'
-        ? fastNow.gt(slowNow.mul(band))
+        ? emas().fastNow.gt(emas().threshold)
         : config.entryTrigger === 'breakout'
           ? breakout !== null && new Decimal(lastCandle.close).gt(breakout)
           : config.entryTrigger === 'impulse'
@@ -375,7 +399,7 @@ const decide = (input: MomentumInput): MomentumOutput => {
                       new Decimal(market.currentPrice).lt(weekendGap.refClose)
                     : config.entryTrigger === 'trendQuality'
                       ? trendQuality?.fired === true
-                      : crossUp;
+                      : emas().crossUp;
     // The below-trend layer's range, read only when that layer can act: the breakout or MA cluster trigger with the layer on.
     const belowTrend = config.belowTrendBreakout;
     const belowBreakout =
@@ -397,7 +421,11 @@ const decide = (input: MomentumInput): MomentumOutput => {
       belowSignal && !(entrySignal && gate === 'pass') ? ('below-trend' as const) : null;
     if (entrySignal || belowSignal) {
       // One entry per candle. The signal (cross-up, or fast above slow under `trend`) reads the last CLOSED candles, so it stays true for the rest of the candle it fired on: a position stopped out inside that window would otherwise re-enter at the price the stop just rejected, unbounded. Checked before the trend gate so a repeat attempt does not report itself as a trend-filter veto.
-      if (lastEntryCandle(state) === lastCandle.closeTimeMs) {
+      // The newest closed candle closed before the last exit, so the position that just closed already held through its signal; the first candle to close after the exit may enter.
+      const stale =
+        lastEntryCandle(state) === lastCandle.closeTimeMs ||
+        (typeof state.lastExitMs === 'number' && lastCandle.closeTimeMs < state.lastExitMs);
+      if (stale) {
         return hold(
           state,
           [
@@ -475,9 +503,7 @@ const decide = (input: MomentumInput): MomentumOutput => {
       lastCandle.closeTimeMs,
       candles,
       {
-        fastNow,
-        slowNow,
-        threshold: slowNow.mul(band),
+        emas,
         breakout,
         belowBreakout,
         impulse,
@@ -495,7 +521,7 @@ const decide = (input: MomentumInput): MomentumOutput => {
   return evaluateExit(
     { ...scoped, config: configForEntryLayer(config, state.entryLayer) },
     state.entryPrice,
-    crossDown,
+    emas().crossDown,
     lastCandle,
     candles,
     forceSell,
@@ -508,9 +534,8 @@ const evaluateEntry = (
   candleCloseMs: number,
   candles: readonly Candle[],
   signal: {
-    fastNow: Decimal;
-    slowNow: Decimal;
-    threshold: Decimal;
+    /** Lazy for the reason given where {@link decide} builds it: only the `trend` and `cross` holds below read it. */
+    emas: () => EmaCross;
     breakout: Decimal | null;
     belowBreakout: Decimal | null;
     impulse: ImpulseReading | null;
@@ -680,7 +705,7 @@ const evaluateEntry = (
   }
   if (!entrySignal) {
     // A bare "no signal" cannot tell an operator, or an agent reading the tick trace, whether the coin is about to cross or crossed weeks ago and must fall back first. The EMA values answer that without recomputing them from candles.
-    const { fastNow, slowNow, threshold } = signal;
+    const { fastNow, slowNow, threshold } = signal.emas();
     return hold(state, [
       log('debug', 'momentum: flat, no entry signal', {
         symbol: market.symbol,

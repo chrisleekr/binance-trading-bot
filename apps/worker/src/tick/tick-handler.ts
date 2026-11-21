@@ -28,7 +28,7 @@ import {
   PROTECTIVE_STOP_UNPLACED_PERSISTENCE_MS,
   type ManualOverridePayload,
 } from '@app/contracts';
-import { entryHaltKeys } from '@app/db';
+import { entryHaltKeys, profileRepoFromScope } from '@app/db';
 import type { TickJobData } from 'queues/job-payloads.js';
 import { callAsync } from 'lib/call-async.js';
 import { raceDeadline } from 'lib/race-deadline.js';
@@ -46,6 +46,12 @@ import { buildTickInput, type BuiltTick, type WrittenCondition } from './build-t
 import { errorMessage } from '@app/core/error';
 import type { DecisionFailure, TickHandlerDeps, TickResult } from './tick-types.js';
 import { applyEntryHalts } from './halt-filter.js';
+import {
+  acquireLease,
+  applyPositionCap,
+  POSITION_CAP_RECENT_FILL_WINDOW_MS,
+  positionCapKey,
+} from './position-cap.js';
 import { extractLivePrice, mapEventToTrigger, tickIntervals } from './tick-event.js';
 import {
   redisUnavailableSkip,
@@ -160,6 +166,9 @@ export const createTickHandler = (
   const clock = deps.clock ?? { nowMs: () => Date.now() };
   const rng = deps.rng ?? { next: () => 0 };
   const persistTimeoutMs = deps.persistTimeoutMs ?? DEFAULT_PERSIST_TIMEOUT;
+  const listHeldSymbols =
+    deps.listHeldSymbols ??
+    ((scope, filledSince) => profileRepoFromScope(scope).orders.listHeldSymbols(filledSince));
 
   return async (job) => {
     const data = job.data;
@@ -200,8 +209,10 @@ export const createTickHandler = (
         // Best-effort stamp of operational tick metadata. Deadline-bounded (see
         // `raceDeadline`): a timeout, a rejection or a synchronous throw here only
         // delays the UI tick-health by one tick and never bubbles to the strategy.
-        const stampTickMeta = (latencyMs: number, error: string | null): Promise<void> =>
-          raceDeadline(
+        const stampTickMeta = (latencyMs: number, error: string | null): Promise<void> => {
+          // The timeout warn alone cannot tell a blocked event loop from a slow Redis reply. A deadline timer that fires far past STAMP_TIMEOUT_MS ran late, which only a stalled loop causes; one near it means the reply itself was slow. performance.now() is monotonic and cannot throw outside the guard, unlike the injected clock.
+          const armedAt = performance.now();
+          return raceDeadline(
             // The key builder, the clock read, the ISO format and the serialise all sit
             // inside the thunk: each can throw, and outside it any of them would unwind a
             // tick that has already acted. `latencyMs` and `error` stay caller-supplied,
@@ -219,7 +230,11 @@ export const createTickHandler = (
             STAMP_TIMEOUT_MS,
             () => {
               deps.logger.warn(
-                { profileId, symbol },
+                {
+                  profileId,
+                  symbol,
+                  deadlineFiredAfterMs: Math.round(performance.now() - armedAt),
+                },
                 `tick: stampTickMeta exceeded ${STAMP_TIMEOUT_MS}ms (UI tick-health will lag one tick)`,
               );
             },
@@ -230,6 +245,7 @@ export const createTickHandler = (
               );
             },
           );
+        };
 
         const profile = await deps.resolveProfile(operatorId, accountId, profileId, symbol);
         if (!profile) {
@@ -366,7 +382,13 @@ export const createTickHandler = (
           // assembler-drift bug, before it reaches tick(). A throw here is caught
           // below like any tick failure: the job DLQs and state stays uncommitted.
           strategy.bundleSchema.parse(tickInput.bundle);
+          // Tick latency alone cannot say whether a saturated event loop is spent inside the plugin or in the handler around it, so the pure call is timed on its own. performance.now() because the injected clock is millisecond-grained and a flat tick can cost less than one.
+          const strategyStartedAt = performance.now();
           output = strategy.tick(tickInput) as TickOutput<unknown>;
+          deps.metrics?.record('strategy_tick_ms', performance.now() - strategyStartedAt, {
+            profileId,
+            symbol,
+          });
         } catch (err) {
           // A failure at the strategy boundary is deterministic in this override:
           // `tick()` is pure, and an assembler-drift bundle re-assembles the same
@@ -469,15 +491,63 @@ export const createTickHandler = (
           deps.logger,
           { profileId, symbol },
         );
-        const refusalState = parseOrderRefusalState(raw.orderRefusal);
-        const placementDecision = halt.kept.find(
-          (decision): decision is PlacementDecision =>
-            decision.type === 'place-order' || decision.type === 'replace-order',
-        );
-        const refusalGate =
-          refusalState !== undefined && placementDecision !== undefined
-            ? orderRefusalGate(refusalState, placementDecision, clock.nowMs())
-            : { defer: false, probe: false };
+        // The cap decides over every symbol's held state at once, so the count and the applyAll that makes it true must not interleave with a sibling symbol's tick: both could read "one slot left" and both enter. The lease is a per-profile in-process chain key taken while already inside this symbol's chain, never the reverse. An operator override is an explicit order and is exempt, so a tick carrying one takes no lease and does no read. The cap off (0) costs neither.
+        let releaseCap: () => void = () => undefined;
+        let keptDecisions = halt.kept;
+        const carriesOverride =
+          (tickInput.bundle as { override?: ManualOverridePayload | null }).override != null;
+        if (
+          profile.maxOpenPositions > 0 &&
+          !carriesOverride &&
+          halt.kept.some(
+            (d) =>
+              (d.type === 'place-order' || d.type === 'replace-order') && d.intent.side === 'BUY',
+          )
+        ) {
+          releaseCap = await acquireLease(deps.chain, positionCapKey(profileId));
+          try {
+            const heldSymbols = await listHeldSymbols(
+              profile.scope,
+              new Date(clock.nowMs() - POSITION_CAP_RECENT_FILL_WINDOW_MS),
+            );
+            const capped = applyPositionCap(
+              halt.kept,
+              symbol,
+              new Set(heldSymbols),
+              profile.maxOpenPositions,
+            );
+            if (capped.dropped.length > 0) {
+              deps.logger.warn(
+                { profileId, symbol, held: capped.held, max: profile.maxOpenPositions },
+                'position cap reached — new BUY suppressed',
+              );
+              keptDecisions = capped.kept;
+            }
+          } catch (err) {
+            deps.logger.warn(
+              { profileId, symbol, err },
+              'position cap held-symbols read failed — proceeding without cap',
+            );
+          }
+        }
+        // A throw between taking the lease and the release `finally` below would hold the profile's key forever and wedge every later entry of every symbol of the profile, so this stretch releases on its own way out too.
+        let refusalState: ReturnType<typeof parseOrderRefusalState>;
+        let placementDecision: PlacementDecision | undefined;
+        let refusalGate: { readonly defer: boolean; readonly probe: boolean };
+        try {
+          refusalState = parseOrderRefusalState(raw.orderRefusal);
+          placementDecision = keptDecisions.find(
+            (decision): decision is PlacementDecision =>
+              decision.type === 'place-order' || decision.type === 'replace-order',
+          );
+          refusalGate =
+            refusalState !== undefined && placementDecision !== undefined
+              ? orderRefusalGate(refusalState, placementDecision, clock.nowMs())
+              : { defer: false, probe: false };
+        } catch (err) {
+          releaseCap();
+          throw err;
+        }
         // Did an earlier tick for this (profile, symbol) leave an order un-placed and
         // its state un-advanced? Then this tick is that retry, and the audit says so.
         // Read as part of the tick's opening snapshot pipeline rather than as its own
@@ -509,42 +579,46 @@ export const createTickHandler = (
         // still sees `orderAttempted === false` and can hand the override back; state
         // is not committed and the audit is not published until further down, so
         // returning here leaves nothing half-applied.
-        if (!(await overrideTicket.whenClaimed())) {
-          deps.metrics?.record('tick_throttled_override_claim', 1, { profileId, symbol });
-          const claimLatencyMs = clock.nowMs() - startMs;
-          await stampTickMeta(claimLatencyMs, null);
-          return throttledSkip({ profileId, symbol, latencyMs: claimLatencyMs });
-        }
-        // Past this line an order may be on the wire, so an abort can no longer
-        // re-arm the override: the next tick would place a second one under a fresh
-        // clientOrderId, which Binance's open-order dedup does not catch. Coarse on
-        // purpose (any placement — a `place-order` or a `replace-order`, not just the
-        // override's) — the same fail-safe the defer path applies, and for the same
-        // reason: no plugin is trusted to have stamped the override id on the order it
-        // emitted. `cancel-order` alone does not trip it, matching that same scoping:
-        // nothing can be left resting.
-        if (placementDecision !== undefined && !refusalGate.defer) {
-          overrideTicket.markOrderAttempted();
-        }
-        // That marker also started the pick-up breadcrumb, and this is the last point
-        // at which it is still worth having: past here an order may be on the wire,
-        // and a crash then must not leave a row that reads "no tick ever ran inside
-        // the window". Bounded and non-throwing, so the worst it can cost a dispatch
-        // is the persist budget; a tick that emitted no order stamps nothing and this
-        // resolves immediately.
-        await overrideTicket.whenPickedUpStamped();
         try {
-          applied = await deps.executor.applyAll(
-            { userId: operatorId, profileId, clock, strategyName: strategy.name },
-            accountId,
-            halt.kept,
-            profile.scope,
-            { quoteAsset: profile.quoteAsset, weightLimit1m: profile.weightLimit1m },
-            refusalGate.defer ? { deferRepeatedRefusal: true } : undefined,
-          );
-        } catch (err) {
-          await stampTickMeta(clock.nowMs() - startMs, errorMessage(err));
-          throw err;
+          if (!(await overrideTicket.whenClaimed())) {
+            deps.metrics?.record('tick_throttled_override_claim', 1, { profileId, symbol });
+            const claimLatencyMs = clock.nowMs() - startMs;
+            await stampTickMeta(claimLatencyMs, null);
+            return throttledSkip({ profileId, symbol, latencyMs: claimLatencyMs });
+          }
+          // Past this line an order may be on the wire, so an abort can no longer
+          // re-arm the override: the next tick would place a second one under a fresh
+          // clientOrderId, which Binance's open-order dedup does not catch. Coarse on
+          // purpose (any placement — a `place-order` or a `replace-order`, not just the
+          // override's) — the same fail-safe the defer path applies, and for the same
+          // reason: no plugin is trusted to have stamped the override id on the order it
+          // emitted. `cancel-order` alone does not trip it, matching that same scoping:
+          // nothing can be left resting.
+          if (placementDecision !== undefined && !refusalGate.defer) {
+            overrideTicket.markOrderAttempted();
+          }
+          // That marker also started the pick-up breadcrumb, and this is the last point
+          // at which it is still worth having: past here an order may be on the wire,
+          // and a crash then must not leave a row that reads "no tick ever ran inside
+          // the window". Bounded and non-throwing, so the worst it can cost a dispatch
+          // is the persist budget; a tick that emitted no order stamps nothing and this
+          // resolves immediately.
+          await overrideTicket.whenPickedUpStamped();
+          try {
+            applied = await deps.executor.applyAll(
+              { userId: operatorId, profileId, clock, strategyName: strategy.name },
+              accountId,
+              keptDecisions,
+              profile.scope,
+              { quoteAsset: profile.quoteAsset, weightLimit1m: profile.weightLimit1m },
+              refusalGate.defer ? { deferRepeatedRefusal: true } : undefined,
+            );
+          } catch (err) {
+            await stampTickMeta(clock.nowMs() - startMs, errorMessage(err));
+            throw err;
+          }
+        } finally {
+          releaseCap();
         }
 
         // What happened to the ORDER decisions. `applyAll` stops the chain at the
@@ -846,10 +920,12 @@ export const createTickHandler = (
         // A deferred batch is excluded: nothing failed, the resting stop is
         // still protecting, and the next tick re-emits. Alerting on it would
         // train the operator to ignore the one channel that carries real
-        // order failures.
+        // order failures. A result superseded by a fill is excluded too: the
+        // stop already closed the position, so nothing is unguarded.
         if (
           failure !== undefined &&
           failure.deferred !== true &&
+          failure.supersededByFill !== true &&
           orderFailure !== undefined &&
           persistedRefusalEvent !== 'tripped' &&
           persistedRefusalEvent !== 'probe-refused' &&
@@ -1014,6 +1090,7 @@ export const createTickHandler = (
                   reason: a.result.reason,
                   phase: a.result.phase,
                   retryable: a.result.retryable,
+                  ...(a.result.supersededByFill === true ? { supersededByFill: true } : {}),
                 }),
           })),
         };

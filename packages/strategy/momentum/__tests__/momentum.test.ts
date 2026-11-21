@@ -357,6 +357,28 @@ describe('momentum.tick — entry', () => {
     ]);
   });
 
+  // A state trigger stays true on every closed candle, so a candle that closed before the last exit (while the stopped position was still held) must not buy straight back in; the first candle to close at or after the exit may.
+  it.each([
+    ['refuses a candle that closed before the exit', LAST_CLOSE_MS + 1, false],
+    ['allows the candle that closed at the exit instant', LAST_CLOSE_MS, true],
+    ['allows a candle that closed after the exit', LAST_CLOSE_MS - 1, true],
+  ])('trend trigger: %s', (_name, lastExitMs, enters) => {
+    const out = momentum.tick(
+      mkInput({
+        closes: mkCandles(CROSS_UP),
+        currentPrice: '14',
+        state: { ...flat(), lastExitMs },
+        config: cfg({ entryTrigger: 'trend' }),
+      }),
+    );
+    if (enters) {
+      expect(out.decisions[0]).toMatchObject({ type: 'place-order', intent: { side: 'BUY' } });
+    } else {
+      expect(out.decisions).toEqual([{ type: 'noop' }]);
+      expect(out.nextState.entryBlocker?.reason).toBe('already-entered-this-candle');
+    }
+  });
+
   it('allows the entry once a later candle carries the cross', () => {
     const out = momentum.tick(
       mkInput({
@@ -2909,6 +2931,23 @@ describe('momentumPositionAdapter', () => {
       heldQuantity: null,
       entryLayer: null,
     });
+  });
+
+  it('records the exit time from an empty fill carrying atMs, on a held or an already-flat body', () => {
+    expect(
+      momentumPositionAdapter.applyFill(body(), { kind: 'empty', atMs: 123 })?.lastExitMs,
+    ).toBe(123);
+    const flatBody = { ...initialMomentumState(), entryPrice: null, heldQuantity: null };
+    expect(momentumPositionAdapter.applyFill(flatBody, { kind: 'empty', atMs: 123 })).toEqual({
+      ...flatBody,
+      lastExitMs: 123,
+    });
+    expect(
+      momentumPositionAdapter.applyFill(
+        { ...flatBody, lastExitMs: 123 },
+        { kind: 'empty', atMs: 123 },
+      ),
+    ).toBeNull();
   });
 
   it('skips the write on an empty fill when already flat (null held)', () => {

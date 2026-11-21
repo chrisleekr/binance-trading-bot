@@ -7,7 +7,7 @@ import { decimalString, DecimalString } from './decimal.js';
  * which the pure per-(profile,symbol) strategy must not see, invariant #1).
  * Strategy-free, so it lives in `@app/contracts`.
  *
- * Three entry breakers live here, and every one of them only ever pauses NEW BUYS: open positions, their protective stops and their exits keep running, so a breaker can never lock in a loss at the worst moment. The daily-loss limit measures realised loss since 00:00 UTC and lifts at the next UTC midnight. The loss-streak guard counts losing closed cycles inside a rolling lookback, which is what catches a cluster of losses that straddles midnight and so is invisible to the daily limit. The drawdown guard measures realised peak-to-trough inside a rolling lookback, which is what catches a slide built from many small losses that never breaches a single day's limit. Both guards default OFF, so a stored config that predates them behaves exactly as it does today.
+ * Three entry breakers and one position cap live here, and every one of them only ever pauses NEW BUYS: open positions, their protective stops and their exits keep running, so a breaker can never lock in a loss at the worst moment. The daily-loss limit measures realised loss since 00:00 UTC and lifts at the next UTC midnight. The loss-streak guard counts losing closed cycles inside a rolling lookback, which is what catches a cluster of losses that straddles midnight and so is invisible to the daily limit. The drawdown guard measures realised peak-to-trough inside a rolling lookback, which is what catches a slide built from many small losses that never breaches a single day's limit. Both guards default OFF, so a stored config that predates them behaves exactly as it does today. The position cap is not a breaker (nothing trips and nothing expires): it refuses a buy on a coin the profile does not hold while the profile already holds its limit of coins, and it also defaults OFF.
  * (A percent-of-equity limit is a planned follow-up; this ships fixed-quote
  * limits, which need no live-equity resolution.)
  */
@@ -108,6 +108,15 @@ export const RiskConfigSchema = withParsedDefault(
     // Each guard is wrapped in its own `withParsedDefault` because the helper above is a shallow default, not a deep merge: an unwrapped nested object would be absent entirely from a stored `{dailyLossLimitQuote:'9'}` row, and the worker reads this column through `safeParse` on every cron cycle.
     lossStreak: withParsedDefault(LossStreakGuardSchema),
     drawdown: withParsedDefault(DrawdownGuardSchema),
+    maxOpenPositions: z
+      .number()
+      .int()
+      .min(0)
+      .max(50)
+      .default(0)
+      .describe(
+        'How many different coins this profile may hold at once. While it holds that many, a new buy on another coin waits until one is sold. Buying more of a coin it already holds, selling, stops and cancels are not affected. 0 turns this limit off.',
+      ),
   }),
 );
 export type StoredRiskConfig = z.infer<typeof RiskConfigSchema>;

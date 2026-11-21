@@ -27,7 +27,7 @@ const profileConfig = {
   sell: { enabled: true },
 };
 
-const stubRepo = (overrideConfig: unknown): unknown => ({
+const stubRepo = (overrideConfig: unknown, riskConfig?: unknown): unknown => ({
   // The proven scope `profileRepo` carries; buildProfileTickContext exposes
   // it so the tick threads one ownership proof into the StatePort (#397).
   scope: { operatorId: userId, accountId, profileId },
@@ -38,6 +38,7 @@ const stubRepo = (overrideConfig: unknown): unknown => ({
       strategyVersion: '2.0.0',
       binanceMode: 'test',
       quoteAsset: 'USDT',
+      riskConfig,
     }),
   },
   profileSymbols: {
@@ -262,5 +263,28 @@ describe('buildProfileTickContext — per-symbol override merge', () => {
         },
       ],
     });
+  });
+});
+
+describe('buildProfileTickContext — maxOpenPositions', () => {
+  it('reads the cap from the stored risk config', async () => {
+    (profileRepo as Mock).mockResolvedValue(stubRepo(undefined, { maxOpenPositions: 2 }));
+    const ctx = await buildProfileTickContext(deps, userId, accountId, profileId, 'BTCUSDT');
+    expect(ctx?.maxOpenPositions).toBe(2);
+  });
+
+  it('is off (0) when the profile has no risk config', async () => {
+    (profileRepo as Mock).mockResolvedValue(stubRepo(undefined, null));
+    const ctx = await buildProfileTickContext(deps, userId, accountId, profileId, 'BTCUSDT');
+    expect(ctx?.maxOpenPositions).toBe(0);
+  });
+
+  it('fails open to 0 when the stored risk config does not parse', async () => {
+    // A valid-looking cap next to an invalid sibling field: the whole block is rejected, so the cap must not leak through half-parsed.
+    (profileRepo as Mock).mockResolvedValue(
+      stubRepo(undefined, { maxOpenPositions: 2, dailyLossLimitQuote: 'not-a-number' }),
+    );
+    const ctx = await buildProfileTickContext(deps, userId, accountId, profileId, 'BTCUSDT');
+    expect(ctx?.maxOpenPositions).toBe(0);
   });
 });

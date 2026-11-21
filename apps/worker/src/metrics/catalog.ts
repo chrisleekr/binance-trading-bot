@@ -62,6 +62,7 @@ const AUDIT_BATCH_BUCKETS = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 500
 export type MetricName =
   | 'portfolio_risk_halt_total'
   | 'tick_latency_ms'
+  | 'strategy_tick_ms'
   | 'tick_total'
   | 'tick_failures_total'
   | 'decision_count'
@@ -118,6 +119,13 @@ export const CATALOG: Readonly<Record<MetricName, MetricSpec>> = {
   tick_latency_ms: {
     kind: 'histogram',
     help: 'Tick handler wall-clock latency in milliseconds.',
+    labelNames: ['profileId', 'symbol'],
+    buckets: LATENCY_MS_BUCKETS,
+  },
+  // The handler runs every profile on one thread, so a slow plugin and a slow handler both show up as the same rising `tick_latency_ms`. This is the plugin's share: `rate(strategy_tick_ms_sum)` is the seconds per second the main thread spends inside `strategy.tick()`.
+  strategy_tick_ms: {
+    kind: 'histogram',
+    help: 'Synchronous time inside the pure strategy.tick() call in milliseconds, on ticks where it returned.',
     labelNames: ['profileId', 'symbol'],
     buckets: LATENCY_MS_BUCKETS,
   },

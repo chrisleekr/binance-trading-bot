@@ -39,4 +39,9 @@ export const riskNotes: FieldNotes = {
     expect:
       'New buys stay paused for this long from the moment the guard trips, and the pause is never extended while it runs. When it expires the bot re-checks the window and may pause again. Selling, cancelling, and protective stops keep working the whole time.',
   },
+  maxOpenPositions: {
+    when: 'Set it for a profile bound to many coins that should only hold a few at a time, such as a trial profile on seven coins that may hold two. Leave it at 0 when the strategy already limits how many coins it holds.',
+    expect:
+      'While the profile holds that many coins, a new buy on another coin is dropped and can happen on a later signal once a slot frees up. A coin counts while the bot has a cost-basis record for it, a buy order resting on it, or a buy that filled in the last 15 minutes; wallet balances and dust never count. Buying more of a coin already held, selling, stops, cancels and your own manual overrides are not affected. It applies to live trading only, not to backtests, and if the bot cannot read its holdings the buy goes through. `0` turns this limit off.',
+  },
 };

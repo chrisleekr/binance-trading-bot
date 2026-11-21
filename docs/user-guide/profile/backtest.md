@@ -28,7 +28,7 @@ The Backtest section opens on its **Configure** sub-tab, where you set the windo
 
 - **Strategy config** — prefilled from the profile's live config. Edit any field to test a different setup; the run uses these values, not the saved config. **Reset to current live config** discards your edits. Your live config is unchanged until you apply a result.
 
-Press **Run backtest**.
+Press **Run backtest**. An account can have at most 5 backtests waiting or running at once, counted across all its profiles. A sixth is refused until one finishes or you abort one.
 
 ## Results
 

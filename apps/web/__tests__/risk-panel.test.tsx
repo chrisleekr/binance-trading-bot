@@ -39,6 +39,7 @@ const dashboard = (
       lookbackHours: 72,
       pauseHours: 24,
     },
+    maxOpenPositions: 0,
   },
   configInvalid,
   quoteAsset,

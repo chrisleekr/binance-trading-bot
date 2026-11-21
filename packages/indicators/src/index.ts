@@ -120,6 +120,28 @@ export const ema = (w: CandleWindow, period: number): Decimal => {
 };
 
 /**
+ * The EMA of the window and of the same window without its last candle, from one pass. A cross detector needs both, and the shorter one is the value {@link ema} holds just before its final step, so asking for them separately walks the window twice for the same arithmetic. Each value equals the matching {@link ema} call exactly.
+ *
+ * @param w - Candles, oldest first. Needs `period + 1` of them, so the window without its last candle can still seed.
+ * @param period - EMA length in candles.
+ * @returns `now` for the whole window and `previous` for the window minus its last candle.
+ */
+export const emaWithPrevious = (
+  w: CandleWindow,
+  period: number,
+): { readonly now: Decimal; readonly previous: Decimal } => {
+  requirePeriod(w.slice(0, -1), period, 'emaWithPrevious');
+  const k = new Decimal(2).dividedBy(period + 1);
+  let now = sma(w.slice(0, period), period);
+  let previous = now;
+  for (const c of w.slice(period)) {
+    previous = now;
+    now = new Decimal(c.close).minus(now).times(k).plus(now);
+  }
+  return { now, previous };
+};
+
+/**
  * Wilder's-smoothing Relative Strength Index. Wilder (not Cutler) is the
  * strategy's choice; recomputing fixtures with a different smoothing would
  * silently change historical decisions. Needs `period + 1` candles to derive

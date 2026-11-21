@@ -176,10 +176,10 @@ export const maClusterReading = (
   if (candles.length < maClusterNeed(raw)) return null;
   const now = breakReading(candles, raw);
   if (!maClusterConfirmBreak(raw)) return { ...now, unconfirmed: false };
-  // The candle before was a qualifying break, so this one buys if it still closes above the top. Stateless, so a restart between the two candles changes nothing.
-  const prev = breakReading(candles.slice(0, -1), raw);
+  // The candle before was a qualifying break, so this one buys if it still closes above the top. Stateless, so a restart between the two candles changes nothing. Judging the candle before is a second full pass over the window on every tick, so it runs only once this close is above the top; at or under it no earlier break can buy.
   const close = new Decimal(candles[candles.length - 1]!.close);
-  return { ...now, fired: prev.fired && close.gt(now.top), unconfirmed: now.fired };
+  const fired = close.gt(now.top) && breakReading(candles.slice(0, -1), raw).fired;
+  return { ...now, fired, unconfirmed: now.fired };
 };
 
 /**

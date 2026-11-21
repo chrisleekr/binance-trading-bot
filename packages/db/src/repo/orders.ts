@@ -1,4 +1,5 @@
-import { and, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, or, sql } from 'drizzle-orm';
+import { avgEntryPrices } from '../schema/avg-entry-prices.js';
 import { accounts } from '../schema/accounts.js';
 import { orders, type OrderInsert, type OrderRow } from '../schema/orders.js';
 import type { AccountId, UserId } from '@app/contracts';
@@ -125,6 +126,38 @@ export async function listLiveForProfile(scope: ProfileScope): Promise<OrderRow[
     .select()
     .from(orders)
     .where(and(eq(orders.profileId, scope.profileId), isNull(orders.closedAt)));
+}
+
+/**
+ * The distinct symbols this profile holds or is entering, for the max-open-positions cap. Counts the bot's own records, never wallet balances (dust sits there): a cost-basis row (the fill-adopter deletes it on a full exit), a resting BUY (NEW or PARTIALLY_FILLED), and a BUY that FILLED at or after `filledSince`.
+ *
+ * The recent-fill leg exists because the fill-adopter writes the cost-basis row asynchronously after a MARKET entry fills, so a just-filled entry would otherwise be uncounted for a moment. It can over-count a symbol that already stopped out inside the window, which only delays a buy, the safe direction.
+ *
+ * @param scope - The profile whose rows are read; another profile's rows on the same account are excluded.
+ * @param filledSince - Earliest `created_at` of a FILLED BUY that still counts as an entry in flight.
+ * @returns Each held or entering symbol once, in no particular order.
+ */
+export async function listHeldSymbols(scope: ProfileScope, filledSince: Date): Promise<string[]> {
+  const [basis, entries] = await Promise.all([
+    scope.db
+      .select({ symbol: avgEntryPrices.symbol })
+      .from(avgEntryPrices)
+      .where(eq(avgEntryPrices.profileId, scope.profileId)),
+    scope.db
+      .selectDistinct({ symbol: orders.symbol })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.profileId, scope.profileId),
+          eq(orders.side, 'BUY'),
+          or(
+            inArray(orders.status, ['NEW', 'PARTIALLY_FILLED']),
+            and(eq(orders.status, 'FILLED'), gte(orders.createdAt, filledSince)),
+          ),
+        ),
+      ),
+  ]);
+  return [...new Set([...basis, ...entries].map((r) => r.symbol))];
 }
 
 /**

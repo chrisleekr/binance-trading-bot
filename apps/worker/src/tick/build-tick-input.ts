@@ -103,6 +103,8 @@ export interface ProfileTickContext extends ProfileResolved {
    * the cap, so a disarmed profile pays nothing for it.
    */
   readonly needsAccountDeployedQuote: boolean;
+  /** Most distinct coins this profile may hold at once, from its stored risk config; 0 turns the cap off. Read here so the tick handler pays no extra read when the cap is off. */
+  readonly maxOpenPositions: number;
 }
 
 /**

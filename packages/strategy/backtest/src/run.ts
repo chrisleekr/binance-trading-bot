@@ -269,7 +269,8 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
     if (drained.length === 0 && !buyRejected && !sellRejected) return;
     let state = states.get(symbol) ?? strategy.initialState(config);
     let prior = positionLedger.get(symbol) ?? null;
-    for (const fill of drained) ({ state, prior } = adoptOne(position, state, prior, fill));
+    for (const fill of drained)
+      ({ state, prior } = adoptOne(position, state, prior, fill, clock.nowMs()));
     positionLedger.set(symbol, prior);
     states.set(symbol, state);
     // A strategy that records its position when it places the entry (momentum) is left claiming coins the refused BUY never bought. Live discards that tick's state, so flatten it here; otherwise the run carries a phantom position that blocks re-entry and arms stops against nothing. Only a claim no fill backs is cleared.
@@ -604,6 +605,7 @@ export async function runBacktest<C, S, B extends Readonly<Record<string, unknow
  * @param state - The symbol's state before this fill.
  * @param prior - The position built from earlier fills only, the backtest's stand-in for live's durable avg-entry row; never read from state, which a strategy may have pre-filled when it placed the order.
  * @param fill - The executor fill to fold.
+ * @param atMs - The replay clock when the fill is adopted (the close of the frame it was evaluated against); stamped on an emptying fill as the exit time, ignored otherwise.
  * @returns The next state, and the next fills-only position (null once flat) to pass as `prior` for the following fill.
  */
 export function adoptOne<S>(
@@ -611,6 +613,7 @@ export function adoptOne<S>(
   state: S,
   prior: PositionView | null,
   fill: DrainedFill,
+  atMs?: number,
 ): { state: S; prior: PositionView | null } {
   const adopted = resolveFill(prior, { side: fill.side, price: fill.price, quantity: fill.qty });
   const next: PositionView | null =
@@ -619,7 +622,8 @@ export function adoptOne<S>(
       : adopted.kind === 'sell-reduce'
         ? { avgEntryPrice: prior?.avgEntryPrice ?? null, heldQuantity: adopted.heldQuantity }
         : null;
-  return { state: position.applyFill(state, adopted) ?? state, prior: next };
+  const applied = adopted.kind === 'empty' && atMs !== undefined ? { ...adopted, atMs } : adopted;
+  return { state: position.applyFill(state, applied) ?? state, prior: next };
 }
 
 /**

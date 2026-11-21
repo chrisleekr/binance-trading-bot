@@ -114,7 +114,8 @@ export function registerBacktestWorker(queueSet: QueueSet, deps: BacktestWorkerD
         void p.backtestRuns
           .get(runId)
           .then((r) => {
-            if (r?.status === 'cancelled') cancelled = true;
+            // A row deleted with its profile has no owner to complete it and no longer counts toward the account cap, so stop the orphan replay.
+            if (r === null || r.status === 'cancelled') cancelled = true;
           })
           .catch(() => undefined);
       }, 2000);

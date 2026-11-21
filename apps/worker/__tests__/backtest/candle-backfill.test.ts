@@ -131,6 +131,24 @@ describe('backfillCandles', () => {
     );
   });
 
+  it('stops paging once shouldCancel turns true, across gaps', async () => {
+    // Two gaps, the first three pages long. A cancel seen after the first page must stop the current gap and every later one, or a cancelled year-long run keeps loading the live process.
+    const span = BINANCE_MAX_KLINE_LIMIT * 3 - 1;
+    const { deps, getKlines } = harness({
+      gaps: [
+        { fromMs: 0, toMs: span * MIN },
+        { fromMs: (span + 10) * MIN, toMs: (span + 20) * MIN },
+      ],
+      nowMs: 100_000 * MIN,
+    });
+    const res = await backfillCandles(
+      { ...deps, shouldCancel: () => getKlines.mock.calls.length >= 1 },
+      { symbol: 'BTCUSDT', interval: '1m', fromMs: 0, toMs: (span + 20) * MIN },
+    );
+    expect(getKlines).toHaveBeenCalledTimes(1);
+    expect(res).toEqual({ inserted: BINANCE_MAX_KLINE_LIMIT, requests: 1 });
+  });
+
   it('asks for the largest page the exchange accepts', async () => {
     // The page size is the exchange ceiling, not a hand-picked number. Klines weight is flat across every legal limit, so paging below the ceiling buys no rate-limit headroom and only multiplies round trips.
     const { deps, getKlines } = harness({

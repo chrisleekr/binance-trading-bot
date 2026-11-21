@@ -120,6 +120,8 @@ export interface FillEvent {
 
 export interface FillAdopterDeps {
   readonly db: Database;
+  /** Source of the exit time stamped on an emptying SELL; defaults to `Date.now()`. */
+  readonly clock?: { nowMs(): number };
   readonly chain: ChainByKey;
   readonly logger: Logger;
   /**
@@ -937,8 +939,10 @@ const applyResolution = async (
   }
   if (resolution.kind === 'clear') {
     // Full exit: the plugin flattens its own position body.
+    // Adoption runs within seconds of the fill on the user stream; a late REST backfill stamps late, which can only suppress one extra candle, the safe direction. Only a SELL is an exit, so a BUY clear carries no exit time.
+    const atMs = resolution.side === 'SELL' ? (deps.clock?.nowMs() ?? Date.now()) : undefined;
     await deps.statePort.mutate(scope, event.symbol, (state) =>
-      position.applyFill(state, { kind: 'empty' }),
+      position.applyFill(state, atMs === undefined ? { kind: 'empty' } : { kind: 'empty', atMs }),
     );
     deps.logger.info(
       {

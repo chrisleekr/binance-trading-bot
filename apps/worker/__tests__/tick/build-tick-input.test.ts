@@ -94,6 +94,7 @@ const makeProfile = (overrides: Partial<ProfileTickContext> = {}): ProfileTickCo
   candleInterval: '1h',
   technicalsConfig: {} as unknown as TechnicalsBundleConfig,
   needsAccountDeployedQuote: false,
+  maxOpenPositions: 0,
   ...overrides,
 });
 

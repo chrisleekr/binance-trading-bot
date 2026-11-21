@@ -56,6 +56,7 @@ describe('RiskConfigSchema', () => {
       dailyLossLimitQuote: '0',
       lossStreak: OFF_LOSS_STREAK,
       drawdown: OFF_DRAWDOWN,
+      maxOpenPositions: 0,
     });
   });
 
@@ -64,6 +65,7 @@ describe('RiskConfigSchema', () => {
       dailyLossLimitQuote: '9',
       lossStreak: OFF_LOSS_STREAK,
       drawdown: OFF_DRAWDOWN,
+      maxOpenPositions: 0,
     });
   });
 

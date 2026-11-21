@@ -448,7 +448,46 @@ describe('replaceOrderHandler', () => {
       symbol: 'BTCUSDT',
       cause: 'cancel-2011-fill',
     });
+    expect(out).toMatchObject({
+      ok: false,
+      retryable: false,
+      phase: 'rejected',
+      supersededByFill: true,
+    });
+  });
+
+  // A FILLED stop smaller than the successor leaves base held, so the failure must keep alerting.
+  it('does not mark the result superseded when the filled stop is smaller than the successor', async () => {
+    const cancelReplaceOrder = cancelReplaceOrderMock(async () => {
+      throw new BinanceApiError(
+        { status: 400, code: -2022, msg: 'Order cancel-replace failed.', cancelLegCode: -2011 },
+        false,
+        'rejected',
+      );
+    });
+    const getOrder = vi.fn(async () => ({
+      orderId: 42,
+      status: 'FILLED',
+      updateTime: CANCEL_LEG_MS,
+      executedQty: '0.0004',
+    })) as unknown as BinanceRestClient['getOrder'];
+    const placeOrder = placeOrderMock(async () => ({
+      orderId: 44,
+      clientOrderId: 'client-exit',
+      status: 'FILLED',
+    }));
+    const binance = fakeBinance({ cancelReplaceOrder, placeOrder, getOrder });
+    const bindings = buildBindings({ binance });
+
+    const out = await replaceOrderHandler(
+      buildDeps(bindings, fakeRedis(), { enqueueSymbolReconcile: vi.fn() }),
+      CTX,
+      FUSED_CLOSE,
+    );
+
+    expect(placeOrder).not.toHaveBeenCalled();
     expect(out).toMatchObject({ ok: false, retryable: false, phase: 'rejected' });
+    expect(out).not.toHaveProperty('supersededByFill');
   });
 
   // Weight accounting is bookkeeping, not the money path. Every recording here is best-effort for the same reason: a Redis fault must not turn a completed exchange interaction into a reported failure, which would have the tick re-issue it. The probe added its own recording, so it needs its own proof it cannot fail the call.
@@ -567,6 +606,7 @@ describe('replaceOrderHandler', () => {
 
       expect(placeOrder).not.toHaveBeenCalled();
       expect(closeOrder).not.toHaveBeenCalled();
+      expect(out).not.toHaveProperty('supersededByFill');
       expect(enqueueSymbolReconcile).toHaveBeenCalledWith({
         profileId: PROFILE,
         symbol: 'BTCUSDT',
@@ -648,6 +688,7 @@ describe('replaceOrderHandler', () => {
     // The order moved no base, so there is no position drift to converge.
     expect(enqueueSymbolReconcile).not.toHaveBeenCalled();
     expect(out).toEqual({ ok: true });
+    expect(out).not.toHaveProperty('supersededByFill');
   });
 
   // Binance's documented partial-cancel body: a terminal CANCELED carrying the quantity that DID execute. The successor is still owed — there is base left to sell — but the fill is invisible to the stream, because `fill-adopter` drops every execution report whose order status is not FILLED. So this is the one shape that needs BOTH halves: re-place, and reconcile.
@@ -692,6 +733,8 @@ describe('replaceOrderHandler', () => {
     });
     // Retryable, unlike the FILLED withhold: base is still held, so the next tick must re-derive the size and try again rather than settle the exit as done.
     expect(out).toMatchObject({ ok: false, retryable: true, phase: 'rejected' });
+    // Base is still held, so the operator alert for this failure stays legitimate.
+    expect(out).not.toHaveProperty('supersededByFill');
     if (out.ok === false) expect(out.reason).toContain('partially filled (0.0004)');
   });
 

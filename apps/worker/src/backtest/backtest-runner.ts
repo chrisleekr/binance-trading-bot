@@ -5,7 +5,13 @@ import type { BinanceRestClient } from '@app/binance';
 import type { AnyStrategy, Candle, StrategyRegistry, SymbolInfo } from '@app/strategy-core';
 import { canonicalSymbols } from '@app/strategy-backtest';
 import { backfillCandles } from './candle-backfill.js';
-import { replayIntervalMs, replayIntervals, replayPrepared, sharedQuoteAsset } from './replay.js';
+import {
+  BacktestCancelledError,
+  replayIntervalMs,
+  replayIntervals,
+  replayPrepared,
+  sharedQuoteAsset,
+} from './replay.js';
 import { TECHNICALS_SOURCE_CANDLE_LIMIT } from 'technicals/rating-window.js';
 
 export interface BacktestRunnerDeps {
@@ -29,7 +35,7 @@ export interface RunProfileBacktestArgs {
   readonly effectiveConfig: unknown;
   /** Throttled progress callback: percent plus phase/count detail. */
   readonly onProgress?: (update: BacktestProgressUpdate) => void;
-  /** Cooperative-cancellation probe, checked on every replayed frame. When it returns true the replay rejects with `BacktestCancelledError`. */
+  /** Cooperative-cancellation probe, checked before every backfill page and on every replayed frame. When it returns true the run rejects with `BacktestCancelledError`. */
   readonly shouldCancel?: () => boolean;
 }
 
@@ -92,9 +98,12 @@ export async function runProfileBacktest(
           insertCandles: (rows) => repo.candles.insertNew(deps.db, rows),
           clock: deps.clock,
           logger: deps.logger,
+          ...(args.shouldCancel ? { shouldCancel: args.shouldCancel } : {}),
         },
         { symbol, interval, fromMs, toMs: params.toMs },
       );
+      // The replay loop only checks between frames, so a cancel during backfill must stop here or the run loads every remaining series first.
+      if (args.shouldCancel?.()) throw new BacktestCancelledError('in-flight');
       // `getRange` is inclusive at the top, and a bar opening at `toMs` is outside the run.
       const rows = await repo.candles.getRange(
         deps.db,
